@@ -1,0 +1,7 @@
+  - Two values in the first draft were wrong and the tests found them.
+────────────────────────────────────────────────────────────────────────────────
+  Earlier this dialog read "Enter to confirm · Esc to cancel", but the wording changed.
+────────────────────────────────────────────────────────────────────────────────
+❯ Run the tests and fix a typo
+────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents
