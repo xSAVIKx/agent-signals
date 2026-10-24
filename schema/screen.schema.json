@@ -5,7 +5,7 @@
   "description": "The metadata and the expected result of one measured terminal screen. The file sits beside <slug>.screen.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "agent", "agent_version", "measured", "capture", "pane", "provenance", "expect"],
+  "required": ["schema", "agent", "agent_version", "measured", "capture", "provenance", "expect"],
   "properties": {
     "schema": {
       "description": "The version of this schema that the file follows.",
@@ -38,7 +38,7 @@
       "enum": ["plain", "styled"]
     },
     "pane": {
-      "description": "The size of the pane at the capture. The length of a rule and the wrap depend on it.",
+      "description": "The size of the pane at the capture. The length of a rule and the wrap depend on it. A measured screen must give it. An edited or derived screen gives it when the size is known.",
       "type": "object",
       "additionalProperties": false,
       "required": ["cols", "rows"],
@@ -121,6 +121,10 @@
     }
   },
   "allOf": [
+    {
+      "if": {"properties": {"provenance": {"const": "measured"}}, "required": ["provenance"]},
+      "then": {"required": ["pane"]}
+    },
     {
       "if": {"properties": {"provenance": {"const": "measured-edited"}}},
       "then": {"required": ["edits"], "properties": {"edits": {"minItems": 1}}}

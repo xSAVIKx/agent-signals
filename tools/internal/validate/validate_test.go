@@ -109,6 +109,24 @@ func TestAMeasuredEditedScreenNeedsItsEdits(t *testing.T) {
 	wantOne(t, check(t, root), "corpus/claude/screens/ask.yaml", "schema")
 }
 
+func TestOnlyAMeasuredScreenNeedsItsPane(t *testing.T) {
+	root := corpus(t)
+	noPane := strings.Replace(goodMeta, "pane: {cols: 80, rows: 24}\n", "", 1)
+	write(t, root, "corpus/claude/screens/ask.yaml", noPane)
+	wantOne(t, check(t, root), "corpus/claude/screens/ask.yaml", "schema")
+
+	edited := strings.Replace(noPane, "provenance: measured", "provenance: measured-edited\nedits: [rule lines shortened]", 1)
+	write(t, root, "corpus/claude/screens/ask.yaml", edited)
+	if p := check(t, root); len(p) != 0 {
+		t.Fatalf("an edited screen with no known pane is valid, got %v", p)
+	}
+	derived := strings.Replace(noPane, "provenance: measured", "provenance: derived\nderived_from: hand-built", 1)
+	write(t, root, "corpus/claude/screens/ask.yaml", derived)
+	if p := check(t, root); len(p) != 0 {
+		t.Fatalf("a derived screen with no known pane is valid, got %v", p)
+	}
+}
+
 func TestADerivedScreenMustNameAnExistingSource(t *testing.T) {
 	root := corpus(t)
 	meta := strings.Replace(goodMeta, "provenance: measured", "provenance: derived\nderived_from: \"missing: one Down\"", 1)
