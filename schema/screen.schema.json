@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/xSAVIKx/agent-signals/schema/screen.schema.json",
+  "title": "Screen metadata",
+  "description": "The metadata and the expected result of one measured terminal screen. The file sits beside <slug>.screen.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "agent", "agent_version", "measured", "capture", "pane", "provenance", "expect"],
+  "properties": {
+    "schema": {
+      "description": "The version of this schema that the file follows.",
+      "const": 1
+    },
+    "agent": {
+      "description": "The agent that drew the screen. It must equal the folder name under corpus/.",
+      "enum": ["claude", "agy", "codex"]
+    },
+    "agent_version": {
+      "description": "The version of the agent that drew the screen.",
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+([-+][0-9A-Za-z.-]+)?$"
+    },
+    "valid_from": {
+      "description": "The first agent version that draws this screen, when it is known.",
+      "type": "string"
+    },
+    "superseded_by": {
+      "description": "The slug of the screen that replaces this one in later agent versions.",
+      "type": "string"
+    },
+    "measured": {
+      "description": "The date of the capture.",
+      "type": "string",
+      "format": "date"
+    },
+    "capture": {
+      "description": "plain: capture-pane -p. styled: capture-pane -p -e, with SGR escape codes.",
+      "enum": ["plain", "styled"]
+    },
+    "pane": {
+      "description": "The size of the pane at the capture. The length of a rule and the wrap depend on it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cols", "rows"],
+      "properties": {
+        "cols": {"type": "integer", "minimum": 1},
+        "rows": {"type": "integer", "minimum": 1}
+      }
+    },
+    "provenance": {
+      "description": "measured: the bytes as captured. measured-edited: captured, then edited (list each edit). derived: hand-built, or made from another screen.",
+      "enum": ["measured", "measured-edited", "derived"]
+    },
+    "edits": {
+      "description": "One line for each edit of a measured-edited screen.",
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "derived_from": {
+      "description": "For a derived screen: the source slug and what changed, or the word hand-built.",
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "description": "What the screen shows, and why it is in the corpus.",
+      "type": "string"
+    },
+    "expect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state"],
+      "properties": {
+        "state": {
+          "description": "The state that a reader must give for this screen.",
+          "enum": ["IDLE", "BUSY", "PERMISSION", "TRUST", "DIALOG_OVER_BOX", "NO_BOX", "UNKNOWN"]
+        },
+        "dialog": {
+          "description": "The kind of dialog, when the screen shows one.",
+          "enum": ["permission", "question", "review", "trust", "none"]
+        },
+        "question": {
+          "description": "The question text, only where the screen pins it.",
+          "type": "string"
+        },
+        "options": {
+          "description": "The options of the dialog, in screen order.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["label"],
+            "properties": {
+              "n": {"description": "The number on the screen, when the option has one.", "type": "integer", "minimum": 1},
+              "label": {"type": "string", "minLength": 1},
+              "selected": {"description": "True for the option under the mark.", "type": "boolean"}
+            }
+          }
+        },
+        "box_text": {
+          "description": "The text that the input box holds, or null for an empty box.",
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "negative_control_for": {
+      "description": "The slug of the screen that this screen must NOT be confused with.",
+      "type": "string"
+    },
+    "known_false_positive": {
+      "description": "True when the expected state is wrong on purpose, because the wrong answer is the safe one.",
+      "type": "boolean"
+    },
+    "known_false_positive_reason": {
+      "type": "string",
+      "minLength": 1
+    },
+    "facts": {
+      "description": "The numbers of the facts in facts/ that this screen pins.",
+      "type": "array",
+      "items": {"type": "integer", "minimum": 1}
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"provenance": {"const": "measured-edited"}}},
+      "then": {"required": ["edits"], "properties": {"edits": {"minItems": 1}}}
+    },
+    {
+      "if": {"properties": {"provenance": {"const": "derived"}}},
+      "then": {"required": ["derived_from"]}
+    },
+    {
+      "if": {"properties": {"known_false_positive": {"const": true}}, "required": ["known_false_positive"]},
+      "then": {"required": ["known_false_positive_reason"]}
+    }
+  ]
+}

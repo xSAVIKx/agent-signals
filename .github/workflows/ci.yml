@@ -1,0 +1,43 @@
+# Checks each pull request and each push to main: the format and the tests of
+# the tools, and the validation of the whole corpus.
+#
+# The runner comes from the repository variable CI_RUNS_ON (see
+# release-please.yml). A pull request from a fork runs on ubuntu-latest, so
+# that code from a fork never runs on the self-hosted runner. Each action is
+# pinned to a commit SHA. The comment gives the tag.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check
+    runs-on: ${{ (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork) && vars.CI_RUNS_ON || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: tools
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: tools/go.mod
+          cache-dependency-path: tools/go.sum
+      - name: Format
+        run: |
+          out="$(gofmt -l .)"
+          if [ -n "$out" ]; then echo "$out"; exit 1; fi
+      - name: Vet
+        run: go vet ./...
+      - name: Tests
+        run: go test -count=1 ./...
+      - name: Validate the corpus
+        run: go run ./cmd/validate ..

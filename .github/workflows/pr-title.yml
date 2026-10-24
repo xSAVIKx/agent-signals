@@ -1,0 +1,25 @@
+# Checks that the title of each pull request is a Conventional Commit. A
+# squash merge uses the title as the commit message, and release-please reads
+# that message.
+#
+# The runner comes from the repository variable CI_RUNS_ON (see
+# release-please.yml). A pull request from a fork runs on ubuntu-latest, so
+# that code from a fork never runs on the self-hosted runner.
+name: PR title
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  conventional-title:
+    name: Conventional title
+    runs-on: ${{ (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork) && vars.CI_RUNS_ON || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    steps:
+      - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6.1.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

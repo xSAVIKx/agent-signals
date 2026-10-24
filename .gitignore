@@ -1,0 +1,10 @@
+# Local working files. They hold host details and are never published.
+/local/
+
+# Editors and systems
+.DS_Store
+.idea/
+.vscode/
+
+# Local Claude Code settings
+.claude/settings.local.json

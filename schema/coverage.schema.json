@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/xSAVIKx/agent-signals/schema/coverage.schema.json",
+  "title": "Agent coverage",
+  "description": "The versions of one agent that were checked against the corpus.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["agent", "verified"],
+  "properties": {
+    "agent": {"enum": ["claude", "agy", "codex"]},
+    "verified": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["version", "date", "method"],
+        "properties": {
+          "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+([-+][0-9A-Za-z.-]+)?$"},
+          "date": {"type": "string", "format": "date"},
+          "method": {"description": "How the check was done, for example a contract run or a manual capture.", "type": "string", "minLength": 1},
+          "notes": {"description": "What changed, and what was not checked.", "type": "string"}
+        }
+      }
+    }
+  }
+}

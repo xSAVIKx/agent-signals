@@ -1,0 +1,30 @@
+# Opens and updates the release pull request from the Conventional Commits on
+# main. A merge of that pull request makes the tag and the GitHub release.
+#
+# The runner comes from the repository variable CI_RUNS_ON. While the
+# repository is private, it names a self-hosted runner. When the variable is
+# not set, the job uses a GitHub-hosted runner.
+#
+# Each action is pinned to a commit SHA. The comment gives the tag.
+name: Release Please
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  release-please:
+    name: Release Please
+    runs-on: ${{ vars.CI_RUNS_ON || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
