@@ -1,0 +1,23 @@
+schema: 1
+agent: claude
+agent_version: 2.1.263
+measured: 2026-09-08
+capture: plain
+provenance: measured-edited
+edits:
+  - "rule lines may be shortened; not verified against a new capture"
+description: >
+  The review screen at the end of the same wizard. It has no footer, so the
+  "Esc to cancel" marker is absent. A numbered list under an unframed cursor
+  makes it a dialog. A digit 1 submits the answers. The size of the pane was
+  not recorded.
+  `tests/test_sessions.py::test_the_review_screen_of_a_wizard_is_a_dialog_although_it_has_no_footer`
+  asserts the state, the question and the options.
+expect:
+  state: PERMISSION
+  dialog: review
+  question: "Ready to submit your answers?"
+  options:
+    - {n: 1, label: "Submit answers"}
+    - {n: 2, label: "Cancel"}
+facts: [3, 4]

@@ -1,0 +1,21 @@
+schema: 1
+agent: claude
+agent_version: 2.1.283
+measured: 2026-09-28
+capture: plain
+provenance: derived
+edits:
+  - "the three list items and the text in the input box are replaced with neutral text of a similar length (the originals can be the text of a real conversation)"
+derived_from: hand-built
+description: >
+  Negative control 2 of the dialog above a box: a reply with a numbered list
+  above a framed box, with no cursor mark on an option and no footer. This is
+  ordinary output, and the pane is idle. The version and the date are those of
+  the dialog above a box.
+  `tests/test_sessions.py::test_a_numbered_list_in_a_reply_above_the_box_is_still_idle`
+  asserts the state on the original text.
+expect:
+  state: IDLE
+  dialog: none
+negative_control_for: dialog-over-box
+facts: [2]

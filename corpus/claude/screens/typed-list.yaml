@@ -1,0 +1,20 @@
+schema: 1
+agent: claude
+agent_version: 2.1.263
+measured: 2026-09-08
+capture: plain
+provenance: derived
+derived_from: hand-built
+description: >
+  A real input box whose typed text starts like a numbered option. The frame
+  keeps it out of the rule that reads an unframed numbered list as a dialog.
+  The tg-bridge comment gives no version. The version and the date are those
+  of the wizard screens, because fact 15 of tg-bridge names this screen as
+  their negative control. It is a minimal shape with rules of 8 characters.
+  `tests/test_sessions.py::test_a_box_that_holds_text_like_an_option_is_still_idle`
+  asserts the state.
+expect:
+  state: IDLE
+  dialog: none
+negative_control_for: review
+facts: [1, 3]

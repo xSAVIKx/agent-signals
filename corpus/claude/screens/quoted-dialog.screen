@@ -1,0 +1,13 @@
+● The pane of that session reads:
+────────────────────────────────────────────────────────────────────────────────
+  Teach auto mode about your environment?
+
+  ❯ 1. Yes
+    2. Not now
+    3. Don't show again
+
+  Enter to confirm · Esc to cancel
+────────────────────────────────────────────────────────────────────────────────
+❯ so the classifier answers IDLE
+────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ? for shortcuts · ← for agents

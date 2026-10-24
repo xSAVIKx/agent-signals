@@ -25,7 +25,7 @@ valid_from: 2.1.251          # optional
 superseded_by: null          # optional: the slug that replaces this screen
 measured: 2026-10-24
 capture: plain               # plain | styled
-pane: {cols: 120, rows: 40}
+pane: {cols: 120, rows: 40}   # required for measured; optional when the size is not known
 provenance: measured         # measured | measured-edited | derived
 edits: []                    # measured-edited: one line for each edit
 derived_from: hand-built     # derived: the source slug and what changed, or hand-built

@@ -1,0 +1,18 @@
+schema: 1
+agent: claude
+agent_version: 2.1.309
+measured: 2026-10-24
+capture: plain
+provenance: derived
+derived_from: "paste: typed text follows the marker in the box"
+description: >
+  Negative control of the paste marker: a box that holds a marker and typed
+  text. A tool that sends text must not read this marker as its own text.
+  `tests/test_sessions.py::test_the_measured_paste_screens_hold_a_marker_and_nothing_else`
+  asserts that the box holds no lone marker. No tg-bridge test asserts the
+  state of this screen. The expected state is the value that the classifier of
+  tg-bridge gives at commit 1997190. It is not a test assertion.
+expect:
+  state: IDLE
+negative_control_for: paste
+facts: [13]
