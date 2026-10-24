@@ -1,0 +1,21 @@
+schema: 1
+agent: codex
+agent_version: 0.163.0
+measured: 2026-10-24
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - the source report removed the empty lines of the capture
+  - the project path is scrubbed to /work/example
+  - the source report shows the update banner and the header only on its idle screen; this excerpt has the lines that the report shows
+description: >-
+  Text in the input box, before the Enter. The footer "? for shortcuts" is absent while the box holds text. With no frame and no footer, a reader cannot prove an idle box. Measured by the tg-bridge project with Codex CLI 0.163.0 (codex --no-daemon) in a private tmux server, and published in its report "Codex CLI and Cursor CLI as harnesses: measurements, 2026-10-24".
+expect:
+  state: UNKNOWN
+  dialog: none
+  box_text: "Reply with the word PEAR and nothing else."
+known_false_positive: true
+known_false_positive_reason: >-
+  The box waits for a message with typed text. A Codex box has no frame, and the footer that proves an empty idle box is absent. A reader that gives IDLE here gives IDLE on a screen with no proof. UNKNOWN is the safe answer.
+facts: [20]

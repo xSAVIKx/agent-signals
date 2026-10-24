@@ -1,0 +1,21 @@
+schema: 1
+agent: codex
+agent_version: 0.163.0
+measured: 2026-10-24
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - the source report removed the empty lines of the capture
+  - the project path is scrubbed to /work/example
+  - the source report shows the update banner and the header only on its idle screen; this excerpt has the lines that the report shows
+description: >-
+  The folder-trust dialog of a new git repository that Codex had not seen. The mark starts on "Trust and continue". The footer is "enter continue · esc quit". Measured by the tg-bridge project with Codex CLI 0.163.0 (codex --no-daemon) in a private tmux server, and published in its report "Codex CLI and Cursor CLI as harnesses: measurements, 2026-10-24".
+expect:
+  state: TRUST
+  dialog: trust
+  question: "Trust this folder?"
+  options:
+    - {n: 1, label: "Trust and continue", selected: true}
+    - {n: 2, label: "Quit"}
+facts: [20]

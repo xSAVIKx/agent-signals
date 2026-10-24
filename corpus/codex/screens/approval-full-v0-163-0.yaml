@@ -1,0 +1,21 @@
+schema: 1
+agent: codex
+agent_version: 0.163.0
+measured: 2026-10-24
+capture: plain
+provenance: measured-edited
+edits:
+  - the project path is scrubbed to /work/example
+  - the two GitHub links of the update banner, which the capture tool had replaced with pseudonyms, are restored to the text that Codex 0.163.0 draws
+description: >-
+  The approval dialog on a full screen, with the empty lines kept. The history above the dialog holds a message that starts with "›" and the line "• Running date >> codex.txt". Captured by the ai-world project with aw doctor (--raw-screens) from a Codex CLI 0.163.0 pane in a private tmux server. The pane size was not recorded.
+expect:
+  state: PERMISSION
+  dialog: permission
+  question: "Would you like to run the following command?"
+  options:
+    - {n: 1, label: "Yes, proceed (y)", selected: true}
+    - {n: 2, label: "Yes, and don't ask again for commands that start with `date >> codex.txt` (p)"}
+    - {n: 3, label: "No, and tell Codex what to do differently (esc)"}
+  box_text: null
+facts: [19, 20]

@@ -1,3 +1,18 @@
 # The versions of Codex CLI that were checked against this corpus.
 agent: codex
-verified: []
+verified:
+  - version: 0.163.0
+    date: 2026-10-24
+    method: >-
+      capture-pane -p of codex --no-daemon in a private tmux server, 120x40,
+      from the Codex measurement report of the tg-bridge project (9 screens,
+      empty lines removed by the report), and one aw doctor capture of the
+      approval dialog
+    notes: >-
+      Covers idle, typed, busy, a busy turn with a background command, the
+      end of a turn, the command approval dialog, the end of a cancelled
+      approval, the folder-trust dialog and the hooks review dialog. Not
+      checked: the file-change approval dialog, styled captures, the slash
+      command menu, a pane narrower than 120 columns, a TUI that uses the
+      shared app-server daemon, and the keys of the approval dialog other
+      than Esc.
