@@ -1,0 +1,23 @@
+schema: 1
+agent: codex
+agent_version: 0.163.0
+measured: 2026-10-24
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - the source report removed the empty lines of the capture
+  - the project path is scrubbed to /work/example
+  - the source report shows the update banner and the header only on its idle screen; this excerpt has the lines that the report shows
+description: >-
+  The approval dialog (codex -s read-only -a on-request). It draws in place of the input box. The mark is on the selected numbered option, and the footer is "Press enter to confirm or esc to cancel". Measured by the tg-bridge project with Codex CLI 0.163.0 (codex --no-daemon) in a private tmux server, and published in its report "Codex CLI and Cursor CLI as harnesses: measurements, 2026-10-24".
+expect:
+  state: PERMISSION
+  dialog: permission
+  question: "Would you like to run the following command?"
+  options:
+    - {n: 1, label: "Yes, proceed (y)", selected: true}
+    - {n: 2, label: "Yes, and don't ask again for commands that start with `echo FIG > fig.txt` (p)"}
+    - {n: 3, label: "No, and tell Codex what to do differently (esc)"}
+  box_text: null
+facts: [19, 20]

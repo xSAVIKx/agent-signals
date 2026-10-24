@@ -1,0 +1,18 @@
+schema: 1
+agent: codex
+agent_version: 0.163.0
+measured: 2026-10-24
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - the source report removed the empty lines of the capture
+  - the project path is scrubbed to /work/example
+  - the source report shows the update banner and the header only on its idle screen; this excerpt has the lines that the report shows
+description: >-
+  The turn ended. The answer and "Worked for 1s" are above the box. The busy line is gone, and the last line starts with "? for shortcuts". Measured by the tg-bridge project with Codex CLI 0.163.0 (codex --no-daemon) in a private tmux server, and published in its report "Codex CLI and Cursor CLI as harnesses: measurements, 2026-10-24".
+expect:
+  state: IDLE
+  dialog: none
+  box_text: null
+facts: [20]
