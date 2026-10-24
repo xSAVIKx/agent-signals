@@ -1,0 +1,21 @@
+schema: 1
+agent: claude
+agent_version: 2.1.309
+measured: 2026-10-24
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - the workspace path is scrubbed to /work/example
+description: >-
+  A Bash permission dialog. Option 2 wraps over three lines because it holds the folder path. Captured by the ai-world project with Claude Code 2.1.309 (model Haiku 5.5) in a private tmux server.
+expect:
+  state: PERMISSION
+  dialog: permission
+  question: "Do you want to proceed?"
+  options:
+    - {n: 1, label: "Yes", selected: true}
+    - {n: 2, label: "Yes, and always allow access to /work/example from this project"}
+    - {n: 3, label: "Yes, and switch to auto mode · auto mode handles these prompts for you"}
+    - {n: 4, label: "No"}
+  box_text: null
