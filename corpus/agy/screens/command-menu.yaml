@@ -1,0 +1,20 @@
+schema: 1
+agent: agy
+agent_version: 1.4.5
+measured: 2026-10-24
+capture: plain
+provenance: measured-edited
+edits:
+  - "each rule is shorter than on the screen (tg-bridge comment); the pane was 120 columns wide"
+  - "lines at the top of the pane are left out (the tg-bridge comment says the logo is left out)"
+  - "the spaces before the model name in the footer are fewer than on the screen, because the line is shorter; not verified"
+description: >
+  The command menu that a "/" typed into the box opens below the box. The pane
+  was 120 columns wide. The number of rows was not recorded.
+  `tests/test_agy_screen.py::test_an_overlay_below_the_box_is_not_an_idle_box`
+  asserts the state.
+  `tests/test_agy_screen.py::test_the_box_above_each_overlay_is_framed` shows
+  that the same screen cut below the box reads as IDLE.
+expect:
+  state: UNKNOWN
+facts: [18]
