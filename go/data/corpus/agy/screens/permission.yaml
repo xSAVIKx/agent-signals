@@ -1,0 +1,24 @@
+schema: 1
+agent: agy
+agent_version: 1.4.5
+measured: 2026-10-23
+capture: plain
+provenance: measured-edited
+edits:
+  - "each rule is shorter than on the screen (tg-bridge comment); the pane was 120 columns wide"
+  - "lines at the top of the pane are left out (the tg-bridge comment says the logo is left out)"
+  - "the spaces before the model name in the footer are fewer than on the screen, because the line is shorter; not verified"
+description: >
+  A command permission dialog of agy. It has no frame, its mark is ">", and a
+  digit answers it at once. The pane was 120 columns wide. The number of rows
+  was not recorded.
+  `tests/test_agy_screen.py::test_each_measured_screen_has_its_state` asserts
+  the state.
+  `tests/test_agy_screen.py::test_the_permission_dialog_gives_its_question_and_its_options`
+  asserts the question. That test pins the labels of options 1 and 4 only, so
+  the options are not listed here.
+expect:
+  state: PERMISSION
+  dialog: permission
+  question: "Run this command?"
+facts: [4, 17]

@@ -1,0 +1,10 @@
+# The versions of Antigravity CLI (agy) that were checked against this corpus.
+agent: agy
+verified:
+  - version: 1.4.5
+    date: 2026-10-24
+    method: fresh capture of 8 screens in a private tmux server, 120x40
+    notes: >-
+      Covers the folder-trust dialog, idle, typed, busy, a command permission
+      dialog and the AskQuestion dialog. Not checked: the file permission
+      dialog, the model picker, the command menu, the shortcuts help.

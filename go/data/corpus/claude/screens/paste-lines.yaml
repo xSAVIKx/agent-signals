@@ -1,0 +1,16 @@
+schema: 1
+agent: claude
+agent_version: 2.1.309
+measured: 2026-10-24
+capture: plain
+provenance: derived
+derived_from: "paste: the marker is \"[Pasted text #5 +2 lines]\", for 902 characters on 3 lines"
+description: >
+  A paste of text with line breaks. The marker counts the line breaks.
+  `tests/test_sessions.py::test_the_measured_paste_screens_hold_a_marker_and_nothing_else`
+  asserts the marker. No tg-bridge test asserts the state of this screen. The
+  expected state is the value that the classifier of tg-bridge gives at commit
+  1997190. It is not a test assertion.
+expect:
+  state: IDLE
+facts: [13]

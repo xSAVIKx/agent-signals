@@ -1,0 +1,22 @@
+schema: 1
+agent: claude
+agent_version: 2.1.283
+measured: 2026-09-28
+capture: plain
+provenance: derived
+derived_from: hand-built
+description: >
+  A reply that quotes a captured dialog, with a rule above the quote, above a
+  framed box. The expected state is wrong on purpose. Do not "fix" it. The
+  version and the date are those of the dialog above a box.
+  `tests/test_sessions.py::test_a_reply_that_quotes_a_dialog_reads_as_that_dialog`
+  asserts the state.
+expect:
+  state: DIALOG_OVER_BOX
+known_false_positive: true
+known_false_positive_reason: >
+  A reply that quotes a dialog holds every part of the rule for a dialog above
+  a box, and no text on the screen tells the quote apart from a real dialog. A
+  reader that gives DIALOG_OVER_BOX sends no key, which is fail-safe. A
+  tighter rule reads a real dialog as an idle box and sends an Enter into it.
+facts: [2]

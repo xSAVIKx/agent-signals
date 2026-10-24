@@ -1,0 +1,22 @@
+schema: 1
+agent: claude
+agent_version: 2.1.283
+measured: 2026-09-28
+capture: plain
+provenance: derived
+edits:
+  - "the reply line above the dialog is replaced with neutral text of a similar length (the original is the text of a real conversation)"
+  - "the unsent text in the input box is replaced with neutral text of the same length (the original is the text of a real conversation)"
+derived_from: hand-built
+description: >
+  Negative control 3 of the dialog above a box: a reply that quotes the footer
+  text as prose, with no numbered option under a cursor mark. Without it, no
+  screen can break the option-list condition. The version and the date are
+  those of the dialog above a box.
+  `tests/test_sessions.py::test_a_footer_with_no_option_list_above_the_box_is_still_idle`
+  asserts the state.
+expect:
+  state: IDLE
+  dialog: none
+negative_control_for: dialog-over-box
+facts: [2]

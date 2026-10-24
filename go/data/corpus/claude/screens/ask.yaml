@@ -1,0 +1,24 @@
+schema: 1
+agent: claude
+agent_version: 2.1.263
+measured: 2026-09-08
+capture: plain
+provenance: measured-edited
+edits:
+  - "rule lines may be shortened; not verified against a new capture"
+description: >
+  The first question of an AskUserQuestion wizard of two questions. The footer
+  holds "Esc to cancel", and a digit activates an option at once. The second
+  question fires no Notification hook. The size of the pane was not recorded.
+  `tests/test_sessions.py::test_a_question_wizard_is_a_dialog_with_its_options_and_question`
+  asserts the state, the question and the options.
+expect:
+  state: PERMISSION
+  dialog: question
+  question: "Pick a letter"
+  options:
+    - {n: 1, label: "Alpha"}
+    - {n: 2, label: "Beta"}
+    - {n: 3, label: "Type something."}
+    - {n: 4, label: "Chat about this"}
+facts: [3, 4]

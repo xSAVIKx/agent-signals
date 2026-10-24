@@ -1,0 +1,22 @@
+schema: 1
+agent: claude
+agent_version: 2.1.309
+measured: 2026-10-24
+capture: styled
+provenance: derived
+derived_from: "styled-suggestion: the SGR 2 codes around \"run git status\" are removed, as when the text is typed"
+description: >
+  Negative control of the faint suggestion: the same text, typed into the box
+  with send-keys -l, has no SGR 2, so it is text. Each line keeps the SGR
+  escape codes of capture-pane -e. A reader must remove the escape codes and
+  each faint (SGR 2) character before it reads the box. On the raw bytes, the
+  classifier of tg-bridge gives NO_BOX, because an escape code comes before
+  the mark.
+  `tests/test_sessions.py::test_a_faint_suggestion_reads_as_an_empty_box`
+  asserts IDLE and the box text after the faint text is removed.
+expect:
+  state: IDLE
+  dialog: none
+  box_text: "run git status"
+negative_control_for: styled-suggestion
+facts: [5]

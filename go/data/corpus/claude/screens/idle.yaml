@@ -1,0 +1,18 @@
+schema: 1
+agent: claude
+agent_version: 2.1.226
+measured: 2026-08-10
+capture: plain
+provenance: derived
+derived_from: hand-built
+description: >
+  An empty input box between two rules, with the idle footer. It is a minimal
+  shape: each rule has 8 characters, so it is not the bytes of a capture. The
+  version and the date come from the tg-bridge module docstring.
+  `tests/test_sessions.py::test_an_idle_box_is_recognised` and
+  `tests/test_claude_screen.py::test_classify_reads_a_screen_with_no_tmux`
+  assert the state.
+expect:
+  state: IDLE
+  dialog: none
+facts: [1]

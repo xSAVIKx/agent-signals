@@ -9,6 +9,19 @@
       "component": "corpus",
       "package-name": "corpus",
       "changelog-path": "CHANGELOG.md",
+      "initial-version": "0.1.0",
+      "exclude-paths": [
+        "go"
+      ]
+    },
+    "go": {
+      "release-type": "go",
+      "component": "go",
+      "package-name": "go",
+      "changelog-path": "CHANGELOG.md",
+      "include-component-in-tag": true,
+      "include-v-in-tag": true,
+      "tag-separator": "/",
       "initial-version": "0.1.0"
     }
   }

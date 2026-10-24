@@ -21,11 +21,13 @@ and Codex CLI in tmux. Hook payloads, session files and log lines follow.
 | `schema/` | JSON Schema for each `.yaml` file. CI validates every file. |
 | `facts/` | Measured facts and the incidents behind them, one file per fact. |
 | `protocol/` | Rules for tools that answer an agent, for example the safe way to type into a pane. |
-| `tools/` | The validator, and later the capture and scrub scripts. |
+| `tools/` | The validator, the sync script for the Go library, and later the capture and scrub scripts. |
+| `go/` | The Go library. It holds a committed copy of `corpus/` and `facts/` in `go/data/`. |
 | `docs/` | The format and the versioning rules. |
 
-Libraries for each language (`go/`, `python/`) come later. Each library will
-load the corpus and give typed fixtures. No library is needed to use the data.
+The Go library in `go/` loads the corpus and gives typed fixtures. A library
+for Python comes later. No library is needed to use the data. Read
+[`go/README.md`](go/README.md).
 
 ## A screen
 
@@ -56,6 +58,10 @@ corpus, not the version of the repository. Read
 ## Develop
 
     cd tools && go test ./... && go run ./cmd/validate ..
+    cd go && go vet ./... && go test ./...
+
+After a change in `corpus/` or `facts/`, run `tools/sync-go-data.sh` and commit
+`go/data/`. The Go tests fail when the copy is stale.
 
 ## Writing style
 

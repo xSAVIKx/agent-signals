@@ -1,5 +1,5 @@
 # Checks each pull request and each push to main: the format and the tests of
-# the tools, and the validation of the whole corpus.
+# the tools, the validation of the whole corpus, and the Go library.
 #
 # The runner comes from the repository variable CI_RUNS_ON (see
 # release-please.yml). A pull request from a fork runs on ubuntu-latest, so
@@ -41,3 +41,27 @@ jobs:
         run: go test -count=1 ./...
       - name: Validate the corpus
         run: go run ./cmd/validate ..
+
+  go-library:
+    name: Go library
+    runs-on: ${{ (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork) && vars.CI_RUNS_ON || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: go
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - name: Format
+        run: |
+          out="$(gofmt -l .)"
+          if [ -n "$out" ]; then echo "$out"; exit 1; fi
+      - name: Vet
+        run: go vet ./...
+      - name: Tests (this includes the check of go/data)
+        run: go test -count=1 ./...
