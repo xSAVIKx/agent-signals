@@ -1,0 +1,32 @@
+schema: 1
+agent: claude
+agent_version: 2.1.283
+measured: 2026-09-28
+capture: plain
+provenance: measured-edited
+edits:
+  - "rule lines may be shortened; not verified against a new capture (each rule here has 80 characters)"
+  - "the reply line above the dialog is replaced with neutral text of a similar length (the original is the text of a real conversation)"
+  - "the unsent text in the input box is replaced with neutral text of the same length (the original is the text of a real conversation)"
+description: >
+  The auto mode environment dialog. It draws between two rules ABOVE a live
+  input box, and the box keeps its frame and the unsent text. The last
+  line-starting mark is the box, so every marker of the dialog is outside the
+  input region. A reader that tests the frame alone gives IDLE, and an Enter
+  then confirms the selected option. tg-bridge measured it in a live pane. The
+  size of the pane was not recorded.
+  `tests/test_sessions.py::test_a_dialog_above_a_framed_box_is_not_idle`
+  asserts the state.
+  `tests/test_sessions.py::test_the_options_of_an_overlay_are_read_from_the_block`
+  asserts the options, read from the block of the dialog and not from the
+  input region.
+  `tests/test_sessions.py::test_the_overlay_summary_gives_the_question_and_every_option`
+  asserts that the summary holds the question.
+expect:
+  state: DIALOG_OVER_BOX
+  question: "Teach auto mode about your environment?"
+  options:
+    - {n: 1, label: "Yes"}
+    - {n: 2, label: "Not now"}
+    - {n: 3, label: "Don't show again"}
+facts: [2]

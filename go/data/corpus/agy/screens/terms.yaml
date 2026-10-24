@@ -1,0 +1,18 @@
+schema: 1
+agent: agy
+agent_version: 1.4.5
+measured: 2026-10-23
+capture: plain
+provenance: measured-edited
+edits:
+  - "the rule of dashes may be shorter than on the screen; not verified"
+  - "lines at the top of the pane are left out (the tg-bridge comment says the logo is left out)"
+description: >
+  The terms of service screen of the first start of agy. Its answers accept
+  terms, so a tool must read it as a screen it does not know and send no key.
+  The pane was 120 columns wide. The number of rows was not recorded.
+  `tests/test_agy_screen.py::test_each_measured_screen_has_its_state` asserts
+  the state.
+expect:
+  state: UNKNOWN
+facts: [17]

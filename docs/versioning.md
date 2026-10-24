@@ -40,11 +40,31 @@ Each package in the repository has its own version and its own tag.
 | Package | Path | Tag |
 |---|---|---|
 | The corpus (data, schemas, facts, protocol) | `.` | `corpus-v1.2.3` |
-| The Go library (later) | `go/` | `go/v1.2.3` |
+| The Go library | `go/` | `go/v1.2.3` |
 | The Python library (later) | `python/` | `python-v1.2.3` |
 
 The Go tag has the form `go/vX.Y.Z` because Go finds the version of a module
-in a subfolder from a tag with that prefix.
+in a subfolder from a tag with that prefix. release-please makes this tag from
+the package settings `component: go`, `tag-separator: /` and
+`include-v-in-tag: true`. The default separator is `-`, so the setting is
+needed.
+
+## The Go library and the corpus
+
+The Go library embeds a copy of `corpus/` and `facts/` in `go/data/`. Go cannot
+embed files from outside the module folder, so the copy is committed.
+
+1. Run `tools/sync-go-data.sh` after each change in `corpus/` or `facts/`.
+2. Commit `go/data/` in the same pull request.
+
+The test `TestDataIsInSync` in `go/` fails when the copy is stale, so CI
+catches a missing sync.
+
+The root package excludes `go/` from its release notes, with `exclude-paths`.
+A commit that changes only `go/` does not make a corpus release. A change of
+the corpus also changes `go/data/`. The commit of such a change counts for both
+packages, so it makes a release of both. The library version is the version of
+the Go code and of the embedded corpus. It is not the version of an agent.
 
 ## Schema versions
 

@@ -1,0 +1,21 @@
+schema: 1
+agent: claude
+agent_version: 2.1.309
+measured: 2026-10-24
+capture: styled
+provenance: derived
+derived_from: "styled-suggestion: the faint text is the placeholder of the empty box of a new process"
+description: >
+  The faint placeholder of the empty box of a new process. Each line keeps the
+  SGR escape codes of capture-pane -e. A reader must remove the escape codes
+  and each faint (SGR 2) character before it reads the box. On the raw bytes,
+  the classifier of tg-bridge gives NO_BOX, because an escape code comes
+  before the mark.
+  `tests/test_sessions.py::test_a_faint_suggestion_reads_as_an_empty_box`
+  asserts an empty box after the faint text is removed. No tg-bridge test
+  asserts the state of this screen. The expected state is the value that the
+  classifier of tg-bridge gives at commit 1997190. It is not a test assertion.
+expect:
+  state: IDLE
+  box_text: null
+facts: [5]

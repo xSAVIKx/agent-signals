@@ -1,0 +1,22 @@
+schema: 1
+agent: claude
+agent_version: 2.1.226
+measured: 2026-08-18
+capture: plain
+provenance: measured-edited
+edits:
+  - "rule lines may be shortened; not verified against a new capture"
+description: >
+  The Rewind dialog. Its list cursor is the same mark as the input box, and it
+  starts its line, but no frame of rules surrounds it. Before 2026-08-18
+  tg-bridge read it as IDLE and typed into the live dialog. tg-bridge captured
+  it from a live pane on 2026-08-18, and the comment records no version.
+  2.1.226 is the last version that tg-bridge documents before that date, and
+  2.1.238 is documented on 2026-08-20, so the real version is in that range.
+  The prompts "ping" and "where are we?" are kept with the approval of the
+  operator. The size of the pane was not recorded.
+  `tests/test_sessions.py::test_an_unrecognised_dialog_is_not_idle` asserts
+  the state.
+expect:
+  state: UNKNOWN
+facts: [1]

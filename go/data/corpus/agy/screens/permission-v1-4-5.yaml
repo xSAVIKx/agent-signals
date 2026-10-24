@@ -1,0 +1,22 @@
+schema: 1
+agent: agy
+agent_version: 1.4.5
+measured: 2026-10-24
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - the workspace path is scrubbed to /work/example
+  - the account e-mail address is replaced with user@example.com
+description: >-
+  A command permission dialog. It draws in place of the input box. The footer still says "esc to cancel". Captured by the ai-world project with agy 1.4.5 in a private tmux server.
+expect:
+  state: PERMISSION
+  dialog: permission
+  question: "Run this command?"
+  options:
+    - {n: 1, label: "Yes, run command", selected: true}
+    - {n: 2, label: "Yes, and always allow in this conversation for commands that start with 'echo hello > hello.txt'"}
+    - {n: 3, label: "Yes, and always allow for commands that start with 'echo hello > hello.txt' (Persist to settings.json)"}
+    - {n: 4, label: "No, cancel"}
+  box_text: null

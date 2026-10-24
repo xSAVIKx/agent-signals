@@ -1,0 +1,40 @@
+
+
+      ▄▀▀▄
+     ▀▀▀▀▀▀
+    ▀▀▀▀▀▀▀▀
+   ▄▀▀    ▀▀▄
+  ▄▀▀      ▀▀▄
+
+  Antigravity CLI 1.4.5
+  user@example.com (Google AI Pro)
+  Gemini 4 Argon (Medium)
+  /work/example
+
+────────────────────────────────────────────────────────────
+> Run the shell command: echo hello > hello.txt
+
+● Ran (echo hello > hello.txt) (ctrl+o to expand)
+
+  Ran echo hello > hello.txt, creating hello.txt.
+
+────────────────────────────────────────────────────────────
+> Ask me one question with two options, Red or Blue, using your question tool if you have one. Do nothing else.
+
+? Which option do you choose?
+
+Question
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+Question 1/1: Which option do you choose?
+
+> 1. Red
+  2. Blue
+  3. Write-in...
+
+  ↑/↓ Navigate · enter Select · esc Skip
+esc to cancel                                                                                    Gemini 4 Argon · medium
+
+
+
+

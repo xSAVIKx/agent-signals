@@ -1,0 +1,40 @@
+
+
+      ▄▀▀▄
+     ▀▀▀▀▀▀
+    ▀▀▀▀▀▀▀▀
+   ▄▀▀    ▀▀▄
+  ▄▀▀      ▀▀▄
+
+  Antigravity CLI 1.4.5
+  user@example.com (Google AI Pro)
+  Gemini 4 Argon (Medium)
+  /work/example
+
+────────────────────────────────────────────────────────────
+> Run the shell command: echo hello > hello.txt
+
+● Ran (echo hello > hello.txt) (ctrl+o to expand)
+
+  Ran echo hello > hello.txt, creating hello.txt.
+
+────────────────────────────────────────────────────────────
+> Ask me one question with two options, Red or Blue, using your question tool if you have one. Do nothing else.
+
+? Which option do you choose?
+> Blue
+
+  You selected Blue.
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+>
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+? for shortcuts                                                                                  Gemini 4 Argon · medium
+
+
+
+
+
+
+
+
