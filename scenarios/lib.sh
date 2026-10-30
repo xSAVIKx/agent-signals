@@ -8,6 +8,7 @@
 #   SCN_NAME   the scenario name (required)
 #   SCN_OUT    the output folder (default: ./out/<name>-<time>)
 #   SCN_COLS, SCN_ROWS   the pane size (default 120 x 40)
+#   SCN_ROOT   the parent of the throwaway folders (default ~/.cache/agent-signals)
 #
 # The output holds raw screens and file lists. Do not commit it. Send it
 # through tools/scrub.sh before it goes into a CI log or an artifact.
@@ -24,7 +25,10 @@ die() { echo "scenario: $*" >&2; exit 1; }
 sandbox_start() {
   [ -n "${SCN_NAME:-}" ] || die "SCN_NAME is not set"
   REAL_HOME=${REAL_HOME:-$HOME}
-  SCN_DIR=$(mktemp -d "${TMPDIR:-/tmp}/agent-signals.XXXXXX") || die "mktemp failed"
+  # Not below /tmp: Codex refuses to make its helper binaries there.
+  SCN_ROOT=${SCN_ROOT:-$REAL_HOME/.cache/agent-signals}
+  mkdir -p "$SCN_ROOT"
+  SCN_DIR=$(mktemp -d "$SCN_ROOT/run.XXXXXX") || die "mktemp failed"
   SCN_HOME=$SCN_DIR/home
   SCN_WORK=$SCN_DIR/work/example
   mkdir -p "$SCN_HOME" "$SCN_WORK"
@@ -36,6 +40,16 @@ sandbox_start() {
   trap 'exit 143' TERM
   echo "scenario: $SCN_NAME"
   echo "output: $SCN_OUT"
+}
+
+# sandbox_pids: the pids of all processes whose command line names the
+# throwaway folder, also daemons with no parent in the pane. The scenario
+# shell itself does not match.
+sandbox_pids() {
+  [ -n "${SCN_DIR:-}" ] || return 0
+  pgrep -f "$SCN_DIR/" 2>/dev/null | while read -r q; do
+    [ "$q" != "$$" ] && echo "$q"
+  done
 }
 
 # sandbox_stop: kill the private tmux server and delete the throwaway
@@ -51,6 +65,13 @@ sandbox_stop() {
       n=$((n + 1))
     done
     [ -n "$p" ] && kill -9 "$p" 2>/dev/null || true
+  fi
+  # Some agents start daemons that outlive the pane (the Codex app-server).
+  # Stop each process that runs from the throwaway folder.
+  if [ -n "${SCN_DIR:-}" ]; then
+    for q in $(sandbox_pids); do kill "$q" 2>/dev/null || true; done
+    sleep 1
+    for q in $(sandbox_pids); do kill -9 "$q" 2>/dev/null || true; done
   fi
   if [ -n "${SCN_DIR:-}" ] && [ -d "$SCN_DIR" ]; then
     rm -rf "$SCN_DIR" 2>/dev/null || { sleep 2; rm -rf "$SCN_DIR"; }
@@ -80,11 +101,16 @@ EOF
       f=$REAL_HOME/.codex/auth.json
       [ -f "$f" ] || return 1
       python3 - "$f" <<'EOF' || return 1
-import json, sys, datetime
+import base64, datetime, json, sys, time
 d = json.load(open(sys.argv[1]))
+# Codex refreshes a login that is older than about 8 days, and when the
+# access token has expired. Either refresh in the copy could make the
+# original login fail, so refuse both cases.
 t = datetime.datetime.fromisoformat(d["last_refresh"].replace("Z", "+00:00"))
 age = datetime.datetime.now(datetime.timezone.utc) - t
-sys.exit(0 if age.days < 5 else 1)
+p = d["tokens"]["access_token"].split(".")[1]
+exp = json.loads(base64.urlsafe_b64decode(p + "=" * (-len(p) % 4))).get("exp", 0)
+sys.exit(0 if age.days < 7 and exp - time.time() > 7200 else 1)
 EOF
       mkdir -p "$SCN_HOME/.codex"
       cp "$f" "$SCN_HOME/.codex/auth.json"
@@ -130,7 +156,7 @@ tmux_start() {
 }
 
 # agent_pid: the pid of the program in the pane.
-agent_pid() { tmux -L "$SCN_SOCK" display -p -t scn '#{pane_pid}'; }
+agent_pid() { tmux -L "$SCN_SOCK" display -p -t scn '#{pane_pid}' 2>/dev/null || echo 0; }
 
 # send_text TEXT: type TEXT literally, then wait a short time.
 send_text() { tmux -L "$SCN_SOCK" send-keys -t scn -l -- "$1"; sleep 0.5; }
@@ -142,7 +168,7 @@ send_key() { tmux -L "$SCN_SOCK" send-keys -t scn "$1"; }
 screen() { tmux -L "$SCN_SOCK" capture-pane -p -t scn; }
 
 # capture NAME: save the visible pane to $SCN_OUT/NAME.screen.
-capture() { screen >"$SCN_OUT/$1.screen"; }
+capture() { screen >"$SCN_OUT/$1.screen" 2>/dev/null || echo "no pane" >"$SCN_OUT/$1.screen"; }
 
 # wait_for REGEX SECONDS: wait until the pane matches REGEX. Returns 1 at
 # the time limit.
@@ -166,13 +192,52 @@ snapshot_files() {
   done | sed "s#$SCN_DIR#<sandbox>#" | sort -k3 >"$SCN_OUT/$name.files"
 }
 
-# open_files NAME PID: list the open files of PID and of its children.
+# tree PID: print PID and all its descendants, one per line.
+tree() {
+  # pid 0 means that there is no pane process. Print nothing.
+  [ "${1:-0}" -gt 0 ] || return 0
+  echo "$1"
+  for c in $(pgrep -P "$1" 2>/dev/null); do tree "$c"; done
+}
+
+# open_files NAME PID: list the open files of PID and of all its
+# descendants, one "pid path" line for each.
 open_files() {
-  for p in $2 $(pgrep -P "$2" 2>/dev/null); do
+  for p in $(tree "$2"); do
     for f in /proc/"$p"/fd/*; do
       readlink "$f" 2>/dev/null
     done | sed "s#$SCN_DIR#<sandbox>#" | sed "s#^#$p #"
   done | sort -u >"$SCN_OUT/$1.open"
+}
+
+# processes NAME PID: list PID and its descendants: pid, ppid, tty and
+# the first 120 characters of the command.
+processes() {
+  for p in $(tree "$2"); do
+    ps -o pid=,ppid=,tty=,args= -p "$p" 2>/dev/null | cut -c1-160
+  done | sed "s#$SCN_DIR#<sandbox>#g" >"$SCN_OUT/$1.ps"
+}
+
+# record_types NAME DIR: for each .jsonl file below DIR, list the record
+# types in order: "type" and, when there is one, "payload.type". No
+# content.
+record_types() {
+  name=$1
+  shift
+  find "$@" -name '*.jsonl' -type f 2>/dev/null | sort | while read -r f; do
+    echo "== $(echo "$f" | sed "s#$SCN_DIR#<sandbox>#")"
+    python3 -c '
+import json, sys
+for n, line in enumerate(open(sys.argv[1]), 1):
+    try:
+        d = json.loads(line)
+    except ValueError:
+        print(n, "not-json")
+        continue
+    p = d.get("payload") if isinstance(d.get("payload"), dict) else {}
+    print(n, d.get("type"), p.get("type", ""))
+' "$f"
+  done >"$SCN_OUT/$name.types"
 }
 
 # note TEXT: add one line to the scenario log.
