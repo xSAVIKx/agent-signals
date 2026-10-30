@@ -1,0 +1,27 @@
+schema: 1
+agent: codex
+agent_version: 0.164.0
+measured: 2026-10-30
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured
+edits: []
+description: >-
+  The command approval dialog in the default daemon mode (codex --sandbox
+  read-only --ask-for-approval on-request), after a normal turn. It draws
+  in place of the input box: "Would you like to run the following
+  command?", "Environment: local", "Reason: ...", "$ <command>", the three
+  numbered options under the mark, and the footer "Press enter to confirm
+  or esc to cancel". The capture holds no path, so it has no edit.
+  Measured with the scenario scenarios/codex/deny.sh in a private tmux
+  server with a throwaway HOME.
+expect:
+  state: PERMISSION
+  dialog: permission
+  question: "Would you like to run the following command?"
+  options:
+    - {n: 1, label: "Yes, proceed (y)", selected: true}
+    - {n: 2, label: "Yes, and don't ask again for commands that start with `printf 'hello' > note.txt` (p)"}
+    - {n: 3, label: "No, and tell Codex what to do differently (esc)"}
+  box_text: null
+facts: [20, 36]

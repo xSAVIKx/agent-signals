@@ -43,3 +43,19 @@ None.
 - "3. No" with a typed answer, and Ctrl+C during a turn.
 - An Esc during a running command, with no dialog.
 - macOS and Windows.
+
+## Later measurement, 2026-10-30 (0.164.0)
+
+The scenarios `scenarios/codex/deny.sh` and `scenarios/codex/interrupt.sh`
+measured the first two items of the list above. Facts 36, 37 and 38 give
+the details.
+
+- The digit `3` ("No, and tell Codex what to do differently") acts at
+  once and gives the same four records as Esc, with `turn_aborted` last.
+  Codex asks for no text. The turn ends.
+- Esc while an approved command runs gives the same four records.
+- Ctrl+C during a turn does not stop it. It opens the dialog "Task is
+  still running". `1. Cancel task` and `3. Exit` give `turn_aborted`. Esc
+  on that dialog lets the turn go on to `task_complete`.
+- Codex 0.164.0 has an `Interrupt` hook. It fires in each case that writes
+  `turn_aborted`. `Stop` does not fire in these cases.

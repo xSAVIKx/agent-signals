@@ -262,3 +262,43 @@ for n, line in enumerate(open(sys.argv[1]), 1):
 
 # note TEXT: add one line to the scenario log.
 note() { echo "$(date -u +%H:%M:%S) $*" | tee -a "$SCN_OUT/log.txt"; }
+
+# CODEX_HOOK_EVENTS: the hook event names in the Codex 0.164.0 binary
+# (found with strings, fact 38).
+CODEX_HOOK_EVENTS="SessionStart SessionEnd UserPromptSubmit PreModelRequest PreToolUse PermissionRequest PostToolUse PreCompact PostCompact SubagentStart SubagentStop Interrupt Stop"
+
+# codex_hooks: write ~/.codex/hooks.json in the throwaway HOME, with one
+# command hook for each event in CODEX_HOOK_EVENTS. Each hook adds one
+# line to $SCN_OUT/hooks.log: the time, the configured event, the
+# hook_event_name of the payload, and the sorted top-level keys of the
+# payload. It writes no values.
+codex_hooks() {
+  mkdir -p "$SCN_HOME/.codex"
+  cat >"$SCN_DIR/hook.py" <<'PY'
+import json, sys, time
+raw = sys.stdin.read()
+try:
+    d = json.loads(raw)
+except ValueError:
+    d = None
+if isinstance(d, dict):
+    ev, keys = d.get("hook_event_name", "?"), " ".join(sorted(d))
+else:
+    ev, keys = "?", "not-a-json-object"
+with open(sys.argv[1], "a") as f:
+    t = time.strftime("%H:%M:%S", time.gmtime())
+    f.write("%s %s %s: %s\n" % (t, sys.argv[2], ev, keys))
+PY
+  # shellcheck disable=SC2086
+  python3 - "$SCN_HOME/.codex/hooks.json" "$SCN_DIR/hook.py" \
+    "$SCN_OUT/hooks.log" $CODEX_HOOK_EVENTS <<'PY'
+import json, shlex, sys
+out, script, log = sys.argv[1:4]
+hooks = {}
+for ev in sys.argv[4:]:
+    cmd = "python3 %s %s %s" % (shlex.quote(script), shlex.quote(log), ev)
+    hooks[ev] = [{"hooks": [{"type": "command", "command": cmd, "timeout": 10}]}]
+json.dump({"hooks": hooks}, open(out, "w"), indent=2)
+PY
+  : >"$SCN_OUT/hooks.log"
+}
