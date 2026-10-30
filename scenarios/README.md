@@ -31,3 +31,4 @@ Path: `scenarios/<agent>/<name>.sh`. Shared functions: `scenarios/lib.sh`.
 | `claude/permission-dialog.sh` | Claude Code | 23, 24 |
 | `codex/approval.sh` | Codex CLI | 26, 27 |
 | `codex/two-sessions.sh` | Codex CLI | 26 |
+| `agy/turn-signals.sh` | Antigravity CLI | 28 |
