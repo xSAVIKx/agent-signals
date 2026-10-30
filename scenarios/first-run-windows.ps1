@@ -12,6 +12,7 @@
 # A failure of one agent does not stop the other agents, and the script
 # exits with 0.
 
+[CmdletBinding(PositionalBinding = $false)]
 param([string]$Python = 'python', [switch]$Summary, [int]$Limit = 180,
   [Parameter(ValueFromRemainingArguments = $true)][string[]]$Agents)
 

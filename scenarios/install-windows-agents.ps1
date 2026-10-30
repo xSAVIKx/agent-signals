@@ -26,7 +26,7 @@ function Add-ToPath([string]$Dir) {
 # Runs an install page in a child PowerShell, so that an "exit" in the page
 # does not stop this script.
 function Invoke-InstallPage([string]$Url) {
-  & pwsh -NoProfile -Command "irm '$Url' | iex"
+  & pwsh -NoProfile -Command "irm '$Url' | iex" | Out-Host
   return $LASTEXITCODE
 }
 
