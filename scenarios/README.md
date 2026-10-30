@@ -32,7 +32,7 @@ on Linux and macOS runners, by hand and once a week. It needs no secret.
 
 | Scenario | Agent | Facts |
 |---|---|---|
-| `first-run.sh <agent>` | each agent, no login | |
+| `first-run.sh <agent>` | each agent, no login | 29 |
 | `claude/permission-dialog.sh` | Claude Code | 23, 24 |
 | `codex/approval.sh` | Codex CLI | 26, 27 |
 | `codex/two-sessions.sh` | Codex CLI | 26 |
