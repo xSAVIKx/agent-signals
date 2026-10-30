@@ -31,4 +31,4 @@ Path: `probes/<agent>/<os>.sh`, or `<os>.ps1` for Windows.
 
 | Probe | Agent | OS | Facts |
 |---|---|---|---|
-| `cursor/macos.sh` | Cursor CLI (`agent`, `cursor-agent`) | macOS | 19, 20 |
+| `cursor/macos.sh` | Cursor CLI (`agent`, `cursor-agent`) | macOS | 21, 22 |

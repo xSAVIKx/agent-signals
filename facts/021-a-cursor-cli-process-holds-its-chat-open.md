@@ -1,9 +1,10 @@
-# 019. A Cursor CLI process holds its chat database open
+# 021. A Cursor CLI process holds its chat database open
 
 ## Measured
 
 2026-10-30, Cursor CLI 2026.10.22-27dcf5f (nine processes) and
-2026.10.01-e373342 (one process), on macOS 26.6 (arm64). The probe
+2026.10.01-e373342 (one process), on macOS 26.6 (arm64).
+Measured on: real machine. The probe
 `probes/cursor/macos.sh` read the open files with `lsof` and the folder
 names with `ls`. It read no conversation text.
 
@@ -64,6 +65,6 @@ None.
   and whether it closes the old one.
 - The hash function of the hex folder.
 - Linux and Windows.
-- The editor's agent workers (fact 20) held no `store.db` open when the
+- The editor's agent workers (fact 22) held no `store.db` open when the
   probe ran.
 - Whether the transcript shows a wait on a permission dialog.

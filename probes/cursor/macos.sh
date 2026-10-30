@@ -26,8 +26,8 @@ done
 echo "### 3. Folder and open Cursor files of each process"
 for p in $pids; do
   echo "== $p"
-  echo "cwd: $(lsof -a -p "$p" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p')"
-  lsof -p "$p" -Fn 2>/dev/null | sed -n 's/^n//p' | grep -E '/\.cursor/' | sort -u
+  echo "cwd: $(lsof -n -P -a -p "$p" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p')"
+  lsof -n -P -p "$p" -Fn 2>/dev/null | sed -n 's/^n//p' | grep -E '/\.cursor/' | sort -u
 done
 
 # Caution: the first osascript call can open a macOS dialog that asks for
@@ -47,14 +47,22 @@ echo "### 6. Hooks"
 ls -la ~/.cursor/hooks.json 2>&1
 agent --help 2>&1 | grep -i -E 'hook|resume|chat' | head -20
 
-echo "### 7. Layout of the newest chat (no content)"
+echo "### 7. Layout of the newest chat folder (no content)"
+# A live store.db cannot be opened, and a copy would hold chat text.
+# This section lists file names, sizes and times only.
 f=$(ls -t ~/.cursor/chats/*/*/store.db 2>/dev/null | head -1)
-echo "db: $f"
-[ -n "$f" ] && sqlite3 -readonly "$f" '.tables' '.schema' 2>&1 | cut -c1-300
-for j in "$(dirname "$f")"/*.json; do
-  echo "json: $(basename "$j")"
-  python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(sorted(d) if isinstance(d,dict) else type(d).__name__)' "$j"
-done
+if [ -z "$f" ]; then
+  echo "not found"
+else
+  d=$(dirname "$f")
+  echo "folder: $d"
+  ls -la "$d"
+  for j in "$d"/*.json; do
+    [ -f "$j" ] || continue
+    echo "json: $(basename "$j")"
+    python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(sorted(d) if isinstance(d,dict) else type(d).__name__)' "$j"
+  done
+fi
 
 echo "### 8. Newest transcript: record types of the last 5 lines (no text)"
 t=$(ls -t ~/.cursor/projects/*/agent-transcripts/*/*.jsonl 2>/dev/null | head -1)

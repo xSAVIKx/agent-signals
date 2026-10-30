@@ -1,9 +1,10 @@
-# 020. The terminals and the worker processes of the Cursor CLI on macOS
+# 022. The terminals and the worker processes of the Cursor CLI on macOS
 
 ## Measured
 
 2026-10-30, Cursor CLI 2026.10.22-27dcf5f, Cursor editor (version not
-recorded), macOS 26.6 (arm64), with no tmux installed. The probe
+recorded), macOS 26.6 (arm64), with no tmux installed.
+Measured on: real machine. The probe
 `probes/cursor/macos.sh` read `ps` and one AppleScript call to Terminal.
 
 ## What was measured

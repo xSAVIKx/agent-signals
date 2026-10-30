@@ -5,7 +5,9 @@ names the facts that it pins in its `facts` field.
 
 Each fact gives:
 
-1. The date and the agent version that were measured.
+1. The date and the agent version that were measured, and one line that
+   says where: `Measured on: real machine`, `Measured on: CI runner <image>`,
+   or `Measured on: emulation <image>`.
 2. What was measured, and how.
 3. The mechanism: why the agent behaves this way, when it is known.
 4. The incident that the fact caused, when there was one.
