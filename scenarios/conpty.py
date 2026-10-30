@@ -72,6 +72,18 @@ class _Screen(pyte.Screen):
         if self.reply is not None:
             self.reply(data)
 
+    # pyte 0.8.2 gives "private=True" for a CSI with "?" or ">" (for
+    # example CSI ? 6 n and CSI > 4 ; 2 m), but these two methods do not take
+    # it. The TypeError then drops the rest of the output chunk. The screen
+    # ignores these private forms and sends no answer.
+    def report_device_status(self, mode, **kwargs):
+        if not kwargs.get("private"):
+            super().report_device_status(mode)
+
+    def select_graphic_rendition(self, *attrs, **kwargs):
+        if not kwargs.get("private"):
+            super().select_graphic_rendition(*attrs)
+
 
 class Terminal:
     """A pyte screen with a lock, so that a reader thread can feed it."""

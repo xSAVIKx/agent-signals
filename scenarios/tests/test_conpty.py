@@ -98,6 +98,13 @@ class Replies(unittest.TestCase):
         t.feed("\x1b[3;4H\x1b[6n\x1b[c\x1b[5n")
         self.assertEqual(got, ["\x1b[3;4R", "\x1b[?6c", "\x1b[0n"])
 
+    def test_private_sequences_keep_the_rest_of_the_chunk(self):
+        got = []
+        t = conpty.Terminal(20, 3, reply=got.append)
+        t.feed("ab\x1b[?6ncd\x1b[?4mef\x1b[>4;2mgh")
+        self.assertEqual(t.text(), "abcdefgh\n\n\n")
+        self.assertEqual((t.errors, got), (0, []))
+
     def test_no_reply_callback(self):
         t = conpty.Terminal()
         t.feed("\x1b[6n")
