@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>{{if eq .Section "home"}}agent-signals: measured signals of AI coding agents{{else}}{{.Title}} | agent-signals{{end}}</title>
+{{with .Description}}<meta name="description" content="{{.}}">
+{{end}}<link rel="icon" href="data:,">
+<link rel="stylesheet" href="{{rel .Out "assets/style.css"}}">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to the main content</a>
+<header class="site-header">
+<div class="header-inner">
+<a class="brand" href="{{rel .Out "index.html"}}"{{if eq .Section "home"}} aria-current="page"{{end}}><span class="brand-mark" aria-hidden="true">&gt;_</span> agent-signals</a>
+<nav class="site-nav" aria-label="Main">
+<details class="nav-menu">
+<summary>Menu</summary>
+<ul>
+{{- $p := . }}
+{{- range .Nav}}
+<li><a href="{{rel $p.Out .Out}}"{{if eq $p.Section .Key}} aria-current="{{if eq $p.Out .Out}}page{{else}}true{{end}}"{{end}}>{{.Label}}</a></li>
+{{- end}}
+</ul>
+</details>
+<ul class="nav-wide">
+{{- range .Nav}}
+<li><a href="{{rel $p.Out .Out}}"{{if eq $p.Section .Key}} aria-current="{{if eq $p.Out .Out}}page{{else}}true{{end}}"{{end}}>{{.Label}}</a></li>
+{{- end}}
+</ul>
+</nav>
+</div>
+</header>
+<main id="main" tabindex="-1">
+{{- if .Crumbs}}
+<nav class="crumbs" aria-label="Breadcrumb">
+<ol>
+{{- range .Crumbs}}
+<li><a href="{{rel $p.Out .Out}}">{{.Label}}</a></li>
+{{- end}}
+<li><span aria-current="page">{{.Title}}</span></li>
+</ol>
+</nav>
+{{- end}}
+{{.Body}}
+</main>
+<footer class="site-footer">
+<div class="footer-inner">
+<p>The Markdown files and the corpus in the repository are the source of this site.{{with .Source}} <a href="{{github .}}">Read the source of this page on GitHub</a>.{{end}}</p>
+<p><a href="https://github.com/xSAVIKx/agent-signals">The agent-signals repository on GitHub</a>. License: <a href="https://github.com/xSAVIKx/agent-signals/blob/main/LICENSE">Apache License 2.0</a>.</p>
+</div>
+</footer>
+{{- if .Script}}
+<script src="{{rel .Out "assets/filter.js"}}" defer></script>
+{{- end}}
+</body>
+</html>

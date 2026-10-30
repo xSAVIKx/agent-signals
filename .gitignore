@@ -12,3 +12,6 @@
 
 # Scenario and probe output. It holds raw screens and real paths.
 /out/
+
+# The built documentation website (tools/cmd/site).
+/_site/

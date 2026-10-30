@@ -40,6 +40,10 @@ jobs:
         run: go test -count=1 ./...
       - name: Validate the corpus
         run: go run ./cmd/validate ..
+      # The pages workflow deploys the site from main. This step makes a
+      # broken generator fail the pull request first.
+      - name: Build the site
+        run: go run ./cmd/site -root .. -out ../_site
 
   go-library:
     name: Go library

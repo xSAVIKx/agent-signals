@@ -1,0 +1,86 @@
+{{define "screen.html"}}{{$m := .Screen.Meta}}{{$o := .Out}}<h1>Screen <code>{{.Screen.Key}}</code></h1>
+<p class="lead">{{$m.Description}}</p>
+<dl class="summary">
+<div><dt>Expected state</dt><dd><code>{{$m.Expect.State}}</code>{{if $m.KnownFalsePositive}} <strong class="badge">known false positive</strong>{{end}}</dd></div>
+<div><dt>Agent version</dt><dd>{{.Agent.Display}} {{$m.AgentVersion}}</dd></div>
+<div><dt>Provenance</dt><dd>{{$m.Provenance}}</dd></div>
+</dl>
+<figure class="screen">
+<figcaption id="screen-caption">The text of the screen <code>{{.Screen.Key}}</code>{{with $m.Pane}}: {{.Cols}} columns by {{.Rows}} rows{{end}}, a {{$m.Capture}} capture{{if .Changed}}. Each ESC byte is shown as ␛{{end}}.</figcaption>
+<div class="screen-scroll" role="region" tabindex="0" aria-labelledby="screen-caption">
+<pre class="screen-text"{{with $m.Pane}} style="--cols: {{.Cols}}"{{end}}>
+{{.Text}}</pre>
+</div>
+</figure>
+<p class="actions"><a href="{{.Raw}}" download>Download the exact bytes of this screen</a> <a href="{{github (print .SrcPath ".yaml")}}">Read the metadata file on GitHub</a></p>
+<h2 id="expected-result">Expected result</h2>
+<dl class="fields">
+<div><dt><code>state</code></dt><dd><code>{{$m.Expect.State}}</code></dd></div>
+{{- with $m.Expect.Dialog}}
+<div><dt><code>dialog</code></dt><dd><code>{{.}}</code></dd></div>
+{{- end}}
+{{- with $m.Expect.Question}}
+<div><dt><code>question</code></dt><dd>{{.}}</dd></div>
+{{- end}}
+{{- with $m.Expect.Shape}}
+<div><dt><code>shape</code></dt><dd>{{.}}</dd></div>
+{{- end}}
+{{- if $m.Expect.BoxText}}
+<div><dt><code>box_text</code></dt><dd><code class="pre">{{$m.Expect.BoxText}}</code></dd></div>
+{{- end}}
+</dl>
+{{- if $m.Expect.Options}}
+<div class="table-wrap" role="region" tabindex="0" aria-labelledby="options-caption">
+<table>
+<caption id="options-caption">The options of the dialog</caption>
+<thead><tr><th scope="col">Number</th><th scope="col">Label</th><th scope="col">Selected</th></tr></thead>
+<tbody>
+{{- range $m.Expect.Options}}
+<tr><td class="num">{{if .N}}{{.N}}{{else}}none{{end}}</td><td>{{.Label}}</td><td>{{if .Selected}}yes{{else}}no{{end}}</td></tr>
+{{- end}}
+</tbody>
+</table>
+</div>
+{{- end}}
+<h2 id="metadata">Metadata</h2>
+<dl class="fields">
+<div><dt><code>agent</code></dt><dd>{{$m.Agent}}</dd></div>
+<div><dt><code>agent_version</code></dt><dd>{{$m.AgentVersion}}</dd></div>
+{{- with $m.ValidFrom}}
+<div><dt><code>valid_from</code></dt><dd>{{.}}</dd></div>
+{{- end}}
+{{- with $m.SupersededBy}}
+<div><dt><code>superseded_by</code></dt><dd>{{$u := screenURL $o (print $m.Agent "/" .)}}{{if $u}}<a href="{{$u}}"><code>{{.}}</code></a>{{else}}<code>{{.}}</code>{{end}}</dd></div>
+{{- end}}
+<div><dt><code>measured</code></dt><dd>{{$m.Measured}}</dd></div>
+<div><dt><code>capture</code></dt><dd>{{$m.Capture}}</dd></div>
+<div><dt><code>pane</code></dt><dd>{{with $m.Pane}}{{.Cols}} columns, {{.Rows}} rows{{else}}not known{{end}}</dd></div>
+<div><dt><code>provenance</code></dt><dd>{{$m.Provenance}}</dd></div>
+{{- if $m.Edits}}
+<div><dt><code>edits</code></dt><dd><ul>{{range $m.Edits}}<li>{{.}}</li>{{end}}</ul></dd></div>
+{{- end}}
+{{- with $m.DerivedFrom}}
+<div><dt><code>derived_from</code></dt><dd>{{$u := screenURL $o (print $m.Agent "/" .)}}{{if $u}}<a href="{{$u}}"><code>{{.}}</code></a>{{else}}{{.}}{{end}}</dd></div>
+{{- end}}
+{{- with $m.NegativeControlFor}}
+<div><dt><code>negative_control_for</code></dt><dd>{{$u := screenURL $o (print $m.Agent "/" .)}}{{if $u}}<a href="{{$u}}"><code>{{.}}</code></a>{{else}}<code>{{.}}</code>{{end}}</dd></div>
+{{- end}}
+{{- if $m.KnownFalsePositive}}
+<div><dt><code>known_false_positive</code></dt><dd>true</dd></div>
+<div><dt><code>known_false_positive_reason</code></dt><dd>{{$m.KnownFalsePositiveReason}}</dd></div>
+{{- end}}
+{{- if $m.Facts}}
+<div><dt><code>facts</code></dt><dd><ul class="inline">{{range $m.Facts}}<li>{{if hasFact .}}<a href="{{factURL $o .}}">{{factTitle .}}</a>{{else}}{{.}}{{end}}</li>{{end}}</ul></dd></div>
+{{- end}}
+</dl>
+<nav class="pager" aria-label="Previous and next screen of {{.Agent.Display}}">
+<ul>
+{{- if .Prev}}
+<li class="prev"><a href="{{.Prev.Slug}}.html" rel="prev"><span class="pager-dir">Previous screen</span> <code>{{.Prev.Slug}}</code></a></li>
+{{- end}}
+{{- if .Next}}
+<li class="next"><a href="{{.Next.Slug}}.html" rel="next"><span class="pager-dir">Next screen</span> <code>{{.Next.Slug}}</code></a></li>
+{{- end}}
+</ul>
+</nav>
+{{end}}

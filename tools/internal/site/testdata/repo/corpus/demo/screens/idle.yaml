@@ -1,0 +1,14 @@
+schema: 1
+agent: demo
+agent_version: 1.0.0
+measured: 2026-10-30
+capture: plain
+pane: {cols: 40, rows: 4}
+provenance: derived
+derived_from: hand-built
+description: >-
+  A test screen for the site generator.
+expect:
+  state: IDLE
+  box_text: null
+facts: [1]
