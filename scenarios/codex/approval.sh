@@ -26,7 +26,7 @@ copy_login codex || die "no Codex login that is safe to copy"
 step() {
   capture "$1"
   processes "$1" "$(agent_pid)"
-  open_files "$1" "$(agent_pid)"
+  scn_open_files "$1" "$(agent_pid)"
   # The daemon can outlive the TUI, so record it on its own too.
   for d in $(sandbox_pids); do
     ps -o pid=,ppid=,tty=,args= -p "$d" 2>/dev/null | cut -c1-160
