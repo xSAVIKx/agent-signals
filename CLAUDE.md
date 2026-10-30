@@ -42,6 +42,7 @@ output stay exact.
 
 ## CI
 
-Workflows take the runner from the repository variable `CI_RUNS_ON`, with
-`ubuntu-latest` as the fallback. Pin each action to a commit SHA, with the
-tag in a comment.
+All workflows run on GitHub-hosted runners. Do not add a self-hosted
+runner. Do not use `pull_request_target`. A job that uses a secret runs only
+on `workflow_dispatch` or on a schedule. Pin each action to a commit SHA,
+with the tag in a comment.
