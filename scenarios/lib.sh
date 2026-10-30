@@ -120,6 +120,11 @@ EOF
       [ -f "$f" ] || return 1
       mkdir -p "$SCN_HOME/.gemini/antigravity-cli"
       cp "$f" "$SCN_HOME/.gemini/antigravity-cli/"
+      # The onboarding state, so that the first-run wizard does not open.
+      for s in jetski_state.pbtxt installation_id; do
+        [ -f "$REAL_HOME/.gemini/antigravity-cli/$s" ] &&
+          cp "$REAL_HOME/.gemini/antigravity-cli/$s" "$SCN_HOME/.gemini/antigravity-cli/"
+      done
       ;;
     cursor)
       # The Cursor CLI takes CURSOR_API_KEY from the environment.
