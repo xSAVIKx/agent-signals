@@ -50,11 +50,15 @@ function Run-Capped([string]$File, [string]$Arguments) {
   return (@($text) + "($status)") -join "`n"
 }
 
-# Show-Tree DIR DEPTH: list the folders below DIR to DEPTH, and the .exe,
-# .cmd, .ps1, .js, .mjs, .node and .json files at the first two levels.
+# Show-Tree DIR DEPTH: list the folders below DIR to DEPTH, the files at
+# the first level, and the .exe and .node files at the first two levels.
+# A folder that was listed before is not listed again.
+$script:Shown = @{}
 function Show-Tree([string]$Dir, [int]$Depth) {
   if (-not (Test-Path -LiteralPath $Dir)) { Out-Line "  (no folder $Dir)"; return }
   Out-Line "  folder: $Dir"
+  if ($script:Shown.ContainsKey($Dir)) { Out-Line '  (listed above)'; return }
+  $script:Shown[$Dir] = $true
   $base = (Resolve-Path -LiteralPath $Dir).ProviderPath.TrimEnd('\')
   $items = Get-ChildItem -LiteralPath $Dir -Recurse -Depth ($Depth - 1) -Force -ErrorAction SilentlyContinue |
     Where-Object { $_.FullName -notmatch '\\node_modules\\.+\\node_modules\\' }
@@ -63,29 +67,29 @@ function Show-Tree([string]$Dir, [int]$Depth) {
     $rel = $i.FullName.Substring($base.Length).TrimStart('\')
     $level = ($rel -split '\\').Count
     if ($i.PSIsContainer) {
+      if ($level -gt 2) { continue }
       $line = "  d $rel\"
-    } elseif ($level -le 2 -or $i.Extension -in '.exe', '.node') {
-      if ($i.Extension -notin '.exe', '.cmd', '.ps1', '.js', '.mjs', '.cjs', '.node', '.json', '') { continue }
+    } elseif ($level -eq 1 -or ($level -eq 2 -and $i.Extension -in '.exe', '.node')) {
       $line = "  f $rel ($($i.Length) bytes)"
     } else {
       continue
     }
     Out-Line $line
     $n++
-    if ($n -ge 60) { Out-Line '  (more entries not shown)'; break }
+    if ($n -ge 30) { Out-Line '  (more entries not shown)'; break }
   }
 }
 
-function Show-HomeFolders([string]$Title) {
-  Out-Line "## $Title"
-  Get-ChildItem -LiteralPath $HOME -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name.StartsWith('.') } |
-    Sort-Object Name | ForEach-Object { Out-Line "  $($_.Name)" }
-  $appdata = @($env:APPDATA, $env:LOCALAPPDATA)
-  foreach ($a in $appdata) {
+# Get-HomeFolders: the hidden folders and files in the home folder, and the
+# folders in %APPDATA% and %LOCALAPPDATA%.
+function Get-HomeFolders {
+  $list = @(Get-ChildItem -LiteralPath $HOME -Force -ErrorAction SilentlyContinue |
+      Where-Object { $_.Name.StartsWith('.') } | ForEach-Object { $_.FullName })
+  foreach ($a in @($env:APPDATA, $env:LOCALAPPDATA)) {
     if (-not $a) { continue }
-    Get-ChildItem -LiteralPath $a -Directory -Force -ErrorAction SilentlyContinue | Sort-Object Name |
-      ForEach-Object { Out-Line "  $($_.FullName)" }
+    $list += @(Get-ChildItem -LiteralPath $a -Directory -Force -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })
   }
+  return @($list | Sort-Object)
 }
 
 $npmRoot = (& npm root -g 2>$null | Select-Object -First 1)
@@ -98,8 +102,12 @@ Out-Line "node: $(& node --version 2>$null)"
 Out-Line "npm: $(& npm --version 2>$null)"
 Out-Line "npm prefix: $npmPrefix"
 Out-Line "npm root: $npmRoot"
+$before = Get-HomeFolders
 Out-Line ''
-Show-HomeFolders 'home folders before the version calls'
+Out-Line '## agent folders in the home folder after the installs'
+foreach ($h in $before) {
+  if ($h -match '\\\.?(claude|codex|cursor|cursor-agent|opencode|gemini|copilot|qwen|amp|crush|continue|factory|cline|kilo|augment|kimi-code|config|local)$') { Out-Line "  $h" }
+}
 
 foreach ($spec in $args) {
   $f = $spec -split '='
@@ -129,8 +137,10 @@ foreach ($spec in $args) {
     Out-Line '## binaries below the package'
     Get-ChildItem -LiteralPath $dir -Recurse -Force -Include '*.exe', '*.node' -ErrorAction SilentlyContinue |
       Select-Object -First 20 | ForEach-Object {
-        $fv = $_.VersionInfo.FileVersion
-        Out-Line "  $($_.FullName.Substring($dir.Length)) ($($_.Length) bytes, file version: $fv)"
+        # The parts with spaces, because the scrub reads a.b.c.d as an IPv4 address.
+        $vi = $_.VersionInfo
+        $fv = '{0} {1} {2} {3}' -f $vi.FileMajorPart, $vi.FileMinorPart, $vi.FileBuildPart, $vi.FilePrivatePart
+        Out-Line "  $($_.FullName.Substring($dir.Length)) ($($_.Length) bytes, file version parts: $fv)"
       }
     Out-Line '## the npm shims'
     foreach ($ext in '', '.cmd', '.ps1') {
@@ -154,7 +164,8 @@ foreach ($spec in $args) {
 }
 
 Out-Line ''
-Show-HomeFolders 'home folders after the version calls'
+Out-Line '## folders that the version calls made in the home folder'
+foreach ($h in (Get-HomeFolders)) { if ($before -notcontains $h) { Out-Line "  $h" } }
 
 $d = Get-ScrubDefaults
 $r = Invoke-Scrub $sb.ToString() $d.HomeDir $d.User $d.HostName

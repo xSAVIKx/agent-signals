@@ -156,18 +156,30 @@ jobs:
         if: matrix.group == 'b'
         continue-on-error: true
         run: uv tool install --python 3.12 openhands
+      # The raw output of each run goes to a file, not to the public log.
+      # The summary prints it through the scrub.
       - name: Run the scenarios
         env:
           AGENTS: ${{ matrix.agents }}
         run: |
+          mkdir -p out
           for pair in $AGENTS; do
             a=${pair%%:*}
             c=${pair##*:}
-            sh scenarios/first-run.sh "$a" "$c" || echo "skipped or failed: $a"
+            if sh scenarios/first-run.sh "$a" "$c" >"out/run-$a.txt" 2>&1; then
+              echo "ran: $a"
+            else
+              echo "skipped or failed: $a"
+            fi
           done
       - name: Summary (scrubbed)
         if: always()
         run: |
+          for f in out/run-*.txt; do
+            [ -f "$f" ] || continue
+            echo "== $(basename "$f" .txt)"
+            sh tools/scrub.sh "$f" 2>/dev/null | grep -v '^output: ' | tail -n 3
+          done
           for o in out/first-run-*; do
             [ -d "$o" ] || continue
             echo "################ $(basename "$o" | sed 's/-[0-9T]*Z$//')"

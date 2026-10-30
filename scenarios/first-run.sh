@@ -30,7 +30,11 @@ command -v "$cmd" >/dev/null 2>&1 || die "not installed: $cmd"
 
 SCN_NAME=first-run-$agent
 sandbox_start
-note "version: $("$cmd" --version 2>&1 </dev/null | head -n 1)"
+# The version is the first line on stdout. Some agents print a warning
+# on stderr first (OpenHands), so stderr counts only when stdout is empty.
+v=$("$cmd" --version 2>/dev/null </dev/null | grep -v '^[[:space:]]*$' | head -n 1)
+[ -n "$v" ] || v=$("$cmd" --version 2>&1 </dev/null | head -n 1)
+note "version: $v"
 note "os: $PROBE_OS $(uname -m)"
 
 step() {
