@@ -29,12 +29,18 @@ Path: `scenarios/<agent>/<name>.sh`. Shared functions: `scenarios/lib.sh`.
 CI (`.github/workflows/scenarios.yml`) runs `first-run.sh` for each agent
 on Linux and macOS runners, by hand and once a week. It needs no secret.
 
-
 | Scenario | Agent | Facts |
 |---|---|---|
 | `first-run.sh <agent> [command]` | each agent, no login | 29, 30 |
 | `claude/permission-dialog.sh` | Claude Code | 23, 24 |
+| `claude/dialog-states.sh` | Claude Code | 31, 32, 33, 34 |
+| `claude/plan-and-resume.sh` | Claude Code | 31, 32, 35 |
 | `codex/approval.sh` | Codex CLI | 26, 27 |
 | `codex/two-sessions.sh` | Codex CLI | 26 |
 | `codex/screens.sh` | Codex CLI | 20 (screens of 0.164.0) |
-| `agy/turn-signals.sh` | Antigravity CLI | 28 |
+| `codex/deny.sh` | Codex CLI | 36, 38 |
+| `codex/interrupt.sh` | Codex CLI | 37, 38 |
+| `codex/daemon-life.sh` | Codex CLI | 39, 40 |
+| `agy/turn-signals.sh` | Antigravity CLI | 28; superseded in part by 42 |
+| `agy/deny-and-tools.sh` | Antigravity CLI | 41, 42, 44, 45 |
+| `agy/continue.sh` | Antigravity CLI | 43, 44 |

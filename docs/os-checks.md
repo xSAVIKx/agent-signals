@@ -51,9 +51,9 @@ The same on Linux and macOS, below the home folder. Windows uses
 
 | Agent | Session link | Live signal | Transcript |
 |---|---|---|---|
-| Claude Code | `~/.claude/sessions/<pid>.json` (`sessionId`, `tmux`) | `status` in the same file: `idle`, `busy`, `waiting`, `shell` (fact 23) | `~/.claude/projects/<key>/<session id>.jsonl` |
-| Codex CLI | `~/.codex/thread-writer-locks/<session id>.lock`, open in the daemon (fact 26) | `task_complete`, `turn_aborted` records (fact 27) | `~/.codex/sessions/YYYY/MM/DD/rollout-<time>-<session id>.jsonl` |
-| agy | `~/.gemini/antigravity-cli/presence/<conversation id>.lock`, open in the process (fact 28) | hooks `PreInvocation`, `Stop` (fact 28) | `~/.gemini/antigravity-cli/brain/<conversation id>/.system_generated/logs/transcript.jsonl` |
+| Claude Code | `~/.claude/sessions/<pid>.json` (`sessionId`, `tmux`) | `status` in the same file: `idle`, `busy`, `waiting` (with `waitingFor`), `shell` for a background shell (facts 23, 31) | `~/.claude/projects/<key>/<session id>.jsonl` |
+| Codex CLI | `~/.codex/thread-writer-locks/<session id>.lock`, open in the daemon (fact 26) | `task_complete`, `turn_aborted` records (fact 27); the `Interrupt` and `Stop` hooks (fact 38) | `~/.codex/sessions/YYYY/MM/DD/rollout-<time>-<session id>.jsonl` |
+| agy | `~/.gemini/antigravity-cli/presence/<conversation id>.lock`, a flock lock held by the process (facts 28, 44) | hooks `PreInvocation`, `Stop` (fact 28); `status` in `conversation_summaries.db` (fact 45) | `~/.gemini/antigravity-cli/brain/<conversation id>/.system_generated/logs/transcript.jsonl` |
 | Cursor CLI | `~/.cursor/chats/<hex>/<chat id>/store.db`, open in the process (fact 21) | not known | `~/.cursor/projects/<key>/agent-transcripts/<chat id>/<chat id>.jsonl` |
 | opencode | not known | not known | not known |
 | Copilot CLI | `~/.copilot/session-state/<session id>/inuse.<pid>.hold`, open in the process (fact 30) | not known | not known |
