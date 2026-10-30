@@ -78,3 +78,26 @@ None.
   can test.
 - `--continue` and `--conversation <id>`.
 - macOS and Windows.
+
+## Later measurement (2026-10-30, agy 1.4.7)
+
+The scenarios `scenarios/agy/deny-and-tools.sh` and
+`scenarios/agy/continue.sh` measured four items of "Not measured" above.
+The items above stay as they were measured.
+
+1. `PreToolUse` and `PostToolUse` fire when each handler list is in a group
+   with a `matcher`:
+   `{"<group>": {"PreToolUse": [{"matcher": "*", "hooks": [{"type": "command", "command": "...", "timeout": 10}]}]}}`.
+   Item 2 above used the flat shape, which agy does not read for these two
+   events. See fact 42.
+2. "2. No, deny creation" fires no hook after `PreToolUse`, as an Esc. It
+   adds a `GENERIC` record with `status` `ERROR` to the transcript. See
+   fact 41.
+3. The `presence` file is a `flock` lock, held while the process runs. See
+   fact 44.
+4. `--continue` and `--conversation <id>` reuse the `presence` and
+   `conversations` files of the conversation, and open them at the start,
+   before the first prompt. This changes item 4 above for such a process.
+   `SessionStart` does not fire again. See fact 43.
+5. `conversation_summaries.db` shows a running turn and the end of a turn,
+   also after an Esc. See fact 45.

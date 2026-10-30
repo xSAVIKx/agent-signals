@@ -8,3 +8,12 @@ verified:
       Covers the folder-trust dialog, idle, typed, busy, a command permission
       dialog and the AskQuestion dialog. Not checked: the file permission
       dialog, the model picker, the command menu, the shortcuts help.
+  - version: 1.4.7
+    date: 2026-10-30
+    method: fresh capture of 6 screens in a private tmux server, 120x40, by scenarios/agy/deny-and-tools.sh and scenarios/agy/continue.sh
+    notes: >-
+      Covers idle, busy, the file permission dialog, the screen after "2. No,
+      deny creation", the screen after Esc on the file dialog, and agy
+      --continue in a folder with no conversation. Not checked on 1.4.7: the
+      trust dialog, typed text, the command permission dialog, the question
+      dialog, the model picker, the command menu, the shortcuts help.

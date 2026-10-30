@@ -1,0 +1,17 @@
+schema: 1
+agent: agy
+agent_version: 1.4.7
+measured: 2026-10-30
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - the account e-mail address is replaced with user@example.com
+  - the path of the throwaway work folder is scrubbed to /work/example
+description: >-
+  About 1.5 s after the prompt was sent: "Generating..." above a framed, empty box, and "esc to cancel" in the footer. Captured by scenarios/agy/deny-and-tools.sh in a private tmux server.
+expect:
+  state: BUSY
+  dialog: none
+  box_text: null
+facts: [17, 45]
