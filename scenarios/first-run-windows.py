@@ -259,7 +259,7 @@ class Run:
             time.sleep(15)
             self.step("02-after-20s", before)
             t = self.pty.terminal
-            self.note("output: %d characters, %d parse errors" % (t.chars, t.errors))
+            self.note("output: %d characters, %d parse errors %s" % (t.chars, t.errors, t.first_error))
         finally:
             self.stop()
         print("done: " + self.out)
@@ -273,3 +273,8 @@ if __name__ == "__main__":
     if not c:
         die("unknown agent: %s (give the command too)" % a)
     Run(a, c).main()
+    # Stop at once: the pseudo console can keep a native thread busy, and
+    # the normal interpreter shutdown can then fail.
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(0)

@@ -83,14 +83,17 @@ class Terminal:
         self.lock = threading.Lock()
         self.chars = 0
         self.errors = 0
+        self.first_error = ""
 
     def feed(self, text):
         with self.lock:
             self.chars += len(text)
             try:
                 self.stream.feed(text)
-            except Exception:  # A broken sequence must not stop the reader.
+            except Exception as e:  # A broken sequence must not stop the reader.
                 self.errors += 1
+                if not self.first_error:
+                    self.first_error = "%s: %s" % (type(e).__name__, str(e)[:80])
 
     def text(self):
         with self.lock:
@@ -119,21 +122,27 @@ class ConPTY:
         self.pty.spawn(self.argv[0], rest, cwd, block)
         self.pid = self.pty.pid
         self.started = time.monotonic()
-        self.reader = threading.Thread(target=self._read, daemon=True)
+        self.stopping = threading.Event()
+        self.reader = threading.Thread(target=self._read, args=(self.pty,), daemon=True)
         self.reader.start()
 
-    def _read(self):
-        while True:
+    def _read(self, pty):
+        # A read that does not block, so that the thread can stop: a
+        # blocking read can hang when the interpreter stops.
+        while not self.stopping.is_set():
             try:
-                data = self.pty.read(blocking=True)
+                data = pty.read(blocking=False)
             except Exception:
                 return
             if data:
                 self.terminal.feed(data)
-            elif self.pty.iseof():
-                return
             else:
-                time.sleep(0.01)
+                try:
+                    if pty.iseof():
+                        return
+                except Exception:
+                    return
+                time.sleep(0.02)
 
     def write(self, text):
         """Send text or a key sequence to the program."""
@@ -158,11 +167,13 @@ class ConPTY:
             return None
 
     def close(self):
+        """Stop the reader. Call it after the processes are stopped."""
+        self.stopping.set()
+        self.reader.join(5)
         try:
             self.pty.cancel_io()
         except Exception:
             pass
-        self.pty = None
 
 
 # Keys for ConPTY.write. ConPTY reads VT input.
