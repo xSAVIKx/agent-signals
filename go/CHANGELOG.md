@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.4.0](https://github.com/xSAVIKx/agent-signals/compare/go/v0.3.0...go/v0.4.0) (2026-10-30)
+
+
+### Features
+
+* add Codex scenarios for a denial, interrupts, hooks and the daemon ([#30](https://github.com/xSAVIKx/agent-signals/issues/30)) ([7b6440e](https://github.com/xSAVIKx/agent-signals/commit/7b6440e690b8aeedbe294f0c8cc54545627194b3))
+* add facts 031 to 035, more Claude Code waits and a resume ([#27](https://github.com/xSAVIKx/agent-signals/issues/27)) ([ca5740d](https://github.com/xSAVIKx/agent-signals/commit/ca5740d9a06ea49fac27bd4bd5d5c74686f46b9e))
+* measure more agy 1.4.7 signals (facts 041 to 045) ([#26](https://github.com/xSAVIKx/agent-signals/issues/26)) ([5922f5a](https://github.com/xSAVIKx/agent-signals/commit/5922f5aa527bf72b8532b3f16aac503e4aebccf4))
+* run the probes and scenarios on each free runner image, with facts 046 to 050 ([#25](https://github.com/xSAVIKx/agent-signals/issues/25)) ([793ee1b](https://github.com/xSAVIKx/agent-signals/commit/793ee1b7f7e3069fd6eb9f703afba2f845b37ddb))
+
+
+### Bug Fixes
+
+* keep version numbers out of the IP rule of the scrub ([#33](https://github.com/xSAVIKx/agent-signals/issues/33)) ([94fa3f5](https://github.com/xSAVIKx/agent-signals/commit/94fa3f5e8322cf7ebfa9cb5be9980325b2090316))
+
 ## [0.3.0](https://github.com/xSAVIKx/agent-signals/compare/go/v0.2.0...go/v0.3.0) (2026-10-30)
 
 
