@@ -1,0 +1,29 @@
+schema: 1
+agent: opencode
+agent_version: 1.19.5
+measured: 2026-10-30
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - tools/scrub.sh changed the home folder of the runner account to ~, so the line that held the path is shorter
+  - the throwaway folder ~/.cache/agent-signals/run.<random>/work/example is replaced with /work/example, so that line is shorter again
+description: >-
+  opencode 1.19.5 with no login and no provider starts in its input box. The
+  logo and "/update to upgrade to OpenCode 2.0" are above the box. The box has
+  a bar "┃" at the left and a rule "╹▀▀▀" below it. It holds the placeholder
+  "Ask anything… "What is the tech stack of this project?"" and the line
+  "Build · Big Pickle OpenCode". The footer gives "tab agents ctrl+p
+  commands", a tip to run /connect, and the folder with the version at the
+  bottom. The placeholder is not typed text. The other labels gave the same
+  screen, except two parts that change from start to start: the example in the
+  placeholder, and on macOS one space less before the version, because the
+  home folder of the runner is one character longer there. The screen is the
+  capture 20 s after the start, with no key sent, by scenarios/first-run.sh in
+  the scenarios workflow run 41142220844 on the CI runner ubuntu-24.04 (x64),
+  with a throwaway HOME, no login and no key.
+expect:
+  state: IDLE
+  dialog: none
+  box_text: null
+facts: [29]

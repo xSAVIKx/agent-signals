@@ -217,3 +217,40 @@ func TestACoverageFileOfTheWrongAgentIsAProblem(t *testing.T) {
 	write(t, root, "corpus/claude/coverage.yaml", "agent: codex\nverified: []\n")
 	wantOne(t, check(t, root), "corpus/claude/coverage.yaml", "folder is claude")
 }
+
+// agents holds each folder name that the schemas allow.
+var agents = []string{
+	"claude", "agy", "codex", "copilot", "gemini", "cursor", "opencode",
+	"qwen", "aider", "amp", "goose", "crush", "kimi", "continue", "droid",
+	"cline", "kilo", "auggie", "openhands",
+}
+
+func TestEachKnownAgentIsValid(t *testing.T) {
+	for _, a := range agents {
+		t.Run(a, func(t *testing.T) {
+			root := corpus(t)
+			write(t, root, "corpus/"+a+"/coverage.yaml", "agent: "+a+"\nverified:\n  - {version: 1.0.0, date: 2026-10-30, method: CI capture}\n")
+			write(t, root, "corpus/"+a+"/screens/ask.screen", goodScreen)
+			write(t, root, "corpus/"+a+"/screens/ask.yaml", strings.Replace(goodMeta, "agent: claude", "agent: "+a, 1))
+			if p := check(t, root); len(p) != 0 {
+				t.Fatalf("want no problem, got %v", p)
+			}
+		})
+	}
+}
+
+func TestAnUnknownAgentIsAProblem(t *testing.T) {
+	root := corpus(t)
+	write(t, root, "corpus/nobody/coverage.yaml", "agent: nobody\nverified: []\n")
+	write(t, root, "corpus/nobody/screens/ask.screen", goodScreen)
+	write(t, root, "corpus/nobody/screens/ask.yaml", strings.Replace(goodMeta, "agent: claude", "agent: nobody", 1))
+	p := check(t, root)
+	if len(p) != 2 {
+		t.Fatalf("want two schema problems, got %v", p)
+	}
+	for _, q := range p {
+		if !strings.Contains(q.Message, "schema") {
+			t.Errorf("want a schema problem, got %v", q)
+		}
+	}
+}

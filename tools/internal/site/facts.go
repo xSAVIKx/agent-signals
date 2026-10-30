@@ -40,14 +40,39 @@ var agentNames = []struct {
 	{"Copilot CLI", regexp.MustCompile(`\bCopilot\b`)},
 	{"Qwen Code", regexp.MustCompile(`\bQwen\b`)},
 	{"Aider", regexp.MustCompile(`\bAider\b`)},
+	{"Amp", regexp.MustCompile(`\bAmp\b`)},
+	{"Goose", regexp.MustCompile(`\bGoose\b`)},
+	{"Crush", regexp.MustCompile(`\bCrush\b`)},
+	{"Kimi Code CLI", regexp.MustCompile(`\bKimi\b`)},
+	{"Continue CLI", regexp.MustCompile(`\bContinue CLI\b`)},
+	{"Factory Droid", regexp.MustCompile(`\bDroid\b`)},
+	{"Cline CLI", regexp.MustCompile(`\bCline\b`)},
+	{"Kilo Code CLI", regexp.MustCompile(`\bKilo\b`)},
+	{"Auggie", regexp.MustCompile(`\bAuggie\b`)},
+	{"OpenHands CLI", regexp.MustCompile(`\bOpenHands\b`)},
 }
 
 // agentDisplay maps the folder name of an agent in corpus/ to its name.
 var agentDisplay = map[string]string{
-	"claude": "Claude Code",
-	"codex":  "Codex CLI",
-	"agy":    "Antigravity CLI",
-	"cursor": "Cursor CLI",
+	"claude":    "Claude Code",
+	"codex":     "Codex CLI",
+	"agy":       "Antigravity CLI",
+	"cursor":    "Cursor CLI",
+	"opencode":  "opencode",
+	"gemini":    "Gemini CLI",
+	"copilot":   "Copilot CLI",
+	"qwen":      "Qwen Code",
+	"aider":     "Aider",
+	"amp":       "Amp",
+	"goose":     "Goose",
+	"crush":     "Crush",
+	"kimi":      "Kimi Code CLI",
+	"continue":  "Continue CLI",
+	"droid":     "Factory Droid",
+	"cline":     "Cline CLI",
+	"kilo":      "Kilo Code CLI",
+	"auggie":    "Auggie",
+	"openhands": "OpenHands CLI",
 }
 
 // section gives the text of the level-2 section with the heading name, or "".

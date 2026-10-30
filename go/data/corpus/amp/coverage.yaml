@@ -1,0 +1,13 @@
+# The versions of Amp that were checked against this corpus.
+agent: amp
+verified:
+  - version: 0.0.1793390435-g08e9ec
+    date: 2026-10-30
+    method: >-
+      capture-pane -p, 120x40, 20 s after the first start with no login, by
+      scenarios/first-run.sh in the scenarios workflow run 41142220844, on the CI
+      runner ubuntu-24.04 (x64)
+    notes: >-
+      Covers the first screen with no login (login-v0-0-1793390435-g08e9ec). Not
+      checked: the screens after a login, any turn, a permission dialog, styled
+      captures, and a pane narrower than 120 columns.

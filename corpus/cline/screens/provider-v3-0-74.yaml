@@ -1,0 +1,22 @@
+schema: 1
+agent: cline
+agent_version: 3.0.74
+measured: 2026-10-30
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured
+edits: []
+description: >-
+  Cline CLI 3.0.74 with no login. The logo, "Welcome to Cline" and "Connect a
+  model provider to get started." are above four framed boxes: "Sign in with
+  Cline" (with the arrow "→"), "Sign in with ClinePass", "Sign in with
+  ChatGPT" and "Bring your own provider", and the footer "↑/↓ navigate, Enter
+  to select, Ctrl+C to exit". The framed boxes are choices, not an input box.
+  The other nine Linux and macOS labels of the run gave the same bytes. The
+  screen is the capture 20 s after the start, with no key sent, by
+  scenarios/first-run.sh in the scenarios workflow run 41142220844 on the CI
+  runner ubuntu-24.04 (x64), with a throwaway HOME, no login and no key.
+expect:
+  state: NO_BOX
+  dialog: none
+facts: [46]

@@ -19,7 +19,7 @@ A screen is two files in `corpus/<agent>/screens/`, with the same slug:
 
 ```yaml
 schema: 1
-agent: claude                # claude | agy | codex; equals the folder name
+agent: claude                # equals the folder name; see the list below
 agent_version: 2.1.309
 valid_from: 2.1.251          # optional
 superseded_by: null          # optional: the slug that replaces this screen
@@ -44,6 +44,37 @@ known_false_positive: false  # optional
 known_false_positive_reason: null
 facts: [7, 15]               # optional: the facts this screen pins
 ```
+
+## The agents
+
+The `agent` field holds the folder name of the agent. The schemas allow
+these names:
+
+| Folder | Agent |
+|---|---|
+| `claude` | Claude Code |
+| `agy` | Antigravity CLI |
+| `codex` | Codex CLI |
+| `copilot` | GitHub Copilot CLI |
+| `gemini` | Gemini CLI |
+| `cursor` | Cursor CLI |
+| `opencode` | opencode |
+| `qwen` | Qwen Code |
+| `aider` | Aider |
+| `amp` | Amp |
+| `goose` | Goose |
+| `crush` | Crush |
+| `kimi` | Kimi Code CLI |
+| `continue` | Continue CLI |
+| `droid` | Factory Droid |
+| `cline` | Cline CLI |
+| `kilo` | Kilo Code CLI |
+| `auggie` | Auggie |
+| `openhands` | OpenHands CLI |
+
+A new agent needs its name in `schema/screen.schema.json` and
+`schema/coverage.schema.json`. A name that is not in the list is a schema
+problem.
 
 ## The states
 

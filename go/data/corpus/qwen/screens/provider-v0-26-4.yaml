@@ -1,0 +1,22 @@
+schema: 1
+agent: qwen
+agent_version: 0.26.4
+measured: 2026-10-30
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured
+edits: []
+description: >-
+  Qwen Code 0.26.4 with no login. Three notes (a resume tip, "Auto mode
+  enabled." and "Extensions changed on disk.") are above a framed dialog
+  "Connect a Provider" with four choices: QwenCloud (under the mark "›"),
+  Alibaba ModelStudio, Third-party Providers and Custom Provider. The input
+  box is not drawn. The other nine Linux and macOS labels of the run gave the
+  same bytes. The screen is the capture 20 s after the start, with no key
+  sent, by scenarios/first-run.sh in the scenarios workflow run 41142220844 on
+  the CI runner ubuntu-24.04 (x64), with a throwaway HOME, no login and no
+  key.
+expect:
+  state: NO_BOX
+  dialog: none
+facts: [30]

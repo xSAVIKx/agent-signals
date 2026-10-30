@@ -1,0 +1,13 @@
+# The versions of Cursor CLI that were checked against this corpus.
+agent: cursor
+verified:
+  - version: 2026.10.22-27dcf5f
+    date: 2026-10-30
+    method: >-
+      capture-pane -p, 120x40, 20 s after the first start with no login, by
+      scenarios/first-run.sh in the scenarios workflow run 41142220844, on the CI
+      runner ubuntu-24.04 (x64)
+    notes: >-
+      Covers the first screen with no login (login-v2026-10-22-27dcf5f). Not
+      checked: the screens after a login, any turn, a permission dialog, styled
+      captures, and a pane narrower than 120 columns.

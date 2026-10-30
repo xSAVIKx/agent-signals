@@ -195,6 +195,28 @@ jobs:
             echo "--- folders made in the throwaway HOME (files in each)"
             awk '{print $3}' "$o/02-after-20s.files" | sed 's#<sandbox>/home/##' | cut -d/ -f1-3 | sh tools/scrub.sh 2>/dev/null | sort | uniq -c | head -n 40
           done
+      # The artifact holds only scrubbed copies: the screen after 20 s and
+      # the log of each agent. The raw files stay on the runner, because
+      # the artifacts of a public repository are public.
+      - name: Scrub the screens for the artifact
+        if: always()
+        run: |
+          mkdir -p scrubbed
+          for o in out/first-run-*; do
+            [ -d "$o" ] || continue
+            d=scrubbed/$(basename "$o" | sed 's/-[0-9T]*Z$//')
+            mkdir -p "$d"
+            [ -f "$o/02-after-20s.screen" ] && sh tools/scrub.sh "$o/02-after-20s.screen" >"$d/02-after-20s.screen" 2>/dev/null
+            [ -f "$o/log.txt" ] && sh tools/scrub.sh "$o/log.txt" >"$d/log.txt" 2>/dev/null
+          done
+          true
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: first-run-${{ matrix.os }}-${{ matrix.group }}
+          path: scrubbed/
+          retention-days: 7
+          if-no-files-found: warn
 
   windows-installs:
     name: Windows installs (${{ matrix.os }}, group ${{ matrix.group }})
