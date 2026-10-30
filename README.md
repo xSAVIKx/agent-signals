@@ -25,7 +25,8 @@ and Codex CLI in tmux. Hook payloads, session files and log lines follow.
 | `scenarios/<agent>/<name>.sh` | Scripts that start an agent in a throwaway home folder and a private tmux server, and record its signals. |
 | `tools/` | The validator, the sync script for the Go library, and the scrub for probe output. |
 | `go/` | The Go library. It holds a committed copy of `corpus/` and `facts/` in `go/data/`. |
-| `docs/` | The format and the versioning rules. |
+| `docs/` | The format and the versioning rules, the roadmap, the checks for each OS, and the CI secrets. |
+| `AGENTS.md`, `tasks/` | Instructions for agents, and one task file for each job. |
 
 The Go library in `go/` loads the corpus and gives typed fixtures. A library
 for Python comes later. No library is needed to use the data. Read
