@@ -88,7 +88,9 @@ sh probes/run.sh --guided front-tab           # macOS: select a tab by its tty
 | `cursor/windows.ps1` | Cursor CLI (`agent`, `cursor-agent`) | Windows | |
 | `opencode/windows.ps1` | opencode | Windows | |
 
-CI (`.github/workflows/probes.yml`) runs each probe and the kit on Linux
-x64 and arm64, macOS arm64, and Windows x64 and arm64, with no agent
-installed. The check is that each probe runs to the end and prints all its
-sections.
+CI (`.github/workflows/probes.yml`) runs each probe and the kit with no
+agent installed, on ubuntu-22.04, ubuntu-24.04, ubuntu-26.04, the three
+`-arm` labels, ubuntu-slim, macos-15, macos-26, macos-15-intel,
+macos-26-intel, windows-2022, windows-2025 and windows-11-arm. The check is
+that each probe runs to the end and prints all its sections. A failure on
+ubuntu-slim does not fail the workflow.

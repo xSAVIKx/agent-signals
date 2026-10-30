@@ -27,11 +27,14 @@ Path: `scenarios/<agent>/<name>.sh`. Shared functions: `scenarios/lib.sh`.
 ## Scenarios
 
 CI (`.github/workflows/scenarios.yml`) runs `first-run.sh` for each agent
-on Linux and macOS runners, by hand and once a week. It needs no secret.
+on 10 Linux and macOS labels, in two agent groups, and `windows-installs.ps1`
+on windows-2022, windows-2025 and windows-11-arm, by hand and once a week.
+It needs no secret.
 
 | Scenario | Agent | Facts |
 |---|---|---|
-| `first-run.sh <agent> [command]` | each agent, no login | 29, 30 |
+| `first-run.sh <agent> [command]` | each agent, no login | 29, 30, 46, 49, 50 |
+| `windows-installs.ps1 NAME=CMD[=NPMPKG] ...` | each agent on Windows, not started | 47, 48 |
 | `claude/permission-dialog.sh` | Claude Code | 23, 24 |
 | `claude/dialog-states.sh` | Claude Code | 31, 32, 33, 34 |
 | `claude/plan-and-resume.sh` | Claude Code | 31, 32, 35 |
