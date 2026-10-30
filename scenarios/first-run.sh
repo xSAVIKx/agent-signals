@@ -8,7 +8,8 @@
 # and which files exist before a login?
 #
 # Needs: tmux and the agent. No login, no model turn, no cost.
-# Run: sh scenarios/first-run.sh AGENT   (claude | codex | agy | cursor | opencode)
+# Run: sh scenarios/first-run.sh AGENT [COMMAND]
+#   AGENT: claude | codex | agy | cursor | opencode, or any name with COMMAND
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 # shellcheck source=scenarios/lib.sh
@@ -21,8 +22,10 @@ case $agent in
   agy) cmd=agy ;;
   cursor) cmd=cursor-agent ;;
   opencode) cmd=opencode ;;
-  *) die "unknown agent: $agent" ;;
+  *) cmd=${2:-} ;;
 esac
+[ -n "${2:-}" ] && cmd=$2
+[ -n "$cmd" ] || die "unknown agent: $agent (give the command too)"
 command -v "$cmd" >/dev/null 2>&1 || die "not installed: $cmd"
 
 SCN_NAME=first-run-$agent
