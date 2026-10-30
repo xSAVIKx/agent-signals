@@ -1,0 +1,25 @@
+schema: 1
+agent: aider
+agent_version: 0.86.2
+measured: 2026-10-30
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured
+edits: []
+description: >-
+  Aider 0.86.2 asks the analytics question in place of the git question of
+  git-repo-question-v0-86-2. Below one rule it writes "Aider respects your
+  privacy and never collects your code, chat messages, keys or personal
+  info.", a link to the analytics page, and "Allow collection of anonymous
+  analytics to help improve aider? (Y)es/(N)o [Yes]:" on plain lines, and
+  waits for a line of text. There is no input box. In this run only
+  ubuntu-22.04-arm showed this question. Fact 49 saw it on ubuntu-26.04-arm
+  in an earlier run, so the choice is probably random for each install. The
+  screen is the capture 20 s after the start, with no key sent, by
+  scenarios/first-run.sh in the scenarios workflow run 41142220844 on the CI
+  runner ubuntu-22.04-arm (arm64), with a throwaway HOME, no login and no
+  key. The capture holds no path, so it has no edit.
+expect:
+  state: NO_BOX
+  dialog: none
+facts: [30, 49]

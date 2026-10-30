@@ -1,0 +1,31 @@
+schema: 1
+agent: gemini
+agent_version: 0.66.0
+measured: 2026-10-30
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured
+edits: []
+description: >-
+  Gemini CLI 0.66.0 asks the folder-trust question before a login, as in
+  trust-v0-66-0, but with four more lines above the dialog: "⚠  Warning:
+  Limited color support detected (TERM=screen). Some visual elements may not
+  render correctly." and the tmux settings "set -g default-terminal
+  "tmux-256color"" and "set -ga terminal-overrides ",*256col*:Tc"" for
+  ~/.tmux.conf. Gemini CLI printed this text on ubuntu-22.04 and
+  ubuntu-22.04-arm, and not on the other eight labels of the run (fact 56).
+  The dialog, the question and the options are the same. The screen is the
+  capture 20 s after the start, with no key sent, by scenarios/first-run.sh
+  in the scenarios workflow run 41142220844 on the CI runner ubuntu-22.04
+  (x64), with a throwaway HOME, no login and no key. The scrub changed no
+  line: Gemini CLI writes the short form ~/.tmux.conf itself.
+expect:
+  state: TRUST
+  dialog: trust
+  question: "Do you trust the files in this folder?"
+  options:
+    - {n: 1, label: "Trust folder (example)", selected: true}
+    - {n: 2, label: "Trust parent folder (work)"}
+    - {n: 3, label: "Don't trust"}
+negative_control_for: trust-v0-66-0
+facts: [30, 56]

@@ -1,0 +1,21 @@
+schema: 1
+agent: crush
+agent_version: 0.99.0
+measured: 2026-10-30
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured
+edits: []
+description: >-
+  Crush v0.99.0 with no provider. The logo is above "To start, let's choose a
+  provider and model.", a search field "> Find your fave", a list of models
+  and the footer "↑/↓ choose • enter confirm". There is no input box for a
+  message. The other labels gave the same screen, except the logo: the stretch
+  of its letters changes from start to start. The screen is the capture 20 s
+  after the start, with no key sent, by scenarios/first-run.sh in the
+  scenarios workflow run 41142220844 on the CI runner ubuntu-24.04 (x64), with
+  a throwaway HOME, no login and no key.
+expect:
+  state: NO_BOX
+  dialog: none
+facts: [46]

@@ -1,0 +1,27 @@
+schema: 1
+agent: kimi
+agent_version: 2.4.1
+measured: 2026-10-30
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - tools/scrub.sh changed the home folder of the runner account to ~, so the line that held the path is shorter
+  - the throwaway folder ~/.cache/agent-signals/run.<random>/work/example is replaced with /work/example, so that line is shorter again
+description: >-
+  Kimi Code CLI 2.4.1 asks the folder-trust question before a login. Between
+  two rules it shows "Trust this folder?", the footer "↑↓ navigate · Enter
+  select · Esc exit" above the question text, the work folder, two notes, and
+  two options with no numbers: "Trust and continue" under the mark "❯", and
+  "Exit". The other nine Linux and macOS labels of the run gave the same
+  bytes. The screen is the capture 20 s after the start, with no key sent, by
+  scenarios/first-run.sh in the scenarios workflow run 41142220844 on the CI
+  runner ubuntu-24.04 (x64), with a throwaway HOME, no login and no key.
+expect:
+  state: TRUST
+  dialog: trust
+  question: "Trust this folder?"
+  options:
+    - {label: "Trust and continue", selected: true}
+    - {label: "Exit"}
+facts: [46]

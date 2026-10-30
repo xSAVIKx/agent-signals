@@ -10,7 +10,11 @@ measured signals once, with the result that each signal must give. Every tool
 tests its own reader against the same data.
 
 The first signals are terminal screens of Claude Code, Antigravity CLI (agy)
-and Codex CLI in tmux. Hook payloads, session files and log lines follow.
+and Codex CLI in tmux. The corpus also holds the first screen with no login
+of GitHub Copilot CLI, Gemini CLI, Cursor CLI, opencode, Qwen Code, Aider,
+Amp, Goose, Crush, Kimi Code CLI, Continue CLI, Factory Droid, Cline CLI,
+Kilo Code CLI, Auggie and OpenHands CLI. Hook payloads, session files and
+log lines follow.
 
 ## What is in the repository
 

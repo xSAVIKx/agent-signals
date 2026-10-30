@@ -1,0 +1,20 @@
+schema: 1
+agent: amp
+agent_version: 0.0.1793390435-g08e9ec
+measured: 2026-10-30
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured
+edits: []
+description: >-
+  Amp 0.0.1793390435-g08e9ec with no key. Amp writes two plain lines, "No API
+  key found. Starting login flow..." and "Would you like to log in to Amp?
+  [(y)es, (n)o]:", and waits for an answer. There is no input box. The other
+  nine Linux and macOS labels of the run gave the same bytes. The screen is
+  the capture 20 s after the start, with no key sent, by
+  scenarios/first-run.sh in the scenarios workflow run 41142220844 on the CI
+  runner ubuntu-24.04 (x64), with a throwaway HOME, no login and no key.
+expect:
+  state: NO_BOX
+  dialog: none
+facts: [46]

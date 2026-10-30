@@ -1,0 +1,28 @@
+schema: 1
+agent: gemini
+agent_version: 0.66.0
+measured: 2026-10-30
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured
+edits: []
+description: >-
+  Gemini CLI 0.66.0 asks the folder-trust question before a login. The logo,
+  the tips and the line "Skipping project agents due to untrusted folder" are
+  above a framed dialog with "Do you trust the files in this folder?" and
+  three numbered options. The mark of the selected option is "●", not "❯". The
+  options name the work folder (example) and its parent (work). Seven more
+  labels gave the same bytes. On ubuntu-22.04 and ubuntu-22.04-arm, Gemini CLI
+  also printed a color warning (trust-color-warning-v0-66-0). The screen is
+  the capture 20 s after the start, with no key sent, by
+  scenarios/first-run.sh in the scenarios workflow run 41142220844 on the CI
+  runner ubuntu-24.04 (x64), with a throwaway HOME, no login and no key.
+expect:
+  state: TRUST
+  dialog: trust
+  question: "Do you trust the files in this folder?"
+  options:
+    - {n: 1, label: "Trust folder (example)", selected: true}
+    - {n: 2, label: "Trust parent folder (work)"}
+    - {n: 3, label: "Don't trust"}
+facts: [30]
