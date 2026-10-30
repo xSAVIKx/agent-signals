@@ -1,6 +1,6 @@
-# Runs each probe and the kit on GitHub-hosted runners for Linux and
-# Windows (x64 and arm64) and macOS (arm64). No agent is installed and no secret is used, so
-# each probe must run to the end and print all its sections. The scrubbed
+# Runs each probe and the kit on GitHub-hosted runners: Linux and Windows
+# (x64 and arm64), and macOS (arm64). No agent is installed and no secret
+# is used, so each probe must run to the end and print all its sections. The scrubbed
 # output goes to the log, which is public.
 #
 # Each action is pinned to a commit SHA. The comment gives the tag.

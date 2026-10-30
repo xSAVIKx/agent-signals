@@ -7,8 +7,8 @@ set -eu
 probe=$1
 output=$2
 # A shell probe calls "section" and "header"; a PowerShell probe calls
-# "Section" and "Header". The header adds one section.
-want=$(grep -c -E '^[[:space:]]*[Ss]ection "' "$probe" || true)
+# "Invoke-Section" and "Header". The header adds one section.
+want=$(grep -c -E "^[[:space:]]*([Ss]ection|Invoke-Section) [\"']" "$probe" || true)
 grep -q -E '^[[:space:]]*[Hh]eader ' "$probe" && want=$((want + 1))
 got=$(grep -c '^### [0-9][0-9]*\. ' "$output" || true)
 fail=0
