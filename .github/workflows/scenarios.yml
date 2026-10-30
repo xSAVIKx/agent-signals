@@ -1,10 +1,18 @@
-# Runs the no-login scenarios on GitHub-hosted runners for Linux and macOS.
-# It installs each agent, starts it once with no login, and prints a
-# scrubbed summary: the first screen, the processes, and the folders that
-# the agent made. It uses no secret and makes no model turn.
+# Runs the no-login scenarios on each free GitHub-hosted runner image for
+# Linux and macOS, and an install report on each free Windows image.
 #
-# It runs only when started by hand and once a week, because it installs
-# software from the network and macOS minutes cost more.
+# The first-run job installs each agent, starts it once with no login, and
+# prints a scrubbed summary: the first screen, the processes, and the
+# folders that the agent made. The agents are in two groups, so that one
+# job stays below 30 minutes.
+#
+# The Windows job installs the agents and records where each install keeps
+# its version and what its folder holds. It starts no agent interactively,
+# because there is no terminal driver for Windows yet.
+#
+# The jobs use no secret and make no model turn. The workflow runs only when
+# started by hand and once a week, because it installs software from the
+# network.
 #
 # Each action is pinned to a commit SHA. The comment gives the tag.
 name: Scenarios
@@ -19,59 +27,146 @@ permissions:
 
 jobs:
   first-run:
-    name: First run (${{ matrix.os }})
+    name: First run (${{ matrix.os }}, group ${{ matrix.group }})
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os:
+          - ubuntu-22.04
+          - ubuntu-24.04
+          - ubuntu-26.04
+          - ubuntu-22.04-arm
+          - ubuntu-24.04-arm
+          - ubuntu-26.04-arm
+          - macos-15
+          - macos-26
+          - macos-15-intel
+          - macos-26-intel
+        group: [a, b]
+        # Each entry is AGENT:COMMAND for scenarios/first-run.sh.
+        include:
+          - group: a
+            agents: >-
+              claude:claude codex:codex cursor:cursor-agent opencode:opencode
+              gemini:gemini copilot:copilot qwen:qwen aider:aider
+          - group: b
+            agents: >-
+              amp:amp goose:goose crush:crush kimi:kimi continue:cn
+              droid:droid cline:cline kilo:kilo auggie:auggie
+              openhands:openhands
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # The same Node.js on each image. Claude Code and Qwen Code need 22.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+      # uv installs the Python agents with their own Python 3.12.
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: false
       - name: Install tmux
         run: |
           if command -v tmux >/dev/null; then exit 0; fi
-          if [ "$RUNNER_OS" = macOS ]; then brew install tmux; else sudo apt-get install -y tmux; fi
-      # The install commands are not checked by this project. A failed
-      # install skips that agent.
+          if [ "$RUNNER_OS" = macOS ]; then
+            brew install tmux
+          else
+            sudo apt-get update -q && sudo apt-get install -y -q tmux
+          fi
+      - name: Add the user folders to PATH
+        run: |
+          echo "$HOME/.local/bin" >>"$GITHUB_PATH"
+          echo "$HOME/.kimi-code/bin" >>"$GITHUB_PATH"
+      # The install commands come from the npm registry, PyPI, or the
+      # vendor's install page. A failed install skips that agent.
       - name: Install Claude Code
+        if: matrix.group == 'a'
         continue-on-error: true
         run: npm install -g @anthropic-ai/claude-code
       - name: Install Codex CLI
+        if: matrix.group == 'a'
         continue-on-error: true
         run: npm install -g @openai/codex
       - name: Install opencode
+        if: matrix.group == 'a'
         continue-on-error: true
         run: npm install -g opencode-ai
       - name: Install Cursor CLI
+        if: matrix.group == 'a'
         continue-on-error: true
-        run: |
-          curl -fsS https://cursor.com/install | bash
-          echo "$HOME/.local/bin" >>"$GITHUB_PATH"
+        run: curl -fsS https://cursor.com/install | bash
       - name: Install Gemini CLI
+        if: matrix.group == 'a'
         continue-on-error: true
         run: npm install -g @google/gemini-cli
       - name: Install GitHub Copilot CLI
+        if: matrix.group == 'a'
         continue-on-error: true
         run: npm install -g @github/copilot
       - name: Install Qwen Code
+        if: matrix.group == 'a'
         continue-on-error: true
         run: npm install -g @qwen-code/qwen-code
+      # pipx uses the Python of the image. When it fails (as on macOS with
+      # a new Python), uv tries again with Python 3.12.
       - name: Install Aider
+        if: matrix.group == 'a'
         continue-on-error: true
-        run: python3 -m pip install --user aider-install && python3 -m aider_install || pipx install aider-chat
+        run: pipx install aider-chat || uv tool install --python 3.12 aider-chat
+      - name: Install Amp
+        if: matrix.group == 'b'
+        continue-on-error: true
+        run: npm install -g @ampcode/cli
+      - name: Install Goose
+        if: matrix.group == 'b'
+        continue-on-error: true
+        run: curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash
+      - name: Install Crush
+        if: matrix.group == 'b'
+        continue-on-error: true
+        run: npm install -g @charmland/crush
+      - name: Install Kimi Code CLI
+        if: matrix.group == 'b'
+        continue-on-error: true
+        run: curl -fsSL https://code.kimi.com/kimi-code/install.sh | KIMI_NO_MODIFY_PATH=1 bash
+      - name: Install Continue CLI
+        if: matrix.group == 'b'
+        continue-on-error: true
+        run: npm install -g @continuedev/cli
+      - name: Install Factory Droid
+        if: matrix.group == 'b'
+        continue-on-error: true
+        run: npm install -g @factory/cli
+      - name: Install Cline CLI
+        if: matrix.group == 'b'
+        continue-on-error: true
+        run: npm install -g cline
+      - name: Install Kilo Code CLI
+        if: matrix.group == 'b'
+        continue-on-error: true
+        run: npm install -g @kilocode/cli
+      - name: Install Auggie
+        if: matrix.group == 'b'
+        continue-on-error: true
+        run: npm install -g @augmentcode/auggie
+      - name: Install OpenHands CLI
+        if: matrix.group == 'b'
+        continue-on-error: true
+        run: uv tool install --python 3.12 openhands
       - name: Run the scenarios
+        env:
+          AGENTS: ${{ matrix.agents }}
         run: |
-          export PATH="$HOME/.local/bin:$PATH"
-          for a in claude codex agy cursor opencode; do
-            sh scenarios/first-run.sh "$a" || echo "skipped: $a"
-          done
-          for pair in gemini:gemini copilot:copilot qwen:qwen aider:aider; do
-            sh scenarios/first-run.sh "${pair%%:*}" "${pair##*:}" || echo "skipped: ${pair%%:*}"
+          for pair in $AGENTS; do
+            a=${pair%%:*}
+            c=${pair##*:}
+            sh scenarios/first-run.sh "$a" "$c" || echo "skipped or failed: $a"
           done
       - name: Summary (scrubbed)
+        if: always()
         run: |
           for o in out/first-run-*; do
             [ -d "$o" ] || continue
@@ -88,3 +183,118 @@ jobs:
             echo "--- folders made in the throwaway HOME (files in each)"
             awk '{print $3}' "$o/02-after-20s.files" | sed 's#<sandbox>/home/##' | cut -d/ -f1-3 | sh tools/scrub.sh 2>/dev/null | sort | uniq -c | head -n 40
           done
+
+  windows-installs:
+    name: Windows installs (${{ matrix.os }}, group ${{ matrix.group }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025, windows-11-arm]
+        group: [a, b]
+        # Each entry is NAME=COMMAND[=NPM PACKAGE] for
+        # scenarios/windows-installs.ps1.
+        include:
+          - group: a
+            agents: >-
+              claude=claude=@anthropic-ai/claude-code codex=codex=@openai/codex
+              opencode=opencode=opencode-ai gemini=gemini=@google/gemini-cli
+              copilot=copilot=@github/copilot qwen=qwen=@qwen-code/qwen-code
+              cursor=agent cursor-agent=cursor-agent
+          - group: b
+            agents: >-
+              amp=amp=@ampcode/cli crush=crush=@charmland/crush
+              continue=cn=@continuedev/cli droid=droid=@factory/cli
+              cline=cline=cline kilo=kilo=@kilocode/cli
+              auggie=auggie=@augmentcode/auggie kimi=kimi
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+      # A failed install skips that agent.
+      - name: Install Claude Code
+        if: matrix.group == 'a'
+        continue-on-error: true
+        run: npm install -g @anthropic-ai/claude-code
+      - name: Install Codex CLI
+        if: matrix.group == 'a'
+        continue-on-error: true
+        run: npm install -g @openai/codex
+      - name: Install opencode
+        if: matrix.group == 'a'
+        continue-on-error: true
+        run: npm install -g opencode-ai
+      - name: Install Gemini CLI
+        if: matrix.group == 'a'
+        continue-on-error: true
+        run: npm install -g @google/gemini-cli
+      - name: Install GitHub Copilot CLI
+        if: matrix.group == 'a'
+        continue-on-error: true
+        run: npm install -g @github/copilot
+      - name: Install Qwen Code
+        if: matrix.group == 'a'
+        continue-on-error: true
+        run: npm install -g @qwen-code/qwen-code
+      # The Windows installer of the Cursor CLI. It adds
+      # %LOCALAPPDATA%\cursor-agent to the PATH of the user.
+      - name: Install Cursor CLI
+        if: matrix.group == 'a'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          irm 'https://cursor.com/install?win32=true' | iex
+          "$env:LOCALAPPDATA\cursor-agent" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+      - name: Install Amp
+        if: matrix.group == 'b'
+        continue-on-error: true
+        run: npm install -g @ampcode/cli
+      - name: Install Crush
+        if: matrix.group == 'b'
+        continue-on-error: true
+        run: npm install -g @charmland/crush
+      - name: Install Continue CLI
+        if: matrix.group == 'b'
+        continue-on-error: true
+        run: npm install -g @continuedev/cli
+      - name: Install Factory Droid
+        if: matrix.group == 'b'
+        continue-on-error: true
+        run: npm install -g @factory/cli
+      - name: Install Cline CLI
+        if: matrix.group == 'b'
+        continue-on-error: true
+        run: npm install -g cline
+      - name: Install Kilo Code CLI
+        if: matrix.group == 'b'
+        continue-on-error: true
+        run: npm install -g @kilocode/cli
+      - name: Install Auggie
+        if: matrix.group == 'b'
+        continue-on-error: true
+        run: npm install -g @augmentcode/auggie
+      - name: Install Kimi Code CLI
+        if: matrix.group == 'b'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          irm https://code.kimi.com/kimi-code/install.ps1 | iex
+          "$HOME\.kimi-code\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+      - name: Install report (scrubbed)
+        shell: pwsh
+        env:
+          AGENTS: ${{ matrix.agents }}
+        run: |
+          $list = @($env:AGENTS -split '\s+' | Where-Object { $_ })
+          ./scenarios/windows-installs.ps1 @list
+      - name: Kit (scrubbed)
+        if: always()
+        shell: pwsh
+        run: |
+          ./probes/run.ps1 -All
+          $f = Get-ChildItem agent-signals-probe-windows-*.txt | Select-Object -First 1
+          Get-Content $f
