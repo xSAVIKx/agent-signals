@@ -8,3 +8,6 @@
 
 # Local Claude Code settings
 .claude/settings.local.json
+
+# Scenario and probe output. It holds raw screens and real paths.
+/out/
