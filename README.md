@@ -23,7 +23,7 @@ and Codex CLI in tmux. Hook payloads, session files and log lines follow.
 | `protocol/` | Rules for tools that answer an agent, for example the safe way to type into a pane. |
 | `probes/` | Read-only scripts for the first discovery of an agent on an OS, and the kit that runs them on a real machine. They read no conversation text. |
 | `scenarios/<agent>/<name>.sh` | Scripts that start an agent in a throwaway home folder and a private tmux server, and record its signals. |
-| `tools/` | The validator, the sync script for the Go library, and the scrub for probe output. |
+| `tools/` | The validator, the sync script for the Go library, the scrub for probe output, and the generator of the website. |
 | `go/` | The Go library. It holds a committed copy of `corpus/` and `facts/` in `go/data/`. |
 | `docs/` | The format and the versioning rules, the roadmap, the checks for each OS, and the CI secrets. |
 | `AGENTS.md`, `tasks/` | Instructions for agents, and one task file for each job. |
@@ -65,6 +65,16 @@ corpus, not the version of the repository. Read
 
 After a change in `corpus/` or `facts/`, run `tools/sync-go-data.sh` and commit
 `go/data/`. The Go tests fail when the copy is stale.
+
+## The website
+
+The website at <https://xsavikx.github.io/agent-signals/> shows the Markdown
+files, the facts and the corpus. The Markdown files stay the source. The
+pages workflow builds the site and deploys it from `main`. To build it on
+your machine:
+
+    cd tools && go run ./cmd/site -root .. -out ../_site
+    python3 -m http.server 8000 --bind 127.0.0.1 --directory ../_site
 
 ## Writing style
 

@@ -1,0 +1,9 @@
+{{define "tasks.html"}}<h1>Tasks</h1>
+<p class="lead">Each job has a task file. Follow the task file step by step. Read the <a href="{{rel .Out "agents.html"}}">instructions for agents</a> first.</p>
+<ul class="doc-list">
+{{- $o := .Out}}
+{{- range .Items}}
+<li><a href="{{rel $o .Out}}">{{.Title}}</a>{{with .Lead}}<p>{{.}}</p>{{end}}</li>
+{{- end}}
+</ul>
+{{end}}

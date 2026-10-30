@@ -1,0 +1,51 @@
+{{define "home.html"}}<h1>{{.Doc.Title}}</h1>
+<p class="lead">{{.Doc.Lead}}</p>
+{{.Intro}}
+<h2 id="who-it-is-for">Who it is for</h2>
+<ul>
+<li>Authors of tools that watch or drive an agent session in a terminal. aw and tg-bridge are two such tools. Each tool tests its own reader against the same screens and facts.</li>
+<li>Agents that do a job in this repository. Each job has a <a href="{{rel .Out "tasks/index.html"}}">task file</a>.</li>
+<li>Operators who must know how an agent behaves on an OS before they automate it.</li>
+</ul>
+<h2 id="three-kinds-of-signals">Three kinds of signals</h2>
+<ul class="cards">
+<li class="card">
+<h3>Terminal screens</h3>
+<p>The exact text of an agent pane, as <code>tmux capture-pane</code> gives it. Each screen has the state that a reader must give for it.</p>
+<p><strong>{{.Screens}} screens</strong> of {{len .Agents}} agents.</p>
+<p><a href="{{rel .Out "corpus/index.html"}}">Read the corpus of screens</a></p>
+</li>
+<li class="card">
+<h3>Hook payloads</h3>
+<p>The events that an agent sends to a hook script: a permission request, a notification, the start and the end of a turn. The facts give the order of the hooks and the fields of each payload.</p>
+<ul class="fact-list">
+{{- $o := .Out}}
+{{- range .Hooks}}{{if hasFact .}}
+<li><a href="{{factURL $o .}}">{{factTitle .}}</a></li>
+{{- end}}{{end}}
+</ul>
+</li>
+<li class="card">
+<h3>Session files and open files</h3>
+<p>The files that an agent writes and keeps open: the pid file, the rollout file, the chat database. A tool can read them without the screen.</p>
+<ul class="fact-list">
+{{- range .Files}}{{if hasFact .}}
+<li><a href="{{factURL $o .}}">{{factTitle .}}</a></li>
+{{- end}}{{end}}
+</ul>
+</li>
+</ul>
+<p>The corpus holds the screens now. The facts describe the hooks and the files. Log lines are not in the repository yet.</p>
+<h2 id="pages-in-this-site">Pages in this site</h2>
+<dl class="pages">
+<div><dt><a href="{{rel .Out "facts/index.html"}}">Facts</a></dt><dd>{{.Facts}} measured facts. Each fact gives the date, the agent version, and what was not measured.</dd></div>
+<div><dt><a href="{{rel .Out "corpus/index.html"}}">Corpus</a></dt><dd>The screens of each agent, with the expected result of each screen.</dd></div>
+<div><dt><a href="{{rel .Out "protocol/index.html"}}">Protocol</a></dt><dd>The rules for a tool that types into an agent pane.</dd></div>
+<div><dt><a href="{{rel .Out "probes/index.html"}}">Probes</a></dt><dd>The read-only scripts for the first discovery of an agent on an OS, and the kit that runs them.</dd></div>
+<div><dt><a href="{{rel .Out "scenarios/index.html"}}">Scenarios</a></dt><dd>The scripts that start an agent in a throwaway folder and record its signals.</dd></div>
+<div><dt><a href="{{rel .Out "docs/roadmap.html"}}">Roadmap</a></dt><dd>The agents to cover, in order, and the state of each cell of the matrix.</dd></div>
+<div><dt><a href="{{rel .Out "tasks/index.html"}}">Tasks</a></dt><dd>One task file for each job that an agent does here.</dd></div>
+<div><dt><a href="{{rel .Out "reference.html"}}">Reference</a></dt><dd>The format, the versions, the checks for each OS and the CI secrets.</dd></div>
+</dl>
+{{.Rest}}
+{{end}}

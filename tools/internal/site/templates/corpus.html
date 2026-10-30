@@ -1,0 +1,40 @@
+{{define "corpus.html"}}{{$o := .Out}}<h1>Corpus</h1>
+<p class="lead">The corpus holds {{.Total}} measured terminal screens of {{len .Agents}} agents. Each screen is a pair of files: the <code>.screen</code> file holds the exact bytes, and the <code>.yaml</code> file holds the metadata and the expected result.</p>
+<p>Read <a href="{{rel $o "docs/format.html"}}">the format of a screen</a> for each field and each state.</p>
+<ul class="toc">
+{{- range .Agents}}
+<li><a href="#agent-{{.Name}}">{{.Display}}</a> ({{len .Screens}} {{plural (len .Screens) "screen" "screens"}})</li>
+{{- end}}
+</ul>
+{{- range .Agents}}
+{{$a := .}}
+<h2 id="agent-{{.Name}}">{{.Display}} <span class="muted">(<code>corpus/{{.Name}}</code>)</span></h2>
+{{- if .Coverage}}
+<h3 id="agent-{{.Name}}-versions">Verified versions</h3>
+<dl class="fields">
+{{- range .Coverage}}
+<div><dt>{{.Version}}, {{.Date}}</dt><dd><p>{{.Method}}</p>{{with .Notes}}<p>{{.}}</p>{{end}}</dd></div>
+{{- end}}
+</dl>
+{{- end}}
+<h3 id="agent-{{.Name}}-screens">Screens</h3>
+<div class="table-wrap" role="region" tabindex="0" aria-labelledby="caption-{{.Name}}">
+<table>
+<caption id="caption-{{.Name}}">The {{len .Screens}} screens of {{.Display}}</caption>
+<thead><tr><th scope="col">Screen</th><th scope="col">State</th><th scope="col">Dialog</th><th scope="col">Version</th><th scope="col">Provenance</th><th scope="col">Facts</th></tr></thead>
+<tbody>
+{{- range .Screens}}{{$m := .Meta}}
+<tr>
+<th scope="row"><a href="{{rel $o (print "corpus/" .Agent "/" .Slug ".html")}}"><code>{{.Slug}}</code></a></th>
+<td><code>{{$m.Expect.State}}</code>{{if $m.KnownFalsePositive}} <strong class="badge">known false positive</strong>{{end}}</td>
+<td>{{with $m.Expect.Dialog}}<code>{{.}}</code>{{else}}<span class="muted">none given</span>{{end}}</td>
+<td class="nowrap">{{$m.AgentVersion}}</td>
+<td>{{$m.Provenance}}</td>
+<td>{{if $m.Facts}}{{range $i, $n := $m.Facts}}{{if $i}}, {{end}}{{if hasFact $n}}<a href="{{factURL $o $n}}" aria-label="Fact {{$n}}" title="{{factTitle $n}}">{{$n}}</a>{{else}}{{$n}}{{end}}{{end}}{{else}}<span class="muted">none</span>{{end}}</td>
+</tr>
+{{- end}}
+</tbody>
+</table>
+</div>
+{{- end}}
+{{end}}

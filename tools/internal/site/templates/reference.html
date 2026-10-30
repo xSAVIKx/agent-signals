@@ -1,0 +1,9 @@
+{{define "reference.html"}}<h1>Reference</h1>
+<p class="lead">The documents that define the data and the work in this repository.</p>
+<ul class="doc-list">
+{{- $o := .Out}}{{$t := .Titles}}
+{{- range .Items}}
+<li><a href="{{rel $o .Out}}">{{index $t .Src}}</a><p>{{.Summary}}</p></li>
+{{- end}}
+</ul>
+{{end}}

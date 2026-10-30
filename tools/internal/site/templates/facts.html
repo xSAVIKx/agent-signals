@@ -1,0 +1,31 @@
+{{define "facts.html"}}<h1>Facts</h1>
+<p class="lead">{{len .Facts}} measured facts about AI coding agents and tmux. Each fact is one file in <a href="https://github.com/xSAVIKx/agent-signals/tree/main/facts"><code>facts/</code></a>.</p>
+<p>The table gives the date of the first measurement and the place of the measurement. "not recorded" means that the fact has no <code>Measured on:</code> line.</p>
+<div class="filter" id="fact-filter-box" hidden>
+<label for="fact-filter">Show the facts that contain this text</label>
+<input type="search" id="fact-filter" autocomplete="off" spellcheck="false" aria-describedby="fact-filter-status">
+<p id="fact-filter-status" class="filter-status" role="status" aria-live="polite"></p>
+</div>
+<div class="table-wrap" role="region" tabindex="0" aria-labelledby="facts-caption">
+<table class="facts-table" id="facts-table">
+<caption id="facts-caption">All facts, in the order of their numbers</caption>
+<thead>
+<tr><th scope="col">No.</th><th scope="col">Title</th><th scope="col">Agents</th><th scope="col">Date</th><th scope="col">Measured on</th></tr>
+</thead>
+<tbody>
+{{- $o := .Out}}
+{{- range .Facts}}
+<tr>
+<td class="num">{{.ID}}</td>
+<th scope="row"><a href="{{rel $o (print "facts/" .Slug ".html")}}">{{.Title}}</a></th>
+<td>{{if .Agents}}{{join .Agents ", "}}{{else}}none named{{end}}</td>
+<td class="nowrap">{{if .Date}}{{.Date}}{{else}}not recorded{{end}}</td>
+<td>{{if .MeasuredOn}}{{.MeasuredOn}}{{else}}<span class="muted">not recorded</span>{{end}}</td>
+</tr>
+{{- end}}
+</tbody>
+</table>
+</div>
+<h2 id="the-parts-of-a-fact">The parts of a fact</h2>
+{{.Doc.Body}}
+{{end}}

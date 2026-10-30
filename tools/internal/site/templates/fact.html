@@ -1,0 +1,27 @@
+{{define "fact.html"}}<h1>{{.Doc.Title}}</h1>
+<dl class="summary">
+<div><dt>Date</dt><dd>{{if .Fact.Date}}{{.Fact.Date}}{{else}}not recorded{{end}}</dd></div>
+<div><dt>Agents</dt><dd>{{if .Fact.Agents}}{{join .Fact.Agents ", "}}{{else}}none named{{end}}</dd></div>
+<div><dt>Measured on</dt><dd>{{if .Fact.MeasuredOn}}{{.Fact.MeasuredOn}}{{else}}not recorded{{end}}</dd></div>
+</dl>
+{{.Doc.Body}}
+{{- if .Screens}}
+<h2 id="screens-in-the-corpus">Screens in the corpus that name this fact</h2>
+<ul class="screen-list">
+{{- $o := .Out}}
+{{- range .Screens}}
+<li><a href="{{screenURL $o .Key}}"><code>{{.Key}}</code></a> <span class="meta">state {{.Meta.Expect.State}}</span></li>
+{{- end}}
+</ul>
+{{- end}}
+<nav class="pager" aria-label="Previous and next fact">
+<ul>
+{{- if .Prev}}
+<li class="prev"><a href="{{rel .Out (print "facts/" .Prev.Slug ".html")}}" rel="prev"><span class="pager-dir">Previous fact</span> {{.Prev.ID}}. {{.Prev.Title}}</a></li>
+{{- end}}
+{{- if .Next}}
+<li class="next"><a href="{{rel .Out (print "facts/" .Next.Slug ".html")}}" rel="next"><span class="pager-dir">Next fact</span> {{.Next.ID}}. {{.Next.Title}}</a></li>
+{{- end}}
+</ul>
+</nav>
+{{end}}
