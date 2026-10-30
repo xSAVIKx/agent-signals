@@ -15,6 +15,7 @@ runner with no agent session.
 | Open files | `readlink /proc/<pid>/fd/*` (no `lsof` needed) | real machine (facts 25, 26, 28) |
 | Terminal | `ps -o tty=`; `readlink /proc/<pid>/fd/0` | real machine |
 | Environment (own processes) | `/proc/<pid>/environ`, NUL-separated. Print only names from a fixed list: the environment can hold secrets. | real machine |
+| ubuntu-slim runner | No `lsof` and no `tmux`. The probes read `/proc`. | CI runner (fact 49) |
 | tmux pane of a process | `tmux list-panes -a -F '#{pane_pid} #{pane_id}'`; `TMUX_PANE` in the environment; the `tmux` field of the Claude pid file (fact 23) | real machine |
 
 ## macOS
@@ -31,6 +32,8 @@ runner with no agent session.
 | Bring a tab to the front | Terminal: `set selected of <tab> to true`; iTerm2: `select <tab>`. The kit step `--guided front-tab` tests it. | not measured |
 | JetBrains IDE terminal tabs | No known scripting access. `probes/terminals/macos.sh` checks for an AppleScript dictionary. | not measured |
 | Ghostty, WezTerm, kitty, Warp | `wezterm cli list`; kitty remote control (`kitten @`). | not measured |
+| tmux | Not on the macOS runner images. The scenarios install it with `brew install tmux`. | CI runners (fact 49) |
+| `lsof` and `/proc` compared | `lsof -p` lists mapped files (`.node`, `.dylib`) and more; Linux `/proc/<pid>/fd` lists only open descriptors. | CI runners (fact 50) |
 
 ## Windows
 
@@ -43,6 +46,7 @@ runner with no agent session.
 | Environment of another process | No route without extra tools. | not measured |
 | psmux (tmux for Windows) | `psmux ls`, `psmux list-panes -a`. Under PowerShell, `send-keys ... C-m` sends a literal `^M`; `Enter` works. | aw (psmux 3.4.0) |
 | Codex CLI keys | Tab sends a message. Enter and C-j add a new line. | aw (Codex 0.164.0) |
+| Install folder and version | `Get-Command <cmd> -All` lists an npm agent as `<cmd>.ps1`, `<cmd>.cmd` and `<cmd>`. The version is in `node_modules\<package>\package.json` below the npm prefix (`C:\npm\prefix` on the runners). The file version of an `.exe` is not always the agent version. | CI runners (facts 47, 48) |
 
 ## State folders of each agent
 

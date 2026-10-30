@@ -9,8 +9,9 @@ Updated 2026-10-30, second round.
    Antigravity CLI (agy), Cursor CLI.
 2. opencode, Gemini CLI and GitHub Copilot CLI: CLI agents with many users
    that a tool can drive in a terminal.
-3. Other terminal agents: Aider, Goose, Amp, Crush, Qwen Code, Kiro CLI,
-   Factory Droid, Cline CLI, Continue CLI.
+3. Other terminal agents: Aider, Goose, Amp, Crush, Qwen Code, Kimi Code
+   CLI, Kilo Code CLI, Auggie, OpenHands CLI, Kiro CLI, Factory Droid, Cline
+   CLI, Continue CLI.
 
 ## The agents
 
@@ -21,19 +22,23 @@ Updated 2026-10-30, second round.
 | Claude Code | `claude` | npm `@anthropic-ai/claude-code` (fact 29) | `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY` (not checked in CI) | `~/.claude/` (`sessions/`, `projects/`), `/tmp/claude-<uid>/` |
 | Codex CLI | `codex` | standalone install (seen: the version is in the package path); npm `@openai/codex` (fact 29) | `OPENAI_API_KEY` through `codex login --with-api-key` (from `codex login --help`) | `~/.codex/` (`sessions/`, `thread-writer-locks/`, `packages/`) |
 | Antigravity CLI | `agy` | not checked | not known: OAuth in a browser; no key login found | `~/.gemini/antigravity-cli/`, `~/.gemini/config/` |
-| Cursor CLI | `cursor-agent`, `agent` | `curl https://cursor.com/install \| bash` (fact 29) | `CURSOR_API_KEY` (from `cursor-agent --help`) | `~/.cursor/` (`chats/`, `projects/`) |
+| Cursor CLI | `cursor-agent`, `agent` | `curl https://cursor.com/install \| bash` (fact 29); Windows `irm 'https://cursor.com/install?win32=true' \| iex` to `%LOCALAPPDATA%\cursor-agent\versions\<version>\` (fact 47) | `CURSOR_API_KEY` (from `cursor-agent --help`) | `~/.cursor/` (`chats/`, `projects/`) |
 | opencode | `opencode` | npm `opencode-ai` gives the 1.x line (fact 29) | provider keys through `opencode auth` (not checked) | `~/.local/share/opencode/` |
 | Gemini CLI | `gemini` | npm `@google/gemini-cli` (fact 30) | `GEMINI_API_KEY` (not checked) | `~/.gemini/` (`tmp/`, `history/`, `projects.json`), shared with agy |
-| GitHub Copilot CLI | `copilot` | npm `@github/copilot` (fact 30) | a GitHub token (not checked) | `~/.copilot/` (`session-state/<id>/inuse.<pid>.hold`) |
-| Aider | `aider` | pipx `aider-chat` (fact 30; failed on macOS) | a provider key (not checked) | `~/.aider/` |
-| Goose | `goose` | not checked | not checked | not checked |
-| Amp | `amp` | npm (not checked) | not checked | not checked |
-| Crush | `crush` | not checked | not checked | not checked |
+| GitHub Copilot CLI | `copilot` | npm `@github/copilot` (fact 30) | a GitHub token (not checked) | `~/.copilot/` (`session-state/<id>/inuse.<pid>.hold`); the version in `~/.cache/copilot/pkg/linux-<cpu>/<version>/` or `~/Library/Caches/copilot/pkg/darwin-<cpu>/<version>/` (fact 50) |
+| Aider | `aider` | `pipx install aider-chat`; on macOS and ubuntu-26.04 only `uv tool install --python 3.12 aider-chat` works (facts 30, 49) | a provider key (not checked) | `~/.aider/` |
+| Goose | `goose` | `curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh \| CONFIGURE=false bash` (fact 46) | not checked | `~/.local/share/goose/`, `~/.local/state/goose/` |
+| Amp | `amp` | npm `@ampcode/cli` (fact 46; `@sourcegraph/amp` is renamed to it); no Windows arm64 binary (fact 48) | not checked | `~/.cache/amp/`, `~/.local/share/amp/` |
+| Crush | `crush` | npm `@charmland/crush` (fact 46) | not checked | `~/.local/share/crush/` |
 | Qwen Code | `qwen` | npm `@qwen-code/qwen-code` (fact 30) | a provider key (not checked) | `~/.qwen/` |
 | Kiro CLI | not checked | not checked | not checked | not checked |
-| Factory Droid | `droid` | not checked | not checked | not checked |
-| Cline CLI | `cline` | not checked | not checked | not checked |
-| Continue CLI | `cn` | not checked | not checked | not checked |
+| Factory Droid | `droid` | npm `@factory/cli` (fact 46) | not checked | `~/.factory/` |
+| Cline CLI | `cline` | npm `cline` (fact 46) | not checked | `~/.cline/data/` (SQLite files in `db/`; a hub daemon with no tty) |
+| Continue CLI | `cn` | npm `@continuedev/cli` (fact 46) | not checked | `~/.continue/` |
+| Kimi Code CLI | `kimi` | `curl -fsSL https://code.kimi.com/kimi-code/install.sh \| bash`; Windows `irm https://code.kimi.com/kimi-code/install.ps1 \| iex` (facts 46, 47) | not checked | `~/.kimi-code/`; cache `~/.cache/kimi-code/` (Linux), `~/Library/Caches/kimi-code/` (macOS) |
+| Kilo Code CLI | `kilo` | npm `@kilocode/cli` (fact 46) | not checked | `~/.local/share/kilo/` (`kilo.db`, `log/`), `~/.config/kilo/` |
+| Auggie | `auggie` | npm `@augmentcode/auggie` (fact 46) | not checked | `~/.augment/` |
+| OpenHands CLI | `openhands` | `uv tool install --python 3.12 openhands` (fact 46) | not checked | none in the first 20 s |
 
 ## The matrix
 
@@ -44,14 +49,15 @@ real machine.
 
 | Agent | Linux | macOS | Windows |
 |---|---|---|---|
-| Claude Code | probe, CI, real; scenarios `permission-dialog`, `dialog-states`, `plan-and-resume`, `first-run`; facts 23-25, 29, 31-35 | probe, CI; scenario `first-run` (CI); fact 29 | probe, CI |
-| Codex CLI | probe, CI; scenarios `approval`, `two-sessions`, `screens`, `deny`, `interrupt`, `daemon-life`, `first-run`; facts 19, 20, 26, 27, 29, 36-40 | probe, CI; scenario `first-run` (CI); fact 29 | probe, CI |
+| Claude Code | probe, CI, real; scenarios `permission-dialog`, `dialog-states`, `plan-and-resume`, `first-run`; facts 23-25, 29, 31-35 | probe, CI; scenario `first-run` (CI); fact 29 | probe, CI; install layout (CI); facts 47, 48 |
+| Codex CLI | probe, CI; scenarios `approval`, `two-sessions`, `screens`, `deny`, `interrupt`, `daemon-life`, `first-run`; facts 19, 20, 26, 27, 29, 36-40 | probe, CI; scenario `first-run` (CI); fact 29 | probe, CI; install layout (CI); facts 47, 48 |
 | agy | probe, CI; scenarios `turn-signals`, `deny-and-tools`, `continue`; facts 28, 41-45 | probe, CI | probe, CI |
-| Cursor CLI | probe, CI; scenario `first-run`; no login on the Linux server; fact 29 | probe, CI, real; scenario `first-run` (CI); facts 21, 22, 29 | probe, CI |
-| opencode | probe, CI; scenario `first-run`; fact 29 | probe, CI; scenario `first-run` (CI); fact 29 | probe, CI |
-| Gemini CLI, Copilot CLI, Qwen Code | scenario `first-run` (CI); fact 30 | scenario `first-run` (CI); fact 30 | none |
-| Aider | scenario `first-run` (CI); fact 30 | install failed | none |
-| Others | none | none | none |
+| Cursor CLI | probe, CI; scenario `first-run`; no login on the Linux server; fact 29 | probe, CI, real; scenario `first-run` (CI); facts 21, 22, 29 | probe, CI; install layout (CI); facts 47, 48 |
+| opencode | probe, CI; scenario `first-run`; fact 29 | probe, CI; scenario `first-run` (CI); fact 29 | probe, CI; install layout (CI); facts 47, 48 |
+| Gemini CLI, Copilot CLI, Qwen Code | scenario `first-run` (CI); fact 30 | scenario `first-run` (CI); fact 30 | install layout (CI); facts 47, 48 |
+| Aider | scenario `first-run` (CI); fact 30 | scenario `first-run` (CI, through uv); fact 49 | not checked |
+| Amp, Goose, Crush, Kimi Code, Continue, Droid, Cline, Kilo Code, Auggie, OpenHands | scenario `first-run` (CI); facts 46, 50 | scenario `first-run` (CI); facts 46, 50 | install layout (CI) for the npm agents and Kimi Code; facts 47, 48 (Amp fails on arm64); Goose and OpenHands not checked |
+| Kiro CLI, others | none | none | none |
 
 ## Requests from tools
 
@@ -74,7 +80,7 @@ or says what is left.
 | 10 | Codex: the sandbox helper parent, and `resume` | Fact 26 (resume). The helper did not run on the Linux server (no namespaces). |
 | 11 | agy, macOS: the process shape and the files | Fact 28 (Linux). macOS: the kit. |
 | 12 | Windows: Cursor CLI and Codex in psmux | Open. The Windows probes and kit. |
-| 13 | Windows: where the installs keep their version | Open. The Windows probes list the install folders. |
+| 13 | Windows: where the installs keep their version | Fact 47 (x64) and fact 48 (arm64). |
 | 14 | An action that opens a permission dialog in the default mode | Claude: a file write with `--permission-mode default` (fact 24). Codex: a file write with `--sandbox read-only` (fact 27). agy: a file write (fact 28). Claude: `ls` and `sleep` open no Bash dialog; `mkdir` opens one (fact 33). |
 
 ### tg-bridge
