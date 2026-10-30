@@ -1,0 +1,16 @@
+cwd: /Users/alice/code/shop
+open: /Users/alice/.cursor/chats/0123456789abcdef0123456789abcdef/7f9c2a10-1b2c-4d3e-8f90-123456789abc/store.db
+open: /home/alice/.codex/sessions/2026/10/30/rollout-2026-10-30T19-37-28-7f9c2a10-1b2c-4d3e-8f90-123456789abc.jsonl
+path with project: /Users/alice/code/shop/.claude/settings.json
+file in project: /Users/alice/code/shop/src/main.go
+server: /srv/work/shop/.git/config
+already clean: /work/example/.claude
+windows: C:\Users\alice\AppData\Roaming\Cursor
+user alice ran on alice-mbp.local and alice-mbp
+mail: alice@example.org
+ip: 10.1.2.3 and 192.168.1.20 and 127.0.0.1 and 0.0.0.0
+version: 2026.10.22-27dcf5f stays
+login /bin/zsh as alicex stays
+system: /Users/alice/Library/Application Support/Cursor
+claude key: ~/.claude/projects/-srv-work-shop/1.jsonl and /tmp/claude-501/-Users-alice-code-shop/x/tasks
+cursor key: ~/.cursor/projects/Users-alice-code-shop/agent-transcripts

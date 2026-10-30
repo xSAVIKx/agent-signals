@@ -21,9 +21,9 @@ and Codex CLI in tmux. Hook payloads, session files and log lines follow.
 | `schema/` | JSON Schema for each `.yaml` file. CI validates every file. |
 | `facts/` | Measured facts and the incidents behind them, one file per fact. |
 | `protocol/` | Rules for tools that answer an agent, for example the safe way to type into a pane. |
-| `probes/<agent>/<os>.sh` | Read-only scripts for the first discovery of an agent on an OS. They read no conversation text. |
+| `probes/` | Read-only scripts for the first discovery of an agent on an OS, and the kit that runs them on a real machine. They read no conversation text. |
 | `scenarios/<agent>/<name>.sh` | Scripts that start an agent in a throwaway home folder and a private tmux server, and record its signals. |
-| `tools/` | The validator, the sync script for the Go library, and later the capture and scrub scripts. |
+| `tools/` | The validator, the sync script for the Go library, and the scrub for probe output. |
 | `go/` | The Go library. It holds a committed copy of `corpus/` and `facts/` in `go/data/`. |
 | `docs/` | The format and the versioning rules. |
 
