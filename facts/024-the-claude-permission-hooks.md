@@ -60,3 +60,31 @@ None.
 - A Bash command dialog, and dialogs with more than three options.
 - Whether a `PermissionRequest` hook can answer the dialog by its output.
 - macOS and Windows.
+
+## 2026-10-30, 2.1.314: a question, a plan, and a Bash dialog
+
+Measured on: real machine. Scenarios `scenarios/claude/dialog-states.sh`
+(three runs) and `scenarios/claude/plan-and-resume.sh` (one run), on the
+same Linux machine.
+
+1. A question from the agent (`AskUserQuestion`) fires `PreToolUse`,
+   `PermissionRequest` and `Notification` (`permission_prompt`), as a
+   permission dialog does. Its `tool_input` holds the question text, the
+   header, and the label and description of each option (fact 032). This
+   is a structured record of the dialog with its options. Claude Code adds
+   two rows that are not in `tool_input`.
+2. A plan approval (`ExitPlanMode`) fires the same three hooks. Its
+   `tool_input` has `plan` and `planFilePath`, and no option labels
+   (fact 032).
+3. A Bash command dialog has four options: "1. Yes", "2. Yes, and always
+   allow access to ...", "3. Yes, and switch to auto mode", "4. No". "3."
+   approves the command and turns on auto mode. "4. No" fires no hook and
+   no `Stop`, the same as Esc (fact 033). The "Not measured" items "A
+   denial with "3. No" instead of Esc" and "A Bash command dialog" above
+   are measured now.
+4. When a background shell ends, Claude Code starts a turn by itself.
+   It fires `UserPromptSubmit` with a `<task-notification>` prompt, and
+   `Stop`. The `Stop` payload has `background_tasks` (fact 031).
+5. After `claude --resume <sessionId>`, `SessionStart` fired with
+   `source: resume`. After `/exit`, `SessionEnd` fired with
+   `reason: prompt_input_exit` (fact 035).

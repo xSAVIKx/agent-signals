@@ -66,3 +66,24 @@ None.
   already trusted.
 - macOS and Windows.
 - What happens to `<pid>.json` after a crash.
+
+## 2026-10-30, 2.1.314: more waits, and a resume
+
+Measured on: real machine. Scenarios `scenarios/claude/dialog-states.sh`
+(three runs) and `scenarios/claude/plan-and-resume.sh` (one run), on the
+same Linux machine. They read the file every 1 s while each wait lasted.
+
+1. `status` is `waiting` also for a question from the agent, a Bash
+   command dialog, and a plan approval. A field `waitingFor` is in the
+   file while `status` is `waiting`: `input needed` for a question, and
+   `permission prompt` for a tool dialog or a plan approval (fact 031).
+2. `shell` means: no turn runs, and a background shell of the session
+   still runs. A background `sleep 30` gave `busy`, then `shell` for
+   26 to 27 s, then `busy` for the turn that the task notification starts,
+   then `idle` (fact 031). The `shell` row of the table above, "The cause
+   is not measured", is superseded.
+3. After "No" on a Bash dialog, `status` was `idle` from 1 s after the
+   key (fact 033).
+4. After `/exit`, `<pid>.json` and the `.key` file were gone. A new
+   process with `claude --resume <sessionId>` wrote a new `<pid>.json`
+   with a new pid and the same `sessionId` (fact 035).
