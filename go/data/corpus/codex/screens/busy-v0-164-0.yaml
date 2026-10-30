@@ -1,0 +1,21 @@
+schema: 1
+agent: codex
+agent_version: 0.164.0
+measured: 2026-10-30
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - the path of the throwaway folder is scrubbed to /work/example, so each line that held it is shorter
+description: >-
+  A turn runs, about 2 s after the Enter. The busy line "◦ Working (1s •
+  esc to interrupt)" is above the box. The box, its placeholder and the
+  footer "? for shortcuts" stay drawn while the turn runs, so the footer is
+  not a proof of IDLE: a reader must first look for "esc to interrupt".
+  tg-bridge asked for this screen (tg-bridge #120). Measured with the
+  scenario scenarios/codex/screens.sh.
+expect:
+  state: BUSY
+  dialog: none
+negative_control_for: idle-v0-164-0
+facts: [20]
