@@ -1,5 +1,5 @@
-# Runs each probe and the kit on GitHub-hosted runners for Linux (x64 and
-# arm64) and macOS (arm64). No agent is installed and no secret is used, so
+# Runs each probe and the kit on GitHub-hosted runners for Linux and
+# Windows (x64 and arm64) and macOS (arm64). No agent is installed and no secret is used, so
 # each probe must run to the end and print all its sections. The scrubbed
 # output goes to the log, which is public.
 #
@@ -61,3 +61,45 @@ jobs:
           grep -c '^### ' "$f"
           cat "$f"
 
+  windows:
+    name: Windows (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, windows-11-arm]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Scrub test (PowerShell 7)
+        shell: pwsh
+        run: ./tools/test-scrub.ps1
+      - name: Scrub test (Windows PowerShell 5.1)
+        shell: powershell
+        run: ./tools/test-scrub.ps1
+      - name: Probes
+        shell: bash
+        run: |
+          fail=0
+          for p in probes/*/windows.ps1; do
+            pwsh -NoProfile -File "$p" >out.txt 2>&1 || { echo "exit $? from $p"; fail=1; }
+            sh tools/check-probe-output.sh "$p" out.txt || fail=1
+          done
+          exit "$fail"
+      - name: Probes (Windows PowerShell 5.1)
+        shell: bash
+        run: |
+          fail=0
+          for p in probes/*/windows.ps1; do
+            powershell -NoProfile -ExecutionPolicy Bypass -File "$p" >out.txt 2>&1 || { echo "exit $? from $p"; fail=1; }
+            sh tools/check-probe-output.sh "$p" out.txt || fail=1
+          done
+          exit "$fail"
+      - name: Kit
+        shell: pwsh
+        run: |
+          ./probes/run.ps1 -All
+          $f = Get-ChildItem agent-signals-probe-windows-*.txt | Select-Object -First 1
+          Get-Content $f
