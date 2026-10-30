@@ -23,13 +23,13 @@ Updated 2026-10-30.
 | Antigravity CLI | `agy` | not checked | not known: OAuth in a browser; no key login found | `~/.gemini/antigravity-cli/`, `~/.gemini/config/` |
 | Cursor CLI | `cursor-agent`, `agent` | `curl https://cursor.com/install \| bash` (fact 29) | `CURSOR_API_KEY` (from `cursor-agent --help`) | `~/.cursor/` (`chats/`, `projects/`) |
 | opencode | `opencode` | npm `opencode-ai` gives the 1.x line (fact 29) | provider keys through `opencode auth` (not checked) | `~/.local/share/opencode/` |
-| Gemini CLI | `gemini` | npm `@google/gemini-cli` (not checked) | `GEMINI_API_KEY` (not checked) | not checked |
-| GitHub Copilot CLI | `copilot` | npm `@github/copilot` (not checked) | a GitHub token (not checked) | not checked |
-| Aider | `aider` | pip `aider-chat` (not checked) | a provider key (not checked) | not checked |
+| Gemini CLI | `gemini` | npm `@google/gemini-cli` (fact 30) | `GEMINI_API_KEY` (not checked) | `~/.gemini/` (`tmp/`, `history/`, `projects.json`), shared with agy |
+| GitHub Copilot CLI | `copilot` | npm `@github/copilot` (fact 30) | a GitHub token (not checked) | `~/.copilot/` (`session-state/<id>/inuse.<pid>.hold`) |
+| Aider | `aider` | pipx `aider-chat` (fact 30; failed on macOS) | a provider key (not checked) | `~/.aider/` |
 | Goose | `goose` | not checked | not checked | not checked |
 | Amp | `amp` | npm (not checked) | not checked | not checked |
 | Crush | `crush` | not checked | not checked | not checked |
-| Qwen Code | `qwen` | npm (not checked) | not checked | not checked |
+| Qwen Code | `qwen` | npm `@qwen-code/qwen-code` (fact 30) | a provider key (not checked) | `~/.qwen/` |
 | Kiro CLI | not checked | not checked | not checked | not checked |
 | Factory Droid | `droid` | not checked | not checked | not checked |
 | Cline CLI | `cline` | not checked | not checked | not checked |
@@ -49,6 +49,8 @@ real machine.
 | agy | probe, CI; scenario `turn-signals`; fact 28 | probe, CI | probe, CI |
 | Cursor CLI | probe, CI; scenario `first-run`; no login on the Linux server; fact 29 | probe, CI, real; scenario `first-run` (CI); facts 21, 22, 29 | probe, CI |
 | opencode | probe, CI; scenario `first-run`; fact 29 | probe, CI; scenario `first-run` (CI); fact 29 | probe, CI |
+| Gemini CLI, Copilot CLI, Qwen Code | scenario `first-run` (CI); fact 30 | scenario `first-run` (CI); fact 30 | none |
+| Aider | scenario `first-run` (CI); fact 30 | install failed | none |
 | Others | none | none | none |
 
 ## Requests from tools

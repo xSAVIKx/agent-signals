@@ -56,3 +56,4 @@ The same on Linux and macOS, below the home folder. Windows uses
 | agy | `~/.gemini/antigravity-cli/presence/<conversation id>.lock`, open in the process (fact 28) | hooks `PreInvocation`, `Stop` (fact 28) | `~/.gemini/antigravity-cli/brain/<conversation id>/.system_generated/logs/transcript.jsonl` |
 | Cursor CLI | `~/.cursor/chats/<hex>/<chat id>/store.db`, open in the process (fact 21) | not known | `~/.cursor/projects/<key>/agent-transcripts/<chat id>/<chat id>.jsonl` |
 | opencode | not known | not known | not known |
+| Copilot CLI | `~/.copilot/session-state/<session id>/inuse.<pid>.hold`, open in the process (fact 30) | not known | not known |
