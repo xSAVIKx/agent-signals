@@ -1,10 +1,8 @@
 # Checks each pull request and each push to main: the format and the tests of
 # the tools, the validation of the whole corpus, and the Go library.
 #
-# The runner comes from the repository variable CI_RUNS_ON (see
-# release-please.yml). A pull request from a fork runs on ubuntu-latest, so
-# that code from a fork never runs on the self-hosted runner. Each action is
-# pinned to a commit SHA. The comment gives the tag.
+# All jobs run on GitHub-hosted runners. Each action is pinned to a commit
+# SHA. The comment gives the tag.
 name: CI
 
 on:
@@ -18,7 +16,7 @@ permissions:
 jobs:
   check:
     name: Check
-    runs-on: ${{ (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork) && vars.CI_RUNS_ON || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
       run:
@@ -44,7 +42,7 @@ jobs:
 
   go-library:
     name: Go library
-    runs-on: ${{ (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork) && vars.CI_RUNS_ON || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
       run:
@@ -65,3 +63,15 @@ jobs:
         run: go vet ./...
       - name: Tests (this includes the check of go/data)
         run: go test -count=1 ./...
+
+  scripts:
+    name: Scripts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: ShellCheck
+        run: |
+          git ls-files -z '*.sh' | xargs -0 -r shellcheck --severity=warning
