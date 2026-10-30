@@ -1,0 +1,17 @@
+schema: 1
+agent: agy
+agent_version: 1.4.7
+measured: 2026-10-30
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - the account e-mail address is replaced with user@example.com
+  - the path of the throwaway work folder is scrubbed to /work/example
+description: >-
+  About 3 s after the digit 2 ("No, deny creation") on the file dialog. The history shows "User declined the tool call" and "Interrupted · What should Antigravity CLI do instead?", then a framed, empty box and "? for shortcuts". No hook fired for the deny (fact 41). The next prompt ran. Captured by scenarios/agy/deny-and-tools.sh in a private tmux server.
+expect:
+  state: IDLE
+  dialog: none
+  box_text: null
+facts: [41]
