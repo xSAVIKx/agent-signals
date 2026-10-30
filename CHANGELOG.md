@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.3.0...corpus-v0.4.0) (2026-10-30)
+
+
+### Features
+
+* add fact 030, the first start of four more agents ([#22](https://github.com/xSAVIKx/agent-signals/issues/22)) ([78bff0c](https://github.com/xSAVIKx/agent-signals/commit/78bff0c8277aa2fd560249ce923dc762f4a38b80))
+* add the Copilot CLI and Gemini CLI probes for Linux and macOS ([#24](https://github.com/xSAVIKx/agent-signals/issues/24)) ([be4d524](https://github.com/xSAVIKx/agent-signals/commit/be4d524df1a1d0229e2e0ffc67c462723fd3fc7e))
+
 ## [0.3.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.2.0...corpus-v0.3.0) (2026-10-30)
 
 
