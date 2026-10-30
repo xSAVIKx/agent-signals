@@ -75,3 +75,5 @@ jobs:
       - name: ShellCheck
         run: |
           git ls-files -z '*.sh' | xargs -0 -r shellcheck --severity=warning
+      - name: Scrub test
+        run: sh tools/test-scrub.sh

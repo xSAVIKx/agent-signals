@@ -335,6 +335,11 @@ without a person is not known yet. The agent finds it and adds it.
    code, and updates them in one commit when it gets the new numbers.
 2. On Windows with psmux, a scenario sends `Enter`, not `C-m`.
 
+3. Builder's call during the build (2026-10-30): Linux and macOS share
+   almost all of each probe, so each agent has one `probes/<agent>/unix.sh`
+   for both, not `linux.sh` and `macos.sh`. Windows has `windows.ps1`. The
+   macOS terminal checks are in `probes/terminals/macos.sh`.
+
 ## 11. Left to the builder
 
 1. The exact section list of each probe.

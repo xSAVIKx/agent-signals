@@ -1,0 +1,97 @@
+# Runs each probe and the kit on GitHub-hosted runners for Linux, macOS and
+# Windows, on x64 and arm64. No agent is installed and no secret is used, so
+# each probe must run to the end and print all its sections. The scrubbed
+# output goes to the log, which is public.
+#
+# Each action is pinned to a commit SHA. The comment gives the tag.
+name: Probes
+
+on:
+  pull_request:
+    paths:
+      - "probes/**"
+      - "tools/scrub*"
+      - "tools/test-scrub*"
+      - "tools/testdata/scrub/**"
+      - "tools/check-probe-output.sh"
+      - ".github/workflows/probes.yml"
+  push:
+    branches: [main]
+    paths:
+      - "probes/**"
+      - "tools/scrub*"
+      - ".github/workflows/probes.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unix:
+    name: Unix (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Scrub test
+        run: sh tools/test-scrub.sh
+      - name: Probes
+        run: |
+          fail=0
+          for p in probes/*/unix.sh; do
+            sh "$p" >out.txt 2>&1 || { echo "exit $? from $p"; fail=1; }
+            sh tools/check-probe-output.sh "$p" out.txt || fail=1
+          done
+          exit "$fail"
+      - name: Terminal probe
+        if: runner.os == 'macOS'
+        run: |
+          sh probes/terminals/macos.sh >out.txt 2>&1
+          sh tools/check-probe-output.sh probes/terminals/macos.sh out.txt
+      - name: Kit
+        run: |
+          sh probes/run.sh --all </dev/null
+          f=$(ls agent-signals-probe-*.txt)
+          grep -c '^### ' "$f"
+          cat "$f"
+
+  windows:
+    name: Windows (${{ matrix.os }})
+    if: hashFiles('probes/run.ps1') != ''
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, windows-11-arm]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Scrub test (PowerShell 7)
+        shell: pwsh
+        run: ./tools/test-scrub.ps1
+      - name: Scrub test (Windows PowerShell 5.1)
+        shell: powershell
+        run: ./tools/test-scrub.ps1
+      - name: Probes
+        shell: bash
+        run: |
+          fail=0
+          for p in probes/*/windows.ps1; do
+            pwsh -NoProfile -File "$p" >out.txt 2>&1 || { echo "exit $? from $p"; fail=1; }
+            sh tools/check-probe-output.sh "$p" out.txt || fail=1
+          done
+          exit "$fail"
+      - name: Kit
+        shell: pwsh
+        run: |
+          ./probes/run.ps1 -All
+          $f = Get-ChildItem agent-signals-probe-windows-*.txt | Select-Object -First 1
+          Get-Content $f

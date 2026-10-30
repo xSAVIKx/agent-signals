@@ -1,0 +1,16 @@
+cwd: /work/example
+open: ~/.cursor/chats/<hex>/<uuid>/store.db
+open: ~/.codex/sessions/2026/10/30/rollout-2026-10-30T19-37-28-<uuid>.jsonl
+path with project: /work/example/.claude/settings.json
+file in project: /work/example
+server: /work/example/.git/config
+already clean: /work/example/.claude
+windows: ~\AppData\Roaming\Cursor
+user dev ran on host and host
+mail: <email>
+ip: <ip> and <ip> and 127.0.0.1 and 0.0.0.0
+version: 2026.10.22-27dcf5f stays
+login /bin/zsh as alicex stays
+system: ~/Library/Application Support/Cursor
+claude key: ~/.claude/projects/-work-example/1.jsonl and /tmp/claude-501/-work-example/x/tasks
+cursor key: ~/.cursor/projects/-work-example/agent-transcripts
