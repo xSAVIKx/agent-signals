@@ -18,11 +18,11 @@ Updated 2026-10-30.
 
 | Agent | Command | Install | Login for CI | State folders |
 |---|---|---|---|---|
-| Claude Code | `claude` | npm `@anthropic-ai/claude-code` (not checked) | `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY` (not checked in CI) | `~/.claude/` (`sessions/`, `projects/`), `/tmp/claude-<uid>/` |
-| Codex CLI | `codex` | standalone install (seen: the version is in the package path); npm `@openai/codex` (not checked) | `OPENAI_API_KEY` through `codex login --with-api-key` (from `codex login --help`) | `~/.codex/` (`sessions/`, `thread-writer-locks/`, `packages/`) |
+| Claude Code | `claude` | npm `@anthropic-ai/claude-code` (fact 29) | `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY` (not checked in CI) | `~/.claude/` (`sessions/`, `projects/`), `/tmp/claude-<uid>/` |
+| Codex CLI | `codex` | standalone install (seen: the version is in the package path); npm `@openai/codex` (fact 29) | `OPENAI_API_KEY` through `codex login --with-api-key` (from `codex login --help`) | `~/.codex/` (`sessions/`, `thread-writer-locks/`, `packages/`) |
 | Antigravity CLI | `agy` | not checked | not known: OAuth in a browser; no key login found | `~/.gemini/antigravity-cli/`, `~/.gemini/config/` |
-| Cursor CLI | `cursor-agent`, `agent` | install script (not checked) | `CURSOR_API_KEY` (from `cursor-agent --help`) | `~/.cursor/` (`chats/`, `projects/`) |
-| opencode | `opencode` | not checked | provider keys through `opencode auth` (not checked) | `~/.local/share/opencode/` |
+| Cursor CLI | `cursor-agent`, `agent` | `curl https://cursor.com/install \| bash` (fact 29) | `CURSOR_API_KEY` (from `cursor-agent --help`) | `~/.cursor/` (`chats/`, `projects/`) |
+| opencode | `opencode` | npm `opencode-ai` gives the 1.x line (fact 29) | provider keys through `opencode auth` (not checked) | `~/.local/share/opencode/` |
 | Gemini CLI | `gemini` | npm `@google/gemini-cli` (not checked) | `GEMINI_API_KEY` (not checked) | not checked |
 | GitHub Copilot CLI | `copilot` | npm `@github/copilot` (not checked) | a GitHub token (not checked) | not checked |
 | Aider | `aider` | pip `aider-chat` (not checked) | a provider key (not checked) | not checked |
@@ -44,11 +44,11 @@ real machine.
 
 | Agent | Linux | macOS | Windows |
 |---|---|---|---|
-| Claude Code | probe, CI, real; scenario `permission-dialog`; facts 23-25 | probe, CI | probe, CI |
-| Codex CLI | probe, CI; scenarios `approval`, `two-sessions`, `screens`; facts 19, 20, 26, 27 | probe, CI | probe, CI |
+| Claude Code | probe, CI, real; scenarios `permission-dialog`, `first-run`; facts 23-25, 29 | probe, CI; scenario `first-run` (CI); fact 29 | probe, CI |
+| Codex CLI | probe, CI; scenarios `approval`, `two-sessions`, `screens`, `first-run`; facts 19, 20, 26, 27, 29 | probe, CI; scenario `first-run` (CI); fact 29 | probe, CI |
 | agy | probe, CI; scenario `turn-signals`; fact 28 | probe, CI | probe, CI |
-| Cursor CLI | probe, CI; no login on the Linux server | probe, CI, real; facts 21, 22 | probe, CI |
-| opencode | probe, CI | probe, CI | probe, CI |
+| Cursor CLI | probe, CI; scenario `first-run`; no login on the Linux server; fact 29 | probe, CI, real; scenario `first-run` (CI); facts 21, 22, 29 | probe, CI |
+| opencode | probe, CI; scenario `first-run`; fact 29 | probe, CI; scenario `first-run` (CI); fact 29 | probe, CI |
 | Others | none | none | none |
 
 ## Requests from tools
