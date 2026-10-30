@@ -21,7 +21,9 @@
 #   7. uuid       UUIDs -> <uuid>
 #   8. hex        hex runs of 16 or more characters -> <hex>
 #   9. email      e-mail addresses -> <email>
-#  10. ip         IPv4 addresses -> <ip>, but not 127.0.0.1 and 0.0.0.0
+#  10. ip         IPv4 addresses -> <ip>, but not 127.0.0.1 and 0.0.0.0, and
+#                 not a version number (after v or version, or before a
+#                 letter, - or +)
 #
 # Other scripts can dot-source this file to get Invoke-Scrub. Then the file
 # does not read stdin.
@@ -136,8 +138,9 @@ function Invoke-Scrub([string]$Text, [string]$HomeDir, [string]$User, [string]$H
   # 9. E-mail addresses.
   $s = Invoke-ScrubReplace $s '[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}' { '<email>' } $counts 'email'
 
-  # 10. IPv4 addresses.
-  $s = Invoke-ScrubReplace $s '(?<![0-9.])(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?![0-9])(?!\.[0-9])' {
+  # 10. IPv4 addresses. A dotted quad after "v" or "version", or before a
+  # letter, "-" or "+", is a version number and stays.
+  $s = Invoke-ScrubReplace $s '(?<![0-9.vV])(?<!(?i:version)[^0-9\r\n]{0,4})(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?![0-9])(?!\.[0-9])(?![-+A-Za-z])' {
     param($m)
     if ($m.Value -eq '127.0.0.1' -or $m.Value -eq '0.0.0.0') { $m.Value } else { '<ip>' }
   } $counts 'ip'

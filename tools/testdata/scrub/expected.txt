@@ -14,3 +14,4 @@ login /bin/zsh as alicex stays
 system: ~/Library/Application Support/Cursor
 claude key: ~/.claude/projects/-work-example/1.jsonl and /tmp/claude-501/-work-example/x/tasks
 cursor key: ~/.cursor/projects/-work-example/agent-transcripts
+versions: os: linux 6.8.0.1017-azure, FileVersion 1.4.4.0, v1.2.3.4 and <ip> stays an ip
