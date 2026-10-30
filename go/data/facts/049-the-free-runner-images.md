@@ -96,3 +96,10 @@ None.
 - The images with more CPUs (`-large`, `-xlarge`), the preview images, and
   macos-14.
 - Whether the first screens stay the same on these images with a login.
+
+## Later change (2026-10-30)
+
+The scrub (`tools/scrub.sh`, `tools/scrub.ps1`) now keeps a dotted quad that
+comes after `v` or `version`, or before a letter, `-` or `+`. Thus the
+kernel version and the file versions above stay as they are. The text above
+describes the scrub before this change.

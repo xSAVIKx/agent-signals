@@ -19,6 +19,7 @@
 #   8. hex runs of 16 characters or more             -> <hex>
 #   9. e-mail addresses                              -> <email>
 #  10. IPv4 addresses, except 127.0.0.1 and 0.0.0.0  -> <ip>
+#      (not a version number: after v or version, or before a letter, - or +)
 #  A project key (a path with dashes, see below) becomes -work-example.
 #
 # The scrub is a help, not a proof. Read the output before you send it.
@@ -94,9 +95,13 @@ rule "project key" 's#(^|[/ "])-?(srv|Users|home|var-lib|work)-[A-Za-z0-9._-]+#\
 rule "uuid" 's#[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}#<uuid>#g'
 rule "hex" 's#[0-9a-fA-F]{16,}#<hex>#g'
 rule "email" 's#[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}#<email>#g'
-sed -E 's#(^|[^0-9.])127\.0\.0\.1([^0-9.]|$)#\1@LOOPBACK@\2#g; s#(^|[^0-9.])0\.0\.0\.0([^0-9.]|$)#\1@ANY@\2#g' "$tmp/a" |
+# A dotted quad after "v" or "version", or before a letter, "-" or "+", is a
+# version number. Its dots become @D@ until the IP rule is done.
+q4='([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})'
+sed -E "s#([vV]|[Vv]ersion[^0-9]{0,4})$q4#\1\2@D@\3@D@\4@D@\5#g; s#$q4([-+A-Za-z])#\1@D@\2@D@\3@D@\4\5#g" "$tmp/a" |
+  sed -E 's#(^|[^0-9.])127\.0\.0\.1([^0-9.]|$)#\1@LOOPBACK@\2#g; s#(^|[^0-9.])0\.0\.0\.0([^0-9.]|$)#\1@ANY@\2#g' |
   sed -E 's#(^|[^0-9.])([0-9]{1,3}\.){3}[0-9]{1,3}([^0-9.]|$)#\1<ip>\3#g' |
-  sed 's#@LOOPBACK@#127.0.0.1#g; s#@ANY@#0.0.0.0#g' >"$tmp/b"
+  sed 's#@LOOPBACK@#127.0.0.1#g; s#@ANY@#0.0.0.0#g; s#@D@#.#g' >"$tmp/b"
 count "ip"
 
 cat "$tmp/a"
