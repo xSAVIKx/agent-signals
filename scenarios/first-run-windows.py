@@ -230,7 +230,14 @@ class Run:
         below, extra = self.tree()
         self.write(name + ".ps", self.processes(below, extra))
         self.write(name + ".open", self.open_files(below + extra))
-        self.write(name + ".files", "".join(self.hide(x) + "\n" for x in conpty.list_files(self.home, self.dir)))
+        files = conpty.list_files(self.home, self.dir)
+        self.write(name + ".files", "".join(self.hide(x) + "\n" for x in files))
+        # USERNAME is dev for the agent. A file path below the throwaway
+        # home with the real account name in it comes from a Windows call.
+        named = [x.split(" ", 2)[2] for x in files if self.account and self.account.search(x)]
+        if named:
+            self.note("step %s: %d paths below the throwaway home hold the Windows account name, for example %s"
+                      % (name, len(named), self.hide(named[0]).replace("dev", "<account>")))
         changes = [c.split(" ", 1) for c in conpty.diff_entries(before, self.real_entries())]
         # The registry log of the profile changes with no agent action.
         changes = [(k, p) for k, p in changes if not NOISE.search(os.path.basename(p))]
