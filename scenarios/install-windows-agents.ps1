@@ -10,6 +10,8 @@
 param([Parameter(Mandatory = $true)][ValidateSet('a', 'b')][string]$Group)
 
 $ErrorActionPreference = 'Continue'
+. (Join-Path (Split-Path -Parent $PSScriptRoot) 'tools\scrub.ps1')
+$scrub = Get-ScrubDefaults
 
 $npm = @{
   a = @('@anthropic-ai/claude-code', '@openai/codex', 'opencode-ai', '@google/gemini-cli',
@@ -24,16 +26,20 @@ function Add-ToPath([string]$Dir) {
 }
 
 # Runs an install page in a child PowerShell, so that an "exit" in the page
-# does not stop this script.
+# does not stop this script. An install page prints the real profile path,
+# so its output goes through the scrub.
 function Invoke-InstallPage([string]$Url) {
-  & pwsh -NoProfile -Command "irm '$Url' | iex" | Out-Host
-  return $LASTEXITCODE
+  $text = (& pwsh -NoProfile -Command "irm '$Url' | iex" 2>&1 | Out-String)
+  $rc = $LASTEXITCODE
+  [Console]::Out.Write((Invoke-Scrub $text $scrub.HomeDir $scrub.User $scrub.HostName).Text)
+  return $rc
 }
 
 foreach ($p in $npm[$Group]) {
   Write-Output "::group::npm install -g $p"
-  & npm install -g $p
+  $text = (& npm install -g $p 2>&1 | Out-String)
   $rc = $LASTEXITCODE
+  [Console]::Out.Write((Invoke-Scrub $text $scrub.HomeDir $scrub.User $scrub.HostName).Text)
   Write-Output '::endgroup::'
   Write-Output "install $p`: exit $rc"
 }

@@ -27,6 +27,7 @@ import ctypes
 import datetime
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -42,6 +43,10 @@ AGENTS = {
     "claude": "claude", "codex": "codex", "agy": "agy",
     "cursor": "cursor-agent", "opencode": "opencode",
 }
+
+
+# Entries of the real profile that change with no agent action.
+NOISE = re.compile(r"(?i)^ntuser\.(dat|ini)")
 
 
 def die(msg):
@@ -131,6 +136,8 @@ class Run:
             os.makedirs(self.env[k], exist_ok=True)
         os.makedirs(self.work, exist_ok=True)
         self.pty = None
+        user = os.environ.get("USERNAME", "")
+        self.account = re.compile("(?i)" + re.escape(user)) if len(user) >= 3 else None
         # The real profile folders, to find the agents that write there.
         self.real = [
             (os.environ.get("USERPROFILE", ""), 2, ("appdata",)),
@@ -152,7 +159,13 @@ class Run:
             f.write(text)
 
     def hide(self, text):
-        return conpty.replace_dir(text, self.dir)
+        """Replace the throwaway folder with <sandbox> and the account
+        name with dev. An agent can put the account name in a file name,
+        also inside a word, where the scrub does not find it."""
+        text = conpty.replace_dir(text, self.dir)
+        if self.account:
+            text = self.account.sub("dev", text)
+        return text
 
     def real_entries(self):
         out = {}
@@ -217,9 +230,11 @@ class Run:
         below, extra = self.tree()
         self.write(name + ".ps", self.processes(below, extra))
         self.write(name + ".open", self.open_files(below + extra))
-        self.write(name + ".files", "".join(x + "\n" for x in conpty.list_files(self.home, self.dir)))
+        self.write(name + ".files", "".join(self.hide(x) + "\n" for x in conpty.list_files(self.home, self.dir)))
         changes = [c.split(" ", 1) for c in conpty.diff_entries(before, self.real_entries())]
-        self.write(name + ".outside", "".join("%s %s\n" % (k, self.real_name(p)) for k, p in changes))
+        # The registry log of the profile changes with no agent action.
+        changes = [(k, p) for k, p in changes if not NOISE.search(os.path.basename(p))]
+        self.write(name + ".outside", "".join("%s %s\n" % (k, self.hide(self.real_name(p))) for k, p in changes))
         alive = "running" if self.pty.alive() else "exited (%s)" % self.pty.exitstatus()
         self.note("step %s: agent %s, %d processes below the driver, %d outside it, %d changes in the real profile"
                   % (name, alive, len(below), len(extra), len(changes)))
