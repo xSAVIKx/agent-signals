@@ -50,10 +50,26 @@ jobs:
         run: |
           curl -fsS https://cursor.com/install | bash
           echo "$HOME/.local/bin" >>"$GITHUB_PATH"
+      - name: Install Gemini CLI
+        continue-on-error: true
+        run: npm install -g @google/gemini-cli
+      - name: Install GitHub Copilot CLI
+        continue-on-error: true
+        run: npm install -g @github/copilot
+      - name: Install Qwen Code
+        continue-on-error: true
+        run: npm install -g @qwen-code/qwen-code
+      - name: Install Aider
+        continue-on-error: true
+        run: python3 -m pip install --user aider-install && python3 -m aider_install || pipx install aider-chat
       - name: Run the scenarios
         run: |
+          export PATH="$HOME/.local/bin:$PATH"
           for a in claude codex agy cursor opencode; do
             sh scenarios/first-run.sh "$a" || echo "skipped: $a"
+          done
+          for pair in gemini:gemini copilot:copilot qwen:qwen aider:aider; do
+            sh scenarios/first-run.sh "${pair%%:*}" "${pair##*:}" || echo "skipped: ${pair%%:*}"
           done
       - name: Summary (scrubbed)
         run: |
@@ -65,6 +81,8 @@ jobs:
             grep -v '^[[:space:]]*$' "$o/02-after-20s.screen" | sh tools/scrub.sh 2>/dev/null | head -n 30
             echo "--- processes"
             sh tools/scrub.sh "$o/02-after-20s.ps" 2>/dev/null
+            echo "--- top folders made in the throwaway HOME"
+            awk '{print $3}' "$o/02-after-20s.files" | sed 's#<sandbox>/home/##' | cut -d/ -f1-2 | sort | uniq -c | sort -rn | head -n 15
             echo "--- open files below the throwaway HOME"
             grep '<sandbox>/home' "$o/02-after-20s.open" | awk '{print $2}' | sed 's#<sandbox>/home/##' | sh tools/scrub.sh 2>/dev/null | sort -u | head -n 30
             echo "--- folders made in the throwaway HOME (files in each)"
