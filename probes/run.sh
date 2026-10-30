@@ -6,7 +6,8 @@
 #   sh probes/run.sh --all      run every probe
 #   sh probes/run.sh --guided STEP [AGENT]
 #       STEP: permission | new-chat | resume | interrupt | front-tab
-#       AGENT: claude | codex | agy | cursor | opencode (default: all)
+#       AGENT: claude | codex | agy | cursor | opencode | copilot | gemini
+#       (default: all)
 #
 # The kit writes one file in the current folder:
 # agent-signals-probe-<os>-<time>.txt. The scrub (tools/scrub.sh) has
@@ -25,7 +26,7 @@ out=$PWD/agent-signals-probe-$PROBE_OS-$stamp.txt
 raw=$(mktemp)
 trap 'rm -f "$raw" "$raw".*' EXIT
 
-agents="claude codex agy cursor opencode"
+agents="claude codex agy cursor opencode copilot gemini"
 command_of() {
   case $1 in
     cursor) command -v cursor-agent >/dev/null 2>&1 && echo cursor-agent || echo agent ;;
@@ -41,6 +42,8 @@ state_dirs() {
     agy) echo "$HOME/.gemini/antigravity-cli/presence $HOME/.gemini/antigravity-cli/conversations $HOME/.gemini/antigravity-cli/brain" ;;
     cursor) echo "$HOME/.cursor/chats $HOME/.cursor/projects" ;;
     opencode) echo "${XDG_DATA_HOME:-$HOME/.local/share}/opencode" ;;
+    copilot) echo "$HOME/.copilot/session-state" ;;
+    gemini) echo "$HOME/.gemini/tmp $HOME/.gemini/history" ;;
   esac
 }
 
@@ -52,6 +55,8 @@ pattern_of() {
     agy) echo '(^|[ /])agy( |$)' ;;
     cursor) echo 'cursor-agent|/\.local/bin/agent( |$)' ;;
     opencode) echo '(^|[ /])opencode( |$)' ;;
+    copilot) echo '(^|[ /])copilot( |$)|/copilot-(linux|darwin)-[a-z0-9]+/copilot' ;;
+    gemini) echo '(^|[ /])gemini( |$)' ;;
   esac
 }
 
@@ -94,7 +99,7 @@ snapshot() {
   for a in "$@"; do
     for x in $(pids "$(pattern_of "$a")"); do
       for k in $(children "$x"); do
-        open_files "$k" '\.claude|\.codex|\.gemini|\.cursor|opencode' | sed "s#^#$a $x #"
+        open_files "$k" '\.claude|\.codex|\.gemini|\.cursor|opencode|\.copilot' | sed "s#^#$a $x #"
       done
     done
   done | sort -u >"$raw.$name.open"

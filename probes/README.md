@@ -79,6 +79,8 @@ sh probes/run.sh --guided front-tab           # macOS: select a tab by its tty
 | `agy/unix.sh` | Antigravity CLI | Linux, macOS | 28 |
 | `cursor/unix.sh` | Cursor CLI (`agent`, `cursor-agent`) | Linux, macOS | 21, 22 |
 | `opencode/unix.sh` | opencode | Linux, macOS | |
+| `copilot/unix.sh` | GitHub Copilot CLI | Linux, macOS | 30 |
+| `gemini/unix.sh` | Gemini CLI | Linux, macOS | 30 |
 | `terminals/macos.sh` | terminal programs | macOS | 22 |
 | `claude/windows.ps1` | Claude Code | Windows | |
 | `codex/windows.ps1` | Codex CLI | Windows | |
