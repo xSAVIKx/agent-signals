@@ -1,0 +1,26 @@
+schema: 1
+agent: codex
+agent_version: 0.164.0
+measured: 2026-10-30
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - the path of the throwaway folder is scrubbed to /work/example, so each line that held it is shorter
+description: >-
+  1 s after Ctrl+C while an approved command (sleep 20) runs. Ctrl+C does
+  not stop the turn. It opens the dialog "Task is still running" in place
+  of the input box, with "1. Cancel task", "2. Run in background" and
+  "3. Exit", and the footer "enter select · esc back". The busy line and
+  the footer "? for shortcuts" are not drawn. A digit acts at once.
+  Measured with the scenario scenarios/codex/interrupt.sh.
+expect:
+  state: PERMISSION
+  dialog: question
+  question: "Task is still running"
+  options:
+    - {n: 1, label: "Cancel task        Stop the current task and stay in Codex", selected: true}
+    - {n: 2, label: "Run in background  Exit Codex and leave the task running"}
+    - {n: 3, label: "Exit               Stop the current task and exit Codex"}
+  box_text: null
+facts: [37]

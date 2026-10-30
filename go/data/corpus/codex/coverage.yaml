@@ -24,6 +24,18 @@ verified:
       scenario scenarios/codex/screens.sh
     notes: >-
       Covers idle, busy, the F2 Warnings view and the screen after Esc on
-      it. The busy footer still shows "? for shortcuts". Not checked: the
-      approval dialog in this version (fact 27 records its options), styled
-      captures, and a pane narrower than 120 columns.
+      it. The busy footer still shows "? for shortcuts". Not checked:
+      styled captures, and a pane narrower than 120 columns.
+  - version: 0.164.0
+    date: 2026-10-30
+    method: >-
+      capture-pane -p of codex in the default daemon mode, 120x40, in a
+      private tmux server with a throwaway HOME, by the scenarios
+      scenarios/codex/deny.sh and scenarios/codex/interrupt.sh
+    notes: >-
+      Covers the command approval dialog, the screen after the digit 3
+      ("No, and tell Codex what to do differently") on it, and the dialog
+      "Task is still running" that Ctrl+C opens during a turn. Not checked:
+      the file-change approval dialog, the hooks review dialog of this
+      version (fact 38 gives its text), styled captures, and a pane
+      narrower than 120 columns.

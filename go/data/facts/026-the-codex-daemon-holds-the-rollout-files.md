@@ -63,3 +63,20 @@ None.
 - When the daemon exits after the last TUI exits. It still ran 20 s after.
 - The sandbox helper: on this machine `bwrap` could not make a namespace,
   so the commands ran with no sandbox helper process.
+
+## Later measurement, 2026-10-30 (0.164.0)
+
+The scenario `scenarios/codex/daemon-life.sh` measured three items of the
+list above. Fact 39 and fact 40 give the details.
+
+- The life of the daemon: it did not exit in the 300 s after the last TUI
+  exited, in two runs. A TUI that started 30 s after the last exit used
+  the same daemon. About 6 minutes after its start, the daemon replaced
+  itself with a daemon of a newer version (0.166.0), with a new pid. The
+  new daemon held no file of the ended sessions.
+- A `--no-daemon` TUI next to a running daemon holds its own rollout file
+  and lock. The daemon does not hold them.
+- The layout of `~/.codex/state_5.sqlite` and of the other databases has
+  no column for a pid or a client of the daemon. Only `logs` in
+  `logs_2.sqlite` joins a `process_uuid` to a `thread_id`. The rows were
+  not read.
