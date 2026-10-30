@@ -80,6 +80,11 @@ sh probes/run.sh --guided front-tab           # macOS: select a tab by its tty
 | `cursor/unix.sh` | Cursor CLI (`agent`, `cursor-agent`) | Linux, macOS | 21, 22 |
 | `opencode/unix.sh` | opencode | Linux, macOS | |
 | `terminals/macos.sh` | terminal programs | macOS | 22 |
+| `claude/windows.ps1` | Claude Code | Windows | |
+| `codex/windows.ps1` | Codex CLI | Windows | |
+| `agy/windows.ps1` | Antigravity CLI | Windows | |
+| `cursor/windows.ps1` | Cursor CLI (`agent`, `cursor-agent`) | Windows | |
+| `opencode/windows.ps1` | opencode | Windows | |
 
 CI (`.github/workflows/probes.yml`) runs each probe and the kit on Linux
 x64 and arm64, macOS arm64, and Windows x64 and arm64, with no agent
