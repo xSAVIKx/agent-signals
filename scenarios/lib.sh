@@ -78,6 +78,16 @@ sandbox_stop() {
     sleep 1
     for q in $(sandbox_pids); do kill -9 "$q" 2>/dev/null || true; done
   fi
+  # Claude Code keeps task output and a scratchpad outside HOME, in
+  # /tmp/claude-<uid>/<project key>/. The key is the work folder path with
+  # each character that is not a letter or a digit changed to "-".
+  if [ -n "${SCN_WORK:-}" ]; then
+    k=$(printf '%s' "$SCN_WORK" | tr -c 'A-Za-z0-9' '-')
+    for t in /tmp "${TMPDIR:-/tmp}"; do
+      t=${t%/}/claude-$(id -u)/$k
+      if [ -d "$t" ]; then rm -rf "$t" || true; fi
+    done
+  fi
   if [ -n "${SCN_DIR:-}" ] && [ -d "$SCN_DIR" ]; then
     rm -rf "$SCN_DIR" 2>/dev/null || { sleep 2; rm -rf "$SCN_DIR"; }
     [ -d "$SCN_DIR" ] && echo "scenario: could not delete $SCN_DIR" >&2
