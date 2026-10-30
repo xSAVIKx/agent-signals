@@ -2,6 +2,7 @@ package site
 
 import (
 	"bytes"
+	"encoding/json"
 	"flag"
 	"html"
 	"os"
@@ -25,6 +26,42 @@ func fixtureBuilder(t *testing.T) *builder {
 	}
 	b.pagesBy["docs/demo.md"] = "docs/demo.html"
 	return b
+}
+
+// TestEachSchemaAgentHasAName reads the agent list of the screen schema. Each
+// folder name must have a display name, and the facts table must know it.
+func TestEachSchemaAgentHasAName(t *testing.T) {
+	raw, err := os.ReadFile("../../../schema/screen.schema.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var schema struct {
+		Properties struct {
+			Agent struct {
+				Enum []string `json:"enum"`
+			} `json:"agent"`
+		} `json:"properties"`
+	}
+	if err := json.Unmarshal(raw, &schema); err != nil {
+		t.Fatal(err)
+	}
+	if len(schema.Properties.Agent.Enum) == 0 {
+		t.Fatal("the schema lists no agent")
+	}
+	known := map[string]bool{}
+	for _, a := range agentNames {
+		known[a.name] = true
+	}
+	for _, a := range schema.Properties.Agent.Enum {
+		name, ok := agentDisplay[a]
+		if !ok {
+			t.Errorf("%s: no display name", a)
+			continue
+		}
+		if !known[name] {
+			t.Errorf("%s: the display name %q is not in agentNames", a, name)
+		}
+	}
 }
 
 func TestRelURL(t *testing.T) {

@@ -7,7 +7,7 @@
   "additionalProperties": false,
   "required": ["agent", "verified"],
   "properties": {
-    "agent": {"enum": ["claude", "agy", "codex"]},
+    "agent": {"enum": ["claude", "agy", "codex", "copilot", "gemini", "cursor", "opencode", "qwen", "aider", "amp", "goose", "crush", "kimi", "continue", "droid", "cline", "kilo", "auggie", "openhands"]},
     "verified": {
       "type": "array",
       "items": {
