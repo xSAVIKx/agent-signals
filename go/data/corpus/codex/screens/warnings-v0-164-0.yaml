@@ -1,0 +1,18 @@
+schema: 1
+agent: codex
+agent_version: 0.164.0
+measured: 2026-10-30
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - the path of the throwaway folder is scrubbed to /work/example, so each line that held it is shorter
+description: >-
+  The Warnings view after F2: "Warnings · 1 of 1 · Startup", the warning
+  text, and the footer "k keep & next · esc dismiss & close · ^o copy ·
+  ←/→ warning · ↓ scroll". The view replaces the box, so a reader must not
+  type into it. Esc closes it. The warning here says that bubblewrap is not
+  on PATH. Measured with the scenario scenarios/codex/screens.sh.
+expect:
+  state: UNKNOWN
+  dialog: none

@@ -1,0 +1,22 @@
+schema: 1
+agent: codex
+agent_version: 0.164.0
+measured: 2026-10-30
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - the path of the throwaway folder is scrubbed to /work/example, so each line that held it is shorter
+description: >-
+  The idle screen of a new session in the default daemon mode: the welcome
+  text, the box "› Ask Codex to do anything", the status line, and the
+  footer "← for agents · ? for shortcuts" with "⚠ 1 warning · f2 to" at
+  the right edge (cut at 120 columns). Measured with the scenario
+  scenarios/codex/screens.sh (codex --sandbox read-only
+  --ask-for-approval on-request) in a private tmux server with a throwaway
+  HOME.
+expect:
+  state: IDLE
+  dialog: none
+negative_control_for: busy-v0-164-0
+facts: [20]

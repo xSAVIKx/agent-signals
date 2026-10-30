@@ -1,0 +1,18 @@
+schema: 1
+agent: codex
+agent_version: 0.164.0
+measured: 2026-10-30
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - the path of the throwaway folder is scrubbed to /work/example, so each line that held it is shorter
+description: >-
+  The screen after Esc on the Warnings view: the box is back, and the
+  footer no longer shows the warning count, because Esc dismissed the
+  warning. The status line holds the title of the session after the
+  folder. Measured with the scenario scenarios/codex/screens.sh.
+expect:
+  state: IDLE
+  dialog: none
+facts: [20]

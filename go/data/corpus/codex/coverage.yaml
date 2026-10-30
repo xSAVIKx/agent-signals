@@ -16,3 +16,14 @@ verified:
       command menu, a pane narrower than 120 columns, a TUI that uses the
       shared app-server daemon, and the keys of the approval dialog other
       than Esc.
+  - version: 0.164.0
+    date: 2026-10-30
+    method: >-
+      capture-pane -p of codex in the default daemon mode (no --no-daemon),
+      120x40, in a private tmux server with a throwaway HOME, by the
+      scenario scenarios/codex/screens.sh
+    notes: >-
+      Covers idle, busy, the F2 Warnings view and the screen after Esc on
+      it. The busy footer still shows "? for shortcuts". Not checked: the
+      approval dialog in this version (fact 27 records its options), styled
+      captures, and a pane narrower than 120 columns.
