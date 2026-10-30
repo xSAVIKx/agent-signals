@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/xSAVIKx/agent-signals/compare/go/v0.2.0...go/v0.3.0) (2026-10-30)
+
+
+### Features
+
+* add fact 030, the first start of four more agents ([#22](https://github.com/xSAVIKx/agent-signals/issues/22)) ([78bff0c](https://github.com/xSAVIKx/agent-signals/commit/78bff0c8277aa2fd560249ce923dc762f4a38b80))
+
 ## [0.2.0](https://github.com/xSAVIKx/agent-signals/compare/go/v0.1.0...go/v0.2.0) (2026-10-30)
 
 
