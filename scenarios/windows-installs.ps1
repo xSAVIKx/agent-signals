@@ -4,7 +4,7 @@
 # "<cmd> --version" prints, the version in the package files, and the
 # folders and binaries of the install. It also lists the folders that the
 # "--version" calls made in the home folder. It starts no agent
-# interactively: there is no terminal driver for Windows yet.
+# interactively: scenarios\first-run-windows.py does that.
 # It answers: where does each Windows install keep its version, and what
 # does the install folder look like?
 #

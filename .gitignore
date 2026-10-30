@@ -15,3 +15,7 @@
 
 # The built documentation website (tools/cmd/site).
 /_site/
+
+# Python caches and the virtual environment of the Windows driver.
+__pycache__/
+/.venv-driver/
