@@ -41,7 +41,7 @@ PY
 step() {
   capture "$1"
   processes "$1" "$(agent_pid)"
-  open_files "$1" "$(agent_pid)"
+  scn_open_files "$1" "$(agent_pid)"
   snapshot_files "$1" "$SCN_HOME/.gemini"
   record_types "$1" "$SCN_HOME/.gemini/antigravity-cli/brain"
   note "step $1"

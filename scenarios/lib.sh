@@ -15,6 +15,11 @@
 
 # shellcheck shell=sh
 
+# The portable helpers for processes and files (Linux and macOS). A
+# scenario sets "here" to the scenarios folder before it sources this file.
+# shellcheck source=probes/lib.sh
+. "${here:?set here to the scenarios folder}/../probes/lib.sh"
+
 SCN_COLS=${SCN_COLS:-120}
 SCN_ROWS=${SCN_ROWS:-40}
 
@@ -193,7 +198,9 @@ snapshot_files() {
   name=$1
   shift
   for d in "$@"; do
-    [ -d "$d" ] && find "$d" -type f -exec stat -c '%s %Y %n' {} +
+    [ -d "$d" ] && find "$d" -type f 2>/dev/null | while read -r f; do
+      echo "$(wc -c <"$f" | tr -d ' ') $(mtime "$f") $f"
+    done
   done | sed "s#$SCN_DIR#<sandbox>#" | sort -k3 >"$SCN_OUT/$name.files"
 }
 
@@ -205,13 +212,11 @@ tree() {
   for c in $(pgrep -P "$1" 2>/dev/null); do tree "$c"; done
 }
 
-# open_files NAME PID: list the open files of PID and of all its
+# scn_open_files NAME PID: list the open files of PID and of all its
 # descendants, one "pid path" line for each.
-open_files() {
+scn_open_files() {
   for p in $(tree "$2"); do
-    for f in /proc/"$p"/fd/*; do
-      readlink "$f" 2>/dev/null
-    done | sed "s#$SCN_DIR#<sandbox>#" | sed "s#^#$p #"
+    open_files "$p" '.' | sed "s#$SCN_DIR#<sandbox>#" | sed "s#^#$p #"
   done | sort -u >"$SCN_OUT/$1.open"
 }
 

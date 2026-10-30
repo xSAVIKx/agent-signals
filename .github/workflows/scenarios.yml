@@ -1,0 +1,72 @@
+# Runs the no-login scenarios on GitHub-hosted runners for Linux and macOS.
+# It installs each agent, starts it once with no login, and prints a
+# scrubbed summary: the first screen, the processes, and the folders that
+# the agent made. It uses no secret and makes no model turn.
+#
+# It runs only when started by hand and once a week, because it installs
+# software from the network and macOS minutes cost more.
+#
+# Each action is pinned to a commit SHA. The comment gives the tag.
+name: Scenarios
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 5 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  first-run:
+    name: First run (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install tmux
+        run: |
+          if command -v tmux >/dev/null; then exit 0; fi
+          if [ "$RUNNER_OS" = macOS ]; then brew install tmux; else sudo apt-get install -y tmux; fi
+      # The install commands are not checked by this project. A failed
+      # install skips that agent.
+      - name: Install Claude Code
+        continue-on-error: true
+        run: npm install -g @anthropic-ai/claude-code
+      - name: Install Codex CLI
+        continue-on-error: true
+        run: npm install -g @openai/codex
+      - name: Install opencode
+        continue-on-error: true
+        run: npm install -g opencode-ai
+      - name: Install Cursor CLI
+        continue-on-error: true
+        run: |
+          curl -fsS https://cursor.com/install | bash
+          echo "$HOME/.local/bin" >>"$GITHUB_PATH"
+      - name: Run the scenarios
+        run: |
+          for a in claude codex agy cursor opencode; do
+            sh scenarios/first-run.sh "$a" || echo "skipped: $a"
+          done
+      - name: Summary (scrubbed)
+        run: |
+          for o in out/first-run-*; do
+            [ -d "$o" ] || continue
+            echo "################ $(basename "$o" | sed 's/-[0-9T]*Z$//')"
+            sh tools/scrub.sh "$o/log.txt" 2>/dev/null
+            echo "--- screen after 20 s"
+            grep -v '^[[:space:]]*$' "$o/02-after-20s.screen" | sh tools/scrub.sh 2>/dev/null | head -n 30
+            echo "--- processes"
+            sh tools/scrub.sh "$o/02-after-20s.ps" 2>/dev/null
+            echo "--- open files below the throwaway HOME"
+            grep '<sandbox>/home' "$o/02-after-20s.open" | awk '{print $2}' | sed 's#<sandbox>/home/##' | sh tools/scrub.sh 2>/dev/null | sort -u | head -n 30
+            echo "--- folders made in the throwaway HOME (files in each)"
+            awk '{print $3}' "$o/02-after-20s.files" | sed 's#<sandbox>/home/##' | cut -d/ -f1-3 | sh tools/scrub.sh 2>/dev/null | sort | uniq -c | head -n 40
+          done

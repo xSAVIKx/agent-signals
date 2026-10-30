@@ -43,7 +43,7 @@ step() {
   # $1: step name. Record everything for this step.
   capture "$1"
   pidfile "$1"
-  open_files "$1" "$(agent_pid)"
+  scn_open_files "$1" "$(agent_pid)"
   snapshot_files "$1" "$SCN_HOME/.claude/sessions" "$SCN_HOME/.claude/projects"
   note "step $1"
 }
