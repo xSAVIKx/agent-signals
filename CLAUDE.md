@@ -1,5 +1,7 @@
 # Rules for agents in this repository
 
+For the jobs in this repository and their task files, read `AGENTS.md`.
+
 This repository is treated as public from the first commit.
 
 ## Never commit

@@ -16,13 +16,14 @@ Measured on: real machine.
    `version`, `kind` (`interactive`), `entrypoint` (`cli`), `status`,
    `statusUpdatedAt`, `updatedAt`, `name`, `tmux`, `messagingSocketPath`,
    and others.
-2. `status` has three values:
+2. `status` had four values:
 
    | Value | When |
    |---|---|
    | `idle` | The input box waits for a prompt. |
    | `busy` | A turn runs. |
    | `waiting` | A permission dialog waits. |
+   | `shell` | Seen in a live session of 2.1.310 that ran shell commands for a long time. The cause is not measured. |
 
    The value changed to `waiting` when the dialog opened. It stayed
    `waiting` for the whole wait (5 reads in 10 s). It changed to `idle`
