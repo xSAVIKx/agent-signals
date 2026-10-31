@@ -54,6 +54,9 @@
 <p>Maintained by Yurii Serhiichuk, <a href="https://serhiichuk.dev/">serhiichuk.dev</a>.</p>
 </div>
 </footer>
+{{- if .Markdown}}
+<script src="{{rel .Out "assets/page.js"}}" defer></script>
+{{- end}}
 {{- if .Script}}
 <script src="{{rel .Out "assets/filter.js"}}" defer></script>
 {{- end}}

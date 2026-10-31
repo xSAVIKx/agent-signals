@@ -1,0 +1,8 @@
+{{define "actions.html"}}<div class="page-actions" role="group" aria-label="Use this page with an AI assistant">
+<a href="{{rel $.Out $.Markdown}}">View as Markdown</a>
+<button type="button" class="copy-md" data-src="{{rel $.Out $.Markdown}}" aria-describedby="copy-md-status" hidden>Copy as Markdown</button>
+<a href="https://claude.ai/new?q={{printf "Read %s and answer my questions about it." (abs $.Markdown) | urlquery}}" rel="noopener">Open in Claude<span class="visually-hidden"> (claude.ai)</span></a>
+<a href="https://chatgpt.com/?q={{printf "Read %s and answer my questions about it." (abs $.Markdown) | urlquery}}" rel="noopener">Open in ChatGPT<span class="visually-hidden"> (chatgpt.com)</span></a>
+<span id="copy-md-status" class="copy-md-status" role="status"></span>
+</div>
+{{end}}
