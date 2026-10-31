@@ -411,3 +411,35 @@ func TestWriteRefusesAForeignFolder(t *testing.T) {
 		t.Error("Write accepted the repository as the output")
 	}
 }
+
+// TestReleasesPage checks that the releases page gives the tag of each
+// package from the manifest, and that each changelog has a page.
+func TestReleasesPage(t *testing.T) {
+	files, err := Build("../../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	byPath := map[string][]byte{}
+	for _, f := range files {
+		byPath[f.Path] = f.Data
+	}
+	data, err := os.ReadFile("../../../.release-please-manifest.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var v map[string]string
+	if err := json.Unmarshal(data, &v); err != nil {
+		t.Fatal(err)
+	}
+	page := string(byPath["releases/index.html"])
+	for _, tag := range []string{"corpus-v" + v["."], "go/v" + v["go"], "python-v" + v["python"]} {
+		if !strings.Contains(page, "<code>"+tag+"</code>") {
+			t.Errorf("releases/index.html: no tag %s", tag)
+		}
+	}
+	for _, p := range []string{"releases/corpus.html", "releases/go.html", "releases/python.html"} {
+		if !strings.Contains(string(byPath[p]), "<h1>Changelog of the ") {
+			t.Errorf("%s: no changelog title", p)
+		}
+	}
+}

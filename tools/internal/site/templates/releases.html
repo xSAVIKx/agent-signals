@@ -1,0 +1,21 @@
+{{define "releases.html"}}<h1>Releases</h1>
+<p class="lead">release-please makes each release from the Conventional Commits on <code>main</code>. The repository has three packages. Each package has its own version, tag and changelog.</p>
+<table>
+<caption>The latest release of each package</caption>
+<thead><tr><th scope="col">Package</th><th scope="col">Version</th><th scope="col">Tag</th><th scope="col">Changes</th></tr></thead>
+<tbody>
+{{- $o := .Out}}
+{{- range .Items}}
+<tr><th scope="row">{{.Name}}</th><td>{{.Version}}</td><td><a href="https://github.com/xSAVIKx/agent-signals/releases/tag/{{.Tag}}"><code>{{.Tag}}</code></a></td><td><a href="{{rel $o .Changelog}}">Changelog<span class="visually-hidden"> of {{.Name}}</span></a></td></tr>
+{{- end}}
+</tbody>
+</table>
+<h2 id="how-to-pin-a-release">How to pin a release</h2>
+<ol>
+<li>Select the tag of the package that you use.</li>
+<li>For the data, copy <code>corpus/</code>, <code>schema/</code> and <code>facts/</code> from a <code>corpus-v</code> tag.</li>
+<li>For Go, run <code>go get github.com/xSAVIKx/agent-signals/go@v{{(index .Items 1).Version}}</code>.</li>
+<li>For Python, run <code>pip install "agent-signals @ git+https://github.com/xSAVIKx/agent-signals@python-v{{(index .Items 2).Version}}#subdirectory=python"</code>. The package is not on PyPI.</li>
+</ol>
+<p>The versioning rules tell which change makes a major, a minor or a patch release. Read <a href="{{rel .Out "docs/versioning.html"}}">Versions</a>. All releases are on the <a href="https://github.com/xSAVIKx/agent-signals/releases">releases page on GitHub</a>.</p>
+{{end}}
