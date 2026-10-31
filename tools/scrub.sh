@@ -101,8 +101,22 @@ function wfix(path,    rest, first, r, r2, sep) {
   while (1) {
     s1 = 0; s2 = 0
     if (match(line, /(~|\/srv|\/work)\/[^ \t"'\'',:;()]+/)) { s1 = RSTART; l1 = RLENGTH }
-    if (match(line, /(\\+\?\\*)?[A-Za-z]:(\\|\/)+[^ \t"'\'',:;()]+/)) { s2 = RSTART; l2 = RLENGTH }
+    if (match(line, /[A-Za-z]:(\\|\/)+[^ \t"'\'',:;()]+/)) { s2 = RSTART; l2 = RLENGTH }
     if (s1 == 0 && s2 == 0) break
+    # A \\?\ or \\? prefix goes with the drive path. Some awks do not
+    # match an optional group before the drive letter, so look back here.
+    if (s2 > 0 && (s1 == 0 || s2 < s1)) {
+      j = s2 - 1
+      while (j >= 1 && substr(line, j, 1) == "\\") j--
+      if (j >= 2 && substr(line, j, 1) == "?" && substr(line, j - 1, 1) == "\\") {
+        q = j; j--
+        while (j >= 1 && substr(line, j, 1) == "\\") j--
+        p = j + 1
+        # Like a look-behind: the prefix must not continue a word.
+        while (p < q && p > 1 && substr(line, p - 1, 1) ~ /[A-Za-z0-9_.~-]/) p++
+        if (p < q) { l2 += s2 - p; s2 = p }
+      }
+    }
     if (s1 > 0 && (s2 == 0 || s1 <= s2)) {
       m = substr(line, s1, l1)
       if (substr(m, 1, 1) == "~") rep = fix(substr(m, 2), 1)
