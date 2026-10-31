@@ -1,0 +1,25 @@
+schema: 1
+agent: iflow
+agent_version: 0.5.19
+measured: 2026-10-31
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - tools/scrub.sh changed the home folder of the runner account to ~, so the line that held the path is shorter
+  - the throwaway folder ~/.cache/agent-signals/run.<random>/work/example is replaced with /work/example, so that line is shorter again
+description: >-
+  iFlow CLI 0.5.19 with no login shows a framed header with a logo, the
+  version and three tips, and below it a framed form "OpenAI Compatible API
+  Configuration" that asks for a base URL, with "https://api.openai.com/v1" in
+  its field and "Press Enter to confirm, Escape to cancel". A status line with
+  "glm-4.7 100% context left" and the work folder are at the bottom. There is
+  no input box for a message. The third tip changes from start to start. On
+  four labels the field shows a cursor "│" right after the URL.
+  The screen is the capture 20 s after the start, with no key sent, by
+  scenarios/first-run.sh in the scenarios workflow run 41151440753 on the CI
+  runner ubuntu-24.04 (x64), with a throwaway HOME, no login and no key.
+expect:
+  state: NO_BOX
+  dialog: none
+facts: [61]

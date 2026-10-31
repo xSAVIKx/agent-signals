@@ -1,0 +1,21 @@
+schema: 1
+agent: kiro
+agent_version: 2.37.0
+measured: 2026-10-31
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured
+edits: []
+description: >-
+  Kiro CLI 2.37.0 with no login writes two plain lines: "Welcome to Kiro CLI,
+  let's get you signed in!" and "Press enter to continue to the browser or esc
+  to cancel". There is no input box. Eight more Linux and macOS labels gave the
+  same bytes. On macos-26-intel, the screen after 20 s was a menu "You are not
+  logged in. Login now?" with "❯ Yes" and "No".
+  The screen is the capture 20 s after the start, with no key sent, by
+  scenarios/first-run.sh in the scenarios workflow run 41151440753 on the CI
+  runner ubuntu-24.04 (x64), with a throwaway HOME, no login and no key.
+expect:
+  state: NO_BOX
+  dialog: none
+facts: [61]

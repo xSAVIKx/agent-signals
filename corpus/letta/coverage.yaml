@@ -1,0 +1,13 @@
+# The versions of Letta Code that were checked against this corpus.
+agent: letta
+verified:
+  - version: 0.34.35
+    date: 2026-10-31
+    method: >-
+      capture-pane -p, 120x40, 20 s after the first start with no login, by
+      scenarios/first-run.sh in the scenarios workflow run 41151440753, on the CI
+      runner ubuntu-24.04 (x64)
+    notes: >-
+      Covers the first screen with no login (backend-v0-34-35). Not checked: the
+      screens after a login, any turn, a permission dialog, styled captures, and a
+      pane narrower than 120 columns.

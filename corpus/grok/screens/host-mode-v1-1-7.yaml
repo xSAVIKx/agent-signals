@@ -1,0 +1,27 @@
+schema: 1
+agent: grok
+agent_version: 1.1.7
+measured: 2026-10-31
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - tools/scrub.sh changed the home folder of the runner account to ~, so the line that held the path is shorter
+  - the throwaway folder ~/.cache/agent-signals/run.<random>/work/example is replaced with /work/example, so that line is shorter again
+description: >-
+  Grok CLI 1.1.7 (superagent-ai/grok-cli) asks a plain question before a key:
+  "Grok has not been run in <folder> before.", "Sandbox mode is only available
+  on macOS Apple Silicon in this version.", "Run grok directly on the host for
+  this directory?" with "[Y] Yes, remember host mode" and "[s] Yes, this
+  session only", and "Choice [Y/s]:". There is no input box. ubuntu-22.04 and
+  ubuntu-26.04 gave the same screen, except the random part of the folder. On
+  macos-15 and macos-26 (arm64) the question is "Run grok in sandbox mode for
+  this directory?" with "[Y] Yes, always in sandbox", "[n] No, run on host"
+  and "[s] Yes, this session only".
+  The screen is the capture 20 s after the start, with no key sent, by
+  scenarios/first-run.sh in the scenarios workflow run 41151440753 on the CI
+  runner ubuntu-24.04 (x64), with a throwaway HOME, no login and no key.
+expect:
+  state: NO_BOX
+  dialog: none
+facts: [61]

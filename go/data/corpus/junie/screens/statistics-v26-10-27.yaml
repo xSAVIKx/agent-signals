@@ -1,0 +1,23 @@
+schema: 1
+agent: junie
+agent_version: 26.10.27
+measured: 2026-10-31
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured
+edits: []
+description: >-
+  Junie CLI 26.10.27 (build 3893.6, from the installer
+  https://junie.jetbrains.com/install.sh) with no login draws its logo of
+  slashes and asks "Share anonymous statistics" with "→ Yes, share anonymous
+  statistics" and "No, don't share". There is no input box. Eight more Linux
+  and macOS labels gave the same bytes. On macos-26-intel, some characters of
+  the logo were other characters ("\", "|", "{", "("): the logo has an
+  animation, and the capture took it in the middle.
+  The screen is the capture 20 s after the start, with no key sent, by
+  scenarios/first-run.sh in the scenarios workflow run 41151440753 on the CI
+  runner ubuntu-24.04 (x64), with a throwaway HOME, no login and no key.
+expect:
+  state: NO_BOX
+  dialog: none
+facts: [61]

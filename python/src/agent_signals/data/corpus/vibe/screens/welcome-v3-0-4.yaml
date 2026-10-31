@@ -1,0 +1,20 @@
+schema: 1
+agent: vibe
+agent_version: 3.0.4
+measured: 2026-10-31
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured
+edits: []
+description: >-
+  Mistral Vibe 3.0.4 with no key shows one framed line "Welcome to Mistral
+  Vibe - Let's get you started!" in the middle of the pane and "Enter continue"
+  below it. There is no input box. The other nine Linux and macOS labels gave
+  the same bytes.
+  The screen is the capture 20 s after the start, with no key sent, by
+  scenarios/first-run.sh in the scenarios workflow run 41151440753 on the CI
+  runner ubuntu-24.04 (x64), with a throwaway HOME, no login and no key.
+expect:
+  state: NO_BOX
+  dialog: none
+facts: [61]

@@ -1,0 +1,23 @@
+schema: 1
+agent: letta
+agent_version: 0.34.35
+measured: 2026-10-31
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured
+edits: []
+description: >-
+  Letta Code 0.34.35 with no login shows "Welcome to Letta Code", a text
+  about the two backends, and a menu with "> Sign in with Letta (default)",
+  "Proceed locally" and "Exit", each with a line of help, and the footer "Use
+  ↑/↓ to navigate, Enter to select". There is no input box. The other five
+  Linux labels gave the same bytes. On the four macOS labels the first line
+  holds the text "^[[?1;2;4c": the answer of the terminal to a query of
+  Letta Code, drawn as text.
+  The screen is the capture 20 s after the start, with no key sent, by
+  scenarios/first-run.sh in the scenarios workflow run 41151440753 on the CI
+  runner ubuntu-24.04 (x64), with a throwaway HOME, no login and no key.
+expect:
+  state: NO_BOX
+  dialog: none
+facts: [61]
