@@ -132,9 +132,21 @@ guided() {
     front-tab) front_tab; return ;;
     *) echo "kit: unknown step: $step"; exit 2 ;;
   esac
+  # A step measures only the sessions that run. Without one, the file
+  # would be empty, so the kit stops.
+  running=
+  for a in $which; do
+    n=$(pids "$(pattern_of "$a")" | wc -l | tr -d ' ')
+    [ "$n" -gt 0 ] && running="$running $a=$n"
+  done
+  if [ -z "$running" ]; then
+    echo "kit: no session of $which runs. Start a session, then run the step again."
+    exit 2
+  fi
   {
     echo "agent-signals guided step: $step, $stamp"
     echo "agents: $which"
+    echo "processes:$running"
   } >"$raw"
   # shellcheck disable=SC2086
   snapshot before $which

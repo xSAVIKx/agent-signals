@@ -213,9 +213,10 @@ sqlite_tables() {
 # terminal_env PID: the terminal variables of PID. Only the names in the
 # list below, because the environment can hold secrets. TMUX and TMUX_PANE
 # show the pane; TERM_PROGRAM, TERMINAL_EMULATOR, WT_SESSION and the
-# VSCODE_ names show the terminal program.
+# VSCODE_ names show the terminal program. VTE_VERSION, GNOME_TERMINAL_SCREEN
+# and KONSOLE_VERSION show a Linux desktop terminal.
 terminal_env() {
-  _list='^(TERM|TERM_PROGRAM|TERM_PROGRAM_VERSION|TERMINAL_EMULATOR|TMUX_PANE|WT_SESSION|VSCODE_PID|VSCODE_INJECTION|ZELLIJ|KITTY_WINDOW_ID|WEZTERM_PANE|ITERM_SESSION_ID|__CFBundleIdentifier)='
+  _list='^(TERM|TERM_PROGRAM|TERM_PROGRAM_VERSION|TERMINAL_EMULATOR|VTE_VERSION|GNOME_TERMINAL_SCREEN|KONSOLE_VERSION|TMUX_PANE|WT_SESSION|VSCODE_PID|VSCODE_INJECTION|ZELLIJ|KITTY_WINDOW_ID|WEZTERM_PANE|ITERM_SESSION_ID|__CFBundleIdentifier)='
   if [ "$PROBE_OS" = linux ]; then
     tr '\0' '\n' <"/proc/$1/environ" 2>/dev/null
   else
