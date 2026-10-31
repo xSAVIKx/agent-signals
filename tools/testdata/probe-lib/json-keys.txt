@@ -1,0 +1,5 @@
+  enabledPlugins dict(<name> x 2)
+  env dict(FOO,<name> x 1)
+  mcpServers dict(<name> x 1)
+  model str
+  permissions dict(allow,deny)

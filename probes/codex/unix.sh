@@ -65,11 +65,9 @@ layout "$c/packages" 4 | grep -E 'releases/[^/]+$|bin/codex$' | head -n 20
 [ -d "$c/packages" ] || none
 
 section "Config: table names of config.toml and hooks files (no values)"
-if [ -f "$c/config.toml" ]; then
-  grep -E '^\[' "$c/config.toml" | sort -u
-else
-  echo "not found: $c/config.toml"
-fi
+# Table names such as [projects."<path>"] and [mcp_servers.<name>] hold
+# paths and names. toml_tables prints them in a general form, with a count.
+toml_tables "$c/config.toml"
 for h in "$c/hooks.json" "$c/hooks.toml"; do
   [ -f "$h" ] && { echo "== $h"; json_keys "$h"; }
 done

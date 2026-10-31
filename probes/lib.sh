@@ -158,26 +158,95 @@ newest() {
 }
 
 # json_keys FILE: the top-level keys of a JSON file, with the type of each
-# value. No values.
+# value. No values. For a dict value it prints the sub-keys, at most 20. A
+# sub-key that holds @, /, \, : or . is a name or a path, and so is each
+# sub-key of enabledPlugins, extraKnownMarketplaces, mcpServers,
+# marketplaces and plugins. Such a sub-key shows as <name>, with a count.
 json_keys() {
   need python3 || return 0
   python3 - "$1" <<'EOF'
-import json, sys
+import json, re, sys
 try:
     d = json.load(open(sys.argv[1]))
 except Exception as e:
     print("not json:", type(e).__name__)
     sys.exit(0)
+NAMES = {"enabledPlugins", "extraKnownMarketplaces", "mcpServers", "marketplaces", "plugins"}
+def sub_keys(parent, v):
+    names = [k for k in v if parent in NAMES or re.search(r"[@/\\:.]", k)]
+    shown = sorted(k for k in v if k not in names)[:20]
+    if names:
+        shown.append("<name> x %d" % len(names))
+    return ",".join(shown)
 if isinstance(d, dict):
     for k in sorted(d):
         v = d[k]
         t = type(v).__name__
         if isinstance(v, dict):
-            t = "dict(" + ",".join(sorted(v)[:20]) + ")"
+            t = "dict(" + sub_keys(k, v) + ")"
         print(" ", k, t)
 else:
     print(" ", type(d).__name__)
 EOF
+}
+
+# toml_tables FILE: the table names of a TOML file, in the order of the
+# file, with no keys and no values. A name that holds a project path or the
+# name of a server or a plugin shows in a general form, with a count:
+#   [projects."/work/shop"]             -> [projects.<path>] x 1
+#   [hooks.state."<path>:pre_tool_use"] -> [hooks.state.<path>] x 1
+#   [mcp_servers.docs.env]              -> [mcp_servers.<name>.env] x 1
+#   [plugins."lint@acme"]               -> [plugins.<name>] x 1
+# Any other quoted part becomes <name>. Format-TomlTable in lib.ps1 has the
+# same rule.
+toml_tables() {
+  [ -f "$1" ] || { echo "not found: $1"; return 0; }
+  awk '
+  function fmt(t,    op, cl, n, i, ch, j, tok, part, out, skip) {
+    sub(/^[ \t]+/, "", t); sub(/[ \t]+$/, "", t)
+    op = "["; if (substr(t, 1, 2) == "[[") op = "[["
+    t = substr(t, length(op) + 1)
+    if (substr(t, length(t)) != "]") return "<other>"
+    cl = "]"; if (length(t) >= 2 && substr(t, length(t) - 1) == "]]") cl = "]]"
+    t = substr(t, 1, length(t) - length(cl))
+    n = 0; i = 1
+    while (i <= length(t)) {
+      ch = substr(t, i, 1)
+      if (ch == "\"" || ch == "'\''") {
+        j = i + 1
+        while (j <= length(t) && substr(t, j, 1) != ch) { if (ch == "\"" && substr(t, j, 1) == "\\") j++; j++ }
+        if (j > length(t)) { i++; continue }
+        part[++n] = "<q>"; i = j + 1; continue
+      }
+      if (ch == "." || ch == " " || ch == "\t") { i++; continue }
+      j = i
+      while (j <= length(t) && substr(t, j, 1) !~ /[. \t"'\'']/) j++
+      part[++n] = substr(t, i, j - i); i = j
+    }
+    if (n == 0) return "<other>"
+    skip = 0
+    if (n >= 2 && part[1] == "projects") { out = "projects.<path>"; skip = 2 }
+    else if (n >= 3 && part[1] == "hooks" && part[2] == "state") { out = "hooks.state.<path>"; skip = 3 }
+    else if (n >= 2 && part[1] ~ /^(mcp_servers|plugins|marketplaces|profiles|model_providers)$/) { out = part[1] ".<name>"; skip = 2 }
+    for (i = skip + 1; i <= n; i++) {
+      tok = part[i]; if (tok == "<q>") tok = "<name>"
+      out = (out == "") ? tok : out "." tok
+    }
+    return op out cl
+  }
+  /^[ \t]*\[/ {
+    line = $0; sub(/[ \t]+#.*$/, "", line)
+    t = fmt(line)
+    if (!(t in c)) o[++k] = t
+    c[t]++
+  }
+  END {
+    if (!k) print "tables: none"
+    for (i = 1; i <= k; i++) {
+      t = o[i]
+      if (c[t] > 1 || t ~ /</) print "table: " t " x " c[t]; else print "table: " t
+    }
+  }' "$1"
 }
 
 # jsonl_types FILE [N]: the record types of the last N lines (default 20):

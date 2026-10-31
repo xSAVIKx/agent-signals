@@ -22,6 +22,9 @@ layout "$here/probes" 1 >/dev/null
 mtime "$here/probes/lib.sh" >/dev/null
 newest "$here"/probes/*.sh >/dev/null
 terminal_env $$ >/dev/null
+data="$here/tools/testdata/probe-lib"
+toml_tables "$data/config.toml" >/dev/null
+json_keys "$data/settings.json" >/dev/null
 
 fail=0
 _now=
@@ -33,4 +36,20 @@ for _name in $names; do
   fi
 done
 [ "$fail" = 0 ] && echo "pass: the helpers keep the variables of the probe"
+
+# The helpers must not print the names in a config file. Compare their
+# output with the expected files.
+check_output() {
+  # $1: the name of the check; $2: the expected file; $3: the output.
+  if printf '%s\n' "$3" | diff -u "$2" -; then
+    echo "pass: $1"
+  else
+    echo "fail: $1"
+    fail=1
+  fi
+}
+check_output "toml_tables hides paths and names" "$data/toml-tables.txt" "$(toml_tables "$data/config.toml")"
+if command -v python3 >/dev/null 2>&1; then
+  check_output "json_keys hides names" "$data/json-keys.txt" "$(json_keys "$data/settings.json")"
+fi
 exit "$fail"

@@ -1,0 +1,7 @@
+{
+  "enabledPlugins": { "lint@acme": true, "fmt@acme": false },
+  "mcpServers": { "docs": { "command": "docs-mcp" } },
+  "permissions": { "allow": [], "deny": [] },
+  "env": { "FOO": "1", "D:\\Projects\\shop": "x" },
+  "model": "opus"
+}
