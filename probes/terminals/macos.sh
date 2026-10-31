@@ -16,7 +16,7 @@ header terminals/macos.sh 1 tmux
 
 section "Terminal programs that run now"
 ps -axo comm= | grep -E -i 'Terminal|iTerm|Ghostty|WezTerm|kitty|Alacritty|Warp|pycharm|idea|webstorm|goland|clion|rider|Code Helper|Cursor Helper|/Cursor$|/Code$' |
-  sed 's#.*/##' | sort | uniq -c
+  sed -e 's#.*/##' -e 's#\(extension-host\) .*#\1 <workspace>#' -e 's#\(fileWatcher\) \[.*#\1 <workspace>#' | sort | uniq -c
 
 section "tty and terminal of each agent process"
 for x in $(pids '(^|[ /])(claude|codex|agy|opencode|cursor-agent)( |$)|/\.local/bin/agent( |$)'); do

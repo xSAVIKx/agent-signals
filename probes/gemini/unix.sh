@@ -43,7 +43,8 @@ t=$(find "$g/tmp" -type f \( -name '*.json' -o -name '*.jsonl' \) 2>/dev/null | 
 if [ -z "$t" ]; then
   none
 else
-  echo "file: $t"
+  # The folder below tmp/ is named after the project, so it is hidden.
+  echo "file: $(echo "$t" | sed 's#/tmp/[^/]*/#/tmp/<project>/#')"
   case $t in
     *.jsonl) jsonl_types "$t" 20 ;;
     *) json_keys "$t" ;;
