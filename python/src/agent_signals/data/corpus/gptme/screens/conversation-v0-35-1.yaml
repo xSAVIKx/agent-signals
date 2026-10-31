@@ -1,0 +1,19 @@
+schema: 1
+agent: gptme
+agent_version: 0.35.1
+measured: 2026-10-31
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured
+edits: []
+description: >-
+  gptme 0.35.1 with no key asks "New conversation or load previous?" with
+  "* New conversation" under the mark and "Load more". There is no input box.
+  The other nine Linux and macOS labels gave the same bytes.
+  The screen is the capture 20 s after the start, with no key sent, by
+  scenarios/first-run.sh in the scenarios workflow run 41151440753 on the CI
+  runner ubuntu-24.04 (x64), with a throwaway HOME, no login and no key.
+expect:
+  state: NO_BOX
+  dialog: none
+facts: [61]

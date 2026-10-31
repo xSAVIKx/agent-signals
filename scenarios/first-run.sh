@@ -9,7 +9,11 @@
 #
 # Needs: tmux and the agent. No login, no model turn, no cost.
 # Run: sh scenarios/first-run.sh AGENT [COMMAND]
-#   AGENT: claude | codex | agy | cursor | opencode, or any name with COMMAND
+#   AGENT: claude | codex | codex-home | junie | agy | cursor | opencode,
+#   or any name with COMMAND
+# codex-home starts codex with CODEX_HOME=<throwaway folder>/.codex, a
+# folder next to the throwaway HOME, not in it. SCN_DIR_VARS can set such
+# variables for any agent (scenarios/lib.sh).
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 # shellcheck source=scenarios/lib.sh
@@ -19,6 +23,16 @@ agent=${1:?usage: first-run.sh AGENT}
 case $agent in
   claude) cmd=claude ;;
   codex) cmd=codex ;;
+  codex-home) cmd=codex; SCN_DIR_VARS=${SCN_DIR_VARS:-CODEX_HOME=.codex} ;;
+  # The Junie shim runs the binary from JUNIE_DATA, by default
+  # $HOME/.local/share/junie. The scenario keeps that folder in the real
+  # HOME, so that the shim finds the binary with the throwaway HOME.
+  junie)
+    cmd=junie
+    JUNIE_DATA=${JUNIE_DATA:-$HOME/.local/share/junie}
+    export JUNIE_DATA
+    SCN_PASS="${SCN_PASS:-} JUNIE_DATA"
+    ;;
   agy) cmd=agy ;;
   cursor) cmd=cursor-agent ;;
   opencode) cmd=opencode ;;
@@ -30,10 +44,18 @@ command -v "$cmd" >/dev/null 2>&1 || die "not installed: $cmd"
 
 SCN_NAME=first-run-$agent
 sandbox_start
+extra=$(sandbox_dir_vars)
+[ -n "${SCN_DIR_VARS:-}" ] && note "folder variables: $SCN_DIR_VARS (relative to the throwaway folder)"
 # The version is the first line on stdout. Some agents print a warning
 # on stderr first (OpenHands), so stderr counts only when stdout is empty.
 v=$("$cmd" --version 2>/dev/null </dev/null | grep -v '^[[:space:]]*$' | head -n 1)
 [ -n "$v" ] || v=$("$cmd" --version 2>&1 </dev/null | head -n 1)
+# Some agents download or install their binary at the first call and
+# print that first (Codebuff, Every Code). Then the version comes from a
+# second call.
+case $v in
+  *[Dd]ownload* | *[Ii]nstalling*) v=$("$cmd" --version 2>/dev/null </dev/null | grep -v '^[[:space:]]*$' | head -n 1) ;;
+esac
 note "version: $v"
 note "os: $PROBE_OS $(uname -m)"
 
@@ -41,10 +63,18 @@ step() {
   capture "$1"
   processes "$1" "$(agent_pid)"
   scn_open_files "$1" "$(agent_pid)"
-  snapshot_files "$1" "$SCN_HOME"
-  note "step $1"
+  # shellcheck disable=SC2086
+  snapshot_files "$1" "$SCN_HOME" $extra
+  # An agent that stops keeps its last screen: the pane stays open
+  # (SCN_REMAIN in scenarios/lib.sh).
+  dead=$(tmux -L "$SCN_SOCK" display -p -t scn '#{pane_dead} #{pane_dead_status}' 2>/dev/null || true)
+  case $dead in
+    1*) note "step $1: the agent stopped, exit status ${dead#1 }" ;;
+    *) note "step $1" ;;
+  esac
 }
 
+SCN_REMAIN=1
 tmux_start "$cmd"
 sleep 5
 step 01-after-5s

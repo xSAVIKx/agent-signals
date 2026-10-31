@@ -1,0 +1,23 @@
+schema: 1
+agent: interpreter
+agent_version: 0.0.56
+measured: 2026-10-31
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured
+edits: []
+description: >-
+  Open Interpreter 0.0.56 (the Rust version from
+  https://www.openinterpreter.com/install) with no login shows "Welcome to Open
+  Interpreter" and a menu with "> 1. Sign in with ChatGPT", "2. Sign in with
+  Device Code" and "3. Provide your own API key", each with a line of help, and
+  "Press enter to continue". The layout is the layout of the first screen of
+  Codex CLI. There is no input box. The other nine Linux and macOS labels gave
+  the same bytes.
+  The screen is the capture 20 s after the start, with no key sent, by
+  scenarios/first-run.sh in the scenarios workflow run 41151440753 on the CI
+  runner ubuntu-24.04 (x64), with a throwaway HOME, no login and no key.
+expect:
+  state: NO_BOX
+  dialog: none
+facts: [61, 65]

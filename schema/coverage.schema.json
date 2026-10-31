@@ -7,7 +7,7 @@
   "additionalProperties": false,
   "required": ["agent", "verified"],
   "properties": {
-    "agent": {"enum": ["claude", "agy", "codex", "copilot", "gemini", "cursor", "opencode", "qwen", "aider", "amp", "goose", "crush", "kimi", "continue", "droid", "cline", "kilo", "auggie", "openhands"]},
+    "agent": {"enum": ["claude", "agy", "codex", "copilot", "gemini", "cursor", "opencode", "qwen", "aider", "amp", "goose", "crush", "kimi", "continue", "droid", "cline", "kilo", "auggie", "openhands", "opencode2", "kiro", "junie", "codebuff", "qoder", "codebuddy", "letta", "neovate", "everycode", "iflow", "vibe", "gptme", "interpreter", "grok"]},
     "verified": {
       "type": "array",
       "items": {

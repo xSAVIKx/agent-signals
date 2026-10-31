@@ -13,7 +13,7 @@
     },
     "agent": {
       "description": "The agent that drew the screen. It must equal the folder name under corpus/.",
-      "enum": ["claude", "agy", "codex", "copilot", "gemini", "cursor", "opencode", "qwen", "aider", "amp", "goose", "crush", "kimi", "continue", "droid", "cline", "kilo", "auggie", "openhands"]
+      "enum": ["claude", "agy", "codex", "copilot", "gemini", "cursor", "opencode", "qwen", "aider", "amp", "goose", "crush", "kimi", "continue", "droid", "cline", "kilo", "auggie", "openhands", "opencode2", "kiro", "junie", "codebuff", "qoder", "codebuddy", "letta", "neovate", "everycode", "iflow", "vibe", "gptme", "interpreter", "grok"]
     },
     "agent_version": {
       "description": "The version of the agent that drew the screen.",

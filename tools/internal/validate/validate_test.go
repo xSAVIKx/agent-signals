@@ -222,7 +222,9 @@ func TestACoverageFileOfTheWrongAgentIsAProblem(t *testing.T) {
 var agents = []string{
 	"claude", "agy", "codex", "copilot", "gemini", "cursor", "opencode",
 	"qwen", "aider", "amp", "goose", "crush", "kimi", "continue", "droid",
-	"cline", "kilo", "auggie", "openhands",
+	"cline", "kilo", "auggie", "openhands", "opencode2", "kiro", "junie",
+	"codebuff", "qoder", "codebuddy", "letta", "neovate", "everycode", "iflow",
+	"vibe", "gptme", "interpreter", "grok",
 }
 
 func TestEachKnownAgentIsValid(t *testing.T) {

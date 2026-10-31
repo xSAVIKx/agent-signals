@@ -1,0 +1,27 @@
+schema: 1
+agent: opencode2
+agent_version: 2.2.5
+measured: 2026-10-31
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - the end of the throwaway folder /…/agent-signals/run.<random>/work/example, as opencode 2 shortens it, is replaced with /…/work/example, so that line is shorter
+description: >-
+  opencode 2.2.5 (npm @opencode/cli, command opencode2) with no login and no
+  provider starts in its input box, as opencode 1 does. The logo is above a box
+  with a bar "┃" at the left and a rule "╹▀▀▀" below it. The box holds the
+  placeholder "Ask anything… "Fix a TODO in the codebase"" and the line "Build ·
+  Big Pickle OpenCode". Below the box are the folder and "shift+tab agents
+  ctrl+p commands", and the version 2.2.5 is at the bottom right. The
+  placeholder is not typed text. Unlike opencode 1.19.5, the screen has no
+  /connect tip and no upgrade note. The other labels gave the same screen,
+  except the example in the placeholder, which changes from start to start.
+  The screen is the capture 20 s after the start, with no key sent, by
+  scenarios/first-run.sh in the scenarios workflow run 41151440753 on the CI
+  runner ubuntu-24.04 (x64), with a throwaway HOME, no login and no key.
+expect:
+  state: IDLE
+  dialog: none
+  box_text: null
+facts: [63]

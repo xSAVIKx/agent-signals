@@ -164,15 +164,37 @@ tmux_start() {
       # shellcheck disable=SC2154
       [ -n "$x" ] && printf 'export %s=%s\n' "$v" "'$x'" >>"$SCN_DIR/env"
     done
+    # SCN_DIR_VARS: NAME=FOLDER pairs. Each NAME points to FOLDER in the
+    # throwaway folder, next to the throwaway HOME (sandbox_dir_vars).
+    for pair in ${SCN_DIR_VARS:-}; do
+      printf 'export %s=%s\n' "${pair%%=*}" "'$SCN_DIR/${pair#*=}'" >>"$SCN_DIR/env"
+    done
   )
   # The tmux server starts with a clean environment, so that the
   # variables of the calling session do not reach the agent. tmux adds
   # TMUX and TMUX_PANE to the pane, as in a real session.
+  # SCN_REMAIN=1 keeps the pane open after the agent stops, so that a
+  # capture still shows the last screen of the agent.
+  conf=/dev/null
+  if [ "${SCN_REMAIN:-0}" = 1 ]; then
+    conf=$SCN_DIR/tmux.conf
+    echo 'set -g remain-on-exit on' >"$conf"
+  fi
   env -i HOME="$SCN_HOME" PATH="$PATH" TERM=xterm-256color \
     LANG="${LANG:-C.UTF-8}" USER=dev \
-    tmux -L "$SCN_SOCK" -f /dev/null new-session -d -s scn \
+    tmux -L "$SCN_SOCK" -f "$conf" new-session -d -s scn \
     -x "$SCN_COLS" -y "$SCN_ROWS" -c "$SCN_WORK" \
     sh -c '. "$0"; rm -f "$0"; exec "$@"' "$SCN_DIR/env" "$@"
+}
+
+# sandbox_dir_vars: make the folder of each NAME=FOLDER pair of
+# SCN_DIR_VARS in the throwaway folder, and print the folders. Some agents
+# need the folder before the start (Codex CLI with CODEX_HOME).
+sandbox_dir_vars() {
+  for pair in ${SCN_DIR_VARS:-}; do
+    mkdir -p "$SCN_DIR/${pair#*=}"
+    echo "$SCN_DIR/${pair#*=}"
+  done
 }
 
 # agent_pid: the pid of the program in the pane.

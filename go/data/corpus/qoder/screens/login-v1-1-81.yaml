@@ -1,0 +1,23 @@
+schema: 1
+agent: qoder
+agent_version: 1.1.81
+measured: 2026-10-31
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured
+edits: []
+description: >-
+  Qoder CLI 1.1.81 with no login shows its logo with "Qoder CLI v1.1.81" and
+  "Not Login Please Auth", a framed box "Tips for getting started", "Welcome to
+  Qoder CLI", a rule, and a menu "Sign in to get started, or exit the
+  application." with "❯ 1. Sign in to continue" and "2. Exit the application".
+  There is no input box. Seven more labels gave the same bytes. On
+  ubuntu-22.04 and ubuntu-22.04-arm, a warning "Limited color support detected
+  (TERM=screen)" with two tmux settings is above the menu.
+  The screen is the capture 20 s after the start, with no key sent, by
+  scenarios/first-run.sh in the scenarios workflow run 41151440753 on the CI
+  runner ubuntu-24.04 (x64), with a throwaway HOME, no login and no key.
+expect:
+  state: NO_BOX
+  dialog: none
+facts: [61]

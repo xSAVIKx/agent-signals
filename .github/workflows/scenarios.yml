@@ -3,7 +3,7 @@
 #
 # The first-run job installs each agent, starts it once with no login, and
 # prints a scrubbed summary: the first screen, the processes, and the
-# folders that the agent made. The agents are in two groups, so that one
+# folders that the agent made. The agents are in four groups, so that one
 # job stays below 30 minutes.
 #
 # The windows-installs job installs the agents and records where each
@@ -52,18 +52,28 @@ jobs:
           - macos-26
           - macos-15-intel
           - macos-26-intel
-        group: [a, b]
+        group: [a, b, c, d]
         # Each entry is AGENT:COMMAND for scenarios/first-run.sh.
+        # codex-home is Codex CLI with CODEX_HOME in the throwaway folder.
         include:
           - group: a
             agents: >-
-              claude:claude codex:codex cursor:cursor-agent opencode:opencode
-              gemini:gemini copilot:copilot qwen:qwen aider:aider
+              claude:claude codex:codex codex-home:codex cursor:cursor-agent
+              opencode:opencode gemini:gemini copilot:copilot qwen:qwen
+              aider:aider
           - group: b
             agents: >-
               amp:amp goose:goose crush:crush kimi:kimi continue:cn
               droid:droid cline:cline kilo:kilo auggie:auggie
-              openhands:openhands
+              openhands:openhands opencode2:opencode2
+          - group: c
+            agents: >-
+              kiro:kiro-cli junie:junie codebuff:codebuff qoder:qodercli
+              codebuddy:codebuddy letta:letta neovate:neovate
+          - group: d
+            agents: >-
+              everycode:coder iflow:iflow vibe:vibe gptme:gptme
+              interpreter:interpreter grok:grok
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
@@ -90,6 +100,8 @@ jobs:
         run: |
           echo "$HOME/.local/bin" >>"$GITHUB_PATH"
           echo "$HOME/.kimi-code/bin" >>"$GITHUB_PATH"
+          echo "$HOME/.grok/bin" >>"$GITHUB_PATH"
+          echo "/Applications/Kiro CLI.app/Contents/MacOS" >>"$GITHUB_PATH"
       # The install commands come from the npm registry, PyPI, or the
       # vendor's install page. A failed install skips that agent.
       - name: Install Claude Code
@@ -166,6 +178,74 @@ jobs:
         if: matrix.group == 'b'
         continue-on-error: true
         run: uv tool install --python 3.12 openhands
+      # opencode 2: the npm package of the anomalyco/opencode README. It has
+      # the commands opencode and opencode2. Group b does not install the
+      # opencode 1 package, so the commands do not collide.
+      - name: Install opencode 2
+        if: matrix.group == 'b'
+        continue-on-error: true
+        run: npm install -g @opencode/cli
+      # The Kiro CLI installer of https://kiro.dev/docs/cli/. It puts
+      # kiro-cli in ~/.local/bin on Linux and an app in /Applications on
+      # macOS.
+      - name: Install Kiro CLI
+        if: matrix.group == 'c'
+        continue-on-error: true
+        run: curl -fsSL https://cli.kiro.dev/install | bash
+      # The Junie installer of the JetBrains/junie README. It puts the
+      # shim in ~/.local/bin and the binary in ~/.local/share/junie.
+      - name: Install Junie CLI
+        if: matrix.group == 'c'
+        continue-on-error: true
+        run: curl -fsSL https://junie.jetbrains.com/install.sh | bash
+      - name: Install Codebuff
+        if: matrix.group == 'c'
+        continue-on-error: true
+        run: npm install -g codebuff
+      - name: Install Qoder CLI
+        if: matrix.group == 'c'
+        continue-on-error: true
+        run: npm install -g @qoder-ai/qodercli
+      - name: Install CodeBuddy Code
+        if: matrix.group == 'c'
+        continue-on-error: true
+        run: npm install -g @tencent-ai/codebuddy-code
+      - name: Install Letta Code
+        if: matrix.group == 'c'
+        continue-on-error: true
+        run: npm install -g @letta-ai/letta-code
+      - name: Install Neovate Code
+        if: matrix.group == 'c'
+        continue-on-error: true
+        run: npm install -g @neovate/code
+      - name: Install Every Code
+        if: matrix.group == 'd'
+        continue-on-error: true
+        run: npm install -g @just-every/code
+      - name: Install iFlow CLI
+        if: matrix.group == 'd'
+        continue-on-error: true
+        run: npm install -g @iflow-ai/iflow-cli
+      - name: Install Mistral Vibe
+        if: matrix.group == 'd'
+        continue-on-error: true
+        run: uv tool install --python 3.12 mistral-vibe
+      - name: Install gptme
+        if: matrix.group == 'd'
+        continue-on-error: true
+        run: uv tool install --python 3.12 gptme
+      # The installer of the Rust Open Interpreter (its README). It puts
+      # interpreter in ~/.local/bin.
+      - name: Install Open Interpreter
+        if: matrix.group == 'd'
+        continue-on-error: true
+        run: curl -fsSL https://www.openinterpreter.com/install | sh
+      # The installer of the superagent-ai/grok-cli README. It puts grok in
+      # ~/.grok/bin.
+      - name: Install Grok CLI
+        if: matrix.group == 'd'
+        continue-on-error: true
+        run: curl -fsSL https://raw.githubusercontent.com/superagent-ai/grok-cli/main/install.sh | bash
       # The raw output of each run goes to a file, not to the public log.
       # The summary prints it through the scrub.
       - name: Run the scenarios
@@ -200,8 +280,10 @@ jobs:
             sh tools/scrub.sh "$o/02-after-20s.ps" 2>/dev/null
             echo "--- top folders made in the throwaway HOME"
             awk '{print $3}' "$o/02-after-20s.files" | sed 's#<sandbox>/home/##' | cut -d/ -f1-2 | sort | uniq -c | sort -rn | head -n 15
+            # Also the folders of the folder variables (codex-home), which
+            # start with <sandbox>/. next to the throwaway HOME.
             echo "--- open files below the throwaway HOME"
-            grep '<sandbox>/home' "$o/02-after-20s.open" | awk '{print $2}' | sed 's#<sandbox>/home/##' | sh tools/scrub.sh 2>/dev/null | sort -u | head -n 30
+            grep -E '<sandbox>/(home|\.)' "$o/02-after-20s.open" | awk '{print $2}' | sed 's#<sandbox>/home/##' | sh tools/scrub.sh 2>/dev/null | sort -u | head -n 30
             echo "--- folders made in the throwaway HOME (files in each)"
             awk '{print $3}' "$o/02-after-20s.files" | sed 's#<sandbox>/home/##' | cut -d/ -f1-3 | sh tools/scrub.sh 2>/dev/null | sort | uniq -c | head -n 40
           done
@@ -235,7 +317,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-2022, windows-2025, windows-11-arm]
-        group: [a, b]
+        group: [a, b, c, d]
         # Each entry is NAME=COMMAND[=NPM PACKAGE] for
         # scenarios/windows-installs.ps1.
         include:
@@ -251,6 +333,18 @@ jobs:
               continue=cn=@continuedev/cli droid=droid=@factory/cli
               cline=cline=cline kilo=kilo=@kilocode/cli
               auggie=auggie=@augmentcode/auggie kimi=kimi
+              opencode2=opencode2=@opencode/cli
+          - group: c
+            agents: >-
+              kiro=kiro-cli junie=junie
+              codebuff=codebuff=codebuff qoder=qodercli=@qoder-ai/qodercli
+              codebuddy=codebuddy=@tencent-ai/codebuddy-code
+              letta=letta=@letta-ai/letta-code neovate=neovate=@neovate/code
+              everycode=coder=@just-every/code iflow=iflow=@iflow-ai/iflow-cli
+          - group: d
+            agents: >-
+              aider=aider openhands=openhands gptme=gptme vibe=vibe
+              goose=goose interpreter=interpreter
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
@@ -260,6 +354,10 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22"
+      # uv installs the Python agents of group d.
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: false
       # A failed install skips that agent.
       - name: Install the agents
         shell: pwsh
@@ -286,17 +384,28 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-2022, windows-2025, windows-11-arm]
-        group: [a, b]
+        group: [a, b, c, d]
         # Each entry is NAME=COMMAND for scenarios/first-run-windows.ps1.
+        # codex-home runs before codex, so that the real profile has no
+        # .codex folder from the codex run yet.
         include:
           - group: a
             agents: >-
-              claude=claude codex=codex opencode=opencode gemini=gemini
-              copilot=copilot qwen=qwen cursor=cursor-agent
+              claude=claude codex-home=codex codex=codex opencode=opencode
+              gemini=gemini copilot=copilot qwen=qwen cursor=cursor-agent
           - group: b
             agents: >-
               amp=amp crush=crush continue=cn droid=droid cline=cline
-              kilo=kilo auggie=auggie kimi=kimi
+              kilo=kilo auggie=auggie kimi=kimi opencode2=opencode2
+          - group: c
+            agents: >-
+              kiro=kiro-cli junie=junie codebuff=codebuff qoder=qodercli
+              codebuddy=codebuddy letta=letta neovate=neovate
+              everycode=coder iflow=iflow
+          - group: d
+            agents: >-
+              aider=aider openhands=openhands gptme=gptme vibe=vibe
+              goose=goose interpreter=interpreter
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:

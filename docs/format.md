@@ -71,6 +71,20 @@ these names:
 | `kilo` | Kilo Code CLI |
 | `auggie` | Auggie |
 | `openhands` | OpenHands CLI |
+| `opencode2` | opencode 2 |
+| `kiro` | Kiro CLI |
+| `junie` | Junie CLI |
+| `codebuff` | Codebuff |
+| `qoder` | Qoder CLI |
+| `codebuddy` | CodeBuddy Code |
+| `letta` | Letta Code |
+| `neovate` | Neovate Code |
+| `everycode` | Every Code |
+| `iflow` | iFlow CLI |
+| `vibe` | Mistral Vibe |
+| `gptme` | gptme |
+| `interpreter` | Open Interpreter |
+| `grok` | Grok CLI |
 
 A new agent needs its name in `schema/screen.schema.json` and
 `schema/coverage.schema.json`. A name that is not in the list is a schema

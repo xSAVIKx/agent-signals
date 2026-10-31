@@ -91,7 +91,9 @@ foreach ($o in (Get-ChildItem (Join-Path $root 'out') -Directory -Filter 'first-
   $c = @((Read-Text "$p\02-after-20s.outside") -split "`n" | Where-Object { $_ }) | Select-Object -First 30
   Show ($c -join "`n")
   Write-Output '--- open files below the throwaway home'
-  $of = @((Read-Text "$p\02-after-20s.open") -split "`n" | Where-Object { $_ -match '<sandbox>[\\/]home' } |
+  # Also the folders of the folder variables (codex-home), which start
+  # with <sandbox>\. next to the throwaway home.
+  $of = @((Read-Text "$p\02-after-20s.open") -split "`n" | Where-Object { $_ -match '<sandbox>[\\/](home|\.)' } |
       ForEach-Object { ($_ -split ' ', 2)[1] -replace '^<sandbox>[\\/]home[\\/]', '' } | Sort-Object -Unique | Select-Object -First 30)
   Show ($of -join "`n")
   Write-Output '--- folders made in the throwaway home (files in each)'

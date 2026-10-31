@@ -1,0 +1,40 @@
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Do you trust the files in this folder?                                                                               │
+│                                                                                                                      │
+│ /work/example                                                            │
+│                                                                                                                      │
+│ CodeBuddy Code may read, write, or execute files contained in this directory. This can pose security risks, so only  │
+│ use files and bash commands from trusted sources.                                                                    │
+│                                                                                                                      │
+│ Learn more ( https://www.codebuddy.ai/docs/cli )                                                                     │
+│                                                                                                                      │
+│   > 1. Trust folder only (example)                                                                                   │
+│     2. Trust parent folder (work/**)                                                                                 │
+│     3. Trust folder and all subdirectories (example/**)                                                              │
+│     4. No, exit (escape)                                                                                             │
+│                                                                                                                      │
+│ Enter to confirm • Esc to exit                                                                                       │
+│                                                                                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

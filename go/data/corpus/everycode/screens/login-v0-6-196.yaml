@@ -1,0 +1,23 @@
+schema: 1
+agent: everycode
+agent_version: 0.6.196
+measured: 2026-10-31
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured
+edits: []
+description: >-
+  Every Code 0.6.196 (npm @just-every/code, command coder) with no login
+  shows ">_ Welcome to Code", "What can I code for you tonight?", and a menu
+  with "> 1. Sign in with ChatGPT" and "2. Provide your own API key", and
+  "Press Enter to continue". The words are near the first screen of Codex CLI.
+  There is no input box. Four more labels gave the same bytes. On five labels
+  (ubuntu-24.04, ubuntu-26.04, ubuntu-26.04-arm, macos-26 and macos-15-intel)
+  the pane was still empty after 20 s.
+  The screen is the capture 20 s after the start, with no key sent, by
+  scenarios/first-run.sh in the scenarios workflow run 41151440753 on the CI
+  runner ubuntu-22.04 (x64), with a throwaway HOME, no login and no key.
+expect:
+  state: NO_BOX
+  dialog: none
+facts: [61]

@@ -1,0 +1,25 @@
+schema: 1
+agent: neovate
+agent_version: 0.28.5
+measured: 2026-10-31
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - the eight hex digits after the mark 🆔 in the status line, which change from start to start, are replaced with 00000000
+description: >-
+  Neovate Code 0.28.5 with no model shows a long framed list of providers;
+  its top has scrolled out of the pane. Below the list are "Suggested actions:"
+  with "/login - Configure API key for a provider" and "/model - Select a model
+  to use", and below the frame an input line ">" between two rules, with the
+  status line "[use /model to select a model] | example | 0.0K | 100% | 🆔
+  <hex>". The input line is empty. The other labels gave the same screen,
+  except the eight hex digits after 🆔.
+  The screen is the capture 20 s after the start, with no key sent, by
+  scenarios/first-run.sh in the scenarios workflow run 41151440753 on the CI
+  runner ubuntu-24.04 (x64), with a throwaway HOME, no login and no key.
+expect:
+  state: IDLE
+  dialog: none
+  box_text: null
+facts: [61]
