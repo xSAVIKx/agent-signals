@@ -28,6 +28,28 @@ jobs:
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+      - name: Check out the release commit
+        if: steps.release.outputs.release_created == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Attach the probe kit to the corpus release
+        # The one-line kit (probes/kit.sh, probes/kit.ps1) downloads these
+        # files from the latest release.
+        if: steps.release.outputs.release_created == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ steps.release.outputs.tag_name }}
+        run: |
+          paths="probes tools/scrub.sh tools/scrub.ps1"
+          # shellcheck disable=SC2086
+          git archive --format=tar.gz --prefix=agent-signals-kit/ -o agent-signals-kit.tar.gz HEAD $paths
+          # shellcheck disable=SC2086
+          git archive --format=zip --prefix=agent-signals-kit/ -o agent-signals-kit.zip HEAD $paths
+          sha256sum agent-signals-kit.tar.gz agent-signals-kit.zip >agent-signals-kit.sha256
+          cat agent-signals-kit.sha256
+          gh release upload "$TAG" agent-signals-kit.tar.gz agent-signals-kit.zip agent-signals-kit.sha256 --clobber
       - name: Mark the newest corpus release as Latest
         if: steps.release.outputs.releases_created == 'true'
         env:

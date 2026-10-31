@@ -48,7 +48,11 @@ irm https://xsavikx.github.io/agent-signals/kit.ps1 | iex
 & ([scriptblock]::Create((irm https://xsavikx.github.io/agent-signals/kit.ps1))) -All
 ```
 
-`AGENT_SIGNALS_REF` selects a branch or a tag (default: `main`).
+The one-liners download `agent-signals-kit.tar.gz` or `agent-signals-kit.zip`
+from the latest release: `probes/` and the scrub, about 30 KB. Each corpus
+release has these files and `agent-signals-kit.sha256`. When the latest
+release has no kit file, the one-liners download `main`.
+`AGENT_SIGNALS_REF` selects a branch or a tag instead.
 
 In a clone:
 

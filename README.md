@@ -36,8 +36,8 @@ The corpus holds no code that your tool runs. Each tool keeps its own reader.
 
 ## Run the probe kit on your machine
 
-Run the kit with one command. It downloads the repository to a temporary
-folder, runs the probes, writes one file in the current folder, and deletes
+Run the kit with one command. It downloads the kit of the latest release
+(about 30 KB) to a temporary folder, runs the probes, writes one file in the current folder, and deletes
 the temporary folder.
 
 | OS | Command |
