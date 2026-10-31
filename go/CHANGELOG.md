@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.0](https://github.com/xSAVIKx/agent-signals/compare/go/v0.4.0...go/v0.5.0) (2026-10-31)
+
+
+### Features
+
+* add a ConPTY driver and a first-run scenario for Windows ([#37](https://github.com/xSAVIKx/agent-signals/issues/37)) ([5452c4b](https://github.com/xSAVIKx/agent-signals/commit/5452c4b261d778ce16b2bb3e597a744981fbdb2c))
+* add the first screens of 16 more agents with no login ([#34](https://github.com/xSAVIKx/agent-signals/issues/34)) ([cf0649d](https://github.com/xSAVIKx/agent-signals/commit/cf0649d77573c58c052cea25db102d57ab1557a6))
+
 ## [0.4.0](https://github.com/xSAVIKx/agent-signals/compare/go/v0.3.0...go/v0.4.0) (2026-10-30)
 
 
