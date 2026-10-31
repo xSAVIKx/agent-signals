@@ -30,6 +30,7 @@ Each job has a task file. Follow the task file step by step.
 | Path | Content |
 |---|---|
 | `docs/roadmap.md` | The agents to cover, in order, and the state of each cell of the matrix. |
+| `docs/detection.md` | How a tool finds an agent process, links it to its session and reads its state. |
 | `docs/os-checks.md` | For each OS: how to see a process, its terminal, its open files and its folder. |
 | `docs/ci-secrets.md` | The repository secrets that the model scenarios need. |
 | `probes/README.md` | The rules for a probe, and the kit. |

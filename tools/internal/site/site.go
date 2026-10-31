@@ -69,6 +69,7 @@ var docPages = []docPage{
 	{"docs/format.md", "docs/format.html", "reference", "The format of a screen: the .screen file, the .yaml file, the states and the provenance.", ""},
 	{"docs/versioning.md", "docs/versioning.html", "reference", "The repository version, the agent versions, the tags and the schema versions.", ""},
 	{"docs/os-checks.md", "docs/os-checks.html", "reference", "For each OS: how to see a process, its terminal, its open files and its folder.", ""},
+	{"docs/detection.md", "docs/detection.html", "reference", "How a tool finds an agent process, links it to its session and reads its state.", ""},
 	{"docs/ci-secrets.md", "docs/ci-secrets.html", "reference", "The repository secrets that the model scenarios need.", ""},
 	{"docs/roadmap.md", "docs/roadmap.html", "roadmap", "", ""},
 	{"probes/README.md", "probes/index.html", "probes", "", ""},
