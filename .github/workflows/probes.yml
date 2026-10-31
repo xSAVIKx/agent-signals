@@ -89,7 +89,7 @@ jobs:
         # The one-liner reads a local archive here, so the step needs no
         # network.
         run: |
-          git archive --prefix=agent-signals-main/ -o "$RUNNER_TEMP/kit.tar.gz" HEAD
+          git archive --format=tar.gz --prefix=agent-signals-kit/ -o "$RUNNER_TEMP/kit.tar.gz" HEAD probes tools/scrub.sh tools/scrub.ps1
           AGENT_SIGNALS_URL="file://$RUNNER_TEMP/kit.tar.gz" sh -c 'cat probes/kit.sh | sh -s -- --all'
           f=$(ls agent-signals-probe-*.txt)
           grep -c '^### ' "$f"
@@ -143,7 +143,7 @@ jobs:
         shell: pwsh
         run: |
           $zip = Join-Path $env:RUNNER_TEMP 'kit.zip'
-          git archive --format=zip --prefix=agent-signals-main/ -o $zip HEAD
+          git archive --format=zip --prefix=agent-signals-kit/ -o $zip HEAD probes tools/scrub.sh tools/scrub.ps1
           $env:AGENT_SIGNALS_URL = $zip
           foreach ($exe in 'pwsh', 'powershell') {
             & $exe -NoProfile -Command "& ([scriptblock]::Create((Get-Content -Raw probes/kit.ps1))) -All"
