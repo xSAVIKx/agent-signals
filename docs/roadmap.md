@@ -96,6 +96,11 @@ Checked on 2026-10-31. These agents are not in the CI:
 - Zed: it has no agent CLI. Zed runs other agents through ACP.
 - Charm Mods: the repository is archived. Crush is in the CI.
 
+## Questions from the detection rules
+
+[`docs/detection.md`](detection.md) lists eight open questions from aw
+(2026-10-31). Each one needs a measurement on a real machine.
+
 ## Requests from tools
 
 The tools asked for these signals on 2026-10-30. The answer gives the fact
