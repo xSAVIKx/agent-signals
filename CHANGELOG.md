@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.8.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.7.0...corpus-v0.8.0) (2026-10-31)
+
+
+### Features
+
+* **site:** add a releases page and keep the corpus release as Latest ([#43](https://github.com/xSAVIKx/agent-signals/issues/43)) ([5e716c7](https://github.com/xSAVIKx/agent-signals/commit/5e716c7ac807a3fab604cb48582c642136bced4e))
+
+
+### Bug Fixes
+
+* **site:** keep tables and the navigation inside the screen, and put who and how first in the README ([#45](https://github.com/xSAVIKx/agent-signals/issues/45)) ([420ed0b](https://github.com/xSAVIKx/agent-signals/commit/420ed0b93a941b1a3e73748a1c8a8cb42ffb94b3))
+
 ## [0.7.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.6.0...corpus-v0.7.0) (2026-10-31)
 
 
