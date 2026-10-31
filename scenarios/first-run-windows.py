@@ -40,9 +40,14 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import conpty  # noqa: E402
 
 AGENTS = {
-    "claude": "claude", "codex": "codex", "agy": "agy",
+    "claude": "claude", "codex": "codex", "codex-home": "codex", "agy": "agy",
     "cursor": "cursor-agent", "opencode": "opencode",
 }
+
+# Variables that point to a folder in the throwaway folder, next to the
+# throwaway home, as NAME=FOLDER pairs. SCN_DIR_VARS sets them for any
+# agent, as in scenarios/lib.sh. codex-home is Codex CLI with CODEX_HOME.
+DIR_VARS = {"codex-home": "CODEX_HOME=.codex"}
 
 
 # Entries of the real profile that change with no agent action.
@@ -135,6 +140,15 @@ class Run:
         for k in ("APPDATA", "LOCALAPPDATA", "TEMP"):
             os.makedirs(self.env[k], exist_ok=True)
         os.makedirs(self.work, exist_ok=True)
+        # The folders of the folder variables. Codex CLI needs CODEX_HOME
+        # to exist before the start.
+        self.extra = []
+        for pair in (os.environ.get("SCN_DIR_VARS") or DIR_VARS.get(agent, "")).split():
+            name, _, rel = pair.partition("=")
+            d = os.path.join(self.dir, rel)
+            os.makedirs(d, exist_ok=True)
+            self.env[name] = d
+            self.extra.append((name, rel, d))
         self.pty = None
         user = os.environ.get("USERNAME", "")
         self.account = re.compile("(?i)" + re.escape(user)) if len(user) >= 3 else None
@@ -231,6 +245,8 @@ class Run:
         self.write(name + ".ps", self.processes(below, extra))
         self.write(name + ".open", self.open_files(below + extra))
         files = conpty.list_files(self.home, self.dir)
+        for _name, _rel, d in self.extra:
+            files += conpty.list_files(d, self.dir)
         self.write(name + ".files", "".join(self.hide(x) + "\n" for x in files))
         # USERNAME is dev for the agent. A file path below the throwaway
         # home with the real account name in it comes from a Windows call.
@@ -273,6 +289,9 @@ class Run:
         argv = launcher(path, self.env)
         self.note("command: " + subprocess.list2cmdline(argv))
         self.note("throwaway variables: USERPROFILE HOME HOMEDRIVE HOMEPATH APPDATA LOCALAPPDATA TEMP TMP")
+        if self.extra:
+            self.note("folder variables: %s (relative to the throwaway folder)"
+                      % " ".join("%s=%s" % (n, r) for n, r, _d in self.extra))
         before = self.real_entries()
         try:
             self.pty = conpty.ConPTY(argv, cwd=self.work, env=self.env)
