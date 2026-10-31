@@ -7,7 +7,8 @@
 #   sh probes/run.sh --guided STEP [AGENT]
 #       STEP: permission | new-chat | resume | interrupt | front-tab
 #       AGENT: claude | codex | agy | cursor | opencode | copilot | gemini
-#       (default: all). "agent" and "cursor-agent" mean cursor.
+#       (default: all). "cursor" is the Cursor CLI. Its command is
+#       "agent" or "cursor-agent", and the kit accepts all three names.
 #
 # The kit writes one file in the current folder:
 # agent-signals-probe-<os>-<time>.txt. The scrub (tools/scrub.sh) has
@@ -53,7 +54,7 @@ pattern_of() {
     claude) echo '(^|[ /])claude( |$)' ;;
     codex) echo '(^|[ /])codex( |$)' ;;
     agy) echo '(^|[ /])agy( |$)' ;;
-    cursor) echo 'cursor-agent|/\.local/bin/agent( |$)' ;;
+    cursor) echo 'cursor-agent|(^|[ /])agent .*index\.js|/\.local/bin/agent( |$)' ;;
     opencode) echo '(^|[ /])opencode( |$)' ;;
     copilot) echo '(^|[ /])copilot( |$)|/copilot-(linux|darwin)-[a-z0-9]+/copilot' ;;
     gemini) echo '(^|[ /])gemini( |$)' ;;

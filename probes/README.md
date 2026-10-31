@@ -81,7 +81,7 @@ that changed, the open files before and after, the new record types, and
 the status of the Claude pid files. It reads no text.
 
 ```sh
-sh probes/run.sh --guided permission cursor   # a permission dialog waits
+sh probes/run.sh --guided permission agent    # a permission dialog waits
 sh probes/run.sh --guided new-chat cursor     # /new-chat
 sh probes/run.sh --guided resume cursor       # --resume
 sh probes/run.sh --guided interrupt codex     # Esc while the agent works

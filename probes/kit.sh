@@ -2,7 +2,7 @@
 # One-line start of the probe kit on Linux and macOS:
 #
 #   curl -fsSL https://xsavikx.github.io/agent-signals/kit.sh | sh
-#   curl -fsSL https://xsavikx.github.io/agent-signals/kit.sh | sh -s -- --guided permission cursor
+#   curl -fsSL https://xsavikx.github.io/agent-signals/kit.sh | sh -s -- --guided permission agent
 #
 # It downloads the kit of the latest release (agent-signals-kit.tar.gz) to a
 # temporary folder, runs probes/run.sh with the arguments, and deletes the
