@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.9.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.8.0...corpus-v0.9.0) (2026-10-31)
+
+
+### Features
+
+* add facts 066 to 069 from the probe kit on macOS and Ubuntu ([#53](https://github.com/xSAVIKx/agent-signals/issues/53)) ([6b0a86d](https://github.com/xSAVIKx/agent-signals/commit/6b0a86de152de4286cb30cbdb2bc4198a10ac387))
+* add facts 070 to 072 from the probe kit on Windows ([#55](https://github.com/xSAVIKx/agent-signals/issues/55)) ([ed1ea21](https://github.com/xSAVIKx/agent-signals/commit/ed1ea218791edbf4bd1b7d4e062c8bc559ef8270))
+* **probes:** add one-line starts of the kit for macOS, Linux and Windows ([#51](https://github.com/xSAVIKx/agent-signals/issues/51)) ([71a2470](https://github.com/xSAVIKx/agent-signals/commit/71a24701049d150b58021a79ed5fa84b2a77fccd))
+* **probes:** attach the probe kit to each corpus release and download it in the one-liners ([#56](https://github.com/xSAVIKx/agent-signals/issues/56)) ([2b79a8e](https://github.com/xSAVIKx/agent-signals/commit/2b79a8e4ea2544d7514d12acea16a3d1c23d85ce))
+* **probes:** print procStart of each Claude pid file with the start time from ps, sysctl and /proc ([#58](https://github.com/xSAVIKx/agent-signals/issues/58)) ([af68e66](https://github.com/xSAVIKx/agent-signals/commit/af68e66e1c649bbbd4c58c5181dfe2dbd7976048))
+* **site:** add llms.txt, JSON indexes and Markdown copies for agents ([#47](https://github.com/xSAVIKx/agent-signals/issues/47)) ([6b91c06](https://github.com/xSAVIKx/agent-signals/commit/6b91c06f90504c8b8ea2c22939ebf6c81f5fa383))
+* **site:** add Markdown, Claude and ChatGPT actions to each page ([#49](https://github.com/xSAVIKx/agent-signals/issues/49)) ([0b98b0a](https://github.com/xSAVIKx/agent-signals/commit/0b98b0a1953f9d4db863349e7d2b5cc62538decc))
+
+
+### Bug Fixes
+
+* **probes:** accept agent as a name of Cursor and refuse unknown agents in a guided step ([#54](https://github.com/xSAVIKx/agent-signals/issues/54)) ([b6a1997](https://github.com/xSAVIKx/agent-signals/commit/b6a1997a9eb6b16f010d1ba24795e3cef1ed618a))
+* **probes:** hide Windows project paths, keys and names in the probe output ([#59](https://github.com/xSAVIKx/agent-signals/issues/59)) ([75d05ca](https://github.com/xSAVIKx/agent-signals/commit/75d05ca4a9adb5e7385fc66b47363dd46045ecfe))
+* **probes:** keep probe variables out of the helpers, and fix two macOS checks ([#52](https://github.com/xSAVIKx/agent-signals/issues/52)) ([8ff5cbe](https://github.com/xSAVIKx/agent-signals/commit/8ff5cbe682eadddbbaaf2e2b05b5b3a22fa8d1c5))
+
 ## [0.8.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.7.0...corpus-v0.8.0) (2026-10-31)
 
 
