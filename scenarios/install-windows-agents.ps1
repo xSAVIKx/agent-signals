@@ -77,21 +77,31 @@ if ($Group -eq 'a') {
   Add-ToPath "$HOME\.kimi-code\bin"
 } elseif ($Group -eq 'c') {
   # The Windows installer of the Kiro CLI (https://kiro.dev/docs/cli/). It
-  # installs an x64 MSI to C:\Program Files\Kiro-Cli.
+  # installs an x64 MSI.
   Write-Output '::group::Kiro CLI'
   $rc = Invoke-InstallPage 'https://cli.kiro.dev/install.ps1'
   Write-Output '::endgroup::'
   Write-Output "install Kiro CLI: exit $rc"
-  # The folder of kiro-cli.exe below the install folder goes to PATH.
-  $kiro = Get-ChildItem -Path "$env:ProgramFiles\Kiro-Cli" -Recurse -Filter 'kiro-cli.exe' -ErrorAction SilentlyContinue |
+  # The installer prints C:\Program Files\Kiro-Cli, but the MSI can put
+  # kiro-cli.exe elsewhere. Look in the PATH that the MSI wrote to the
+  # registry, then in the usual install folders.
+  $dirs = @(([Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' +
+      [Environment]::GetEnvironmentVariable('Path', 'User')) -split ';' | Where-Object { $_ })
+  $kiro = $dirs | ForEach-Object { Join-Path $_ 'kiro-cli.exe' } | Where-Object { Test-Path -LiteralPath $_ } |
     Select-Object -First 1
+  if (-not $kiro) {
+    $roots = @($env:ProgramFiles, ${env:ProgramFiles(x86)}, "$env:LOCALAPPDATA\Programs", $env:LOCALAPPDATA)
+    $kiro = $roots | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | ForEach-Object {
+      Get-ChildItem -LiteralPath $_ -Recurse -Depth 4 -Filter 'kiro-cli.exe' -ErrorAction SilentlyContinue
+    } | Select-Object -First 1 -ExpandProperty FullName
+  }
   if ($kiro) {
-    Write-Output "Kiro CLI: kiro-cli.exe in $($kiro.DirectoryName -replace [regex]::Escape($env:ProgramFiles), '%ProgramFiles%')"
-    Add-ToPath $kiro.DirectoryName
+    $d = Split-Path -Parent $kiro
+    $t = (Invoke-Scrub "Kiro CLI: kiro-cli.exe in $d" $scrub.HomeDir $scrub.User $scrub.HostName).Text
+    Write-Output $t
+    Add-ToPath $d
   } else {
-    Write-Output 'Kiro CLI: no kiro-cli.exe below %ProgramFiles%\Kiro-Cli'
-    Get-ChildItem -Path "$env:ProgramFiles\Kiro-Cli" -Recurse -Depth 2 -ErrorAction SilentlyContinue |
-      Select-Object -First 30 | ForEach-Object { '  ' + ($_.FullName -replace [regex]::Escape($env:ProgramFiles), '%ProgramFiles%') }
+    Write-Output 'Kiro CLI: no kiro-cli.exe in PATH or in the install folders'
   }
   # The Junie installer of the JetBrains/junie README. It puts the shim
   # junie.bat in %USERPROFILE%\.local\bin and the binary in
