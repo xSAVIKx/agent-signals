@@ -28,14 +28,14 @@ done
 # dialog that asks for Automation access. Each call below is read-only. The
 # rest of the output does not need the access.
 section "Terminal tabs and their ttys"
-if pgrep -x Terminal >/dev/null 2>&1; then
+if ps -axo comm= | grep -q '/Terminal$'; then
   osascript -e 'tell application "Terminal" to get tty of every tab of every window' 2>&1
 else
   echo "Terminal: not running"
 fi
 
 section "iTerm2 sessions and their ttys"
-if pgrep -x iTerm2 >/dev/null 2>&1; then
+if ps -axo comm= | grep -q '/iTerm2$'; then
   osascript -e 'tell application "iTerm2" to get tty of every session of every tab of every window' 2>&1
 else
   echo "iTerm2: not running"

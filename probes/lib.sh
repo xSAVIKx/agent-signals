@@ -31,6 +31,10 @@ need() {
   return 1
 }
 
+# The helpers below name their variables with a leading "_". A probe uses
+# short names such as a, c, f and s, and a POSIX shell has no local
+# variables, so a helper must not change them.
+
 # header NAME VERSION AGENT_COMMAND...: section 1, the facts of the run.
 header() {
   name=$1
@@ -43,33 +47,33 @@ header() {
   [ -r /etc/os-release ] && echo "distribution: $(. /etc/os-release && echo "$PRETTY_NAME")"
   echo "cpu: $(uname -m)"
   echo "date: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  for c in "$@"; do
-    p=$(command -v "$c" 2>/dev/null || true)
-    if [ -n "$p" ]; then
-      echo "command: $c -> $p"
-      echo "resolved: $(resolve "$p")"
-      v=$("$c" --version 2>&1 </dev/null | head -n 1)
-      case $v in *sage:*) v=$("$c" -V 2>&1 </dev/null | head -n 1) ;; esac
-      echo "version: $v"
+  for _c in "$@"; do
+    _p=$(command -v "$_c" 2>/dev/null || true)
+    if [ -n "$_p" ]; then
+      echo "command: $_c -> $_p"
+      echo "resolved: $(resolve "$_p")"
+      _v=$("$_c" --version 2>&1 </dev/null | head -n 1)
+      case $_v in *sage:*|*"unknown option"*) _v=$("$_c" -V 2>&1 </dev/null | head -n 1) ;; esac
+      echo "version: $_v"
     else
-      echo "command: $c not found"
+      echo "command: $_c not found"
     fi
   done
 }
 
 # resolve PATH: follow symbolic links. macOS has no readlink -f before 13.
 resolve() {
-  f=$1
-  n=0
-  while [ -L "$f" ] && [ "$n" -lt 20 ]; do
-    l=$(readlink "$f")
-    case $l in
-      /*) f=$l ;;
-      *) f=$(dirname "$f")/$l ;;
+  _f=$1
+  _n=0
+  while [ -L "$_f" ] && [ "$_n" -lt 20 ]; do
+    _l=$(readlink "$_f")
+    case $_l in
+      /*) _f=$_l ;;
+      *) _f=$(dirname "$_f")/$_l ;;
     esac
-    n=$((n + 1))
+    _n=$((_n + 1))
   done
-  echo "$f"
+  echo "$_f"
 }
 
 # pids REGEX: the pids of processes whose command line matches REGEX, not
@@ -85,21 +89,21 @@ pids() {
 # hold a /. Other words become <arg>, because they can be names or prompt
 # text.
 ps_line() {
-  s=$(ps -o pid=,ppid=,tty=,lstart= -p "$1" 2>/dev/null) || return 0
-  a=$(ps -o args= -p "$1" 2>/dev/null | awk '{
+  _s=$(ps -o pid=,ppid=,tty=,lstart= -p "$1" 2>/dev/null) || return 0
+  _a=$(ps -o args= -p "$1" 2>/dev/null | awk '{
     out = $1
     for (i = 2; i <= NF; i++) out = out " " (($i ~ /^-/ || $i ~ /\//) ? $i : "<arg>")
     print out
   }')
-  echo "$s $a" | cut -c1-240
+  echo "$_s $_a" | cut -c1-240
 }
 
 # chain PID: the parent chain of PID up to process 1.
 chain() {
-  q=$1
-  while [ -n "$q" ] && [ "$q" -gt 1 ]; do
-    ps -o pid=,ppid=,tty=,comm= -p "$q" 2>/dev/null
-    q=$(ps -o ppid= -p "$q" 2>/dev/null | tr -d ' ')
+  _q=$1
+  while [ -n "$_q" ] && [ "$_q" -gt 1 ]; do
+    ps -o pid=,ppid=,tty=,comm= -p "$_q" 2>/dev/null
+    _q=$(ps -o ppid= -p "$_q" 2>/dev/null | tr -d ' ')
   done
 }
 
@@ -107,7 +111,7 @@ chain() {
 children() {
   [ "${1:-0}" -gt 0 ] || return 0
   echo "$1"
-  for c in $(pgrep -P "$1" 2>/dev/null); do children "$c"; done
+  for _c in $(pgrep -P "$1" 2>/dev/null); do children "$_c"; done
 }
 
 # cwd PID: the working folder of PID.
@@ -123,7 +127,7 @@ cwd() {
 # REGEX. Linux reads /proc. macOS uses lsof -n -P (no DNS, no port names).
 open_files() {
   if [ "$PROBE_OS" = linux ]; then
-    for f in /proc/"$1"/fd/*; do readlink "$f" 2>/dev/null; done
+    for _f in /proc/"$1"/fd/*; do readlink "$_f" 2>/dev/null; done
   else
     lsof -n -P -p "$1" -Fn 2>/dev/null | sed -n 's/^n//p'
   fi | grep -E -- "$2" | sort -u
@@ -133,11 +137,11 @@ open_files() {
 # DEPTH levels, with no content. Folders with many entries show a count.
 layout() {
   [ -d "$1" ] || { echo "not found: $1"; return 0; }
-  find "$1" -maxdepth "$2" 2>/dev/null | sort | head -n 200 | while read -r f; do
-    if [ -d "$f" ]; then
-      echo "d $(find "$f" -maxdepth 1 | wc -l | tr -d ' ') $f"
+  find "$1" -maxdepth "$2" 2>/dev/null | sort | head -n 200 | while read -r _f; do
+    if [ -d "$_f" ]; then
+      echo "d $(find "$_f" -maxdepth 1 | wc -l | tr -d ' ') $_f"
     else
-      echo "f $(wc -c <"$f" 2>/dev/null | tr -d ' ') $(mtime "$f") $f"
+      echo "f $(wc -c <"$_f" 2>/dev/null | tr -d ' ') $(mtime "$_f") $_f"
     fi
   done
 }
@@ -211,13 +215,13 @@ sqlite_tables() {
 # show the pane; TERM_PROGRAM, TERMINAL_EMULATOR, WT_SESSION and the
 # VSCODE_ names show the terminal program.
 terminal_env() {
-  list='^(TERM|TERM_PROGRAM|TERM_PROGRAM_VERSION|TERMINAL_EMULATOR|TMUX_PANE|WT_SESSION|VSCODE_PID|VSCODE_INJECTION|ZELLIJ|KITTY_WINDOW_ID|WEZTERM_PANE|ITERM_SESSION_ID|__CFBundleIdentifier)='
+  _list='^(TERM|TERM_PROGRAM|TERM_PROGRAM_VERSION|TERMINAL_EMULATOR|TMUX_PANE|WT_SESSION|VSCODE_PID|VSCODE_INJECTION|ZELLIJ|KITTY_WINDOW_ID|WEZTERM_PANE|ITERM_SESSION_ID|__CFBundleIdentifier)='
   if [ "$PROBE_OS" = linux ]; then
     tr '\0' '\n' <"/proc/$1/environ" 2>/dev/null
   else
     # ps eww prints the environment after the command, for own processes.
     ps eww -o command= -p "$1" 2>/dev/null | tr ' ' '\n'
-  fi | grep -E "$list" | sort -u
+  fi | grep -E "$_list" | sort -u
   [ "$PROBE_OS" = linux ] && tr '\0' '\n' <"/proc/$1/environ" 2>/dev/null | grep -q '^TMUX=' && echo "TMUX=<set>"
   return 0
 }
