@@ -6,19 +6,28 @@
 # folders that the agent made. The agents are in two groups, so that one
 # job stays below 30 minutes.
 #
-# The Windows job installs the agents and records where each install keeps
-# its version and what its folder holds. It starts no agent interactively,
-# because there is no terminal driver for Windows yet.
+# The windows-installs job installs the agents and records where each
+# install keeps its version and what its folder holds. It starts no agent.
+#
+# The first-run-windows job installs the same agents, starts each one once
+# with no login in a pseudo console (scenarios/conpty.py), and prints a
+# scrubbed summary, as the first-run job does on Linux and macOS.
 #
 # The jobs use no secret and make no model turn. The workflow runs only when
 # started by hand and once a week, because it installs software from the
-# network.
+# network. A start by hand can select one job with the input "job".
 #
 # Each action is pinned to a commit SHA. The comment gives the tag.
 name: Scenarios
 
 on:
   workflow_dispatch:
+    inputs:
+      job:
+        description: The job to run
+        type: choice
+        default: all
+        options: [all, first-run, windows-installs, first-run-windows]
   schedule:
     - cron: "17 5 * * 1"
 
@@ -28,6 +37,7 @@ permissions:
 jobs:
   first-run:
     name: First run (${{ matrix.os }}, group ${{ matrix.group }})
+    if: github.event_name == 'schedule' || inputs.job == 'all' || inputs.job == 'first-run'
     strategy:
       fail-fast: false
       matrix:
@@ -220,6 +230,7 @@ jobs:
 
   windows-installs:
     name: Windows installs (${{ matrix.os }}, group ${{ matrix.group }})
+    if: github.event_name == 'schedule' || inputs.job == 'all' || inputs.job == 'windows-installs'
     strategy:
       fail-fast: false
       matrix:
@@ -250,74 +261,9 @@ jobs:
         with:
           node-version: "22"
       # A failed install skips that agent.
-      - name: Install Claude Code
-        if: matrix.group == 'a'
-        continue-on-error: true
-        run: npm install -g @anthropic-ai/claude-code
-      - name: Install Codex CLI
-        if: matrix.group == 'a'
-        continue-on-error: true
-        run: npm install -g @openai/codex
-      - name: Install opencode
-        if: matrix.group == 'a'
-        continue-on-error: true
-        run: npm install -g opencode-ai
-      - name: Install Gemini CLI
-        if: matrix.group == 'a'
-        continue-on-error: true
-        run: npm install -g @google/gemini-cli
-      - name: Install GitHub Copilot CLI
-        if: matrix.group == 'a'
-        continue-on-error: true
-        run: npm install -g @github/copilot
-      - name: Install Qwen Code
-        if: matrix.group == 'a'
-        continue-on-error: true
-        run: npm install -g @qwen-code/qwen-code
-      # The Windows installer of the Cursor CLI. It adds
-      # %LOCALAPPDATA%\cursor-agent to the PATH of the user.
-      - name: Install Cursor CLI
-        if: matrix.group == 'a'
-        continue-on-error: true
+      - name: Install the agents
         shell: pwsh
-        run: |
-          irm 'https://cursor.com/install?win32=true' | iex
-          "$env:LOCALAPPDATA\cursor-agent" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
-      - name: Install Amp
-        if: matrix.group == 'b'
-        continue-on-error: true
-        run: npm install -g @ampcode/cli
-      - name: Install Crush
-        if: matrix.group == 'b'
-        continue-on-error: true
-        run: npm install -g @charmland/crush
-      - name: Install Continue CLI
-        if: matrix.group == 'b'
-        continue-on-error: true
-        run: npm install -g @continuedev/cli
-      - name: Install Factory Droid
-        if: matrix.group == 'b'
-        continue-on-error: true
-        run: npm install -g @factory/cli
-      - name: Install Cline CLI
-        if: matrix.group == 'b'
-        continue-on-error: true
-        run: npm install -g cline
-      - name: Install Kilo Code CLI
-        if: matrix.group == 'b'
-        continue-on-error: true
-        run: npm install -g @kilocode/cli
-      - name: Install Auggie
-        if: matrix.group == 'b'
-        continue-on-error: true
-        run: npm install -g @augmentcode/auggie
-      - name: Install Kimi Code CLI
-        if: matrix.group == 'b'
-        continue-on-error: true
-        shell: pwsh
-        run: |
-          irm https://code.kimi.com/kimi-code/install.ps1 | iex
-          "$HOME\.kimi-code\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+        run: ./scenarios/install-windows-agents.ps1 -Group ${{ matrix.group }}
       - name: Install report (scrubbed)
         shell: pwsh
         env:
@@ -332,3 +278,59 @@ jobs:
           ./probes/run.ps1 -All
           $f = Get-ChildItem agent-signals-probe-windows-*.txt | Select-Object -First 1
           Get-Content $f
+
+  first-run-windows:
+    name: First run Windows (${{ matrix.os }}, group ${{ matrix.group }})
+    if: github.event_name == 'schedule' || inputs.job == 'all' || inputs.job == 'first-run-windows'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025, windows-11-arm]
+        group: [a, b]
+        # Each entry is NAME=COMMAND for scenarios/first-run-windows.ps1.
+        include:
+          - group: a
+            agents: >-
+              claude=claude codex=codex opencode=opencode gemini=gemini
+              copilot=copilot qwen=qwen cursor=cursor-agent
+          - group: b
+            agents: >-
+              amp=amp crush=crush continue=cn droid=droid cline=cline
+              kilo=kilo auggie=auggie kimi=kimi
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+      # uv installs its own Python 3.12 for the CPU of the image, also on
+      # arm64.
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: false
+      # The driver packages, at exact versions.
+      - name: Install the driver packages
+        shell: pwsh
+        run: |
+          uv venv --managed-python --python 3.12 .venv-driver
+          uv pip install --python .venv-driver pywinpty==3.1.2 pyte==0.8.2 wcwidth==0.9.4 psutil==7.2.2
+      # A failed install skips that agent.
+      - name: Install the agents
+        shell: pwsh
+        run: ./scenarios/install-windows-agents.ps1 -Group ${{ matrix.group }}
+      # The raw output of each run goes to files in out\, not to the public
+      # log. The next step prints it through the scrub.
+      - name: Run the scenarios
+        shell: pwsh
+        env:
+          AGENTS: ${{ matrix.agents }}
+        run: |
+          $list = @($env:AGENTS -split '\s+' | Where-Object { $_ })
+          ./scenarios/first-run-windows.ps1 -Python .venv-driver\Scripts\python.exe @list
+      - name: Summary (scrubbed)
+        if: always()
+        shell: pwsh
+        run: ./scenarios/first-run-windows.ps1 -Summary
