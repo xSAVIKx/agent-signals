@@ -3,8 +3,8 @@
 ## Measured
 
 2026-10-31, the scenario `scenarios/first-run-windows.py <agent> <command>`
-in the scenarios workflow (run 41153462586, and before it runs 41151440753
-and 41149533184), in a pseudo console of 120 x 40, with USERPROFILE, HOME,
+in the scenarios workflow (run 41153462586, and runs 41155667724,
+41151440753 and 41149533184), in a pseudo console of 120 x 40, with USERPROFILE, HOME,
 APPDATA, LOCALAPPDATA, TEMP and TMP in a throwaway folder, no login and no
 key. `scenarios/install-windows-agents.ps1` installed the agents of
 groups c and d:
@@ -93,6 +93,10 @@ CI runner windows-11-arm (arm64).
      currently supported.").
    - On windows-11-arm, Every Code stopped at the start with "Unsupported
      platform" in `coder.js`.
+   - On windows-11-arm, Codebuff stopped with "❌ Failed to download
+     codebuff: Unsupported platform: win32 arm64" (run 41155667724). In run
+     41153462586 the driver could not print that line in the code page of
+     the console ("UnicodeEncodeError"). The driver now writes UTF-8.
    - The npm package `@jetbrains/junie` on Windows (run 41149533184)
      printed "[Junie] Shim not found at ~\.local\bin\junie" also with the
      real profile.
@@ -123,8 +127,6 @@ None. The Linux screens are in the corpus (fact 61).
 
 - A variable like `CODEX_HOME` for Open Interpreter, Every Code, Junie CLI
   or Kiro CLI (fact 62 has the Codex case).
-- Codebuff on windows-11-arm: the driver failed to print its version line
-  ("UnicodeEncodeError") in run 41153462586.
 - Grok CLI on Windows: its README gives a bash installer only.
 - What the PowerShell process of Codebuff writes.
 - Why `%USERPROFILE%\.qoder` changed during the runs of other agents.
