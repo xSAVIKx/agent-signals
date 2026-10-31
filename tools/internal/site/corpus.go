@@ -77,10 +77,10 @@ type Agent struct {
 
 // Coverage is one verified version in coverage.yaml.
 type Coverage struct {
-	Version string `yaml:"version"`
-	Date    string `yaml:"date"`
-	Method  string `yaml:"method"`
-	Notes   string `yaml:"notes"`
+	Version string `yaml:"version" json:"version"`
+	Date    string `yaml:"date" json:"date,omitempty"`
+	Method  string `yaml:"method" json:"method,omitempty"`
+	Notes   string `yaml:"notes" json:"notes,omitempty"`
 }
 
 // LoadCorpus reads every agent folder of corpus/ in name order, and every

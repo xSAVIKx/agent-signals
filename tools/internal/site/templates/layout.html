@@ -7,6 +7,8 @@
 <title>{{if eq .Section "home"}}agent-signals: measured signals of AI coding agents{{else}}{{.Title}} | agent-signals{{end}}</title>
 {{with .Description}}<meta name="description" content="{{.}}">
 {{end}}<link rel="icon" href="data:,">
+{{with .Markdown}}<link rel="alternate" type="text/markdown" href="{{rel $.Out .}}">
+{{end}}<link rel="alternate" type="text/plain" title="llms.txt" href="{{rel .Out "llms.txt"}}">
 <link rel="stylesheet" href="{{rel .Out "assets/style.css"}}">
 </head>
 <body>
