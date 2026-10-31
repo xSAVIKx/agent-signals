@@ -1,0 +1,15 @@
+schema: 1
+agent: claude
+agent_version: 2.1.309
+measured: 2026-10-24
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - the workspace path is scrubbed to /work/example
+description: >-
+  The main turn ended while a background shell runs: "1 shell still running" and "1 shell · ↓ to manage" in the footer. The session file says status "shell". The box is framed and empty. Captured by the ai-world project with Claude Code 2.1.309 (model Haiku 5.5) in a private tmux server.
+expect:
+  state: IDLE
+  dialog: none
+  box_text: null

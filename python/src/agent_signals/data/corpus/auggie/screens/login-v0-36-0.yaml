@@ -1,0 +1,20 @@
+schema: 1
+agent: auggie
+agent_version: 0.36.0
+measured: 2026-10-30
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured
+edits: []
+description: >-
+  Auggie 0.36.0 with no login. The logo is above "New to Augment? You can
+  create an account from the login page.", "→ Login to continue" and "Press
+  return to open your browser". There is no input box. The other nine Linux
+  and macOS labels of the run gave the same bytes. The screen is the capture
+  20 s after the start, with no key sent, by scenarios/first-run.sh in the
+  scenarios workflow run 41142220844 on the CI runner ubuntu-24.04 (x64), with
+  a throwaway HOME, no login and no key.
+expect:
+  state: NO_BOX
+  dialog: none
+facts: [46]

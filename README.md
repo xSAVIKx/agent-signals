@@ -27,14 +27,15 @@ log lines follow.
 | `protocol/` | Rules for tools that answer an agent, for example the safe way to type into a pane. |
 | `probes/` | Read-only scripts for the first discovery of an agent on an OS, and the kit that runs them on a real machine. They read no conversation text. |
 | `scenarios/<agent>/<name>.sh` | Scripts that start an agent in a throwaway home folder and a private tmux server, and record its signals. |
-| `tools/` | The validator, the sync script for the Go library, the scrub for probe output, and the generator of the website. |
+| `tools/` | The validator, the sync scripts for the Go and the Python libraries, the scrub for probe output, and the generator of the website. |
 | `go/` | The Go library. It holds a committed copy of `corpus/` and `facts/` in `go/data/`. |
+| `python/` | The Python library. It holds a committed copy of `corpus/` and `facts/` in `python/src/agent_signals/data/`. |
 | `docs/` | The format and the versioning rules, the roadmap, the checks for each OS, and the CI secrets. |
 | `AGENTS.md`, `tasks/` | Instructions for agents, and one task file for each job. |
 
-The Go library in `go/` loads the corpus and gives typed fixtures. A library
-for Python comes later. No library is needed to use the data. Read
-[`go/README.md`](go/README.md).
+The Go library in `go/` and the Python library in `python/` load the corpus
+and give typed fixtures. No library is needed to use the data. Read
+[`go/README.md`](go/README.md) and [`python/README.md`](python/README.md).
 
 ## A screen
 
@@ -66,9 +67,12 @@ corpus, not the version of the repository. Read
 
     cd tools && go test ./... && go run ./cmd/validate ..
     cd go && go vet ./... && go test ./...
+    pip install -e "python[test]" && pytest python
 
-After a change in `corpus/` or `facts/`, run `tools/sync-go-data.sh` and commit
-`go/data/`. The Go tests fail when the copy is stale.
+After a change in `corpus/` or `facts/`, run `tools/sync-go-data.sh`. It also
+runs `tools/sync-python-data.sh`. Commit `go/data/` and
+`python/src/agent_signals/data/`. The Go tests and the Python tests fail when
+a copy is stale.
 
 ## The website
 

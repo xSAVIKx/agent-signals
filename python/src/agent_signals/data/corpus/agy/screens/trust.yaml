@@ -1,0 +1,24 @@
+schema: 1
+agent: agy
+agent_version: 1.4.5
+measured: 2026-10-23
+capture: plain
+provenance: measured-edited
+edits:
+  - "the placeholder workspace path of tg-bridge is scrubbed to /work/example"
+  - "lines at the top of the pane are left out (the tg-bridge comment says the logo is left out)"
+description: >
+  The folder-trust menu of agy. It starts on "Yes, I trust this folder", which
+  is the opposite of Claude Code 2.1.251. The pane was 120 columns wide. The
+  number of rows was not recorded.
+  `tests/test_agy_screen.py::test_each_measured_screen_has_its_state` asserts
+  the state.
+  `tests/test_agy_screen.py::test_the_trust_menu_starts_on_the_option_that_accepts`
+  pins the mark on the accept option.
+expect:
+  state: TRUST
+  dialog: trust
+  options:
+    - {label: "Yes, I trust this folder", selected: true}
+    - {label: "No, exit"}
+facts: [10, 17]

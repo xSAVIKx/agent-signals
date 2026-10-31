@@ -1,0 +1,17 @@
+schema: 1
+agent: claude
+agent_version: 2.1.226
+measured: 2026-08-10
+capture: plain
+provenance: derived
+derived_from: hand-built
+description: >
+  A framed input box with the footer "esc to interrupt" of a turn that runs.
+  It is a minimal shape with rules of 8 characters. The version and the date
+  come from the tg-bridge module docstring.
+  `tests/test_sessions.py::test_a_working_session_is_recognised` asserts the
+  state.
+expect:
+  state: BUSY
+  dialog: none
+facts: [1]

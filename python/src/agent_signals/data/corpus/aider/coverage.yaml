@@ -1,0 +1,15 @@
+# The versions of Aider that were checked against this corpus.
+agent: aider
+verified:
+  - version: 0.86.2
+    date: 2026-10-30
+    method: >-
+      capture-pane -p, 120x40, 20 s after the first start with no login, by
+      scenarios/first-run.sh in the scenarios workflow run 41142220844, on the
+      CI runners ubuntu-24.04 (x64) and ubuntu-22.04-arm (arm64)
+    notes: >-
+      Covers the git question of the first start (git-repo-question-v0-86-2),
+      and the analytics question that ubuntu-22.04-arm gave in its place
+      (analytics-question-v0-86-2). Not checked: the screens after a login,
+      any turn, a permission dialog, styled captures, and a pane narrower than
+      120 columns.

@@ -1,0 +1,47 @@
+[build-system]
+requires = ["hatchling==1.33.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agent-signals"
+# release-please writes this version. Do not change it by hand.
+version = "0.0.0"
+description = "Measured terminal screens of AI coding agents, as typed test fixtures."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+dependencies = ["PyYAML>=6.0"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Framework :: Pytest",
+    "Topic :: Software Development :: Testing",
+    "Typing :: Typed",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[project.urls]
+Homepage = "https://github.com/xSAVIKx/agent-signals"
+Source = "https://github.com/xSAVIKx/agent-signals/tree/main/python"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agent_signals"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/agent_signals", "tests", "README.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.mypy]
+strict = true
+python_version = "3.10"

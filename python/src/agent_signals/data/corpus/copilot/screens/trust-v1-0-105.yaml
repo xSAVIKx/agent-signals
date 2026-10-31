@@ -1,0 +1,30 @@
+schema: 1
+agent: copilot
+agent_version: 1.0.105
+measured: 2026-10-30
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - tools/scrub.sh changed the home folder of the runner account to ~, so the line that held the path is shorter
+  - the throwaway folder ~/.cache/agent-signals/run.<random>/work/example is replaced with /work/example, so that line is shorter again
+description: >-
+  GitHub Copilot CLI 1.0.105 asks the folder-trust question before a login.
+  The welcome text and a tip are above a framed dialog "Confirm folder trust"
+  with the work folder, the question "Do you trust the files in this folder?",
+  three numbered options under the mark and the footer "↑/↓ to navigate ·
+  enter to select · esc to cancel". The six Linux labels gave the same bytes.
+  On the four macOS labels the folder line has one space less before the right
+  frame, because the home folder of the runner is one character longer there.
+  The screen is the capture 20 s after the start, with no key sent, by
+  scenarios/first-run.sh in the scenarios workflow run 41142220844 on the CI
+  runner ubuntu-24.04 (x64), with a throwaway HOME, no login and no key.
+expect:
+  state: TRUST
+  dialog: trust
+  question: "Do you trust the files in this folder?"
+  options:
+    - {n: 1, label: "Yes", selected: true}
+    - {n: 2, label: "Yes, and remember this folder for future sessions"}
+    - {n: 3, label: "No (Esc)"}
+facts: [30]

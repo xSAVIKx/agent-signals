@@ -1,0 +1,17 @@
+schema: 1
+agent: agy
+agent_version: 1.4.7
+measured: 2026-10-30
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - the account e-mail address is replaced with user@example.com
+  - the path of the throwaway work folder is scrubbed to /work/example
+description: >-
+  A new session after the wizard and the trust question, before the first prompt. A notice with a "┃" bar ("Verbosity now defaults to medium", "esc to dismiss") draws above the framed box. Footer "? for shortcuts". Captured by scenarios/agy/deny-and-tools.sh in a private tmux server.
+expect:
+  state: IDLE
+  dialog: none
+  box_text: null
+facts: [17]

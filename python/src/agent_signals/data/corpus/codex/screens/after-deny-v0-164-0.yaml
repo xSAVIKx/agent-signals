@@ -1,0 +1,24 @@
+schema: 1
+agent: codex
+agent_version: 0.164.0
+measured: 2026-10-30
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - the path of the throwaway folder is scrubbed to /work/example, so each line that held it is shorter
+description: >-
+  3 s after the digit 3 ("3. No, and tell Codex what to do differently")
+  on the approval dialog, with no Enter. The history above it shows an
+  approved write and an Esc on a second dialog. The denial draws the same
+  lines as the Esc: "✗ You canceled the request to run ...", "• Exited
+  (status 1) ...", and "■ Conversation interrupted - use /feedback if
+  something went wrong". The empty box and the footer "? for shortcuts"
+  are back, and Codex asks for no text. Measured with the scenario
+  scenarios/codex/deny.sh.
+expect:
+  state: IDLE
+  dialog: none
+  box_text: null
+negative_control_for: approval-v0-164-0
+facts: [20, 36]

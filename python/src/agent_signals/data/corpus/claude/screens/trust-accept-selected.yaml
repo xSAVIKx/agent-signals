@@ -1,0 +1,21 @@
+schema: 1
+agent: claude
+agent_version: 2.1.251
+measured: 2026-09-01
+capture: plain
+provenance: derived
+derived_from: "trust: one Down moves the mark from \"No, exit\" to \"Yes, I trust this folder\""
+description: >
+  The folder-trust question after one Down. This is the only state in which an
+  Enter accepts the folder.
+  `tests/test_sessions.py::test_both_selections_of_the_trust_dialog_are_classified_as_trust`
+  asserts the state.
+  `tests/test_sessions.py::test_send_keys_moves_the_mark_onto_the_accept_option_before_it_answers`
+  pins the mark on the accept option.
+expect:
+  state: TRUST
+  dialog: trust
+  options:
+    - {label: "No, exit"}
+    - {label: "Yes, I trust this folder", selected: true}
+facts: [10]

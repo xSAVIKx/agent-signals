@@ -1,0 +1,39 @@
+
+ ▐▛███▛█   Claude Code v2.1.310
+▝▜██████▀  Haiku 5.5 · Claude Max
+ ▝▝   ▝▝   /work/example
+
+
+❯ Use the Bash tool to run exactly this command: echo hello > hello.txt
+
+  Ran 1 shell command
+
+● I ran echo hello > hello.txt. The command finished with no output and no error.
+
+  The file is at /work/example/hello.txt. I did not read the file back to confirm its contents.
+
+✻ Churned for 4s · done 5:23 PM
+
+❯ Use the AskUserQuestion tool once, with two questions: first "Which colour do you like?" with options Red and Blue,
+  second "Which size do you need?" with options Small and Large. Do nothing else.
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+←  ☒ Colour  ☒ Size  ✔ Submit  →
+
+Review your answers
+
+ ● Which colour do you like?
+   → Blue
+ ● Which size do you need?
+   → Small
+
+Ready to submit your answers?
+
+❯ 1. Submit answers
+  2. Cancel
+
+
+
+
+
+

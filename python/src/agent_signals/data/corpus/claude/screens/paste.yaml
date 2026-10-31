@@ -1,0 +1,20 @@
+schema: 1
+agent: claude
+agent_version: 2.1.309
+measured: 2026-10-24
+capture: plain
+provenance: measured-edited
+edits:
+  - "the first line was indented by 60 spaces, and this copy keeps 2 (tg-bridge comment)"
+  - "lines above the shown text are left out; the tg-bridge comment does not say how many"
+description: >
+  A long paste: send-keys -l typed 850 characters on one line into an empty
+  box. Claude Code drew the marker "[Pasted text #1]" in place of the text,
+  and a footer that names it. The pane was 120 columns wide. The number of
+  rows was not recorded.
+  `tests/test_sessions.py::test_the_measured_paste_screens_hold_a_marker_and_nothing_else`
+  asserts the state.
+expect:
+  state: IDLE
+  dialog: none
+facts: [13]

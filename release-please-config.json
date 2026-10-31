@@ -11,7 +11,8 @@
       "changelog-path": "CHANGELOG.md",
       "initial-version": "0.1.0",
       "exclude-paths": [
-        "go"
+        "go",
+        "python"
       ]
     },
     "go": {
@@ -22,6 +23,15 @@
       "include-component-in-tag": true,
       "include-v-in-tag": true,
       "tag-separator": "/",
+      "initial-version": "0.1.0"
+    },
+    "python": {
+      "release-type": "python",
+      "component": "python",
+      "package-name": "agent-signals",
+      "changelog-path": "CHANGELOG.md",
+      "include-component-in-tag": true,
+      "include-v-in-tag": true,
       "initial-version": "0.1.0"
     }
   }

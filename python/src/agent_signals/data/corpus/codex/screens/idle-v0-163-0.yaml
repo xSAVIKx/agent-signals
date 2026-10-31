@@ -1,0 +1,17 @@
+schema: 1
+agent: codex
+agent_version: 0.163.0
+measured: 2026-10-24
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - the source report removed the empty lines of the capture
+  - the project path is scrubbed to /work/example
+description: >-
+  A new session. The input box has no frame. The empty box shows the placeholder "› Ask Codex to do anything", and the last line starts with "? for shortcuts". An update banner in a box of ╭─╮ draws at the top; it is not the input box. Measured by the tg-bridge project with Codex CLI 0.163.0 (codex --no-daemon) in a private tmux server, and published in its report "Codex CLI and Cursor CLI as harnesses: measurements, 2026-10-24".
+expect:
+  state: IDLE
+  dialog: none
+  box_text: null
+facts: [20]

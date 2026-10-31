@@ -1,0 +1,22 @@
+schema: 1
+agent: kilo
+agent_version: 7.8.18
+measured: 2026-10-30
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured
+edits: []
+description: >-
+  Kilo Code CLI 7.8.18 on its first start has drawn nothing yet: the 40 lines
+  of the pane are empty. The capture was taken about 30 s after the start,
+  because the scenario steps took longer on this runner. At that time the
+  TUI process had a child "npm list" with no tty (fact 57). On the other nine
+  labels of the run, Kilo Code CLI showed its input box (idle-v7-8-18). The
+  screen is the capture of the step 02-after-20s, with no key sent, by
+  scenarios/first-run.sh in the scenarios workflow run 41142220844 on the CI
+  runner macos-26-intel (x64), with a throwaway HOME, no login and no key.
+expect:
+  state: NO_BOX
+  dialog: none
+negative_control_for: idle-v7-8-18
+facts: [46, 57]

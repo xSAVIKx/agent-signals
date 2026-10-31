@@ -1,0 +1,28 @@
+schema: 1
+agent: kilo
+agent_version: 7.8.18
+measured: 2026-10-30
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - tools/scrub.sh changed the home folder of the runner account to ~, so the line that held the path is shorter
+  - the throwaway folder ~/.cache/agent-signals/run.<random>/work/example is replaced with /work/example, so that line is shorter again
+description: >-
+  Kilo Code CLI 7.8.18 with no login starts in its input box. The box has the
+  same shape as the box of opencode: a bar "┃" at the left, the placeholder
+  "Ask anything... "Fix broken tests"", the line "Code · Auto Free Kilo
+  Gateway" and a rule "╹▀▀▀" below it. The footer gives "tab agents ctrl+p
+  commands", a tip, and the folder with the version at the bottom. The
+  placeholder is not typed text. Eight more labels gave the same screen,
+  except two parts that change from start to start (the example in the
+  placeholder and the tip) and, on macOS, one space less before the version.
+  On macos-26-intel the pane was still empty (blank-v7-8-18). The screen is
+  the capture 20 s after the start, with no key sent, by
+  scenarios/first-run.sh in the scenarios workflow run 41142220844 on the CI
+  runner ubuntu-24.04 (x64), with a throwaway HOME, no login and no key.
+expect:
+  state: IDLE
+  dialog: none
+  box_text: null
+facts: [46]

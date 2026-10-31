@@ -1,0 +1,24 @@
+schema: 1
+agent: claude
+agent_version: 2.1.251
+measured: 2026-09-01
+capture: plain
+provenance: measured-edited
+edits:
+  - "the workspace path is scrubbed to /work/example (tg-bridge had already replaced the real path with a placeholder path on its host)"
+description: >
+  The folder-trust question as Claude Code 2.1.251 draws it. The options have
+  no numbers, and the mark starts on "No, exit", so a bare Enter ends the
+  session. The tg-bridge comment says that only the path is edited. The size
+  of the pane was not recorded.
+  `tests/test_sessions.py::test_both_selections_of_the_trust_dialog_are_classified_as_trust`
+  asserts the state.
+  `tests/test_sessions.py::test_send_keys_never_sends_enter_while_the_trust_mark_is_on_the_exit_option`
+  pins the mark on "No, exit".
+expect:
+  state: TRUST
+  dialog: trust
+  options:
+    - {label: "No, exit", selected: true}
+    - {label: "Yes, I trust this folder"}
+facts: [1, 10]

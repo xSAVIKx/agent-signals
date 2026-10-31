@@ -1,5 +1,6 @@
 # Checks each pull request and each push to main: the format and the tests of
-# the tools, the validation of the whole corpus, and the Go library.
+# the tools, the validation of the whole corpus, the Go library and the Python
+# library.
 #
 # All jobs run on GitHub-hosted runners. Each action is pinned to a commit
 # SHA. The comment gives the tag.
@@ -68,6 +69,27 @@ jobs:
         run: go vet ./...
       - name: Tests (this includes the check of go/data)
         run: go test -count=1 ./...
+
+  python-library:
+    name: Python library (${{ matrix.python }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        # The lowest and the highest supported Python version.
+        python: ["3.10", "3.15"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install
+        run: python -m pip install -e "python[test]"
+      - name: Tests (this includes the check of the data copy)
+        run: python -m pytest -p no:cacheprovider python
 
   scripts:
     name: Scripts

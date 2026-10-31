@@ -1,0 +1,16 @@
+schema: 1
+agent: agy
+agent_version: 1.4.5
+measured: 2026-10-24
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - the workspace path is scrubbed to /work/example
+  - the account e-mail address is replaced with user@example.com
+description: >-
+  The turn ended after the answer "Blue". Captured by the ai-world project with agy 1.4.5 in a private tmux server.
+expect:
+  state: IDLE
+  dialog: none
+  box_text: null
