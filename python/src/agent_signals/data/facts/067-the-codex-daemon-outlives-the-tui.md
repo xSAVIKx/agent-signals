@@ -7,7 +7,8 @@
 `ps`, `lsof` and the names in `~/.codex/`. It read no content.
 
 The same day, the kit ran on Ubuntu 24.04.5 (x64), with the same Codex
-CLI version.
+CLI version. It also ran on Windows 11 Pro 10.0.26300 (x64), with Codex CLI
+0.164.0 installed in `~\AppData\Local\Programs\OpenAI\Codex\bin\`.
 Measured on: real machine.
 
 ## What was measured
@@ -23,17 +24,28 @@ Measured on: real machine.
    was the `systemd` user manager, not process 1. The daemon started 7 days
    before the probe, and its child 2 days before the probe.
    `app-server-daemon/releases/` also held 0.165.0. No TUI ran.
-3. The daemon was version 0.166.0 on both machines. The command `codex` gave
+3. On Windows, three processes ran with no TUI:
+   `codex.exe app-server --listen unix:// --analytics-default-enabled --managed-daemon`,
+   its child `codex-code-mode-host.exe`, and `codex.exe app-server daemon <arg>`.
+   Their path was
+   `\\?\~\.codex\packages\app-server-daemon\releases\0.166.0-x86_64-pc-windows-msvc\bin\`.
+   The daemon listens on `unix://` on Windows too:
+   `~\.codex\app-server-control\app-server-control.sock`.
+   `~\.codex\app-server-daemon\` held `daemon.pid`, `daemon-updater.pid`,
+   their `.lock` files and `.stderr.log` files.
+   `~\.codex\packages\app-server-daemon\` held `auto-update-version`
+   and `selection-history`.
+4. The daemon was version 0.166.0 on all three machines. The command `codex` gave
    `codex-cli 0.164.0`. `~/.codex/packages/` held
    `app-server-daemon/releases/0.164.0-…`, `app-server-daemon/releases/0.166.0-…`
    and `standalone/releases/0.164.0-…`.
-4. The daemon held no rollout file and no thread lock open.
-5. `~/.codex/` held these names that fact 026 does not list:
+5. The daemon held no rollout file and no thread lock open.
+6. `~/.codex/` held these names that fact 026 does not list:
    `app-server-control/`, `app-server-daemon/`, `goals_1.sqlite`,
    `memories_1.sqlite`, `queue_1.sqlite`, `thread_history_1.sqlite`,
    `tui-thread-reference-capabilities/` and `.sqlite-maintenance.lock`.
    Ubuntu had the same names.
-6. The last records of the newest rollout file had the types
+7. The last records of the newest rollout file had the types
    `event_msg` (`thread_settings_applied`, `task_started`,
    `item_completed`, `token_count`, `task_complete`), `turn_context`,
    `response_item` (`message`) and `token_usage_record`.
