@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.0](https://github.com/xSAVIKx/agent-signals/compare/python-v0.1.0...python-v0.2.0) (2026-10-31)
+
+
+### Features
+
+* add facts 066 to 069 from the probe kit on macOS and Ubuntu ([#53](https://github.com/xSAVIKx/agent-signals/issues/53)) ([6b0a86d](https://github.com/xSAVIKx/agent-signals/commit/6b0a86de152de4286cb30cbdb2bc4198a10ac387))
+* add facts 070 to 072 from the probe kit on Windows ([#55](https://github.com/xSAVIKx/agent-signals/issues/55)) ([ed1ea21](https://github.com/xSAVIKx/agent-signals/commit/ed1ea218791edbf4bd1b7d4e062c8bc559ef8270))
+
 ## 0.1.0 (2026-10-31)
 
 
