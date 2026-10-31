@@ -1,7 +1,8 @@
 {{define "releases.html"}}<h1>Releases</h1>
 <p class="lead">release-please makes each release from the Conventional Commits on <code>main</code>. The repository has three packages. Each package has its own version, tag and changelog.</p>
+<div class="table-wrap" role="region" tabindex="0" aria-labelledby="releases-caption">
 <table>
-<caption>The latest release of each package</caption>
+<caption id="releases-caption">The latest release of each package</caption>
 <thead><tr><th scope="col">Package</th><th scope="col">Version</th><th scope="col">Tag</th><th scope="col">Changes</th></tr></thead>
 <tbody>
 {{- $o := .Out}}
@@ -10,6 +11,7 @@
 {{- end}}
 </tbody>
 </table>
+</div>
 <h2 id="how-to-pin-a-release">How to pin a release</h2>
 <ol>
 <li>Select the tag of the package that you use.</li>

@@ -18,6 +18,7 @@
   --screen-border: #6b7480;
   --badge-bg: #fdecc8;
   --badge-fg: #5c3600;
+  --scroll-shadow: rgb(0 0 0 / 0.22);
   --font: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Liberation Sans", Arial, sans-serif;
   --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Segoe UI Mono", "DejaVu Sans Mono", "Liberation Mono", Menlo, Consolas, monospace;
   --measure: 70ch;
@@ -39,6 +40,7 @@
     --screen-border: #7c8694;
     --badge-bg: #3d2c00;
     --badge-fg: #ffd98a;
+    --scroll-shadow: rgb(255 255 255 / 0.22);
   }
 }
 
@@ -125,6 +127,7 @@ main:focus { outline: none; }
   font-weight: 700;
   font-size: 1.125rem;
   text-decoration: none;
+  white-space: nowrap;
 }
 .brand:hover { color: var(--fg); text-decoration: underline; }
 .brand-mark {
@@ -146,6 +149,7 @@ main:focus { outline: none; }
   color: var(--fg);
   text-decoration: none;
   border-bottom: 3px solid transparent;
+  white-space: nowrap;
 }
 .site-nav a:hover { color: var(--link); text-decoration: underline; }
 
@@ -200,7 +204,9 @@ main:focus { outline: none; }
 }
 .nav-menu > ul a[aria-current] { border-left-color: var(--link); }
 
-@media (min-width: 60em) {
+/* The wide navigation with nine items needs about 60em on one row. The
+   breakpoint keeps a margin for wider fonts, so that the row does not wrap. */
+@media (min-width: 70em) {
   .nav-menu { display: none; }
   .nav-wide { display: flex; flex-wrap: wrap; gap: 0 0.15rem; }
 }
@@ -253,12 +259,23 @@ a code { color: inherit; }
 .code-wrap pre { margin: 0; padding: 0.75rem 1rem; }
 .code-wrap code, .screen-text { padding: 0; border: 0; background: none; font-size: 0.875rem; }
 
-/* Tables scroll inside their own frame. */
+/* Tables scroll inside their own frame. A shadow at the left or the right
+   edge shows that more columns are out of view. The shadow moves with the
+   scroll position and needs no script. */
 .table-wrap {
+  /* A positioned frame also clips the absolute .visually-hidden text in a
+     cell. Without it, that text can make the page wider than the screen. */
+  position: relative;
   margin: 0 0 1.25rem;
   overflow-x: auto;
   border: 1px solid var(--border);
   border-radius: 6px;
+  background:
+    linear-gradient(to right, var(--bg) 40%, transparent) left / 2.5rem 100% no-repeat local,
+    linear-gradient(to left, var(--bg) 40%, transparent) right / 2.5rem 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, var(--scroll-shadow), transparent) left / 0.85rem 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, var(--scroll-shadow), transparent) right / 0.85rem 100% no-repeat scroll,
+    var(--bg);
 }
 
 table {
@@ -422,7 +439,13 @@ dl.pages dt a { font-size: 1.05rem; }
   border: 1px solid var(--border-strong);
   border-radius: 6px;
 }
-.filter-status { margin: 0.35rem 0 0; color: var(--muted); font-size: 0.95rem; }
+.filter-status { margin: 0.35rem 0 0; min-height: 1.6em; color: var(--muted); font-size: 0.95rem; }
+
+/* When the browser runs scripts, show the filter box from the first paint,
+   so that the table does not move down when filter.js starts. */
+@media (scripting: enabled) {
+  .filter[hidden] { display: block; }
+}
 
 /* Footer */
 
@@ -443,4 +466,27 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
   clip-path: inset(50%);
   white-space: nowrap;
   border: 0;
+}
+
+/* Print: no navigation and no controls, and no content cut at the edge of
+   a scroll frame. */
+@media print {
+  :root {
+    --bg: #ffffff;
+    --fg: #000000;
+    --muted: #333333;
+    --surface: #ffffff;
+    --link: #000000;
+    --screen-bg: #ffffff;
+    --screen-fg: #000000;
+  }
+  body { font-size: 11pt; }
+  .skip-link, .site-nav, .crumbs, .filter, .pager, .actions { display: none; }
+  .site-header, .site-footer { background: none; }
+  main { max-width: none; padding: 0; }
+  .table-wrap, .code-wrap, .screen-scroll { overflow: visible; background: none; }
+  .code-wrap pre { white-space: pre-wrap; }
+  .screen-text { width: auto; min-width: 0; font-size: 7.5pt; }
+  h2, h3 { break-after: avoid; }
+  tr, figure, .card { break-inside: avoid; }
 }
