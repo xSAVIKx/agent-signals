@@ -84,6 +84,15 @@ jobs:
           f=$(ls agent-signals-probe-*.txt)
           grep -c '^### ' "$f"
           cat "$f"
+          rm -f agent-signals-probe-*.txt
+      - name: Kit through the one-liner
+        # The one-liner reads a local archive here, so the step needs no
+        # network.
+        run: |
+          git archive --prefix=agent-signals-main/ -o "$RUNNER_TEMP/kit.tar.gz" HEAD
+          AGENT_SIGNALS_URL="file://$RUNNER_TEMP/kit.tar.gz" sh -c 'cat probes/kit.sh | sh -s -- --all'
+          f=$(ls agent-signals-probe-*.txt)
+          grep -c '^### ' "$f"
 
   windows:
     name: Windows (${{ matrix.os }})
@@ -127,3 +136,26 @@ jobs:
           ./probes/run.ps1 -All
           $f = Get-ChildItem agent-signals-probe-windows-*.txt | Select-Object -First 1
           Get-Content $f
+          Remove-Item agent-signals-probe-windows-*.txt
+      - name: Kit through the one-liner (PowerShell 7 and 5.1)
+        # The one-liner reads a local archive here, so the step needs no
+        # network.
+        shell: pwsh
+        run: |
+          $zip = Join-Path $env:RUNNER_TEMP 'kit.zip'
+          git archive --format=zip --prefix=agent-signals-main/ -o $zip HEAD
+          $env:AGENT_SIGNALS_URL = $zip
+          foreach ($exe in 'pwsh', 'powershell') {
+            & $exe -NoProfile -Command "& ([scriptblock]::Create((Get-Content -Raw probes/kit.ps1))) -All"
+            if ($LASTEXITCODE -ne 0) { throw "exit $LASTEXITCODE from $exe" }
+            $f = @(Get-ChildItem agent-signals-probe-windows-*.txt)
+            if ($f.Count -ne 1) { throw "$exe wrote $($f.Count) files" }
+            Write-Host "$exe sections: $(@(Select-String -Path $f[0] -Pattern '^### ').Count)"
+            Remove-Item $f
+          }
+          # The form of the README: the script text through iex, with no argument.
+          pwsh -NoProfile -Command "Get-Content -Raw probes/kit.ps1 | Invoke-Expression"
+          if ($LASTEXITCODE -ne 0) { throw "exit $LASTEXITCODE from iex" }
+          $f = @(Get-ChildItem agent-signals-probe-windows-*.txt)
+          if ($f.Count -ne 1) { throw "iex wrote $($f.Count) files" }
+          Remove-Item $f

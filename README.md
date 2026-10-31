@@ -34,6 +34,22 @@ session files and log lines follow.
 
 The corpus holds no code that your tool runs. Each tool keeps its own reader.
 
+## Run the probe kit on your machine
+
+Run the kit with one command. It downloads the repository to a temporary
+folder, runs the probes, writes one file in the current folder, and deletes
+the temporary folder.
+
+| OS | Command |
+|---|---|
+| macOS, Linux | `curl -fsSL https://xsavikx.github.io/agent-signals/kit.sh \| sh` |
+| Windows (PowerShell) | `irm https://xsavikx.github.io/agent-signals/kit.ps1 \| iex` |
+| A guided step (macOS, Linux) | `curl -fsSL https://xsavikx.github.io/agent-signals/kit.sh \| sh -s -- --guided permission cursor` |
+
+Read the scripts first if you want: [`probes/kit.sh`](probes/kit.sh) and
+[`probes/kit.ps1`](probes/kit.ps1). The kit only reads. Read the file that
+it writes before you send it.
+
 ## What is in the repository
 
 | Path | Content |
