@@ -556,6 +556,14 @@ func TestMachineOutputs(t *testing.T) {
 	if !strings.Contains(string(byPath["index.html"]), `<link rel="alternate" type="text/markdown" href="index.md">`) {
 		t.Errorf("index.html: no link to its Markdown copy")
 	}
+	for _, p := range []string{"index.html", "docs/roadmap.html", "facts/062-codex-home-moves-all-codex-files.html"} {
+		page := string(byPath[p])
+		h := strings.Index(page, "</h1>")
+		a := strings.Index(page, `<div class="page-actions"`)
+		if h < 0 || a < h || !strings.Contains(page, "https://claude.ai/new?q=") {
+			t.Errorf("%s: no page actions after the h1", p)
+		}
+	}
 	agents, err := LoadCorpus("../../..")
 	if err != nil {
 		t.Fatal(err)

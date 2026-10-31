@@ -246,6 +246,7 @@ func (b *builder) load() error {
 	b.tmpl, err = template.New("").Funcs(template.FuncMap{
 		"rel":       relURL,
 		"github":    func(p string) string { return GitHubBlob + p },
+		"abs":       func(p string) string { return BaseURL + p },
 		"join":      strings.Join,
 		"screenTxt": func(b []byte) string { s, _ := ScreenText(b); return s },
 		"factURL":   func(from string, n int) string { return b.factURL(from, n) },
@@ -317,6 +318,21 @@ func (b *builder) exec(p page, name string, data any) error {
 			return fmt.Errorf("%s: %w", p.Out, err)
 		}
 		p.Body = template.HTML(body.String())
+	}
+	if p.Markdown != "" {
+		// The actions for AI assistants come after the first heading.
+		var actions bytes.Buffer
+		if err := b.tmpl.ExecuteTemplate(&actions, "actions.html", p); err != nil {
+			return fmt.Errorf("%s: %w", p.Out, err)
+		}
+		body := string(p.Body)
+		if i := strings.Index(body, "</h1>\n"); i >= 0 {
+			i += len("</h1>\n")
+			body = body[:i] + actions.String() + body[i:]
+		} else {
+			body = actions.String() + body
+		}
+		p.Body = template.HTML(body)
 	}
 	p.Nav = nav
 	var buf bytes.Buffer
