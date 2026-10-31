@@ -1,0 +1,22 @@
+schema: 1
+agent: agy
+agent_version: 1.4.5
+measured: 2026-10-23
+capture: plain
+provenance: measured-edited
+edits:
+  - "each rule is shorter than on the screen (tg-bridge comment); the pane was 120 columns wide"
+  - "lines at the top of the pane are left out (the tg-bridge comment says the logo is left out)"
+  - "the spaces before the model name in the footer are fewer than on the screen, because the line is shorter; not verified"
+description: >
+  An empty input box of agy. The mark is ">", and a rule is above and below
+  it. The pane was 120 columns wide. The number of rows was not recorded.
+  `tests/test_agy_screen.py::test_each_measured_screen_has_its_state` asserts
+  the state.
+  `tests/test_agy_screen.py::test_the_box_holds_the_typed_text_and_nothing_when_empty`
+  asserts an empty box.
+expect:
+  state: IDLE
+  dialog: none
+  box_text: null
+facts: [17]

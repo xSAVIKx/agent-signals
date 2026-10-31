@@ -1,0 +1,28 @@
+schema: 1
+agent: claude
+agent_version: 2.1.226
+measured: 2026-08-10
+capture: plain
+provenance: measured-edited
+edits:
+  - "rule lines may be shortened; not verified against a new capture"
+description: >
+  A permission dialog for a Write call. Its options are numbered, its mark is
+  unframed, and its footer holds "Esc to cancel". The tg-bridge module
+  docstring says that a live probe measured it against Claude Code 2.1.226 on
+  2026-08-10. The size of the pane was not recorded.
+  `tests/test_sessions.py::test_a_permission_dialog_is_recognised` asserts the
+  state,
+  `tests/test_sessions.py::test_the_dialog_question_is_read_from_above_the_input_region`
+  the question, and
+  `tests/test_sessions.py::test_the_dialog_options_are_read_from_the_input_region`
+  the options.
+expect:
+  state: PERMISSION
+  dialog: permission
+  question: "Do you want to create cedar.txt?"
+  options:
+    - {n: 1, label: "Yes"}
+    - {n: 2, label: "Yes, allow all edits during this session (shift+tab)"}
+    - {n: 3, label: "No"}
+facts: [1, 4]

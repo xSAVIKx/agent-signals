@@ -1,0 +1,12 @@
+────────────────────────────────────────────────────────────
+> Create a file named note.txt in this directory that holds the word hello. Use your file tool.
+● Edited 1 file (note.txt) (ctrl+o to expand)
+Create file
+────────────────────────────────────────────────────────────
+/work/example/note.txt  +1
+  1  +  hello
+Allow creation of this file?
+> 1. Yes, allow creation
+  2. No, deny creation
+  ↑/↓ Navigate · tab Amend · f full diff
+esc to cancel                                        Gemini 4 Argon · medium

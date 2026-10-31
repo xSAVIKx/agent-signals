@@ -1,0 +1,18 @@
+schema: 1
+agent: claude
+agent_version: 2.1.283
+measured: 2026-09-28
+capture: plain
+provenance: derived
+derived_from: "dialog-over-box: the footer line \"Enter to confirm · Esc to cancel\" is removed"
+description: >
+  Negative control 1 of the dialog above a box: the same shape with no footer.
+  One of the two conditions is absent, so the screen must not read as the
+  dialog.
+  `tests/test_sessions.py::test_the_dialog_needs_the_footer_as_well_as_the_option_list`
+  asserts the state.
+expect:
+  state: IDLE
+  dialog: none
+negative_control_for: dialog-over-box
+facts: [2]

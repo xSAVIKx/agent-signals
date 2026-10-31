@@ -1,0 +1,17 @@
+schema: 1
+agent: agy
+agent_version: 1.4.7
+measured: 2026-10-30
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - the account e-mail address is replaced with user@example.com
+  - the path of the throwaway work folder is scrubbed to /work/example
+description: >-
+  agy --continue in a work folder with no conversation, about 6 s after the start. After the edits, the bytes are the same as idle-v1-4-7: agy starts a new session and draws the normal idle box. The next prompt ran and made a new conversation, with SessionStart (fact 43). Captured by scenarios/agy/continue.sh in a private tmux server.
+expect:
+  state: IDLE
+  dialog: none
+  box_text: null
+facts: [43]

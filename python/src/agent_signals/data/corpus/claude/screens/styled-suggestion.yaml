@@ -1,0 +1,23 @@
+schema: 1
+agent: claude
+agent_version: 2.1.309
+measured: 2026-10-24
+capture: styled
+provenance: measured-edited
+edits:
+  - "only the last five lines of the capture are kept (tg-bridge comment)"
+  - "the first line is cut, and only its end is kept (tg-bridge comment)"
+description: >
+  A suggestion after the fourth turn of a session. The suggestion is faint
+  (SGR 2), and a C-u did not remove it. Each line keeps the SGR escape codes
+  of capture-pane -e. A reader must remove the escape codes and each faint
+  (SGR 2) character before it reads the box. On the raw bytes, the classifier
+  of tg-bridge gives NO_BOX, because an escape code comes before the mark. The
+  pane was 120 columns wide. The number of rows was not recorded.
+  `tests/test_sessions.py::test_a_faint_suggestion_reads_as_an_empty_box`
+  asserts IDLE and an empty box after the faint text is removed.
+expect:
+  state: IDLE
+  dialog: none
+  box_text: null
+facts: [5]

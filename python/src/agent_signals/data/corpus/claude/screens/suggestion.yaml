@@ -1,0 +1,18 @@
+schema: 1
+agent: claude
+agent_version: 2.1.226
+measured: 2026-08-10
+capture: plain
+provenance: derived
+derived_from: hand-built
+description: >
+  A framed input box that shows a suggestion that nobody typed. In a plain
+  capture the suggestion looks like typed text. It is a minimal shape with
+  rules of 8 characters. The version and the date come from the tg-bridge
+  module docstring.
+  `tests/test_sessions.py::test_a_suggestion_in_the_box_is_still_idle` asserts
+  the state.
+expect:
+  state: IDLE
+  dialog: none
+facts: [5]

@@ -1,0 +1,24 @@
+schema: 1
+agent: agy
+agent_version: 1.4.5
+measured: 2026-10-24
+capture: plain
+provenance: measured-edited
+edits:
+  - "the placeholder workspace path of tg-bridge is scrubbed to /work/example"
+  - "each rule is shorter than on the screen (tg-bridge comment); the pane was 120 columns wide"
+  - "lines at the top of the pane are left out (the tg-bridge comment says the logo is left out)"
+  - "the spaces before the model name in the footer are fewer than on the screen, because the line is shorter; not verified"
+description: >
+  A file write in the default mode. The dialog draws in place of the input
+  box, not above it. The pane was 120 columns wide. The number of rows was not
+  recorded.
+  `tests/test_agy_screen.py::test_a_dialog_that_asks_draws_in_place_of_the_box`
+  asserts the state and that no framed box is on the screen.
+  `tests/test_agy_screen.py::test_the_dialogs_give_the_question_that_the_chat_reads`
+  asserts the question.
+expect:
+  state: PERMISSION
+  dialog: permission
+  question: "Allow creation of this file?"
+facts: [4, 18]

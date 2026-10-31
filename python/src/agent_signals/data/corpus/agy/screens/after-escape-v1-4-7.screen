@@ -1,0 +1,40 @@
+    ▀▀▀▀▀▀▀▀      Gemini 4 Argon (Medium)
+   ▄▀▀    ▀▀▄     /work/example
+  ▄▀▀      ▀▀▄
+
+────────────────────────────────────────────────────────────
+> Create a file named note.txt that holds the word hello. Do not do anything else.
+
+○ Thought for 4.4s (Writing the file `note.txt` with content "hello". Considering the possibility of needing a newl...)
+● Edited 1 file (note.txt) (ctrl+o to expand)
+
+Create file
+  ⎿  User declined the tool call
+
+────────────────────────────────────────────────────────────
+> Show the content of the file hello.txt. Do not do anything else.
+
+● Explored 1 file (hello.txt) (ctrl+o to expand)
+
+  The content of hello.txt is:
+
+    hello
+
+────────────────────────────────────────────────────────────
+> Create a file named done.txt that holds the word done. Do not do anything else.
+
+○ Thought for 3.9s (Attempting to create the specified file with the required content. Confirmed that another file'...)
+● Edited 1 file (done.txt) (ctrl+o to expand)
+
+  Created done.txt containing done.
+
+────────────────────────────────────────────────────────────
+> Create a file named esc.txt that holds the word esc. Do not do anything else.
+
+● Edited 1 file (esc.txt) (ctrl+o to expand)
+
+  ⎿  Interrupted · What should Antigravity CLI do instead?
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+>
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+? for shortcuts                                                                                  Gemini 4 Argon · medium

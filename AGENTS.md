@@ -35,5 +35,7 @@ Each job has a task file. Follow the task file step by step.
 
 1. `cd tools && go test ./... && go run ./cmd/validate ..`
 2. `sh tools/sync-go-data.sh`, then `cd go && go test ./...`
+   and `pytest python` in a virtual environment with `pip install -e "python[test]"`.
+   The sync script also makes the copy for the Python library.
 3. `shellcheck --severity=warning` on each changed `.sh` file.
 4. `sh tools/test-scrub.sh` when the scrub changed.

@@ -1,0 +1,25 @@
+schema: 1
+agent: openhands
+agent_version: 1.16.0
+measured: 2026-10-30
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured
+edits: []
+description: >-
+  OpenHands CLI 1.16.0 with no configuration. A framed "Settings" form
+  ("Settings Mode: Basic", "LLM Provider: Select", "LLM Model: Select", and
+  the buttons Save and Cancel) draws over the main screen. The frame of the
+  input box "Type your message" shows at the left and the right of the form,
+  and the form cuts it. The footer gives "^c Exit esc Cancel". The box is
+  drawn but covered, and the form is not a numbered dialog, so a reader cannot
+  tell a state from the frame. The six Linux labels gave the same bytes. On
+  the four macOS labels the status line behind the form wraps one word
+  earlier, because the home folder of the runner is one character longer
+  there. The screen is the capture 20 s after the start, with no key sent, by
+  scenarios/first-run.sh in the scenarios workflow run 41142220844 on the CI
+  runner ubuntu-24.04 (x64), with a throwaway HOME, no login and no key.
+expect:
+  state: UNKNOWN
+  dialog: none
+facts: [46]
