@@ -44,7 +44,7 @@ the temporary folder.
 |---|---|
 | macOS, Linux | `curl -fsSL https://xsavikx.github.io/agent-signals/kit.sh \| sh` |
 | Windows (PowerShell) | `irm https://xsavikx.github.io/agent-signals/kit.ps1 \| iex` |
-| A guided step (macOS, Linux) | `curl -fsSL https://xsavikx.github.io/agent-signals/kit.sh \| sh -s -- --guided permission cursor` |
+| A guided step (macOS, Linux) | `curl -fsSL https://xsavikx.github.io/agent-signals/kit.sh \| sh -s -- --guided permission agent` |
 
 Read the scripts first if you want: [`probes/kit.sh`](probes/kit.sh) and
 [`probes/kit.ps1`](probes/kit.ps1). The kit only reads. Read the file that

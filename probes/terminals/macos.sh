@@ -19,7 +19,7 @@ ps -axo comm= | grep -E -i 'Terminal|iTerm|Ghostty|WezTerm|kitty|Alacritty|Warp|
   sed -e 's#.*/##' -e 's#\(extension-host\) .*#\1 <workspace>#' -e 's#\(fileWatcher\) \[.*#\1 <workspace>#' | sort | uniq -c
 
 section "tty and terminal of each agent process"
-for x in $(pids '(^|[ /])(claude|codex|agy|opencode|cursor-agent)( |$)|/\.local/bin/agent( |$)'); do
+for x in $(pids '(^|[ /])(claude|codex|agy|opencode|cursor-agent)( |$)|(^|[ /])agent .*index\.js|/\.local/bin/agent( |$)'); do
   echo "== $x tty: $(ps -o tty= -p "$x" | tr -d ' ') name: $(ps -o comm= -p "$x" | sed 's#.*/##')"
   chain "$x" | awk '{print "  " $0}' | sed 's#  */[^ ]*/#  #'
 done

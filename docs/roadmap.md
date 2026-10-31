@@ -110,7 +110,7 @@ or says what is left.
 
 | # | Request | Answer |
 |---|---|---|
-| 1 | Cursor, macOS: a file signal for a wait on a permission dialog | Open. The kit step `--guided permission cursor` measures it on the Mac. |
+| 1 | Cursor, macOS: a file signal for a wait on a permission dialog | Open. The kit step `--guided permission agent` measures it on the Mac. |
 | 2 | Codex: does a TUI hold its rollout file open? | Fact 26: no. In the default mode a shared daemon holds it. Fact 39: a `--no-daemon` TUI holds its own file. Fact 40: no table of `state_5.sqlite` links a TUI to its thread. |
 | 3 | Cursor: `/new-chat` and `--resume`, old and new `store.db` | Open. Kit steps `new-chat` and `resume`, or a scenario with `CURSOR_API_KEY`. |
 | 4 | Cursor: an end record after an interrupt | Open. Kit step `interrupt`. |
