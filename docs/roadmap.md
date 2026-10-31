@@ -58,10 +58,12 @@ Updated 2026-10-31, third round.
 
 ## The matrix
 
-Each cell gives the work that exists, and where it was measured. "probe" is
-a probe script; "CI" means that the probes workflow runs it on a runner
-with no agent installed; "real" means a run against live sessions on a
-real machine.
+Each cell gives the work that exists, and where it was measured:
+
+- "probe": a probe script exists.
+- "CI": the probes workflow runs the probe on a runner with no agent
+  installed.
+- "real": the probe ran against live sessions on a real machine.
 
 | Agent | Linux | macOS | Windows |
 |---|---|---|---|

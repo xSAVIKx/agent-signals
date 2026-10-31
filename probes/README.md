@@ -46,7 +46,7 @@ powershell -ExecutionPolicy Bypass -File probes\run.ps1
 ```
 
 The guided mode measures one event. The kit tells you to do one action in
-a session. Then it watches the agent folders for 30 s, and reports the files
+a session. Then it watches the agent folders for 30 s. It reports the files
 that changed, the open files before and after, the new record types, and
 the status of the Claude pid files. It reads no text.
 
