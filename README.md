@@ -1,6 +1,7 @@
 # agent-signals
 
 Measured signals of AI coding agents, as a language-neutral test corpus.
+Read it on the website: <https://xsavikx.github.io/agent-signals/>.
 
 Tools that watch or drive an agent session read the same signals: the
 terminal screen of the agent, the payloads of its hooks, its session files,
