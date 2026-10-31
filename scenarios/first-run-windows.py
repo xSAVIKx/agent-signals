@@ -49,6 +49,11 @@ AGENTS = {
 # agent, as in scenarios/lib.sh. codex-home is Codex CLI with CODEX_HOME.
 DIR_VARS = {"codex-home": "CODEX_HOME=.codex"}
 
+# Variables that point to a folder in the real profile. The Junie shim
+# (junie.bat) runs the binary from JUNIE_DATA_DIR, by default
+# %USERPROFILE%\.local\share\junie, so it must see the real folder.
+REAL_VARS = {"junie": {"JUNIE_DATA_DIR": r".local\share\junie"}}
+
 
 # Entries of the real profile that change with no agent action.
 NOISE = re.compile(r"(?i)^ntuser\.(dat|ini)")
@@ -149,6 +154,8 @@ class Run:
             os.makedirs(d, exist_ok=True)
             self.env[name] = d
             self.extra.append((name, rel, d))
+        for name, rel in REAL_VARS.get(agent, {}).items():
+            self.env[name] = os.environ.get(name) or os.path.join(os.environ.get("USERPROFILE", ""), rel)
         self.pty = None
         user = os.environ.get("USERNAME", "")
         self.account = re.compile("(?i)" + re.escape(user)) if len(user) >= 3 else None
@@ -283,9 +290,10 @@ class Run:
             die("not installed: " + self.cmd)
         # The version comes first, with the real profile, as in first-run.sh.
         v, status = first_line(launcher(path, os.environ) + ["--version"], os.environ, self.work)
-        # Some agents download their binary at the first call and print
-        # that first (Codebuff). Then the version comes from a second call.
-        if "download" in v.lower():
+        # Some agents download or install their binary at the first call
+        # and print that first (Codebuff, Every Code). Then the version
+        # comes from a second call.
+        if "download" in v.lower() or "installing" in v.lower():
             v, status = first_line(launcher(path, os.environ) + ["--version"], os.environ, self.work)
         self.note("version: %s (%s)" % (v, status))
         self.note("os: %s %s" % (platform.platform(), platform.machine()))

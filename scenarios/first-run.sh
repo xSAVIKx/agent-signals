@@ -9,8 +9,8 @@
 #
 # Needs: tmux and the agent. No login, no model turn, no cost.
 # Run: sh scenarios/first-run.sh AGENT [COMMAND]
-#   AGENT: claude | codex | codex-home | agy | cursor | opencode, or any
-#   name with COMMAND
+#   AGENT: claude | codex | codex-home | junie | agy | cursor | opencode,
+#   or any name with COMMAND
 # codex-home starts codex with CODEX_HOME=<throwaway folder>/.codex, a
 # folder next to the throwaway HOME, not in it. SCN_DIR_VARS can set such
 # variables for any agent (scenarios/lib.sh).
@@ -24,6 +24,15 @@ case $agent in
   claude) cmd=claude ;;
   codex) cmd=codex ;;
   codex-home) cmd=codex; SCN_DIR_VARS=${SCN_DIR_VARS:-CODEX_HOME=.codex} ;;
+  # The Junie shim runs the binary from JUNIE_DATA, by default
+  # $HOME/.local/share/junie. The scenario keeps that folder in the real
+  # HOME, so that the shim finds the binary with the throwaway HOME.
+  junie)
+    cmd=junie
+    JUNIE_DATA=${JUNIE_DATA:-$HOME/.local/share/junie}
+    export JUNIE_DATA
+    SCN_PASS="${SCN_PASS:-} JUNIE_DATA"
+    ;;
   agy) cmd=agy ;;
   cursor) cmd=cursor-agent ;;
   opencode) cmd=opencode ;;
@@ -41,10 +50,11 @@ extra=$(sandbox_dir_vars)
 # on stderr first (OpenHands), so stderr counts only when stdout is empty.
 v=$("$cmd" --version 2>/dev/null </dev/null | grep -v '^[[:space:]]*$' | head -n 1)
 [ -n "$v" ] || v=$("$cmd" --version 2>&1 </dev/null | head -n 1)
-# Some agents download their binary at the first call and print that
-# first (Codebuff). Then the version comes from a second call.
+# Some agents download or install their binary at the first call and
+# print that first (Codebuff, Every Code). Then the version comes from a
+# second call.
 case $v in
-  *[Dd]ownload*) v=$("$cmd" --version 2>/dev/null </dev/null | grep -v '^[[:space:]]*$' | head -n 1) ;;
+  *[Dd]ownload* | *[Ii]nstalling*) v=$("$cmd" --version 2>/dev/null </dev/null | grep -v '^[[:space:]]*$' | head -n 1) ;;
 esac
 note "version: $v"
 note "os: $PROBE_OS $(uname -m)"

@@ -19,7 +19,7 @@ $npm = @{
     '@github/copilot', '@qwen-code/qwen-code')
   b = @('@ampcode/cli', '@charmland/crush', '@continuedev/cli', '@factory/cli', 'cline',
     '@kilocode/cli', '@augmentcode/auggie', '@opencode/cli')
-  c = @('@jetbrains/junie', 'codebuff', '@qoder-ai/qodercli', '@tencent-ai/codebuddy-code',
+  c = @('codebuff', '@qoder-ai/qodercli', '@tencent-ai/codebuddy-code',
     '@letta-ai/letta-code', '@neovate/code', '@just-every/code', '@iflow-ai/iflow-cli')
   d = @()
 }
@@ -82,7 +82,25 @@ if ($Group -eq 'a') {
   $rc = Invoke-InstallPage 'https://cli.kiro.dev/install.ps1'
   Write-Output '::endgroup::'
   Write-Output "install Kiro CLI: exit $rc"
-  Add-ToPath "$env:ProgramFiles\Kiro-Cli"
+  # The folder of kiro-cli.exe below the install folder goes to PATH.
+  $kiro = Get-ChildItem -Path "$env:ProgramFiles\Kiro-Cli" -Recurse -Filter 'kiro-cli.exe' -ErrorAction SilentlyContinue |
+    Select-Object -First 1
+  if ($kiro) {
+    Write-Output "Kiro CLI: kiro-cli.exe in $($kiro.DirectoryName -replace [regex]::Escape($env:ProgramFiles), '%ProgramFiles%')"
+    Add-ToPath $kiro.DirectoryName
+  } else {
+    Write-Output 'Kiro CLI: no kiro-cli.exe below %ProgramFiles%\Kiro-Cli'
+    Get-ChildItem -Path "$env:ProgramFiles\Kiro-Cli" -Recurse -Depth 2 -ErrorAction SilentlyContinue |
+      Select-Object -First 30 | ForEach-Object { '  ' + ($_.FullName -replace [regex]::Escape($env:ProgramFiles), '%ProgramFiles%') }
+  }
+  # The Junie installer of the JetBrains/junie README. It puts the shim
+  # junie.bat in %USERPROFILE%\.local\bin and the binary in
+  # %USERPROFILE%\.local\share\junie.
+  Write-Output '::group::Junie CLI'
+  $rc = Invoke-InstallPage 'https://junie.jetbrains.com/install.ps1'
+  Write-Output '::endgroup::'
+  Write-Output "install Junie CLI: exit $rc"
+  Add-ToPath "$HOME\.local\bin"
 } else {
   foreach ($p in $uv) {
     Install-Step "uv tool install $p" { & uv tool install --python 3.12 $p }
