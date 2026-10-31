@@ -15,3 +15,13 @@ system: /Users/alice/Library/Application Support/Cursor
 claude key: ~/.claude/projects/-srv-work-shop/1.jsonl and /tmp/claude-501/-Users-alice-code-shop/x/tasks
 cursor key: ~/.cursor/projects/Users-alice-code-shop/agent-transcripts
 versions: os: linux 6.8.0.1017-azure, FileVersion 1.4.4.0, v1.2.3.4 and 10.0.0.5 stays an ip
+claude key windows: ~\.claude\projects\D--Projects-shop\1.jsonl and C--Users-alice-code-shop
+cursor key windows: ~\.cursor\projects\C-Users-alice-shop\agent-transcripts and "D-Projects-shop"
+drive path: D:\Projects\shop\src and d:\projects\shop and E:/acme/shop/main.go
+drive path with hidden folder: D:\Projects\shop\.codex\hooks.json
+toml: [projects."\\?\D:\\Projects\\shop"] and "\\?D:\\IdeaProjects\\shop"
+toml hooks: [hooks.state."D:\\Projects\\shop\\.codex\\hooks.json:pre_tool_use:0:0"]
+already clean: \\?\~\.codex\config.toml
+system: C:\Windows\System32\cmd.exe and C:\ProgramData\chocolatey\bin and c:\windows\system32
+system: "C:\Program Files\nodejs\node.exe" and C:\Program Files (x86)\Common Files
+words: an X-ray, a T-shirt and v1.2.3 stay, and so does the word abcD:\x

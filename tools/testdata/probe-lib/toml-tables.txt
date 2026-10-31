@@ -1,0 +1,7 @@
+table: [tui]
+table: [projects.<path>] x 2
+table: [mcp_servers.<name>] x 2
+table: [mcp_servers.<name>.env] x 1
+table: [plugins.<name>] x 1
+table: [hooks.state.<path>] x 1
+table: [[profiles.<name>.rules]] x 1

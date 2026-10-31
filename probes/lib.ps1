@@ -184,16 +184,35 @@ function Get-ProcessTable {
   return $script:ProcTable
 }
 
-# Returns Win32_Process objects whose Name or CommandLine matches Pattern.
+# Returns Win32_Process objects that are the agent: the process name or
+# the executable path matches Pattern, or the process is node, bun or deno
+# and its script (the first argument that is not a flag) matches Pattern.
+# The rest of the command line does not count. A shell can hold the agent
+# name in its -Command text, for example a psmux pane that defines a
+# "claude" function, and that shell is not the agent.
 # It does not return the probe itself or the kit.
 function Get-AgentProcesses([string]$Pattern) {
   $table = Get-ProcessTable
   $self = '(?i)probes[\\/]([^\\/]+[\\/]windows|run)\.ps1'
   $table.Values | Where-Object {
     $_.ProcessId -ne $PID -and
-    ($_.Name -match $Pattern -or ($_.CommandLine -and $_.CommandLine -match $Pattern)) -and
+    (Test-AgentProcess $_ $Pattern) -and
     -not ($_.CommandLine -and $_.CommandLine -match $self)
   } | Sort-Object ProcessId
+}
+
+function Test-AgentProcess($P, [string]$Pattern) {
+  if ($P.Name -and ([string]$P.Name -match $Pattern)) { return $true }
+  if ($P.ExecutablePath -and ([string]$P.ExecutablePath -match $Pattern)) { return $true }
+  $base = [IO.Path]::GetFileNameWithoutExtension([string]$P.Name).ToLowerInvariant()
+  if (@('node', 'bun', 'deno') -notcontains $base) { return $false }
+  if (-not $P.CommandLine) { return $false }
+  $argv = Split-CommandLine ([string]$P.CommandLine)
+  for ($i = 1; $i -lt $argv.Count; $i++) {
+    if ($argv[$i] -match '^-' -or $argv[$i] -eq 'run') { continue }
+    return ([string]$argv[$i] -match $Pattern)
+  }
+  return $false
 }
 
 # Splits a Windows command line into arguments. Quotes group words.
@@ -226,11 +245,22 @@ function Hide-Arg([string]$Arg) {
   return (Hide-Value $Arg)
 }
 
+# A quoted value can hold many words, for example the -Command text of a
+# shell. Each word stays only when it is a flag, holds a / or a \, or is a
+# safe word. Other words become <arg>, as ps_line in lib.sh does.
 function Hide-Value([string]$Value) {
-  if ($Value -match '[\\/]') { return $Value }
-  if ($script:SafeWords -contains $Value) { return $Value }
-  return '<arg>'
+  $words = @([regex]::Split($Value, '\s+') | Where-Object { $_ -ne '' })
+  if ($words.Count -eq 0) { return '<arg>' }
+  $out = @()
+  foreach ($w in $words) {
+    if (($words.Count -gt 1 -and $w -match '^-') -or $w -match '[\\/]' -or $script:SafeWords -contains $w) { $out += $w }
+    else { $out += '<arg>' }
+  }
+  return ($out -join ' ')
 }
+
+# The most characters of a process line, as in ps_line of lib.sh.
+$script:MaxProcessLine = 240
 
 function Format-ProcessLine($P) {
   $start = Format-Utc $P.CreationDate
@@ -243,7 +273,9 @@ function Format-ProcessLine($P) {
     if ($a -match '\s') { $a = '"' + $a + '"' }
     $parts += $a
   }
-  return "$head cmd: " + ($parts -join ' ')
+  $line = "$head cmd: " + ($parts -join ' ')
+  if ($line.Length -gt $script:MaxProcessLine) { $line = $line.Substring(0, $script:MaxProcessLine) }
+  return $line
 }
 
 # Returns the parent chain as objects. It stops at a process that does not
@@ -348,8 +380,39 @@ function Find-StateDir([string[]]$Candidates) {
 
 $script:LayoutCount = 0
 
-function Show-LayoutLevel([string]$Dir, [string]$Prefix, [int]$Depth, [int]$Max) {
+# The names of the folders below these folders are project keys: a project
+# path with dashes. The layout prints a count and the form of the newest key,
+# not the names.
+$script:KeyDirs = @('projects')
+
+# Returns the form of a project key with no names in it.
+function Get-KeyForm([string]$Name) {
+  if ($Name -cmatch '^[A-Z]--') { return '<drive>--<path>' }
+  if ($Name -cmatch '^[A-Z]-') { return '<drive>-<path>' }
+  if ($Name.StartsWith('-')) { return '-work-example' }
+  return '<other>'
+}
+
+function Show-KeyDir([System.IO.DirectoryInfo]$Dir, [string]$Prefix) {
+  $subs = @(Get-ChildItem -LiteralPath $Dir.FullName -Force -Directory -ErrorAction SilentlyContinue |
+    Sort-Object LastWriteTimeUtc -Descending)
+  "${Prefix}project folders: $($subs.Count) (names not shown)"
+  if ($subs.Count -gt 0) {
+    "${Prefix}newest project folder: key form $(Get-KeyForm $subs[0].Name) mtime=$(ConvertTo-UnixTime $subs[0].LastWriteTimeUtc)"
+  }
+}
+
+# Filter: the names to list at the top level of Dir, as wildcards. Empty
+# means all names.
+function Show-LayoutLevel([string]$Dir, [string]$Prefix, [int]$Depth, [int]$Max, [string[]]$Filter = @()) {
   $items = @(Get-ChildItem -LiteralPath $Dir -Force -ErrorAction SilentlyContinue | Sort-Object Name)
+  if ($Filter.Count -gt 0) {
+    $keep = @()
+    foreach ($it in $items) {
+      foreach ($f in $Filter) { if ($it.Name -like $f) { $keep += $it; break } }
+    }
+    $items = $keep
+  }
   $shown = 0
   foreach ($i in $items) {
     if ($script:LayoutCount -ge $Max) { return }
@@ -367,7 +430,10 @@ function Show-LayoutLevel([string]$Dir, [string]$Prefix, [int]$Depth, [int]$Max)
       $mark = ''
       if ($link) { $mark = ' link' }
       "$Prefix$($i.Name)/ entries=$n mtime=$t$mark"
-      if ($Depth -gt 1 -and -not $link) {
+      if ($script:KeyDirs -ccontains $i.Name -and -not $link) {
+        $script:LayoutCount += 2
+        Show-KeyDir $i ($Prefix + '  ')
+      } elseif ($Depth -gt 1 -and -not $link) {
         Show-LayoutLevel $i.FullName ($Prefix + '  ') ($Depth - 1) $Max
       }
     } else {
@@ -376,13 +442,23 @@ function Show-LayoutLevel([string]$Dir, [string]$Prefix, [int]$Depth, [int]$Max)
   }
 }
 
-# Prints names, sizes and times below Dir, at most 200 lines.
-function Get-Layout([string]$Dir, [int]$Depth = 2) {
+# Prints names, sizes and times below Dir, at most 200 lines. With Filter,
+# only the top-level names that match one of the wildcards.
+function Get-Layout([string]$Dir, [int]$Depth = 2, [string[]]$Filter = @()) {
   if (-not $Dir -or -not (Test-Path -LiteralPath $Dir -PathType Container)) { "not found: $Dir"; return }
-  "layout: $Dir"
+  if ($Filter.Count -gt 0) { "layout: $Dir (only $($Filter -join ', '))" } else { "layout: $Dir" }
   $script:LayoutCount = 0
-  Show-LayoutLevel $Dir '  ' $Depth 200
+  Show-LayoutLevel $Dir '  ' $Depth 200 $Filter
   if ($script:LayoutCount -ge 200) { '  ... stop at 200 lines' }
+}
+
+# True for a folder that holds the programs of many tools, such as
+# ~\.local\bin, %APPDATA%\npm or a scoop shims folder. A probe lists only
+# the files of its agent there.
+function Test-SharedBin([string]$Dir) {
+  if (-not $Dir) { return $false }
+  $leaf = Split-Path -Leaf $Dir.TrimEnd('\', '/')
+  return (@('bin', 'npm', 'shims', 'Links') -contains $leaf)
 }
 
 function Get-JsonType($Value) {
@@ -416,19 +492,40 @@ function Get-JsonShape([string]$File, [int]$MaxDepth = 3) {
   Show-JsonShape $d '' $MaxDepth
 }
 
-function Show-JsonShape($Value, [string]$Path, [int]$Depth) {
+# The keys of these objects are names of plugins, marketplaces and
+# servers. json_keys in lib.sh uses the same list.
+$script:NameKeys = @('enabledPlugins', 'extraKnownMarketplaces', 'mcpServers', 'marketplaces', 'plugins')
+
+# True when a key is a name or a path: it holds @, /, \, : or ., or its
+# parent key is in NameKeys.
+function Test-NameKey([string]$Key, [string]$Parent) {
+  if ($script:NameKeys -contains $Parent) { return $true }
+  return ($Key -match '[@/\\:.]')
+}
+
+function Show-JsonShape($Value, [string]$Path, [int]$Depth, [string]$Parent = '') {
   $name = $Path
   if (-not $name) { $name = '(top)' }
   "${name}: $(Get-JsonType $Value)"
   if ($Depth -le 0) { return }
   if ($Value -is [System.Management.Automation.PSCustomObject]) {
+    # A key that is a name shows as <name>. The probe prints the shape of
+    # the first one and the count.
+    $hidden = @()
     foreach ($prop in $Value.PSObject.Properties) {
+      if (Test-NameKey $prop.Name $Parent) { $hidden += $prop; continue }
       $p = $prop.Name
       if ($Path) { $p = "$Path.$($prop.Name)" }
-      Show-JsonShape $prop.Value $p ($Depth - 1)
+      Show-JsonShape $prop.Value $p ($Depth - 1) $prop.Name
+    }
+    if ($hidden.Count -gt 0) {
+      $p = '<name>'
+      if ($Path) { $p = "$Path.<name>" }
+      "$p count: $($hidden.Count)"
+      Show-JsonShape $hidden[0].Value $p ($Depth - 1) '<name>'
     }
   } elseif ($Value -is [array] -and $Value.Count -gt 0) {
-    Show-JsonShape $Value[0] "$Path[0]" ($Depth - 1)
+    Show-JsonShape $Value[0] "$Path[0]" ($Depth - 1) $Parent
   }
 }
 
@@ -467,14 +564,48 @@ function Get-JsonlTypes([string]$File, [int]$Count = 5) {
   }
 }
 
-# Prints the table names of a TOML file, not the keys or values.
+# Returns the form of a TOML table name that a probe can print. Some table
+# names hold a project path or the name of a server or a plugin:
+#   [projects."D:\\code\\shop"]         -> [projects.<path>]
+#   [hooks.state."<path>:pre_tool_use"]  -> [hooks.state.<path>]
+#   [mcp_servers.docs.env]               -> [mcp_servers.<name>.env]
+#   [plugins."lint@acme"]                -> [plugins.<name>]
+# Any other quoted part becomes <name>. The same rule is in toml_tables of
+# lib.sh.
+function Format-TomlTable([string]$Table) {
+  $m = [regex]::Match($Table, '^\s*(\[\[?)\s*(.*?)\s*(\]\]?)\s*$')
+  if (-not $m.Success) { return '<other>' }
+  $open = $m.Groups[1].Value
+  $close = $m.Groups[3].Value
+  $parts = @([regex]::Matches($m.Groups[2].Value, '"(?:[^"\\]|\\.)*"|''[^'']*''|[^.\s"'']+') | ForEach-Object { $_.Value })
+  if ($parts.Count -eq 0) { return '<other>' }
+  $out = @()
+  $skip = 0
+  if ($parts.Count -ge 2 -and $parts[0] -eq 'projects') { $out = @('projects', '<path>'); $skip = 2 }
+  elseif ($parts.Count -ge 3 -and $parts[0] -eq 'hooks' -and $parts[1] -eq 'state') { $out = @('hooks', 'state', '<path>'); $skip = 3 }
+  elseif ($parts.Count -ge 2 -and @('mcp_servers', 'plugins', 'marketplaces', 'profiles', 'model_providers') -contains $parts[0]) { $out = @($parts[0], '<name>'); $skip = 2 }
+  for ($i = $skip; $i -lt $parts.Count; $i++) {
+    if ($parts[$i] -match '^["'']') { $out += '<name>' } else { $out += $parts[$i] }
+  }
+  return $open + ($out -join '.') + $close
+}
+
+# Prints the table names of a TOML file, not the keys or values. A name
+# that holds a path or a name shows in a general form, with a count.
 function Get-TomlTables([string]$File) {
   if (-not $File -or -not (Test-Path -LiteralPath $File -PathType Leaf)) { "not found: $File"; return }
-  $n = 0
+  $order = New-Object System.Collections.ArrayList
+  $count = @{}
   foreach ($l in [IO.File]::ReadAllLines($File, [Text.Encoding]::UTF8)) {
-    if ($l -match '^\s*(\[\[?[^\]]+\]\]?)') { "table: $($Matches[1])"; $n++ }
+    if ($l -notmatch '^\s*\[') { continue }
+    $t = Format-TomlTable ($l -replace '\s+#.*$', '')
+    if (-not $count.ContainsKey($t)) { [void]$order.Add($t); $count[$t] = 0 }
+    $count[$t]++
   }
-  if ($n -eq 0) { 'tables: none' }
+  if ($order.Count -eq 0) { 'tables: none'; return }
+  foreach ($t in $order) {
+    if ($count[$t] -gt 1 -or $t -match '<') { "table: $t x $($count[$t])" } else { "table: $t" }
+  }
 }
 
 # Prints the newest file that matches Filter below Dir.
@@ -485,8 +616,11 @@ function Get-NewestFile([string]$Dir, [string]$Filter) {
 }
 
 # Prints the install path of a command and where the version shows: in a
-# folder name, in a package.json, or in the output of --version.
+# folder name, in a package.json, or in the output of --version. In a
+# folder that holds the programs of many tools (see Test-SharedBin), it
+# lists only the names that start with one of the commands.
 function Show-Install([string[]]$Commands, [string[]]$NpmPackages, [string[]]$Dirs) {
+  $own = @($Commands | ForEach-Object { "$_*" })
   foreach ($c in $Commands) {
     $all = @(Get-Command $c -All -ErrorAction SilentlyContinue)
     if ($all.Count -eq 0) { "command ${c}: not installed"; continue }
@@ -497,7 +631,7 @@ function Show-Install([string[]]$Commands, [string[]]$NpmPackages, [string[]]$Di
       $m = [regex]::Matches($r, '\d+\.\d+\.\d+[A-Za-z0-9._+-]*')
       foreach ($x in $m) { "version in path: $($x.Value)" }
       $dir = Split-Path -Parent $r
-      Get-Layout $dir 2
+      if (Test-SharedBin $dir) { Get-Layout $dir 2 $own } else { Get-Layout $dir 2 }
       # The version file of an npm package is near the binary.
       $up = $dir
       for ($k = 0; $k -lt 4 -and $up; $k++) {
@@ -525,7 +659,7 @@ function Show-Install([string[]]$Commands, [string[]]$NpmPackages, [string[]]$Di
   }
   foreach ($d in $Dirs) {
     if (-not $d) { continue }
-    Get-Layout $d 2
+    if (Test-SharedBin $d) { Get-Layout $d 2 $own } else { Get-Layout $d 2 }
   }
 }
 

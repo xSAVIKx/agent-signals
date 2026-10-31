@@ -1,0 +1,28 @@
+model = "gpt-5"
+
+[tui]
+theme = "dark"
+
+[projects."D:\\Projects\\shop"]
+trust_level = "trusted"
+
+[projects.'/work/acme']
+trust_level = "trusted"
+
+[mcp_servers.docs]
+command = "docs-mcp"
+
+[mcp_servers.docs.env]
+TOKEN = "x"
+
+[mcp_servers."acme-search"]
+command = "search"
+
+[plugins."lint@acme"]
+enabled = true
+
+[hooks.state."D:\\Projects\\shop\\.codex\\hooks.json:pre_tool_use:0:0"]
+trusted_hash = "x"
+
+[[profiles.work.rules]]  # a comment
+x = 1

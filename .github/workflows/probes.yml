@@ -17,6 +17,8 @@ on:
       - "tools/scrub*"
       - "tools/test-scrub*"
       - "tools/testdata/scrub/**"
+      - "tools/test-probe-lib*"
+      - "tools/testdata/probe-lib/**"
       - "tools/check-probe-output.sh"
       - ".github/workflows/probes.yml"
   push:
@@ -112,6 +114,12 @@ jobs:
       - name: Scrub test (Windows PowerShell 5.1)
         shell: powershell
         run: ./tools/test-scrub.ps1
+      - name: Probe library test (PowerShell 7)
+        shell: pwsh
+        run: ./tools/test-probe-lib.ps1
+      - name: Probe library test (Windows PowerShell 5.1)
+        shell: powershell
+        run: ./tools/test-probe-lib.ps1
       - name: Probes
         shell: bash
         run: |

@@ -14,8 +14,11 @@
 # The changes, in this order:
 #   1. home       the home folder -> ~
 #   2. other-home /Users/<name>, /home/<name>, C:\Users\<name> -> ~
-#   3. project    a project path below ~, /srv/ or /work/<name> -> /work/example
-#   4. key        a project key such as -Users-alice-code-shop -> -work-example
+#   3. project    a project path below ~, /srv/ or /work/<name>, or a drive
+#                 path such as D:\Projects\shop -> /work/example. C:\Windows,
+#                 C:\Program Files and C:\ProgramData stay.
+#   4. key        a project key such as -Users-alice-code-shop,
+#                 D--Projects-shop or C-Users-alice-shop -> -work-example
 #   5. user       the account name as a whole word -> dev
 #   6. host       the host name and its short form as whole words -> host
 #   7. uuid       UUIDs -> <uuid>
@@ -104,13 +107,25 @@ function Invoke-Scrub([string]$Text, [string]$HomeDir, [string]$User, [string]$H
     $first = ([regex]::Split($m.Groups[1].Value, '[/\\]+'))[0]
     if ($first -ceq 'example') { $m.Value } else { Convert-ProjectPath $m.Groups[1].Value $m.Value @() }
   } $counts 'project'
+  # A Windows drive path that is not below a home folder, for example
+  # D:\Projects\shop. A \\?\ prefix goes with it. The system folders
+  # C:\Windows, C:\Program Files, C:\Program Files (x86) and C:\ProgramData
+  # stay. A path ends at white space, so "Program Files" shows as "Program".
+  $system = @('windows', 'program', 'programdata', 'progra~1', 'progra~2')
+  $s = Invoke-ScrubReplace $s ('(?<![A-Za-z0-9_.~-])(?:\\+\?\\*)?[A-Za-z]:[\\/]+(' + $pc + '+)') {
+    param($m)
+    $first = ([regex]::Split($m.Groups[1].Value, '[/\\]+'))[0]
+    if ($system -contains $first.ToLowerInvariant()) { $m.Value } else { Convert-ProjectPath $m.Groups[1].Value $m.Value @() }
+  } $counts 'project'
 
-  # 4. Project keys. The Windows form starts with a drive letter, for
-  # example C--Users-alice-code-shop.
+  # 4. Project keys. The Windows form starts with an upper-case drive
+  # letter and one or two dashes: Claude D--Projects-shop, Cursor
+  # C-Users-alice-shop. The token after the drive letter must hold one more
+  # dash, so that a word such as X-ray stays.
   $s = Invoke-ScrubReplace $s '(?m)(^|[/\\ "])-?(?:srv|Users|home|var-lib|work)-[A-Za-z0-9._-]+' {
     param($m) $m.Groups[1].Value + '-work-example'
   } $counts 'key'
-  $s = Invoke-ScrubReplace $s '(?m)(^|[/\\ "])[A-Za-z]--(?:srv|Users|home|work)-[A-Za-z0-9._-]+' {
+  $s = Invoke-ScrubReplace $s '(?m)(^|[/\\ "])(?-i:[A-Z])--?[A-Za-z0-9._]+-[A-Za-z0-9._-]+' {
     param($m) $m.Groups[1].Value + '-work-example'
   } $counts 'key'
 

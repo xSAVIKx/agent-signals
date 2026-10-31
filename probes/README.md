@@ -19,17 +19,27 @@ Paths:
 1. It only reads. It starts no agent, types nothing, and changes no file.
 2. It reads no conversation text. It prints record types, field names and
    table layouts, not values. A command line keeps the program, its flags
-   and its paths. Other words become `<arg>`.
-3. It prints numbered sections, `### N. <title>`. A section with no data
+   and its paths. Other words become `<arg>`. A command line has at most
+   240 characters.
+3. It prints no names that the user chose. A project folder list shows a
+   count and the form of the newest key. A plugin name, a server name and
+   a project path in a key or a TOML table name show as `<name>` or
+   `<path>`, with a count. An install folder that holds many tools shows
+   only the files of the agent.
+4. On Windows, it finds the agent process by the process name, the
+   executable path, or the script of `node`. It does not use other text of
+   a command line, because a shell can hold the agent name in its command
+   text.
+5. It prints numbered sections, `### N. <title>`. A section with no data
    prints `not found`. A section that needs a missing tool prints
    `not installed: <tool>`.
-4. It exits 0 when it ran to the end, also when it found no session.
-5. Its output holds real folder and project names. Do not commit the output.
+6. It exits 0 when it ran to the end, also when it found no session.
+7. Its output holds real folder and project names. Do not commit the output.
    Send it through `tools/scrub.sh` (or `tools/scrub.ps1`) before it leaves
    the machine, and read it.
-6. A fact that uses the output replaces each real path with `/work/example`
+8. A fact that uses the output replaces each real path with `/work/example`
    and each account name with `dev`.
-7. Put a caution in the script before a step that can open an OS dialog, for
+9. Put a caution in the script before a step that can open an OS dialog, for
    example an Automation request of macOS.
 
 ## The kit
