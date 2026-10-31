@@ -47,7 +47,30 @@ import json, re, sys
 d = json.load(open(sys.argv[1]))
 print("  status:", d.get("status"), "| kind:", d.get("kind"), "| version:", d.get("version"))
 print("  tmux form:", re.sub(r"[A-Za-z0-9_.-]+", "x", d.get("tmux") or "") or "empty")
+print("  procStart:", d.get("procStart"))
 ' "$f"
+    # The start time of the process in other forms, to compare with
+    # procStart.
+    echo "  ps lstart: $(ps -o lstart= -p "$x" 2>/dev/null)"
+    echo "  ps lstart TZ=UTC: $(TZ=UTC ps -o lstart= -p "$x" 2>/dev/null)"
+    if [ "$PROBE_OS" = macos ] && need python3 >/dev/null; then
+      python3 - "$x" <<'PY'
+import ctypes, ctypes.util, struct, sys
+# sysctl CTL_KERN KERN_PROC KERN_PROC_PID: struct kinfo_proc. On macOS
+# arm64 and x64, p_starttime (a struct timeval) is at offset 0.
+libc = ctypes.CDLL(ctypes.util.find_library("c"))
+mib = (ctypes.c_int * 4)(1, 14, 1, int(sys.argv[1]))
+buf = ctypes.create_string_buffer(1024)
+size = ctypes.c_size_t(len(buf))
+if libc.sysctl(mib, 4, buf, ctypes.byref(size), None, 0) != 0 or size.value == 0:
+    print("  sysctl p_starttime: not available")
+else:
+    sec, usec = struct.unpack_from("<qi", buf.raw, 0)
+    print("  sysctl p_starttime: %d.%06d" % (sec, usec))
+PY
+    elif [ "$PROBE_OS" = linux ]; then
+      echo "  /proc stat start ticks: $(awk '{print $22}' "/proc/$x/stat" 2>/dev/null)"
+    fi
   else
     echo "pid file: none"
   fi
