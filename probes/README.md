@@ -12,6 +12,7 @@ Paths:
 - `probes/terminals/macos.sh`: the terminal programs and tabs of macOS.
 - `probes/lib.sh`, `probes/lib.ps1`: shared functions.
 - `probes/run.sh`, `probes/run.ps1`: the kit.
+- `probes/kit.sh`, `probes/kit.ps1`: the one-line start of the kit. The website serves them as `kit.sh` and `kit.ps1`.
 
 ## Rules for a probe
 
@@ -34,7 +35,22 @@ Paths:
 ## The kit
 
 On a real machine, run the kit. It runs each probe whose agent is installed,
-runs the scrub, and writes one file in the current folder.
+runs the scrub, and writes one file in the current folder. No clone is
+necessary:
+
+```sh
+curl -fsSL https://xsavikx.github.io/agent-signals/kit.sh | sh
+curl -fsSL https://xsavikx.github.io/agent-signals/kit.sh | sh -s -- --all
+```
+
+```powershell
+irm https://xsavikx.github.io/agent-signals/kit.ps1 | iex
+& ([scriptblock]::Create((irm https://xsavikx.github.io/agent-signals/kit.ps1))) -All
+```
+
+`AGENT_SIGNALS_REF` selects a branch or a tag (default: `main`).
+
+In a clone:
 
 ```sh
 sh probes/run.sh            # Linux and macOS

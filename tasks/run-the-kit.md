@@ -7,16 +7,19 @@ processes, terminals, open files and session folders.
 
 ## Inputs
 
-- A clone of this repository on the machine.
+- curl or wget (Linux, macOS), or PowerShell (Windows). A clone of this
+  repository is not necessary.
 - Agent sessions that run now, if possible. A probe finds more when
   sessions run.
 
 ## Steps
 
-1. Open a terminal in the clone.
+1. Open a terminal in a folder where the kit can write its file.
 2. Run the kit:
-   - Linux or macOS: `sh probes/run.sh`
-   - Windows: `powershell -ExecutionPolicy Bypass -File probes\run.ps1`
+   - Linux or macOS: `curl -fsSL https://xsavikx.github.io/agent-signals/kit.sh | sh`
+   - Windows, in PowerShell: `irm https://xsavikx.github.io/agent-signals/kit.ps1 | iex`
+   - In a clone: `sh probes/run.sh`, or
+     `powershell -ExecutionPolicy Bypass -File probes\run.ps1`
 3. On macOS the kit asks if it can run the terminal probe. Caution: that
    probe can open a macOS dialog that asks for Automation access to
    Terminal or iTerm2. You can say no.
@@ -29,7 +32,8 @@ processes, terminals, open files and session folders.
 
 A guided step measures one event. Run one step at a time:
 
-1. `sh probes/run.sh --guided permission <agent>`
+1. `curl -fsSL https://xsavikx.github.io/agent-signals/kit.sh | sh -s -- --guided permission <agent>`,
+   or `sh probes/run.sh --guided permission <agent>` in a clone.
 2. Do the action that the kit prints, for example "ask for a file write and
    wait for the permission dialog".
 3. Push Enter. Do not touch the session for 30 s.

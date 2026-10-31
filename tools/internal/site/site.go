@@ -655,6 +655,14 @@ func (b *builder) assets() error {
 		}
 		b.files = append(b.files, File{Path: "assets/" + e.Name(), Data: data})
 	}
+	// The one-line starts of the probe kit, at the root of the site.
+	for _, k := range []string{"kit.sh", "kit.ps1"} {
+		data, err := os.ReadFile(filepath.Join(b.root, "probes", k))
+		if err != nil {
+			return err
+		}
+		b.files = append(b.files, File{Path: k, Data: data})
+	}
 	b.files = append(b.files, File{Path: marker, Data: nil})
 	return nil
 }
