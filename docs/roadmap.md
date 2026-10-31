@@ -49,14 +49,14 @@ real machine.
 
 | Agent | Linux | macOS | Windows |
 |---|---|---|---|
-| Claude Code | probe, CI, real; scenarios `permission-dialog`, `dialog-states`, `plan-and-resume`, `first-run`; facts 23-25, 29, 31-35 | probe, CI; scenario `first-run` (CI); fact 29 | probe, CI; install layout (CI); facts 47, 48 |
-| Codex CLI | probe, CI; scenarios `approval`, `two-sessions`, `screens`, `deny`, `interrupt`, `daemon-life`, `first-run`; facts 19, 20, 26, 27, 29, 36-40 | probe, CI; scenario `first-run` (CI); fact 29 | probe, CI; install layout (CI); facts 47, 48 |
+| Claude Code | probe, CI, real; scenarios `permission-dialog`, `dialog-states`, `plan-and-resume`, `first-run`; facts 23-25, 29, 31-35 | probe, CI; scenario `first-run` (CI); fact 29 | probe, CI; install layout (CI); scenario `first-run-windows` (CI); facts 47, 48, 51, 52 |
+| Codex CLI | probe, CI; scenarios `approval`, `two-sessions`, `screens`, `deny`, `interrupt`, `daemon-life`, `first-run`; facts 19, 20, 26, 27, 29, 36-40 | probe, CI; scenario `first-run` (CI); fact 29 | probe, CI; install layout (CI); scenario `first-run-windows` (CI); facts 47, 48, 51, 52, 53 |
 | agy | probe, CI; scenarios `turn-signals`, `deny-and-tools`, `continue`; facts 28, 41-45 | probe, CI | probe, CI |
-| Cursor CLI | probe, CI; scenario `first-run`; first screen in the corpus; no login on the Linux server; fact 29 | probe, CI, real; scenario `first-run` (CI); facts 21, 22, 29 | probe, CI; install layout (CI); facts 47, 48 |
-| opencode | probe, CI; scenario `first-run`; first screen in the corpus; fact 29 | probe, CI; scenario `first-run` (CI); fact 29 | probe, CI; install layout (CI); facts 47, 48 |
-| Gemini CLI, Copilot CLI, Qwen Code | scenario `first-run` (CI); first screens in the corpus; facts 30, 56 | scenario `first-run` (CI); fact 30 | install layout (CI); facts 47, 48 |
+| Cursor CLI | probe, CI; scenario `first-run`; first screen in the corpus; no login on the Linux server; fact 29 | probe, CI, real; scenario `first-run` (CI); facts 21, 22, 29 | probe, CI; install layout (CI); scenario `first-run-windows` (CI); facts 47, 48, 51, 52, 54 |
+| opencode | probe, CI; scenario `first-run`; first screen in the corpus; fact 29 | probe, CI; scenario `first-run` (CI); fact 29 | probe, CI; install layout (CI); scenario `first-run-windows` (CI); facts 47, 48, 51, 52 |
+| Gemini CLI, Copilot CLI, Qwen Code | scenario `first-run` (CI); first screens in the corpus; facts 30, 56 | scenario `first-run` (CI); fact 30 | install layout (CI); scenario `first-run-windows` (CI); facts 47, 48, 51, 52 |
 | Aider | scenario `first-run` (CI); first screens in the corpus; fact 30 | scenario `first-run` (CI, through uv); fact 49 | not checked |
-| Amp, Goose, Crush, Kimi Code, Continue, Droid, Cline, Kilo Code, Auggie, OpenHands | scenario `first-run` (CI); first screens in the corpus; facts 46, 50 | scenario `first-run` (CI); facts 46, 50, 57 | install layout (CI) for the npm agents and Kimi Code; facts 47, 48 (Amp fails on arm64); Goose and OpenHands not checked |
+| Amp, Goose, Crush, Kimi Code, Continue, Droid, Cline, Kilo Code, Auggie, OpenHands | scenario `first-run` (CI); first screens in the corpus; facts 46, 50 | scenario `first-run` (CI); facts 46, 50, 57 | install layout and scenario `first-run-windows` (CI) for the npm agents and Kimi Code; facts 47, 48, 51, 52 (Amp fails on arm64); Goose and OpenHands not checked |
 | Kiro CLI, others | none | none | none |
 
 ## Requests from tools
