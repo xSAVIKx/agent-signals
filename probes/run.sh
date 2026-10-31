@@ -7,7 +7,7 @@
 #   sh probes/run.sh --guided STEP [AGENT]
 #       STEP: permission | new-chat | resume | interrupt | front-tab
 #       AGENT: claude | codex | agy | cursor | opencode | copilot | gemini
-#       (default: all)
+#       (default: all). "agent" and "cursor-agent" mean cursor.
 #
 # The kit writes one file in the current folder:
 # agent-signals-probe-<os>-<time>.txt. The scrub (tools/scrub.sh) has
@@ -123,7 +123,17 @@ claude_status() {
 
 guided() {
   step=$1
-  which=${2:-$agents}
+  which=
+  for a in ${2:-$agents}; do
+    case $a in
+      agent | cursor-agent) a=cursor ;;
+    esac
+    case " $agents " in
+      *" $a "*) which="$which $a" ;;
+      *) echo "kit: unknown agent: $a. Use one of: $agents"; exit 2 ;;
+    esac
+  done
+  which=${which# }
   case $step in
     permission) action="In one agent session, ask for a file write, for example: Create a file named note.txt that holds the word hello. Wait until the permission dialog shows. Do not answer it yet." ;;
     new-chat) action="In one session, start a new chat: /new-chat in Cursor, /clear in Claude, /new in Codex." ;;

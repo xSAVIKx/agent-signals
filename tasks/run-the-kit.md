@@ -40,6 +40,9 @@ A guided step measures one event. Run one step at a time:
 4. Read and send the file, as in steps 4 to 6 above.
 
 Steps: `permission`, `new-chat`, `resume`, `interrupt`, `front-tab`.
+Agents: `claude`, `codex`, `agy`, `cursor` (also `agent`), `opencode`,
+`copilot`, `gemini`. With no agent, the step watches all of them. The step
+stops when no session of the agent runs.
 Caution: `front-tab` changes the selected terminal tab. It asks before it
 runs.
 
