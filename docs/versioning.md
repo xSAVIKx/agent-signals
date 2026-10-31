@@ -3,7 +3,10 @@
 ## The repository version
 
 The repository uses semantic versions. release-please makes each release from
-the Conventional Commits on `main`.
+the Conventional Commits on `main`. The corpus, the Go library and the
+Python library are three packages with their own tags. On GitHub, the newest
+corpus release has the mark "Latest". The release workflow sets this mark,
+because GitHub otherwise gives it to the package that it released last.
 
 | Change | Version part | Commit type |
 |---|---|---|

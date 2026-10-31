@@ -57,11 +57,21 @@ size, how the screen was made, and the expected result. Read
 
 The corpus holds no code that your tool runs. Each tool keeps its own reader.
 
-## Versions
+## Releases
 
-The repository uses semantic versions. The agent versions are data in the
-corpus, not the version of the repository. Read
-[`docs/versioning.md`](docs/versioning.md).
+release-please makes each release from the Conventional Commits on `main`.
+The repository has three packages, and each package has its own tag and
+changelog:
+
+| Package | Tag | Changelog |
+|---|---|---|
+| The corpus | `corpus-vX.Y.Z` | [`CHANGELOG.md`](CHANGELOG.md) |
+| The Go library | `go/vX.Y.Z` | [`go/CHANGELOG.md`](go/CHANGELOG.md) |
+| The Python library | `python-vX.Y.Z` | [`python/CHANGELOG.md`](python/CHANGELOG.md) |
+
+The agent versions are data in the corpus, not the version of a package.
+Read [`docs/versioning.md`](docs/versioning.md) and the
+[releases on GitHub](https://github.com/xSAVIKx/agent-signals/releases).
 
 ## Develop
 
@@ -88,3 +98,8 @@ your machine:
 
 All prose uses ASD-STE100 Simplified Technical English. Code, commands, paths
 and quoted output stay exact.
+
+## Maintainer
+
+Yurii Serhiichuk maintains this repository. Read more at
+[serhiichuk.dev](https://serhiichuk.dev/).

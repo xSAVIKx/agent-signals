@@ -1,5 +1,8 @@
 # Opens and updates the release pull request from the Conventional Commits on
 # main. A merge of that pull request makes the tag and the GitHub release.
+# GitHub marks the newest release as "Latest". The three packages release
+# at the same time, so the last step marks the newest corpus release as
+# "Latest" after each release.
 #
 # Each action is pinned to a commit SHA. The comment gives the tag.
 name: Release Please
@@ -20,7 +23,22 @@ jobs:
       contents: write
       pull-requests: write
     steps:
-      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+      - id: release
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+      - name: Mark the newest corpus release as Latest
+        if: steps.release.outputs.releases_created == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          tag=$(gh release list --limit 50 --json tagName,createdAt \
+            --jq '[.[] | select(.tagName | startswith("corpus-v"))] | sort_by(.createdAt) | last | .tagName // empty')
+          if [ -z "$tag" ]; then
+            echo "no corpus release"
+            exit 0
+          fi
+          gh release edit "$tag" --latest
+          echo "latest: $tag"

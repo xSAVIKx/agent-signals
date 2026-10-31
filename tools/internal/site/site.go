@@ -7,6 +7,7 @@ package site
 import (
 	"bytes"
 	"embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
@@ -43,6 +44,7 @@ var nav = []navItem{
 	{"scenarios", "Scenarios", "scenarios/index.html"},
 	{"roadmap", "Roadmap", "docs/roadmap.html"},
 	{"tasks", "Tasks", "tasks/index.html"},
+	{"releases", "Releases", "releases/index.html"},
 	{"reference", "Reference", "reference.html"},
 }
 
@@ -52,21 +54,25 @@ type docPage struct {
 	Out     string // the output path
 	Section string // the key of the navigation item
 	Summary string // one line for the reference page, or ""
+	Title   string // a title that replaces the level-1 heading, or ""
 }
 
 // docPages lists the Markdown files that are pages of their own. The facts,
 // the tasks, the home page and the facts index are added in Build.
 var docPages = []docPage{
-	{"AGENTS.md", "agents.html", "reference", "The jobs for agents, and where things are in the repository."},
-	{"docs/format.md", "docs/format.html", "reference", "The format of a screen: the .screen file, the .yaml file, the states and the provenance."},
-	{"docs/versioning.md", "docs/versioning.html", "reference", "The repository version, the agent versions, the tags and the schema versions."},
-	{"docs/os-checks.md", "docs/os-checks.html", "reference", "For each OS: how to see a process, its terminal, its open files and its folder."},
-	{"docs/ci-secrets.md", "docs/ci-secrets.html", "reference", "The repository secrets that the model scenarios need."},
-	{"docs/roadmap.md", "docs/roadmap.html", "roadmap", ""},
-	{"probes/README.md", "probes/index.html", "probes", ""},
-	{"scenarios/README.md", "scenarios/index.html", "scenarios", ""},
-	{"protocol/README.md", "protocol/index.html", "protocol", ""},
-	{"protocol/answer.md", "protocol/answer.html", "protocol", ""},
+	{"AGENTS.md", "agents.html", "reference", "The jobs for agents, and where things are in the repository.", ""},
+	{"docs/format.md", "docs/format.html", "reference", "The format of a screen: the .screen file, the .yaml file, the states and the provenance.", ""},
+	{"docs/versioning.md", "docs/versioning.html", "reference", "The repository version, the agent versions, the tags and the schema versions.", ""},
+	{"docs/os-checks.md", "docs/os-checks.html", "reference", "For each OS: how to see a process, its terminal, its open files and its folder.", ""},
+	{"docs/ci-secrets.md", "docs/ci-secrets.html", "reference", "The repository secrets that the model scenarios need.", ""},
+	{"docs/roadmap.md", "docs/roadmap.html", "roadmap", "", ""},
+	{"probes/README.md", "probes/index.html", "probes", "", ""},
+	{"scenarios/README.md", "scenarios/index.html", "scenarios", "", ""},
+	{"protocol/README.md", "protocol/index.html", "protocol", "", ""},
+	{"protocol/answer.md", "protocol/answer.html", "protocol", "", ""},
+	{"CHANGELOG.md", "releases/corpus.html", "releases", "", "Changelog of the corpus"},
+	{"go/CHANGELOG.md", "releases/go.html", "releases", "", "Changelog of the Go library"},
+	{"python/CHANGELOG.md", "releases/python.html", "releases", "", "Changelog of the Python library"},
 }
 
 // crumb is one item of a breadcrumb trail.
@@ -316,7 +322,7 @@ func (b *builder) exec(p page, name string, data any) error {
 
 func (b *builder) pages() error {
 	steps := []func() error{b.home, b.docs, b.factsIndex, b.factPages, b.corpusIndex, b.screenPages,
-		b.tasksPages, b.reference, b.assets}
+		b.tasksPages, b.releases, b.reference, b.assets}
 	for _, s := range steps {
 		if err := s(); err != nil {
 			return err
@@ -331,8 +337,13 @@ func (b *builder) docs() error {
 		if err != nil {
 			return err
 		}
+		if d.Title != "" {
+			doc.Title = d.Title
+		}
 		var crumbs []crumb
-		if d.Section == "reference" {
+		if d.Section == "releases" {
+			crumbs = []crumb{{"Home", "index.html"}, {"Releases", "releases/index.html"}}
+		} else if d.Section == "reference" {
 			crumbs = []crumb{{"Home", "index.html"}, {"Reference", "reference.html"}}
 		} else if d.Src == "protocol/answer.md" {
 			crumbs = []crumb{{"Home", "index.html"}, {"Protocol", "protocol/index.html"}}
@@ -516,6 +527,41 @@ func (b *builder) tasksPages() error {
 	return b.exec(p, "tasks.html", struct {
 		page
 		Items []item
+	}{p, items})
+}
+
+// release is one package that release-please releases.
+type release struct {
+	Name, Path, Version, Tag, Changelog string
+}
+
+// releases lists the packages of release-please-config.json, with the
+// version in .release-please-manifest.json.
+func (b *builder) releases() error {
+	data, err := os.ReadFile(filepath.Join(b.root, ".release-please-manifest.json"))
+	if err != nil {
+		return err
+	}
+	var versions map[string]string
+	if err := json.Unmarshal(data, &versions); err != nil {
+		return fmt.Errorf(".release-please-manifest.json: %w", err)
+	}
+	items := []release{
+		{"The corpus", ".", versions["."], "corpus-v" + versions["."], "releases/corpus.html"},
+		{"The Go library", "go", versions["go"], "go/v" + versions["go"], "releases/go.html"},
+		{"The Python library", "python", versions["python"], "python-v" + versions["python"], "releases/python.html"},
+	}
+	for _, r := range items {
+		if r.Version == "" {
+			return fmt.Errorf(".release-please-manifest.json: no version for %q", r.Path)
+		}
+	}
+	p := page{Out: "releases/index.html", Title: "Releases", Section: "releases",
+		Description: "The releases of the corpus, the Go library and the Python library, with their changelogs.",
+		Crumbs:      []crumb{{"Home", "index.html"}}}
+	return b.exec(p, "releases.html", struct {
+		page
+		Items []release
 	}{p, items})
 }
 
