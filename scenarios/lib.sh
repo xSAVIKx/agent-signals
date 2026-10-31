@@ -173,9 +173,16 @@ tmux_start() {
   # The tmux server starts with a clean environment, so that the
   # variables of the calling session do not reach the agent. tmux adds
   # TMUX and TMUX_PANE to the pane, as in a real session.
+  # SCN_REMAIN=1 keeps the pane open after the agent stops, so that a
+  # capture still shows the last screen of the agent.
+  conf=/dev/null
+  if [ "${SCN_REMAIN:-0}" = 1 ]; then
+    conf=$SCN_DIR/tmux.conf
+    echo 'set -g remain-on-exit on' >"$conf"
+  fi
   env -i HOME="$SCN_HOME" PATH="$PATH" TERM=xterm-256color \
     LANG="${LANG:-C.UTF-8}" USER=dev \
-    tmux -L "$SCN_SOCK" -f /dev/null new-session -d -s scn \
+    tmux -L "$SCN_SOCK" -f "$conf" new-session -d -s scn \
     -x "$SCN_COLS" -y "$SCN_ROWS" -c "$SCN_WORK" \
     sh -c '. "$0"; rm -f "$0"; exec "$@"' "$SCN_DIR/env" "$@"
 }

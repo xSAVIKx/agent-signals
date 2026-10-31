@@ -41,6 +41,11 @@ extra=$(sandbox_dir_vars)
 # on stderr first (OpenHands), so stderr counts only when stdout is empty.
 v=$("$cmd" --version 2>/dev/null </dev/null | grep -v '^[[:space:]]*$' | head -n 1)
 [ -n "$v" ] || v=$("$cmd" --version 2>&1 </dev/null | head -n 1)
+# Some agents download their binary at the first call and print that
+# first (Codebuff). Then the version comes from a second call.
+case $v in
+  *[Dd]ownload*) v=$("$cmd" --version 2>/dev/null </dev/null | grep -v '^[[:space:]]*$' | head -n 1) ;;
+esac
 note "version: $v"
 note "os: $PROBE_OS $(uname -m)"
 
@@ -50,9 +55,16 @@ step() {
   scn_open_files "$1" "$(agent_pid)"
   # shellcheck disable=SC2086
   snapshot_files "$1" "$SCN_HOME" $extra
-  note "step $1"
+  # An agent that stops keeps its last screen: the pane stays open
+  # (SCN_REMAIN in scenarios/lib.sh).
+  dead=$(tmux -L "$SCN_SOCK" display -p -t scn '#{pane_dead} #{pane_dead_status}' 2>/dev/null || true)
+  case $dead in
+    1*) note "step $1: the agent stopped, exit status ${dead#1 }" ;;
+    *) note "step $1" ;;
+  esac
 }
 
+SCN_REMAIN=1
 tmux_start "$cmd"
 sleep 5
 step 01-after-5s

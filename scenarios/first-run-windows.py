@@ -283,6 +283,10 @@ class Run:
             die("not installed: " + self.cmd)
         # The version comes first, with the real profile, as in first-run.sh.
         v, status = first_line(launcher(path, os.environ) + ["--version"], os.environ, self.work)
+        # Some agents download their binary at the first call and print
+        # that first (Codebuff). Then the version comes from a second call.
+        if "download" in v.lower():
+            v, status = first_line(launcher(path, os.environ) + ["--version"], os.environ, self.work)
         self.note("version: %s (%s)" % (v, status))
         self.note("os: %s %s" % (platform.platform(), platform.machine()))
         self.note("python: %s %s" % (platform.python_version(), platform.machine()))

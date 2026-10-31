@@ -278,8 +278,10 @@ jobs:
             sh tools/scrub.sh "$o/02-after-20s.ps" 2>/dev/null
             echo "--- top folders made in the throwaway HOME"
             awk '{print $3}' "$o/02-after-20s.files" | sed 's#<sandbox>/home/##' | cut -d/ -f1-2 | sort | uniq -c | sort -rn | head -n 15
+            # Also the folders of the folder variables (codex-home), which
+            # start with <sandbox>/. next to the throwaway HOME.
             echo "--- open files below the throwaway HOME"
-            grep '<sandbox>/home' "$o/02-after-20s.open" | awk '{print $2}' | sed 's#<sandbox>/home/##' | sh tools/scrub.sh 2>/dev/null | sort -u | head -n 30
+            grep -E '<sandbox>/(home|\.)' "$o/02-after-20s.open" | awk '{print $2}' | sed 's#<sandbox>/home/##' | sh tools/scrub.sh 2>/dev/null | sort -u | head -n 30
             echo "--- folders made in the throwaway HOME (files in each)"
             awk '{print $3}' "$o/02-after-20s.files" | sed 's#<sandbox>/home/##' | cut -d/ -f1-3 | sh tools/scrub.sh 2>/dev/null | sort | uniq -c | head -n 40
           done
