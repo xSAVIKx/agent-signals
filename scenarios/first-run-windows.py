@@ -319,6 +319,10 @@ class Run:
 
 
 if __name__ == "__main__":
+    # The output goes to a file. A version line can hold characters that
+    # the code page of the console cannot encode (Codebuff prints one).
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
     if len(sys.argv) < 2:
         die("usage: first-run-windows.py AGENT [COMMAND]")
     a = sys.argv[1]
