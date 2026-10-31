@@ -16,7 +16,7 @@ header terminals/macos.sh 1 tmux
 
 section "Terminal programs that run now"
 ps -axo comm= | grep -E -i 'Terminal|iTerm|Ghostty|WezTerm|kitty|Alacritty|Warp|pycharm|idea|webstorm|goland|clion|rider|Code Helper|Cursor Helper|/Cursor$|/Code$' |
-  sed 's#.*/##' | sort | uniq -c
+  sed -e 's#.*/##' -e 's#\(extension-host\) .*#\1 <workspace>#' -e 's#\(fileWatcher\) \[.*#\1 <workspace>#' | sort | uniq -c
 
 section "tty and terminal of each agent process"
 for x in $(pids '(^|[ /])(claude|codex|agy|opencode|cursor-agent)( |$)|/\.local/bin/agent( |$)'); do
@@ -28,14 +28,14 @@ done
 # dialog that asks for Automation access. Each call below is read-only. The
 # rest of the output does not need the access.
 section "Terminal tabs and their ttys"
-if pgrep -x Terminal >/dev/null 2>&1; then
+if ps -axo comm= | grep -q '/Terminal$'; then
   osascript -e 'tell application "Terminal" to get tty of every tab of every window' 2>&1
 else
   echo "Terminal: not running"
 fi
 
 section "iTerm2 sessions and their ttys"
-if pgrep -x iTerm2 >/dev/null 2>&1; then
+if ps -axo comm= | grep -q '/iTerm2$'; then
   osascript -e 'tell application "iTerm2" to get tty of every session of every tab of every window' 2>&1
 else
   echo "iTerm2: not running"
