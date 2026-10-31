@@ -443,3 +443,74 @@ func TestReleasesPage(t *testing.T) {
 		}
 	}
 }
+
+var (
+	regionOpen = regexp.MustCompile(`<div class="(?:table-wrap|code-wrap|screen-scroll)" role="region" tabindex="0" aria-(label|labelledby)="([^"]+)">\s*$`)
+	tableOrPre = regexp.MustCompile(`<(table|pre)[\s>]`)
+)
+
+// TestTablesAndPreScrollInANamedRegion checks every page of the site: each
+// <table> and each <pre> is the first child of a scroll frame that a
+// keyboard can reach and that has a name. The names on one page differ, so
+// that a screen reader user can tell the frames apart.
+func TestTablesAndPreScrollInANamedRegion(t *testing.T) {
+	files, err := Build("../../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range files {
+		if !strings.HasSuffix(f.Path, ".html") {
+			continue
+		}
+		s := string(f.Data)
+		names := map[string]bool{}
+		for _, m := range tableOrPre.FindAllStringSubmatchIndex(s, -1) {
+			r := regionOpen.FindStringSubmatch(s[:m[0]])
+			if r == nil {
+				t.Errorf("%s: a <%s> at byte %d is not in a named scroll region", f.Path, s[m[2]:m[3]], m[0])
+				continue
+			}
+			name := r[2]
+			if r[1] == "labelledby" {
+				if !strings.Contains(s, `id="`+name+`"`) {
+					t.Errorf("%s: aria-labelledby %q names no element", f.Path, name)
+				}
+				name = "#" + name
+			}
+			if names[name] {
+				t.Errorf("%s: two scroll regions have the name %q", f.Path, name)
+			}
+			names[name] = true
+		}
+	}
+}
+
+// TestHomePageOrder checks that the home page tells what the project is,
+// who it is for and how to use it before the cards, and that it shows each
+// README section once.
+func TestHomePageOrder(t *testing.T) {
+	files, err := Build("../../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var home string
+	for _, f := range files {
+		if f.Path == "index.html" {
+			home = string(f.Data)
+		}
+	}
+	order := []string{`id="who-it-is-for"`, `id="how-to-use-the-corpus"`, `id="three-kinds-of-signals"`,
+		`id="pages-in-this-site"`, `id="` + homeSplit + `"`, `id="maintainer"`}
+	last := -1
+	for _, id := range order {
+		if n := strings.Count(home, id); n != 1 {
+			t.Errorf("index.html: %s occurs %d times", id, n)
+			continue
+		}
+		i := strings.Index(home, id)
+		if i < last {
+			t.Errorf("index.html: %s is not in its place", id)
+		}
+		last = i
+	}
+}

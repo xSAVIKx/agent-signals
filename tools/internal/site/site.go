@@ -31,6 +31,11 @@ const BaseURL = "https://xsavikx.github.io/agent-signals/"
 // build deletes an existing output folder only when it holds this file.
 const marker = ".nojekyll"
 
+// homeSplit is the ID of the first README section that the home page shows
+// after its own sections. The README sections before it tell what the
+// project is, who it is for and how to use it.
+const homeSplit = "what-is-in-the-repository"
+
 // navItem is one link of the main navigation.
 type navItem struct {
 	Key, Label, Out string
@@ -369,15 +374,18 @@ func (b *builder) home() error {
 	for _, a := range b.agents {
 		screens += len(a.Screens)
 	}
-	// The home page shows the first paragraph as the lead, then the other
-	// paragraphs before the first section, then its own sections, then the
-	// sections of the README.
+	// The home page shows the first paragraph as the lead, then the README
+	// up to the section homeSplit, then its own sections, then the other
+	// sections of the README. Without that section, the split is at the
+	// first section.
 	body := string(doc.Body)
 	if _, after, ok := strings.Cut(body, "</p>\n"); ok && strings.HasPrefix(body, "<p>") {
 		body = after
 	}
 	intro, rest := body, ""
-	if i := strings.Index(body, "<h2"); i >= 0 {
+	if i := strings.Index(body, `<h2 id="`+homeSplit+`"`); i >= 0 {
+		intro, rest = body[:i], body[i:]
+	} else if i := strings.Index(body, "<h2"); i >= 0 {
 		intro, rest = body[:i], body[i:]
 	}
 	p := page{Out: "index.html", Title: doc.Title, Description: doc.Lead, Section: "home", Source: "README.md"}

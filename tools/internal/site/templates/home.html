@@ -1,12 +1,6 @@
 {{define "home.html"}}<h1>{{.Doc.Title}}</h1>
 <p class="lead">{{.Doc.Lead}}</p>
 {{.Intro}}
-<h2 id="who-it-is-for">Who it is for</h2>
-<ul>
-<li>Authors of tools that watch or drive an agent session in a terminal. aw and tg-bridge are two such tools. Each tool tests its own reader against the same screens and facts.</li>
-<li>Agents that do a job in this repository. Each job has a <a href="{{rel .Out "tasks/index.html"}}">task file</a>.</li>
-<li>Operators who must know how an agent behaves on an OS before they automate it.</li>
-</ul>
 <h2 id="three-kinds-of-signals">Three kinds of signals</h2>
 <ul class="cards">
 <li class="card">

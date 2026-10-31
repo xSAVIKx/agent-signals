@@ -11,10 +11,28 @@ tests its own reader against the same data.
 
 The first signals are terminal screens of Claude Code, Antigravity CLI (agy)
 and Codex CLI in tmux. The corpus also holds the first screen with no login
-of GitHub Copilot CLI, Gemini CLI, Cursor CLI, opencode, Qwen Code, Aider,
-Amp, Goose, Crush, Kimi Code CLI, Continue CLI, Factory Droid, Cline CLI,
-Kilo Code CLI, Auggie and OpenHands CLI. Hook payloads, session files and
-log lines follow.
+of each other agent in [the roadmap](docs/roadmap.md). Hook payloads,
+session files and log lines follow.
+
+## Who it is for
+
+- Authors of tools that watch or drive an agent session in a terminal. aw
+  and tg-bridge are two such tools. Each tool tests its own reader against
+  the same screens and facts.
+- Agents that do a job in this repository. Each job has a
+  [task file](tasks/).
+- Operators who must know how an agent behaves on an OS before they
+  automate it.
+
+## How to use the corpus
+
+1. Pin a corpus release tag, `corpus-vX.Y.Z`, from the
+   [releases on GitHub](https://github.com/xSAVIKx/agent-signals/releases).
+2. Copy `corpus/`, `schema/` and `facts/` from that tag into your tree.
+3. Run one table test: for each screen, give the `.screen` bytes to your
+   reader, and compare the result with `expect` in the `.yaml` file.
+
+The corpus holds no code that your tool runs. Each tool keeps its own reader.
 
 ## What is in the repository
 
@@ -35,7 +53,8 @@ log lines follow.
 
 The Go library in `go/` and the Python library in `python/` load the corpus
 and give typed fixtures. No library is needed to use the data. Read
-[`go/README.md`](go/README.md) and [`python/README.md`](python/README.md).
+[the guide to the Go library](go/README.md) and
+[the guide to the Python library](python/README.md).
 
 ## A screen
 
@@ -47,15 +66,6 @@ newline kept. Do not let an editor change these files. `.editorconfig` and
 The `.yaml` file beside it records the agent, the agent version, the pane
 size, how the screen was made, and the expected result. Read
 [`docs/format.md`](docs/format.md) for each field.
-
-## How to use the corpus
-
-1. Pin a release tag of this repository.
-2. Copy `corpus/`, `schema/` and `facts/` from that tag into your tree.
-3. Run one table test: for each screen, give the `.screen` bytes to your
-   reader, and compare the result with `expect` in the `.yaml` file.
-
-The corpus holds no code that your tool runs. Each tool keeps its own reader.
 
 ## Releases
 
@@ -75,9 +85,11 @@ Read [`docs/versioning.md`](docs/versioning.md) and the
 
 ## Develop
 
-    cd tools && go test ./... && go run ./cmd/validate ..
-    cd go && go vet ./... && go test ./...
-    pip install -e "python[test]" && pytest python
+```sh
+cd tools && go test ./... && go run ./cmd/validate ..
+cd go && go vet ./... && go test ./...
+pip install -e "python[test]" && pytest python
+```
 
 After a change in `corpus/` or `facts/`, run `tools/sync-go-data.sh`. It also
 runs `tools/sync-python-data.sh`. Commit `go/data/` and
@@ -91,8 +103,10 @@ files, the facts and the corpus. The Markdown files stay the source. The
 pages workflow builds the site and deploys it from `main`. To build it on
 your machine:
 
-    cd tools && go run ./cmd/site -root .. -out ../_site
-    python3 -m http.server 8000 --bind 127.0.0.1 --directory ../_site
+```sh
+cd tools && go run ./cmd/site -root .. -out ../_site
+python3 -m http.server 8000 --bind 127.0.0.1 --directory ../_site
+```
 
 ## Writing style
 
