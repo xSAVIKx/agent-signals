@@ -43,7 +43,7 @@ runner with no agent session.
 | Working folder | No route without reading the memory of the process. A Claude session shows its folder in its session file. | aw (no route) |
 | Open files | psutil `Process.open_files()` lists the log files that an agent holds open (Cursor CLI). Sysinternals `handle.exe -p <pid>` is not part of Windows. | CI runners (fact 54) |
 | Terminal driver | A pseudo console (ConPTY) through pywinpty 3.1.2, read with pyte 0.8.2 (`scenarios/conpty.py`). The console host is the `OpenConsole.exe` of the wheel, a child of the driver, not of the agent. | CI runners (fact 51) |
-| Home folder of an agent | Most agents read USERPROFILE. Codex CLI ignores USERPROFILE and HOME and writes to the profile of the account. Cursor CLI takes the account name from Windows, not from USERNAME. | CI runners (facts 53, 54) |
+| Home folder of an agent | Most agents read USERPROFILE. Codex CLI ignores USERPROFILE and HOME and writes to the profile of the account, but it uses `CODEX_HOME` when it is set. Open Interpreter, Every Code, Junie CLI and Kiro CLI also write to the profile of the account. Cursor CLI takes the account name from Windows, not from USERNAME. | CI runners (facts 53, 54, 62, 64) |
 | Terminal | A console process has no tty. The parent chain shows the terminal program: `WindowsTerminal`, `OpenConsole`, `conhost`, `Code`, a JetBrains IDE. | probe (no session) |
 | Environment of another process | No route without extra tools. | not measured |
 | psmux (tmux for Windows) | `psmux ls`, `psmux list-panes -a`. Under PowerShell, `send-keys ... C-m` sends a literal `^M`; `Enter` works. | aw (psmux 3.4.0) |
