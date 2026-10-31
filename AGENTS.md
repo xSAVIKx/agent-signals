@@ -8,6 +8,12 @@ Read `CLAUDE.md` first. Its rules apply to every agent, not only to Claude:
 no secrets, no host details, no session details, Conventional Commits, and
 prose in ASD-STE100 Simplified Technical English.
 
+## Read the data from outside the repository
+
+An agent that only reads the data does not need a clone. Start with
+<https://xsavikx.github.io/agent-signals/llms.txt>. It links `corpus.json`,
+`facts.json`, and a Markdown copy of each page.
+
 ## Jobs
 
 Each job has a task file. Follow the task file step by step.

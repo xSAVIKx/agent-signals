@@ -514,3 +514,93 @@ func TestHomePageOrder(t *testing.T) {
 		last = i
 	}
 }
+
+var llmsLink = regexp.MustCompile(`\]\((https://[^)]+)\)`)
+
+// TestMachineOutputs checks the outputs for agents: each link of llms.txt
+// to this site goes to a file of the build, each Markdown copy has the
+// bytes of its source, and corpus.json and facts.json hold every screen
+// and every fact.
+func TestMachineOutputs(t *testing.T) {
+	files, err := Build("../../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	byPath := map[string][]byte{}
+	for _, f := range files {
+		byPath[f.Path] = f.Data
+	}
+	llms := string(byPath["llms.txt"])
+	if !strings.HasPrefix(llms, "# agent-signals\n\n> ") {
+		t.Fatalf("llms.txt: no title and summary")
+	}
+	n := 0
+	for _, m := range llmsLink.FindAllStringSubmatch(llms, -1) {
+		if p, ok := strings.CutPrefix(m[1], BaseURL); ok {
+			if _, ok := byPath[p]; !ok {
+				t.Errorf("llms.txt: %s is not in the build", m[1])
+			}
+			n++
+		}
+	}
+	if n < 50 {
+		t.Errorf("llms.txt: %d links to the site, want 50 or more", n)
+	}
+	readme, err := os.ReadFile("../../../README.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(byPath["index.md"], readme) {
+		t.Errorf("index.md differs from README.md")
+	}
+	if !strings.Contains(string(byPath["index.html"]), `<link rel="alternate" type="text/markdown" href="index.md">`) {
+		t.Errorf("index.html: no link to its Markdown copy")
+	}
+	agents, err := LoadCorpus("../../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var corpus struct {
+		Agents []struct {
+			Name    string
+			Screens []struct {
+				Key, Screen, Meta string
+				Fields            map[string]any
+			}
+		}
+	}
+	if err := json.Unmarshal(byPath["corpus.json"], &corpus); err != nil {
+		t.Fatal(err)
+	}
+	if len(corpus.Agents) != len(agents) {
+		t.Fatalf("corpus.json: %d agents, want %d", len(corpus.Agents), len(agents))
+	}
+	for i, a := range agents {
+		if len(corpus.Agents[i].Screens) != len(a.Screens) {
+			t.Errorf("corpus.json: %s has %d screens, want %d", a.Name, len(corpus.Agents[i].Screens), len(a.Screens))
+			continue
+		}
+		for j, s := range corpus.Agents[i].Screens {
+			if s.Fields["agent"] != a.Name {
+				t.Errorf("corpus.json: %s: agent %v", s.Key, s.Fields["agent"])
+			}
+			for _, u := range []string{s.Screen, s.Meta} {
+				p, _ := strings.CutPrefix(u, BaseURL)
+				if _, ok := byPath[p]; !ok {
+					t.Errorf("corpus.json: %s is not in the build", u)
+				}
+			}
+			if !bytes.Equal(byPath[strings.TrimPrefix(s.Meta, BaseURL)], a.Screens[j].MetaBytes) {
+				t.Errorf("corpus.json: %s: the .yaml copy differs", s.Key)
+			}
+		}
+	}
+	var facts struct{ Facts []struct{ Number int } }
+	if err := json.Unmarshal(byPath["facts.json"], &facts); err != nil {
+		t.Fatal(err)
+	}
+	names, _ := filepath.Glob("../../../facts/[0-9]*.md")
+	if len(facts.Facts) != len(names) || len(names) == 0 {
+		t.Errorf("facts.json: %d facts, want %d", len(facts.Facts), len(names))
+	}
+}

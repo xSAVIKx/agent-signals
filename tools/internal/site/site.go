@@ -95,6 +95,7 @@ type page struct {
 	Crumbs      []crumb
 	Body        template.HTML
 	Script      bool
+	Markdown    string // the output path of the Markdown copy, or ""
 	Nav         []navItem
 }
 
@@ -170,6 +171,7 @@ type builder struct {
 	factMap map[int]factRef
 	ignored []string
 	files   []File
+	mdDocs  []mdDoc
 }
 
 func factOut(f Fact) string { return "facts/" + f.Slug + ".html" }
@@ -327,7 +329,7 @@ func (b *builder) exec(p page, name string, data any) error {
 
 func (b *builder) pages() error {
 	steps := []func() error{b.home, b.docs, b.factsIndex, b.factPages, b.corpusIndex, b.screenPages,
-		b.tasksPages, b.releases, b.reference, b.assets}
+		b.tasksPages, b.releases, b.reference, b.assets, b.machine}
 	for _, s := range steps {
 		if err := s(); err != nil {
 			return err
@@ -353,8 +355,19 @@ func (b *builder) docs() error {
 		} else if d.Src == "protocol/answer.md" {
 			crumbs = []crumb{{"Home", "index.html"}, {"Protocol", "protocol/index.html"}}
 		}
+		group := "Docs"
+		switch {
+		case d.Section == "releases":
+			group = "Optional"
+		case d.Src == "AGENTS.md":
+			group = "Start"
+		}
+		md, err := b.addMarkdown(d.Src, d.Out, doc.Title, doc.Lead, group)
+		if err != nil {
+			return err
+		}
 		p := page{Out: d.Out, Title: doc.Title, Description: doc.Lead, Section: d.Section, Source: d.Src,
-			Crumbs: crumbs, Body: doc.Body}
+			Crumbs: crumbs, Body: doc.Body, Markdown: md}
 		if err := b.exec(p, "doc.html", struct {
 			page
 			Doc Doc
@@ -388,7 +401,11 @@ func (b *builder) home() error {
 	} else if i := strings.Index(body, "<h2"); i >= 0 {
 		intro, rest = body[:i], body[i:]
 	}
-	p := page{Out: "index.html", Title: doc.Title, Description: doc.Lead, Section: "home", Source: "README.md"}
+	md, err := b.addMarkdown("README.md", "index.html", doc.Title, doc.Lead, "Start")
+	if err != nil {
+		return err
+	}
+	p := page{Out: "index.html", Title: doc.Title, Description: doc.Lead, Section: "home", Source: "README.md", Markdown: md}
 	return b.exec(p, "home.html", struct {
 		page
 		Doc     Doc
@@ -408,7 +425,11 @@ func (b *builder) factsIndex() error {
 	if err != nil {
 		return err
 	}
-	p := page{Out: "facts/index.html", Title: "Facts", Section: "facts", Source: "facts/README.md", Script: true,
+	md, err := b.addMarkdown("facts/README.md", "facts/index.html", "Facts", doc.Lead, "Facts")
+	if err != nil {
+		return err
+	}
+	p := page{Out: "facts/index.html", Title: "Facts", Section: "facts", Source: "facts/README.md", Script: true, Markdown: md,
 		Description: "The measured facts about AI coding agents, one page for each fact.",
 		Crumbs:      []crumb{{"Home", "index.html"}}}
 	return b.exec(p, "facts.html", struct {
@@ -440,7 +461,11 @@ func (b *builder) factPages() error {
 		if i+1 < len(b.facts) {
 			next = &b.facts[i+1]
 		}
-		p := page{Out: out, Title: doc.Title, Description: doc.Lead, Section: "facts", Source: "facts/" + f.Slug + ".md",
+		md, err := b.addMarkdown("facts/"+f.Slug+".md", out, doc.Title, "", "Facts")
+		if err != nil {
+			return err
+		}
+		p := page{Out: out, Title: doc.Title, Description: doc.Lead, Section: "facts", Source: "facts/" + f.Slug + ".md", Markdown: md,
 			Crumbs: []crumb{{"Home", "index.html"}, {"Facts", "facts/index.html"}}}
 		if err := b.exec(p, "fact.html", struct {
 			page
@@ -520,8 +545,12 @@ func (b *builder) tasksPages() error {
 		title := strings.TrimPrefix(doc.Title, "Task: ")
 		title = strings.ToUpper(title[:1]) + title[1:]
 		items = append(items, item{t.Out, title, doc.Lead})
+		md, err := b.addMarkdown(t.Src, t.Out, doc.Title, doc.Lead, "Tasks")
+		if err != nil {
+			return err
+		}
 		p := page{Out: t.Out, Title: doc.Title, Description: doc.Lead, Section: "tasks", Source: t.Src,
-			Crumbs: []crumb{{"Home", "index.html"}, {"Tasks", "tasks/index.html"}}, Body: doc.Body}
+			Crumbs: []crumb{{"Home", "index.html"}, {"Tasks", "tasks/index.html"}}, Body: doc.Body, Markdown: md}
 		if err := b.exec(p, "doc.html", struct {
 			page
 			Doc Doc

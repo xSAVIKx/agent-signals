@@ -108,6 +108,21 @@ cd tools && go run ./cmd/site -root .. -out ../_site
 python3 -m http.server 8000 --bind 127.0.0.1 --directory ../_site
 ```
 
+### For agents and programs
+
+The website also gives the data in forms that a program can read:
+
+| URL | Content |
+|---|---|
+| [`llms.txt`](https://xsavikx.github.io/agent-signals/llms.txt) | An index of the site for language models, in the [llms.txt](https://llmstxt.org/) format. |
+| [`llms-full.txt`](https://xsavikx.github.io/agent-signals/llms-full.txt) | All Markdown pages in one file. |
+| [`corpus.json`](https://xsavikx.github.io/agent-signals/corpus.json) | Each agent, its verified versions, and each screen with its fields and the URLs of its files. |
+| [`facts.json`](https://xsavikx.github.io/agent-signals/facts.json) | Each fact with its number, date, agents and URLs. |
+| `<page>.md` | The Markdown copy of each page that comes from a Markdown file. |
+
+Each screen also has its `.screen` and `.yaml` files beside its page, for
+example `corpus/claude/<slug>.screen`.
+
 ## Writing style
 
 All prose uses ASD-STE100 Simplified Technical English. Code, commands, paths
