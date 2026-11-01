@@ -26,6 +26,20 @@ data="$here/tools/testdata/probe-lib"
 toml_tables "$data/config.toml" >/dev/null
 json_keys "$data/settings.json" >/dev/null
 
+# pids must not find the shell that started the kit, also when its
+# command line holds the agent name (as with "sh -s -- --guided STEP agy").
+# The copy of lib.sh is outside probes/, because pids skips command lines
+# that hold "probes/". The outer shell holds the name, as the kit does.
+_tmp=$(mktemp -d)
+cp "$here/probes/lib.sh" "$_tmp/lib.sh"
+_found=$(sh -c 'sh -c ". \"\$1\"; pids \"(^|[ /])agy-test-name( |\\\$)\"" inner "$1"; true' outer "$_tmp/lib.sh" agy-test-name)
+rm -rf "$_tmp"
+if [ -n "$_found" ]; then
+  echo "fail: pids found the processes that started it: $_found"
+  exit 1
+fi
+echo "pass: pids does not find the processes that started it"
+
 fail=0
 _now=
 for _name in $names; do
