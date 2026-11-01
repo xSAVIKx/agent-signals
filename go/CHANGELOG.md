@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.8.0](https://github.com/xSAVIKx/agent-signals/compare/go/v0.7.0...go/v0.8.0) (2026-11-01)
+
+
+### Features
+
+* add fact 073, agy in the Debian VM of the Android Terminal app ([#63](https://github.com/xSAVIKx/agent-signals/issues/63)) ([ce0d3bd](https://github.com/xSAVIKx/agent-signals/commit/ce0d3bdfa6c6ea59c29f32711a1b8d85b4cfa542))
+
+
+### Bug Fixes
+
+* **probes:** skip the processes that start the kit when a guided step counts agent processes ([#66](https://github.com/xSAVIKx/agent-signals/issues/66)) ([afe26ac](https://github.com/xSAVIKx/agent-signals/commit/afe26acf00d2cd92a5ed2446d91f9a967c344ade))
+
 ## [0.7.0](https://github.com/xSAVIKx/agent-signals/compare/go/v0.6.0...go/v0.7.0) (2026-10-31)
 
 
