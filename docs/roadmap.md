@@ -114,14 +114,14 @@ or says what is left.
 | 2 | Codex: does a TUI hold its rollout file open? | Fact 26: no. In the default mode a shared daemon holds it. Fact 39: a `--no-daemon` TUI holds its own file. Fact 40: no table of `state_5.sqlite` links a TUI to its thread. |
 | 3 | Cursor: `/new-chat` and `--resume`, old and new `store.db` | Open. Kit steps `new-chat` and `resume`, or a scenario with `CURSOR_API_KEY`. |
 | 4 | Cursor: an end record after an interrupt | Open. Kit step `interrupt`. |
-| 5 | Claude, Codex, agy: the files that each process holds open | Facts 25, 26, 28 (Linux). Claude: the task folder keeps the first session ID after `/clear` (fact 34). agy: the presence file is a flock lock (fact 44). macOS: the kit. |
+| 5 | Claude, Codex, agy: the files that each process holds open | Facts 25, 26, 28 (Linux). Claude: the task folder keeps the first session ID after `/clear` (fact 34). agy: the presence file is a flock lock (fact 44). macOS and Ubuntu: the open files of agy (fact 68), the Claude pid files outside tmux (fact 66). |
 | 6 | macOS: bring a tab to the front by its tty | Open. Kit step `front-tab` (Terminal, iTerm2). JetBrains IDEs: `terminals/macos.sh` checks for an AppleScript dictionary. |
 | 7 | Cursor: the hash of the chats folder | Open. Needs a chat on a machine with a login. |
 | 8 | Cursor, Linux and Windows: the open-file link | Open. Linux: needs a login. Windows: needs `handle.exe`. |
-| 9 | Cursor editor agent workers | Open. The kit lists them on macOS. |
+| 9 | Cursor editor agent workers | macOS: fact 69. A worker has no tty and no `TERM`, has `VSCODE_PID`, and holds no chat database open. Linux and Windows: open. |
 | 10 | Codex: the sandbox helper parent, and `resume` | Fact 26 (resume). The helper did not run on the Linux server (no namespaces). |
 | 11 | agy, macOS: the process shape and the files | Fact 28 (Linux). macOS: the kit. |
-| 12 | Windows: Cursor CLI and Codex in psmux | Open. The Windows probes and kit. |
+| 12 | Windows: Cursor CLI and Codex in psmux | Fact 70: each psmux pane is a `pwsh.exe` with a long start command, and psmux runs as `tmux.exe`. A Cursor CLI or Codex process in a pane: open. |
 | 13 | Windows: where the installs keep their version | Fact 47 (x64) and fact 48 (arm64). |
 | 14 | An action that opens a permission dialog in the default mode | Claude: a file write with `--permission-mode default` (fact 24). Codex: a file write with `--sandbox read-only` (fact 27). agy: a file write (fact 28). Claude: `ls` and `sleep` open no Bash dialog; `mkdir` opens one (fact 33). |
 

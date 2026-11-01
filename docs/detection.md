@@ -8,6 +8,8 @@ session, and to read its state. Each rule names its source:
   2.1.309 to 2.1.314, codex-cli 0.163.0 and 0.164.0, agy 1.4.5 and 1.4.7,
   cursor-agent 2026.10.22-27dcf5f and psmux 3.4.0. This repository did not
   measure a rule that has only this source.
+- "aw v0.42.0": reported by aw on 2026-11-01. This repository did not
+  measure it.
 
 ## What each OS gives
 
@@ -20,6 +22,14 @@ session, and to read its state. Each rule names its source:
 On macOS, the process name of a native Claude Code install can be its
 version, for example `2.1.309` (aw).
 
+On macOS, aw reads the folder and the open files of a process with
+`proc_pidinfo`, and uses `lsof` when that fails. aw did not measure this
+on a real Mac (aw v0.42.0).
+
+A tool reads the version of an agent from its install path or a version
+file, and does not run `<agent> --version` (aw v0.42.0). The probes of
+this repository run `--version`; the agent kit doctor will not.
+
 ## Claude Code
 
 | Step | Rule | Source |
@@ -28,6 +38,7 @@ version, for example `2.1.309` (aw).
 | Skip | `claude --chrome-native-host`: no tty, no pid file. | fact 066 |
 | Skip | A psmux pane shell whose command line holds a `claude` function. Match the program, not the command line. | fact 070 |
 | Link | `~/.claude/sessions/<pid>.json` names the pid. Check that the pid lives and that `procStart` matches, because stale files stay. | facts 023, 066 |
+| Link | aw compares `procStart` with the start time of the process on Linux and on Windows (the Windows file-time form matches). On macOS no form matched yet, so aw checks the pid only there. The kit prints the candidate forms on macOS (`probes/claude/unix.sh`); a run on a real Mac is open. | aw v0.42.0 |
 | Link | A `.key` file with no `.json` file: the trust question waits, or the process has just started. | fact 023 |
 | Link | On Linux, the open task folder `/tmp/claude-<uid>/<key>/<session id>/tasks`. Not on macOS. | facts 025, 066 |
 | Link | Two pid files with one session ID (a resume): the live file with the matching start wins, then the later start, then the later status time. | aw |
