@@ -40,7 +40,7 @@ state_dirs() {
   case $1 in
     claude) echo "$HOME/.claude/sessions $HOME/.claude/projects" ;;
     codex) echo "${CODEX_HOME:-$HOME/.codex}/sessions ${CODEX_HOME:-$HOME/.codex}/thread-writer-locks" ;;
-    agy) echo "$HOME/.gemini/antigravity-cli/presence $HOME/.gemini/antigravity-cli/conversations $HOME/.gemini/antigravity-cli/brain" ;;
+    agy) echo "$HOME/.gemini/antigravity-cli" ;;
     cursor) echo "$HOME/.cursor/chats $HOME/.cursor/projects" ;;
     opencode) echo "${XDG_DATA_HOME:-$HOME/.local/share}/opencode" ;;
     copilot) echo "$HOME/.copilot/session-state" ;;
@@ -158,6 +158,9 @@ guided() {
     echo "agent-signals guided step: $step, $stamp"
     echo "agents: $which"
     echo "processes:$running"
+    for a in $which; do
+      for x in $(pids "$(pattern_of "$a")"); do echo "$a $(ps_line "$x")"; done
+    done
   } >"$raw"
   # shellcheck disable=SC2086
   snapshot before $which
@@ -196,17 +199,21 @@ guided() {
     while read -r n f; do
       o=$(awk -v f="$f" '$2 == f {print $1}' "$raw.before.lines")
       [ "$n" = "${o:-0}" ] && continue
-      echo "== $f (lines $o -> $n)"
+      echo "== $f (lines ${o:-0} -> $n)"
       tail -n "+$((${o:-0} + 1))" "$f" | head -n 40 >"$raw.new"
       jsonl_types "$raw.new" 40
     done <"$raw.after.lines"
-    echo
-    echo "### 4. Status of the Claude pid files, every 2 s (fact 23)"
-    j=0
-    while [ "$j" -le 15 ]; do
-      echo "t=$((j * 2))s: $(tr '\n' ' ' <"$raw.status.$j")"
-      j=$((j + 1))
-    done
+    case " $which " in
+      *" claude "*)
+        echo
+        echo "### 4. Status of the Claude pid files, every 2 s (fact 23)"
+        j=0
+        while [ "$j" -le 15 ]; do
+          echo "t=$((j * 2))s: $(tr '\n' ' ' <"$raw.status.$j")"
+          j=$((j + 1))
+        done
+        ;;
+    esac
   } >>"$raw"
   finish
 }
