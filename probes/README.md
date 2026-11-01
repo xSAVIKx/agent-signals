@@ -76,9 +76,22 @@ powershell -ExecutionPolicy Bypass -File probes\run.ps1
 ```
 
 The guided mode measures one event. The kit tells you to do one action in
-a session. Then it watches the agent folders for 30 s. It reports the files
-that changed, the open files before and after, the new record types, and
-the status of the Claude pid files. It reads no text.
+a session. Then it watches the agent folders for 30 s. It reads no text.
+The file has these parts:
+
+- The agent processes before and after the step, with the start time and
+  the scrubbed command. A restart during the step shows here.
+- The files that changed, and the open files before and after.
+- The record types of the new JSONL lines.
+- For Claude: the status of each pid file, every 2 s (fact 23).
+- For agy: the status, `not_fully_idle` and `step_count` of the newest
+  rows of `conversation_summaries.db`, every 2 s (fact 45). This needs
+  `python3`.
+
+The step stops when no session of the agent runs. It does not count the
+kit itself, also when the one-line start puts the agent name on the
+command line of the kit. `tools/test-guided-step.sh` checks this with a
+stub agent.
 
 ```sh
 sh probes/run.sh --guided permission agent    # a permission dialog waits
