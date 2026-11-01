@@ -88,7 +88,7 @@ if [ -z "$f" ]; then
   echo "fail: the step in a clone wrote no file"
   fail=1
 else
-  check "the step counts the stub" "^agy $stub_pid " "$f"
+  check "the step counts the stub" "^agy +$stub_pid " "$f"
   check "the step lists the processes after the step" '^processes after the step:$' "$f"
   check "the step lists a changed file" '^agy [0-9]+ .*presence/stub\.lock$' "$f"
   check "the step lists the new transcript records" 'USER_INPUT' "$f"
@@ -105,7 +105,7 @@ if [ -z "$f" ]; then
   echo "fail: the step through the one-line start wrote no file"
   fail=1
 else
-  check "the one-line start counts the stub" "^agy $stub_pid " "$f"
+  check "the one-line start counts the stub" "^agy +$stub_pid " "$f"
   if grep -q '^agy .* sh -s' "$f"; then
     echo "fail: the one-line start counted the kit as agy"
     fail=1
