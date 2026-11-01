@@ -101,6 +101,17 @@ try {
   $bin = @(Get-Layout (Join-Path $tmp 'bin') 1 @('claude*')) -join "`n"
   $ok = ($bin -match 'claude\.exe') -and ($bin -notmatch 'other-tool')
   Test-Same 'Get-Layout with a filter lists only the agent files' @('True') @([string]$ok)
+  $plain = Join-Path $tmp 'bin\claude.exe'
+  Test-Same 'Get-LinkType of a plain file' @('none') @(Get-LinkType $plain)
+  Test-Same 'Get-LinkType of a missing file' @('not found') @(Get-LinkType (Join-Path $tmp 'bin\missing.exe'))
+  $link = Join-Path $tmp 'bin\codex.exe'
+  $made = $true
+  try { New-Item -ItemType SymbolicLink -Path $link -Target $plain -ErrorAction Stop | Out-Null } catch { $made = $false }
+  if ($made) {
+    Test-Same 'Get-LinkType of a symbolic link' @('SymbolicLink') @(Get-LinkType $link)
+  } else {
+    Write-Output 'skip: Get-LinkType of a symbolic link: this user cannot make a symbolic link'
+  }
 } finally {
   Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
 }
