@@ -48,17 +48,11 @@ state_dirs() {
   esac
 }
 
-# The process pattern of each agent (as in its probe).
+# The process pattern of each agent: the first "pids '...'" call of its
+# probe. One copy of each pattern, so that the guided step and the probe
+# find the same processes.
 pattern_of() {
-  case $1 in
-    claude) echo '(^|[ /])claude( |$)' ;;
-    codex) echo '(^|[ /])codex( |$)' ;;
-    agy) echo '(^|[ /])agy( |$)' ;;
-    cursor) echo 'cursor-agent|(^|[ /])agent .*index\.js|/\.local/bin/agent( |$)' ;;
-    opencode) echo '(^|[ /])opencode( |$)' ;;
-    copilot) echo '(^|[ /])copilot( |$)|/copilot-(linux|darwin)-[a-z0-9]+/copilot' ;;
-    gemini) echo '(^|[ /])gemini( |$)' ;;
-  esac
+  sed -n "s/.*pids '\([^']*\)'.*/\1/p" "$here/$1/unix.sh" | head -n 1
 }
 
 finish() {
