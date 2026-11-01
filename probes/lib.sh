@@ -77,11 +77,18 @@ resolve() {
 }
 
 # pids REGEX: the pids of processes whose command line matches REGEX, not
-# this probe and not its children.
+# this probe, its children or the processes that started it. The one-line
+# start runs the kit as "sh -s -- --guided STEP AGENT", and that command
+# line holds the agent name.
 pids() {
-  ps -axo pid=,args= 2>/dev/null | awk -v me="$$" -v re="$1" '
+  _skip=" $$ "
+  _p=$$
+  while _p=$(ps -o ppid= -p "$_p" 2>/dev/null | tr -d ' ') && [ "${_p:-0}" -gt 1 ]; do
+    _skip="$_skip$_p "
+  done
+  ps -axo pid=,args= 2>/dev/null | awk -v skip="$_skip" -v re="$1" '
     { pid = $1; sub(/^ *[0-9]+ +/, "") }
-    pid != me && $0 ~ re && $0 !~ /probes\// && $0 !~ /^(awk|grep|ps) / { print pid }' | sort -n
+    index(skip, " " pid " ") == 0 && $0 ~ re && $0 !~ /probes\// && $0 !~ /^(awk|grep|ps) / { print pid }' | sort -n
 }
 
 # ps_line PID: pid, ppid, tty, start time, and the command. The command
