@@ -113,6 +113,25 @@ snapshot() {
   done >"$raw.$name.lines"
 }
 
+# agy_status: status, not_fully_idle and step_count of the three newest
+# rows of the agy summaries database (fact 45). It reads a copy, and no
+# conversation text. It needs python3.
+agy_status() {
+  _db=$HOME/.gemini/antigravity-cli/conversation_summaries.db
+  [ -f "$_db" ] && command -v python3 >/dev/null 2>&1 || return 0
+  _t=$(mktemp -d) || return 0
+  for _x in "" -wal -shm; do [ -f "$_db$_x" ] && cp "$_db$_x" "$_t/s.db$_x"; done
+  python3 -I - "$_t/s.db" <<'PY' 2>/dev/null
+import sqlite3, sys
+c = sqlite3.connect(sys.argv[1])
+q = ("select status, not_fully_idle, step_count from conversation_summaries"
+     " order by last_modified_time desc limit 3")
+print(" | ".join("%s %s %s" % (s or "-", n, k) for s, n, k in c.execute(q)))
+PY
+  rm -f "$_t/s.db" "$_t/s.db-wal" "$_t/s.db-shm"
+  rmdir "$_t"
+}
+
 # claude_status: the status field of each Claude pid file (fact 23).
 claude_status() {
   for f in "$HOME"/.claude/sessions/*.json; do
@@ -167,6 +186,7 @@ guided() {
   marker=$raw.marker
   : >"$marker"
   claude_status >"$raw.status.0"
+  agy_status >"$raw.agy.0"
   echo
   echo "kit: do this now, then come back and push Enter:"
   echo "  $action"
@@ -177,11 +197,16 @@ guided() {
   while [ "$i" -le 15 ]; do
     sleep 2
     claude_status >"$raw.status.$i"
+    agy_status >"$raw.agy.$i"
     i=$((i + 1))
   done
   # shellcheck disable=SC2086
   snapshot after $which
   {
+    echo "processes after the step:"
+    for a in $which; do
+      for x in $(pids "$(pattern_of "$a")"); do echo "$a $(ps_line "$x")"; done
+    done
     echo
     echo "### 1. Files that changed during the step (size, path)"
     for a in $which; do
@@ -210,6 +235,17 @@ guided() {
         j=0
         while [ "$j" -le 15 ]; do
           echo "t=$((j * 2))s: $(tr '\n' ' ' <"$raw.status.$j")"
+          j=$((j + 1))
+        done
+        ;;
+    esac
+    case " $which " in
+      *" agy "*)
+        echo
+        echo "### 5. agy summaries: status, not_fully_idle, step_count of the newest rows, every 2 s (fact 45)"
+        j=0
+        while [ "$j" -le 15 ]; do
+          echo "t=$((j * 2))s: $(cat "$raw.agy.$j")"
           j=$((j + 1))
         done
         ;;
