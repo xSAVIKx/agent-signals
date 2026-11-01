@@ -140,6 +140,16 @@ function Get-ResolvedPath([string]$Path) {
   return $item.FullName
 }
 
+# Returns the link type of a file: SymbolicLink, HardLink, Junction or
+# AppExecLink (a WindowsApps alias), or "none". aw asked for it, because a
+# reader that follows the command path to the install needs to know it.
+function Get-LinkType([string]$Path) {
+  $item = Get-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+  if (-not $item) { return 'not found' }
+  if ($item.LinkType) { return [string]$item.LinkType }
+  return 'none'
+}
+
 function Header([string]$Name, [string]$Version, [string[]]$Commands) {
   Invoke-Section 'Probe' {
     "probe: $Name"
@@ -158,6 +168,7 @@ function Header([string]$Name, [string]$Version, [string[]]$Commands) {
       if (-not $file) { "command ${c}: not installed"; continue }
       "command ${c}: $file"
       "resolved ${c}: $(Get-ResolvedPath $file)"
+      "link ${c}: $(Get-LinkType $file)"
       try {
         $r = Invoke-Captured $file '--version' 15000
         if ($r.TimedOut) { "version ${c}: no answer in 15 s" }
