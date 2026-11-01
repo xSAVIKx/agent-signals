@@ -42,6 +42,16 @@ writes `agent-signals-run-<os>-<time>/` with `manifest.tsv`,
   `CHANGELOG.md` or `.release-please-manifest.json`.
 - shellcheck at `--severity=warning` passes on every `.sh` file.
 
+## CI layers
+
+Every test of this plan runs in CI. No test needs a person.
+
+| Layer | When | Agents | Runners |
+|---|---|---|---|
+| Kit tests | each PR and push | the stub agent, fake installs | the full matrix of `probes.yml`: Linux, macOS, Windows; PowerShell 5.1 and 7 |
+| Real agents, no login | each week and by hand, no secret | the real agents, `first-run` and `doctor` | the matrix of `scenarios.yml` |
+| Real agents, with login | by hand and each week, with the CI secrets | the real agents, the `permission-*` steps | one Linux, one macOS and one Windows runner; a job with no secret skips |
+
 ## Review focus
 
 1. The orchestrator agent runs each `kit` command in a new shell. A
@@ -370,7 +380,7 @@ writes `agent-signals-run-<os>-<time>/` with `manifest.tsv`,
 - Produces: the same commands, output lines, files and exit codes as the
   sh kit, for `doctor`, `start`, `plan`, `step probe@none`,
   `step first-run-<agent>@conpty`, `check`, `edit`. `kit plan` on Windows
-  lists no session step yet. The archive is a `.zip`.
+  lists no session step until Task 10. The archive is a `.zip`.
 - Consumes: `probes/run.ps1`, `tools/scrub.ps1`,
   `scenarios/first-run-windows.ps1`, `steps.tsv`.
 
@@ -387,7 +397,66 @@ writes `agent-signals-run-<os>-<time>/` with `manifest.tsv`,
   windows-11-arm, both PowerShell versions.
 - [ ] **Step 5: Commit** `feat(probes): add the agent kit commands on Windows`.
 
-### Task 10: The prompt, the task file and the release
+### Task 10: Windows: test sessions on ConPTY and psmux
+
+**Files:**
+- Create: `probes/agent/session.ps1`, `probes/agent/steps/session-step.ps1`,
+  `tools/testdata/agent-kit/stub-agent.ps1`
+- Modify: `probes/run.ps1` (a guided watch with `-Wait N` and
+  `-PidsFile FILE`), `scenarios/conpty.py` (a `serve` mode with a named
+  pipe for commands, as `ptydrive.py` has a socket)
+- Test: `tools/test-agent-kit.ps1`, the Windows job of `probes.yml`
+
+**Interfaces:**
+- Produces: `kit session start NAME AGENT -Via conpty|psmux` and the other
+  session commands, with the same names, files and exit codes as Task 5.
+  `psmux` uses a private server name (`psmux -L`). It sends `Enter`, not
+  `C-m` (aw, reported).
+- Produces: `kit step permission-<agent>@conpty|psmux`, as in Task 6.
+- Produces: `kit plan` on Windows lists the session steps for the
+  backends that `kit doctor` finds: `conpty` when pywinpty, pyte and
+  psutil import; `psmux` when `psmux` is on PATH.
+- Consumes: `steps.tsv`; for Codex on Windows, the `answer` and the send
+  key come from a `windows` column (Codex 0.164.0 sends with Tab, aw,
+  reported).
+
+- [ ] **Step 1: Write the failing tests:** the Task 5 and Task 6 cases on
+  both backends with the PowerShell stub agent;
+  `test_psmux_sends_enter` (the stub gets a carriage return, not the text
+  `^M`); `test_stop_ends_only_the_pids` (a second stub, not started by the
+  kit, still runs after `stop --all`).
+- [ ] **Step 2: Add** to the Windows job of `probes.yml`: install psmux
+  from Chocolatey at a pinned version, and pywinpty, pyte, wcwidth and
+  psutil at the versions of `scenarios.yml`. Push. Expected: FAIL.
+- [ ] **Step 3: Implement.**
+- [ ] **Step 4: Run.** Expected: PASS on windows-2022, windows-2025 and
+  windows-11-arm, PowerShell 5.1 and 7.
+- [ ] **Step 5: Commit** `feat(probes): add test sessions on ConPTY and psmux`.
+
+### Task 11: Real agents in the scheduled workflow
+
+**Files:**
+- Modify: `.github/workflows/scenarios.yml`
+- Test: the workflow run itself
+
+**Interfaces:**
+- Consumes: the kit commands of Tasks 1 to 10.
+- Produces: a job `kit-no-login` (no secret): `kit start --home throwaway`,
+  `kit doctor`, each `first-run-*` step that `kit plan` lists, `kit check`.
+  A job `kit-login` (dispatch and schedule only): a throwaway home with the
+  API keys from the CI secrets as files, the `permission-*` steps of the
+  agents that take an API key, `kit check`. Each job uploads the scrubbed
+  archive as an artifact, and fails when `kit check` fails. A job whose
+  secret is not set prints `skip: no secret` and passes.
+
+- [ ] **Step 1: Add** the two jobs. Run the workflow by hand on the branch.
+  Expected: `kit-no-login` passes on each label; `kit-login` skips or
+  passes.
+- [ ] **Step 2: Read** each artifact. Expected: no home folder, account
+  name or host name.
+- [ ] **Step 3: Commit** `ci: run the agent kit against real agents each week`.
+
+### Task 12: The prompt, the task file and the release
 
 **Files:**
 - Create: `tasks/run-the-kit-as-an-agent.md`
@@ -420,7 +489,5 @@ writes `agent-signals-run-<os>-<time>/` with `manifest.tsv`,
 
 ## Not in this plan
 
-- Test sessions and the guided watch on Windows (`conpty` and `psmux`
-  backends for session steps).
 - Posting the run folder to GitHub.
 - New login handling of any kind.
