@@ -6,7 +6,7 @@
 13 (trixie) VM of the Android Terminal app, on aarch64. The VM kernel was
 `6.12.93-android16-6-g3a7d1771d492-ab16496487-4k`. Claude Code 2.1.316 was
 installed, but no Claude process ran. The probe kit (`probes/run.sh`) ran
-one time in full and two times as the guided step `permission` for agy.
+one time in full and three times as the guided step `permission` for agy.
 It listed names, sizes, times and record types. It read no content.
 Measured on: real machine (an Android telephone).
 
@@ -26,7 +26,7 @@ Measured on: real machine (an Android telephone).
    four starts.
 5. `cli.log` in the top folder had the same size (24070 bytes) as the
    newest file in `log/`.
-6. In both guided steps, agy started during the step, after the kit.
+6. In the first two guided steps, agy started during the step, after the kit.
    The kit counted one agy process before the step, but that process was
    the kit itself: the one-line start ran it as
    `sh -s -- --guided permission agy`, and the agent name matched. The
@@ -39,7 +39,13 @@ Measured on: real machine (an Android telephone).
    `jetbox_summaries_proto.pb`, `annotations/<uuid>.pbtxt`,
    `cache/onboarding.json`, `cache/last_conversations.json`,
    `updater/update_status.json` and `last_check.timestamp`.
-9. In each step, the operator asked agy for a file write. In the 30 s
+9. In the third step, with the fixed kit, the kit found the agy process
+   that ran from the second step. During the step, the operator stopped
+   agy and started it again. `history.jsonl` got a `slash_command` record
+   and one more record. The new process opened a new crash file, a new
+   `log/` file and a new presence lock. The old process had closed its
+   three files.
+10. In each step, the operator asked agy for a file write. In the 30 s
    after that, each new transcript got two records: `USER_INPUT` and
    `PLANNER_RESPONSE`. No record type showed a wait for a permission
    dialog. The changed files also held `conversations/<uuid>.db`, and
@@ -67,11 +73,11 @@ None.
 ## Not measured
 
 - Whether the permission dialog showed in the guided steps. The files do
-  not say. So item 9 does not prove that agy writes no record for a
+  not say. So item 10 does not prove that agy writes no record for a
   dialog wait.
 - The `status` value in `conversation_summaries.db` during the dialog
   (fact 045). The kit saw only that the file changed.
-- A guided step with agy started before the kit.
+- A permission dialog in a process that ran before the step, with no restart.
 - Whether `cli.log` is a link to the newest file in `log/` or a copy.
 - The `flock` lock on the presence file in this VM (fact 044).
 - A Claude Code process in this VM.
