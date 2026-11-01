@@ -87,6 +87,8 @@ jobs:
           grep -c '^### ' "$f"
           cat "$f"
           rm -f agent-signals-probe-*.txt
+      - name: Guided step test
+        run: sh tools/test-guided-step.sh
       - name: Kit through the one-liner
         # The one-liner reads a local archive here, so the step needs no
         # network.
