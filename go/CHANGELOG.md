@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/xSAVIKx/agent-signals/compare/go/v0.8.0...go/v0.9.0) (2026-11-01)
+
+
+### Features
+
+* **probes:** show the agy summaries status and the processes after a guided step ([#67](https://github.com/xSAVIKx/agent-signals/issues/67)) ([c0078f9](https://github.com/xSAVIKx/agent-signals/commit/c0078f952d5f64421f620ffbfdfa064b7dbd5d55))
+
 ## [0.8.0](https://github.com/xSAVIKx/agent-signals/compare/go/v0.7.0...go/v0.8.0) (2026-11-01)
 
 
