@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.11.0...corpus-v0.12.0) (2026-11-01)
+
+
+### Features
+
+* **probes:** print the link type of each agent command on Windows ([#72](https://github.com/xSAVIKx/agent-signals/issues/72)) ([a928b86](https://github.com/xSAVIKx/agent-signals/commit/a928b86fd89a76a25c7459ce670ae50b9675d123))
+
 ## [0.11.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.10.0...corpus-v0.11.0) (2026-11-01)
 
 
