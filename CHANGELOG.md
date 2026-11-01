@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.1](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.9.0...corpus-v0.9.1) (2026-11-01)
+
+
+### Bug Fixes
+
+* **probes:** find the Cursor CLI as agent in any folder, and use agent in the guided step examples ([#60](https://github.com/xSAVIKx/agent-signals/issues/60)) ([5438087](https://github.com/xSAVIKx/agent-signals/commit/543808764d9400837224a6578b15b97704a9a157))
+* **probes:** list the agent processes in a guided step, watch the whole agy folder, and skip the Claude status for other agents ([#62](https://github.com/xSAVIKx/agent-signals/issues/62)) ([e9de9cd](https://github.com/xSAVIKx/agent-signals/commit/e9de9cd3d544809e59b7a9658579157d4a157a08))
+
 ## [0.9.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.8.0...corpus-v0.9.0) (2026-10-31)
 
 
