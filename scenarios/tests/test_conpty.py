@@ -214,7 +214,9 @@ class ServeArguments(unittest.TestCase):
         self.assertEqual(conpty.main(["p", "jump"]), 2)
 
 
-@unittest.skipUnless(shutil.which("tmux"), "tmux is not installed")
+# On Windows, "tmux" is the shim of psmux (the Chocolatey package installs
+# it), not tmux.
+@unittest.skipUnless(shutil.which("tmux") and os.name != "nt", "tmux is not installed")
 class SameAsTmux(unittest.TestCase):
     """pyte must give the same text as tmux capture-pane -p for the same
     output."""
