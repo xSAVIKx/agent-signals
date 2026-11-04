@@ -5,6 +5,10 @@
 One scrubbed file that shows how the agents on this machine run: their
 processes, terminals, open files and session folders.
 
+An agent can also run the whole kit with test sessions of the other
+agents. For that job, read
+[the task for an agent that runs the kit](run-the-kit-as-an-agent.md).
+
 ## Inputs
 
 - curl or wget (Linux, macOS), or PowerShell (Windows). A clone of this
