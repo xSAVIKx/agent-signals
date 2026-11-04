@@ -14,7 +14,11 @@
 #      in tools/scrub.sh;
 #   5. each part of a probe file passes tools/check-probe-output.sh;
 #   6. no pid of pids/ runs;
-#   7. the run folder belongs to the user and has mode 0700.
+#   7. the run folder belongs to the user and has mode 0700, and the folder
+#      that holds it passes the checks of "kit start";
+#   8. no file holds a key or a token: a text that the "secret" rule of
+#      tools/scrub.sh replaces.
+# The archive headers hold the owner 0 and no owner name.
 # Then it writes manifest.json, summary.txt and the archive
 # agent-signals-run-<os>-<time>.tar.gz next to the run folder, and prints
 # "check: ok", "run: <path>" and "archive: <path>". The archive holds the
@@ -35,6 +39,8 @@ say() {
   bad=1
 }
 tmp=$(mktemp -d) || exit 1
+# dash runs no EXIT trap on a signal, so a signal exits first.
+trap 'exit 130' INT TERM
 trap 'rm -rf "$tmp"' EXIT
 
 # 1 and 2. The step files and their SHA-256.
@@ -93,7 +99,9 @@ for h in "$host" "$short"; do
 done
 env | awk -F '=' '$1 ~ /^[A-Za-z0-9_]*_(API_KEY|TOKEN|SECRET|PASSWORD|PAT|KEY)$/ { print $1 }' | sort -u >"$tmp/vars"
 while read -r b; do
-  tr -d '\n' <"$run/$b" >"$tmp/joined"
+  # The joined text: no box border and no white space at the edge of a
+  # line, and no line break.
+  sed -E 's/^([[:space:]|]|│|┃)+//; s/([[:space:]|]|│|┃)+$//' "$run/$b" | tr -d '\n' >"$tmp/joined"
   while IFS='	' read -r what re; do
     if grep -Eq -- "$re" "$run/$b" || grep -Eq -- "$re" "$tmp/joined"; then
       say "$b: the file holds $what"
@@ -106,6 +114,13 @@ while read -r b; do
       say "$b: the file holds the value of $v"
     fi
   done <"$tmp/vars"
+  # A key or a token: the "secret" rule of the scrub finds one.
+  for t in "$run/$b" "$tmp/joined"; do
+    if sh "$KIT_ROOT/tools/scrub.sh" "$t" 2>&1 >/dev/null | grep -q '^scrub: [0-9]* secret$'; then
+      say "$b: the file holds a key or a token"
+      break
+    fi
+  done
 done <"$tmp/files"
 
 # 5. The probe files. A probe file holds the output of each probe after a
@@ -154,11 +169,12 @@ for f in "$run"/pids/*; do
   fi
 done
 
-# 7. The run folder itself, again before the archive.
-# shellcheck disable=SC2012,SC2046
-set -- $(ls -ldn "$run" | awk '{print $1, $3}')
-[ "${2:-}" = "$(id -u)" ] || say "the run folder does not belong to you"
-case ${1:-} in drwx------*) ;; *) say "the run folder has the mode ${1:-unknown}, not drwx------" ;; esac
+# 7. The run folder itself, and the folder that holds it, again before the
+# archive.
+why=$(kit_run_problem "$run")
+[ -z "$why" ] || say "$why"
+why=$(kit_dir_problem "$(dirname "$run")")
+[ -z "$why" ] || say "the folder of the run: $why"
 
 [ "$bad" -eq 0 ] || exit "$KIT_FAIL"
 
@@ -172,9 +188,14 @@ umask 077
 set --
 for b in $(sort "$tmp/files"); do set -- "$@" "$base/$b"; done
 rm -f "$archive"
-if ! (cd "$parent" && tar -cf - "$@" | gzip -c >"$archive"); then
+if ! (cd "$parent" && kit_tar "$@" | gzip -c >"$archive"); then
   rm -f "$archive"
   kit_die "$KIT_FAIL" "cannot write the archive $archive"
+fi
+# The headers of the archive must not hold the account name.
+if [ -n "$user" ] && [ "$user" != root ] && tar -tvzf "$archive" 2>/dev/null | grep -Eq "(^|[^A-Za-z0-9_.-])$(q "$user")([^A-Za-z0-9_-]|\$)"; then
+  rm -f "$archive"
+  kit_die "$KIT_FAIL" "the tar of this machine writes the account name in the archive; no archive"
 fi
 echo "check: ok"
 echo "run: $run"

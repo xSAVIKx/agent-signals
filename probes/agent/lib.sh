@@ -214,20 +214,22 @@ kit_has_word() {
 # only. The value "-" becomes null.
 kit_json() {
   awk -F '\t' '
-    BEGIN { for (i = 1; i < 32; i++) ctl[sprintf("%c", i)] = sprintf("\\u%04x", i) }
+    # esc[CH]: the JSON form of a character that needs one. The loop below
+    # uses it for each character; gsub with a backslash differs between
+    # the awks.
+    BEGIN {
+      for (i = 1; i < 32; i++) esc[sprintf("%c", i)] = sprintf("\\u%04x", i)
+      esc["\\"] = "\\\\"
+      esc["\""] = "\\\""
+    }
     function s(v,    o, ch, k) {
       if (v == "-" || v == "") return "null"
-      gsub(/\\/, "\\\\", v)
-      gsub(/"/, "\\\"", v)
-      if (v ~ /[[:cntrl:]]/) {
-        o = ""
-        for (k = 1; k <= length(v); k++) {
-          ch = substr(v, k, 1)
-          o = o ((ch in ctl) ? ctl[ch] : ch)
-        }
-        v = o
+      o = ""
+      for (k = 1; k <= length(v); k++) {
+        ch = substr(v, k, 1)
+        o = o ((ch in esc) ? esc[ch] : ch)
       }
-      return "\"" v "\""
+      return "\"" o "\""
     }
     $1 == "step" {
       steps = steps (ns++ ? ",\n" : "") "    {\"name\": " s($2) ", \"backend\": " s($3) \
@@ -294,4 +296,32 @@ kit_dir_problem() {
     _w=$(dirname "$_w")
   done
   return 0
+}
+
+# kit_run_problem RUN: print why a command must not write in the run folder
+# RUN, or nothing. RUN must belong to the user and have mode 0700.
+kit_run_problem() {
+  # shellcheck disable=SC2012
+  _m=$(ls -ldn "$1" 2>/dev/null | awk '{print $1}')
+  # shellcheck disable=SC2012
+  _u=$(ls -ldn "$1" 2>/dev/null | awk '{print $3}')
+  [ "$_u" = "$(id -u)" ] || { echo "the run folder does not belong to you"; return 0; }
+  case $_m in drwx------*) ;; *) echo "the run folder has the mode ${_m:-unknown}, not drwx------" ;; esac
+  return 0
+}
+
+# kit_tar FILE...: write a tar of the FILEs to stdout. The owner of each
+# file in the archive is 0, with no owner name, so that the archive does
+# not hold the account name. GNU tar and bsdtar (macOS) have options for
+# this. Another tar gets a note on stderr.
+kit_tar() {
+  _tv=$(tar --version 2>/dev/null | head -n 1)
+  case $_tv in
+    *GNU*) tar --owner=0 --group=0 --numeric-owner -cf - "$@" ;;
+    *bsdtar*) tar --uid 0 --gid 0 --uname '' --gname '' -cf - "$@" ;;
+    *)
+      echo "kit: this tar cannot hide the owner; the archive holds the account name" >&2
+      tar -cf - "$@"
+      ;;
+  esac
 }

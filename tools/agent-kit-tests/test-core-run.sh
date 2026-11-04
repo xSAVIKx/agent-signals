@@ -109,6 +109,33 @@ if [ "$n" = 3 ]; then pass "an operator result adds no step line"; else fail "an
 expect_code "ok with no output is a fail" 1 $?
 expect_line "ok with no output prints no-output" 'fail no-output$' "$T/out"
 
+# The reason keeps only a-z, 0-9, "." and "-".
+(cd "$T/r" && HOME=$H FAKE_CODE=3 FAKE_REASON='Need "x"/y z' kitc "$T/k" step permission-claude@pty) >"$T/out" 2>&1
+expect_line "the reason keeps only safe characters" '^step: permission-claude@pty skip -eed--x--y-z$' "$T/out"
+(cd "$T/r" && HOME=$H kitc "$T/k" step 'permission-claude@T1') >"$T/out" 2>&1
+expect_code "a backend with other characters is bad use" 2 $?
+
+# A step script must not write in a run folder that others can read.
+mkdir -m 0700 "$T/m"
+(cd "$T/m" && HOME=$H kitc "$T/k" start --out "$T/m") >/dev/null 2>&1
+chmod 0755 "$(run_of "$T/m")"
+(cd "$T/m" && HOME=$H kitc "$T/k" step permission-claude@pty) >"$T/out" 2>&1
+expect_code "a step in a run folder with mode 0755 is bad use" 2 $?
+
+# A scrub that fails gives "fail scrub" and no file.
+kit_copy "$T/k2"
+fake_step "$T/k2" permission
+printf '#!/bin/sh\necho partial\nexit 1\n' >"$T/k2/tools/scrub.sh"
+mkdir -m 0700 "$T/s"
+(cd "$T/s" && HOME=$H kitc "$T/k2" start --out "$T/s") >/dev/null 2>&1
+(cd "$T/s" && HOME=$H kitc "$T/k2" step permission-claude@pty) >"$T/out" 2>&1
+expect_code "a failed scrub fails the step" 1 $?
+expect_line "a failed scrub prints fail scrub" '^step: permission-claude@pty fail scrub$' "$T/out"
+run3=$(run_of "$T/s")
+set -- "$run3"/01-*
+if [ -e "$1" ]; then fail "a failed scrub leaves no step file" "$1"; else pass "a failed scrub leaves no step file"; fi
+if [ -d "$run3/.raw" ]; then fail "a failed scrub leaves no raw file" "$(ls -A "$run3/.raw")"; else pass "a failed scrub leaves no raw file"; fi
+
 # A step with one backend runs with no @, and gets the next number.
 cat >"$T/k/probes/agent/steps/probe.sh" <<'EOF'
 #!/bin/sh
@@ -116,7 +143,7 @@ echo "fake probe" >"$KIT_OUT"
 EOF
 (cd "$T/r" && HOME=$H kitc "$T/k" step probe) >"$T/out" 2>&1
 expect_code "a step with one backend runs with no @" 0 $?
-expect_file "the next step has the next number" "$run2/04-probe@none.txt"
+expect_file "the next step has the next number" "$run2/05-probe@none.txt"
 
 # A throwaway home skips a login step.
 mkdir -m 0700 "$T/t"

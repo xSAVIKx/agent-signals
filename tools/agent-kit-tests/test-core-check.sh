@@ -36,6 +36,14 @@ expect_line "the archive holds manifest.json" "/manifest\.json$" "$T/list"
 expect_line "the archive holds summary.txt" "/summary\.txt$" "$T/list"
 expect_no_line "the archive holds no session state" "/sessions" "$T/list"
 if gzip -dc "$run.tar.gz" | grep -aq LEAK-CANARY; then fail "the archive holds no session env" "a canary"; else pass "the archive holds no session env"; fi
+me=$(id -un)
+if [ "$me" = root ]; then
+  pass "the archive headers hold no account name (skipped: the account is root)"
+elif tar -tvzf "$run.tar.gz" | grep -qw -- "$me"; then
+  fail "the archive headers hold no account name" "$(tar -tvzf "$run.tar.gz" | head -n 1)"
+else
+  pass "the archive headers hold no account name"
+fi
 
 # A doctor file with its own step line is a known file.
 echo "os: linux" >"$run/00-doctor.txt"
@@ -130,6 +138,40 @@ new_run mode
 chmod 0755 "$run"
 check mode
 expect_code "kit check fails a run folder with mode 0755" 1 $?
+
+new_run token
+echo "header: ghp_FAKEfakeFAKEfake0000" >>"$file"
+(cd "$T/token" && kitc "$T/k" edit 01-permission-claude@pty.txt other) >/dev/null 2>&1
+check token
+expect_code "kit check fails a token shape" 1 $?
+expect_line "the failure names the token" 'holds a key or a token$' "$T/out"
+
+new_run border
+# A box border on each line, and the home folder over two lines.
+printf '│ %s │\n│ %s │\n' "$(printf '%s' "$H" | cut -c1-8)" "$(printf '%s' "$H/x" | cut -c9-)" >>"$file"
+(cd "$T/border" && kitc "$T/k" edit 01-permission-claude@pty.txt path) >/dev/null 2>&1
+check border
+expect_code "kit check finds a home folder over a box border" 1 $?
+
+new_run gitparent
+mkdir "$T/gitparent/.git"
+check gitparent
+expect_code "kit check fails when the folder of the run is in a git work tree" 1 $?
+expect_line "the failure names the folder of the run" '^check: the folder of the run: ' "$T/out"
+
+# The JSON writer escapes a quote, a backslash and a control character.
+mkdir -m 0700 "$T/json"
+printf 'meta\tkit\ta"b\\c\001d\nmeta\tos\tlinux\nstep\tx\tnone\tok\t-\t-\t-\t-\tr\\"\n' >"$T/json/manifest.tsv"
+(KIT_DIR=$T/k/probes/agent && . "$T/k/probes/agent/lib.sh" && kit_json "$T/json")
+if command -v python3 >/dev/null 2>&1; then
+  if python3 -I -c 'import json,sys; d=json.load(open(sys.argv[1])); assert d["kit"] == "a\"b\\c\x01d", d["kit"]; assert d["steps"][0]["reason"] == "r\\\"", d["steps"][0]["reason"]' "$T/json/manifest.json"; then
+    pass "the JSON writer escapes a quote, a backslash and a control character"
+  else
+    fail "the JSON writer escapes a quote, a backslash and a control character" "$(head -n 3 "$T/json/manifest.json" | tr '\n' ' ')"
+  fi
+else
+  pass "the JSON writer escapes (skipped: no python3)"
+fi
 
 # A probe step: each part must pass tools/check-probe-output.sh.
 cat >"$T/k/probes/agent/steps/probe.sh" <<'EOF'

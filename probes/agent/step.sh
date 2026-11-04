@@ -5,21 +5,25 @@
 #
 # It runs probes/agent/steps/<kind>.sh with no stdin and these variables:
 #   KIT_RUN KIT_ROOT KIT_DIR KIT_STEP KIT_KIND KIT_AGENT KIT_BACKEND
-#   KIT_PROMPT KIT_WAIT_REGEX KIT_ANSWER KIT_PRE KIT_IDLE_REGEX KIT_WINDOWS
+#   KIT_PROMPT KIT_WAIT_REGEX KIT_ANSWER KIT_PRE KIT_IDLE_REGEX
+#   KIT_BUSY_REGEX KIT_DIALOG_REGEX KIT_WINDOWS
 #   KIT_HOME (real or throwaway) and KIT_OUT (the raw output file).
 # ARGS go to the script. The script writes its output to KIT_OUT, and can
-# write one line of reason to KIT_OUT.reason. Its exit code: 0 ok, 1 fail,
+# write one line of reason to KIT_OUT.reason. The reason keeps only the
+# characters a-z, 0-9, "." and "-"; each other character becomes "-". Its exit code: 0 ok, 1 fail,
 # 3 skip (a needed tool is missing), 4 the operator must act.
 #
-# KIT_OUT is in RUN/.raw/. Then "kit step" scrubs KIT_OUT with tools/scrub.sh into
-# NN-NAME@BACKEND.txt in the run folder, deletes KIT_OUT, adds the line
+# KIT_OUT is in RUN/.raw/. Then "kit step" scrubs KIT_OUT with
+# tools/scrub.sh into RUN/.raw/, moves the result to NN-NAME@BACKEND.txt in
+# the run folder, deletes KIT_OUT, and adds the line
 #   step<tab>NAME<tab>BACKEND<tab>RESULT<tab>START<tab>END<tab>FILE<tab>SHA256<tab>REASON
 # to manifest.tsv ("-" for no file or no reason), writes manifest.json and
 # summary.txt, and prints
 #   step: NAME@BACKEND ok|skip|fail|operator [REASON]
 # A step that needs a login skips with the reason "no-login" in a run
 # with a throwaway home, and exits 0. "operator" adds no line, so that the
-# next call (for example with --ready) gets the same number.
+# next call (for example with --ready) gets the same number. When the
+# scrub fails, the step is "fail scrub" and has no file.
 # Exit codes: the code of the script (0, 1, 3 or 4), 2 for bad use.
 set -u
 . "$(dirname "$0")/lib.sh"
@@ -28,6 +32,8 @@ set -u
 arg=$1
 shift
 run=$(kit_run_dir) || exit "$KIT_USAGE"
+why=$(kit_run_problem "$run")
+[ -z "$why" ] || kit_die "$KIT_USAGE" "the run folder cannot take a step: $why"
 name=${arg%%@*}
 case $name in '' | *[!a-z0-9-]*) kit_die "$KIT_USAGE" "bad step name: $name" ;; esac
 kind=$(kit_step_field "$name" kind) || kit_die "$KIT_USAGE" "unknown step: $name. Run 'kit plan'"
@@ -41,6 +47,7 @@ case $arg in
     esac
     ;;
 esac
+case $backend in '' | *[!a-z]*) kit_die "$KIT_USAGE" "bad backend: $backend" ;; esac
 kit_has_word "$blist" "$backend" || kit_die "$KIT_USAGE" "the step $name has no backend $backend. Use one of: $blist"
 kit_has_word "$(kit_step_field "$name" os)" "$(kit_os)" || kit_die "$KIT_USAGE" "the step $name is not for $(kit_os)"
 script=$KIT_DIR/steps/$kind.sh
@@ -80,13 +87,15 @@ KIT_RUN=$run KIT_ROOT=$KIT_ROOT KIT_DIR=$KIT_DIR KIT_STEP=$name KIT_KIND=$kind K
   KIT_ANSWER=$(kit_step_field "$name" answer) \
   KIT_PRE=$(kit_step_field "$name" pre) \
   KIT_IDLE_REGEX=$(kit_step_field "$name" idle_regex) \
+  KIT_BUSY_REGEX=$(kit_step_field "$name" busy_regex) \
+  KIT_DIALOG_REGEX=$(kit_step_field "$name" dialog_regex) \
   KIT_WINDOWS=$(kit_step_field "$name" windows) \
   KIT_HOME=$home KIT_OUT=$out \
   sh "$script" "$@" </dev/null
 code=$?
 end=$(kit_now)
 reason=
-[ -f "$out.reason" ] && reason=$(head -n 1 "$out.reason" | tr '\t' ' ')
+[ -f "$out.reason" ] && reason=$(head -n 1 "$out.reason" | sed 's/[^a-z0-9.-]/-/g' | cut -c1-80)
 case $code in
   0) result=ok ;;
   3) result=skip ;;
@@ -104,10 +113,16 @@ fi
 sha=-
 if [ -f "$out" ]; then
   # The run folder and the kit folder can hold spaces and names.
-  SCRUB_EXTRA="$run
-$KIT_ROOT" sh "$KIT_ROOT/tools/scrub.sh" "$out" >"$run/$file" 2>"$work/$nn.scrub"
-  sed 's/^/kit: /' "$work/$nn.scrub" >&2
-  sha=$(kit_sha256 "$run/$file")
+  if SCRUB_EXTRA="$run
+$KIT_ROOT" sh "$KIT_ROOT/tools/scrub.sh" "$out" >"$work/$nn.txt" 2>"$work/$nn.scrub"; then
+    sed 's/^/kit: /' "$work/$nn.scrub" >&2
+    mv "$work/$nn.txt" "$run/$file"
+    sha=$(kit_sha256 "$run/$file")
+  else
+    rm -f "$work/$nn.txt"
+    file=-
+    result=fail reason=scrub code=1
+  fi
 else
   file=-
 fi

@@ -14,6 +14,8 @@ set -u
 usage="usage: kit edit FILE project|person|company|host|path|other [COUNT]"
 [ "$#" -ge 2 ] && [ "$#" -le 3 ] || kit_die "$KIT_USAGE" "$usage"
 run=$(kit_run_dir) || exit "$KIT_USAGE"
+why=$(kit_run_problem "$run")
+[ -z "$why" ] || kit_die "$KIT_USAGE" "the run folder cannot take an edit: $why"
 file=$(basename "$1")
 case $2 in
   project | person | company | host | path | other) reason=$2 ;;
