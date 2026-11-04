@@ -1,0 +1,45 @@
+# kit plan on Windows: print the steps that this machine can run.
+#
+#   kit plan [--home real|throwaway] [--python PATH]
+#
+# One line for each step of probes\agent\steps.tsv, in file order:
+#   step: <name>@<backend> needs=<needs> cost=<cost> measures=<text>
+# A step whose agent is not installed, or whose backend tool is missing,
+# is not printed. With the throwaway home, a step with needs=login has
+# " skip=no-login" at the end. With no --home, the home mode of the run
+# counts, else "real".
+# On Windows the plan has the probe (backend "none") and the first run
+# (backend "conpty"). The session steps come with Task 10 of the plan.
+$ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+
+$homeMode = ''
+$python = ''
+for ($i = 0; $i -lt $args.Count; $i++) {
+    $a = [string]$args[$i]
+    if ($a -eq '--home' -and $i + 1 -lt $args.Count) { $homeMode = [string]$args[++$i] }
+    elseif ($a -eq '--python' -and $i + 1 -lt $args.Count) { $python = [string]$args[++$i] }
+    else { Stop-Kit 2 'usage: kit plan [--home real|throwaway] [--python PATH]' }
+}
+$run = Find-KitRunDir
+if (-not $homeMode) {
+    if ($run) { $homeMode = Get-KitMeta $run 'home' }
+    if (-not $homeMode) { $homeMode = 'real' }
+}
+if ($homeMode -cnotin 'real', 'throwaway') { Stop-Kit 2 "unknown home mode: $homeMode" }
+
+$agents = @{}
+foreach ($a in @(Find-KitAgents)) { $agents[$a.Name] = $a }
+$conpty = Get-KitConptyTool $python $run
+
+foreach ($s in @(Read-KitSteps)) {
+    $backend = Get-KitWindowsBackend $s
+    if (-not $backend) { continue }
+    $agent = [string]$s.agent
+    if ($agent -and $agent -ne '-' -and -not $agents.ContainsKey($agent)) { continue }
+    if ($backend -eq 'conpty' -and -not $conpty) { continue }
+    $line = 'step: {0}@{1} needs={2} cost={3} measures={4}' -f $s.name, $backend, $s.needs, $s.cost, $s.measures
+    if ($homeMode -eq 'throwaway' -and $s.needs -eq 'login') { $line += ' skip=no-login' }
+    Write-Output $line
+}
+exit 0
