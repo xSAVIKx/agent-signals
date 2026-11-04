@@ -1,0 +1,4 @@
+model = "LEAK-CANARY-14"
+
+[mcp_servers.example]
+command = "LEAK-CANARY-15"

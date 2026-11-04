@@ -1,0 +1,8 @@
+#!/bin/sh
+# A fake agent for the agent kit tests. It prints a version and does
+# nothing else. It reads no file and starts no process.
+case ${1:-} in
+  --version | -V | -v) echo "$(basename "$0") 0.0.0-fake" ;;
+  status) echo "not logged in" ;;
+esac
+exit 0

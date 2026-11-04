@@ -20,3 +20,8 @@
 __pycache__/
 /.venv-driver/
 python/uv.lock
+
+# The pointer to the run folder of the agent kit (probes/agent/start.sh).
+.agent-signals-run
+# The run folders and archives of the agent kit.
+agent-signals-run-*

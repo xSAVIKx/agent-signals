@@ -25,3 +25,19 @@ already clean: \\?\~\.codex\config.toml
 system: C:\Windows\System32\cmd.exe and C:\ProgramData\chocolatey\bin and c:\windows\system32
 system: "C:\Program Files\nodejs\node.exe" and C:\Program Files (x86)\Common Files
 words: an X-ray, a T-shirt and v1.2.3 stay, and so does the word abcD:\x
+secrets: ANTHROPIC_API_KEY=<secret> and "<secret>", <secret>
+secrets: <secret> <secret> <secret> <secret>
+words: a task-list, sk-short, key_count and the risk-free-mode flag stay
+spaces: /work/example and more
+support: ~/Library/Application Support/Code/User/settings.json
+two paths: /work/example /work/example
+drive: /work/example and more
+run: /work/example/agent-signals-run-linux-1/01-probe.txt
+onedrive: "/work/example" is the OneDrive folder
+domain: domain\dev logged in
+quoted: {"cwd":"/work/example","a":1} and "/work/example"
+spaces 2: /work/example
+more secrets: <secret> <secret> <secret> <secret> <secret>
+jwt: token=<secret>
+underscore: API_KEY_<secret> and A=<secret>
+words: sk-learn-something-long-name and AKIAshort stay

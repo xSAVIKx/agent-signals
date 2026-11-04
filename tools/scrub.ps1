@@ -10,8 +10,14 @@
 #   SCRUB_HOME  the home folder (default: $HOME)
 #   SCRUB_USER  the account name (default: USERNAME or USER)
 #   SCRUB_HOST  the host name (default: the DNS host name)
+#   SCRUB_EXTRA more roots, one on each line, for example the run folder
+#               of the agent kit. The values of OneDrive,
+#               OneDriveCommercial and OneDriveConsumer are roots too.
+#   SCRUB_DOMAIN the domain of the account (default: USERDOMAIN, when it
+#               is not the host name)
 #
 # The changes, in this order:
+#   0. extra      each extra root, the longest first -> /work/example
 #   1. home       the home folder -> ~
 #   2. other-home /Users/<name>, /home/<name>, C:\Users\<name> -> ~
 #   3. project    a project path below ~, /srv/ or /work/<name>, or a drive
@@ -20,24 +26,51 @@
 #   4. key        a project key such as -Users-alice-code-shop,
 #                 D--Projects-shop or C-Users-alice-shop -> -work-example
 #   5. user       the account name as a whole word -> dev
-#   6. host       the host name and its short form as whole words -> host
-#   7. uuid       UUIDs -> <uuid>
-#   8. hex        hex runs of 16 or more characters -> <hex>
-#   9. email      e-mail addresses -> <email>
-#  10. ip         IPv4 addresses -> <ip>, but not 127.0.0.1 and 0.0.0.0, and
+#   6. domain     the domain as a whole word -> domain
+#      host       the host name and its short form as whole words -> host
+#   7. secret     API keys and tokens -> <secret>: sk-ant-, sk-proj-, AIza,
+#                 gh[pousr]_, github_pat_, glpat-, xox[abprs]- with 16 or
+#                 more key characters; sk- with 16 or more and a digit;
+#                 AKIA with 16 upper-case letters or digits; key_ with 32
+#                 or more hex characters (Cursor); a JWT. A letter, a digit
+#                 or a "-" must not come just before it.
+#   8. uuid       UUIDs -> <uuid>
+#   9. hex        hex runs of 16 or more characters -> <hex>
+#  10. email      e-mail addresses -> <email>
+#  11. ip         IPv4 addresses -> <ip>, but not 127.0.0.1 and 0.0.0.0, and
 #                 not a version number (after v or version, or before a
 #                 letter, - or +)
+#
+# A path can hold spaces. After a space, a word that holds a / or a \ and
+# does not start a new path continues the path. So
+# ~/My Projects/Client Acme/a.go is one path. A last folder with a space
+# and no / after it ends the path at the space, except in quotes: a path
+# just after a " goes to the next ".
 #
 # Other scripts can dot-source this file to get Invoke-Scrub. Then the file
 # does not read stdin.
 
 param([string]$Path)
 
-$script:ScrubKinds = @('home', 'other-home', 'project', 'key', 'user', 'host', 'uuid', 'hex', 'email', 'ip')
+$script:ScrubKinds = @('extra', 'home', 'other-home', 'project', 'key', 'user', 'domain', 'host', 'secret', 'uuid', 'hex', 'email', 'ip')
 
 # A path ends at white space, a quote, a colon, a comma, a semicolon or a
 # parenthesis.
 $script:PathChars = '[^\s"'':,;()]'
+# The words after a path that continue it: a space, then a word that does
+# not start a new path and holds a / or a \.
+$script:PathMore = '(?:\x20(?![/\\~])[^\s"'':,;()/\\]+[/\\][^\s"'':,;()]*)*'
+
+# Get-RootPattern ROOT: a pattern for the folder ROOT. A Windows folder
+# matches in any case and with one or more slashes or backslashes between
+# its parts.
+function Get-RootPattern([string]$Root) {
+  if ($Root -match '^[A-Za-z]:') {
+    $parts = @($Root -split '[\\/]+' | ForEach-Object { [regex]::Escape($_) })
+    return '(?i)(?<![A-Za-z0-9_.-])' + ($parts -join '[\\/]+') + '(?![A-Za-z0-9._-])'
+  }
+  return '(?<![A-Za-z0-9_.~-])' + [regex]::Escape($Root) + '(?![A-Za-z0-9._-])'
+}
 
 function Invoke-ScrubReplace([string]$Text, [string]$Pattern, [scriptblock]$Change, [hashtable]$Counts, [string]$Kind) {
   $evaluator = [System.Text.RegularExpressions.MatchEvaluator] {
@@ -69,11 +102,25 @@ function Get-WordPattern([string]$Word) {
   return '(?<![A-Za-z0-9_.-])' + [regex]::Escape($Word) + '(?![A-Za-z0-9_-])(?!\.[A-Za-z0-9_])'
 }
 
-function Invoke-Scrub([string]$Text, [string]$HomeDir, [string]$User, [string]$HostName) {
+function Invoke-Scrub([string]$Text, [string]$HomeDir, [string]$User, [string]$HostName, [string[]]$Extra = @(), [string]$Domain = '') {
   $counts = @{}
   foreach ($k in $script:ScrubKinds) { $counts[$k] = 0 }
   $pc = $script:PathChars
+  $more = $script:PathMore
   $s = $Text
+  # A caller with four arguments gets the extra roots and the domain of the
+  # environment.
+  if (-not $PSBoundParameters.ContainsKey('Extra') -or -not $PSBoundParameters.ContainsKey('Domain')) {
+    $dd = Get-ScrubDefaults
+    if (-not $PSBoundParameters.ContainsKey('Extra')) { $Extra = $dd.Extra }
+    if (-not $PSBoundParameters.ContainsKey('Domain')) { $Domain = $dd.Domain }
+  }
+
+  # 0. The extra roots, the longest first.
+  $roots = @($Extra | Where-Object { $_ -and $_.TrimEnd('/', '\').Length -gt 1 } | ForEach-Object { $_.TrimEnd('/', '\') } | Sort-Object -Property Length -Descending)
+  foreach ($r in $roots) {
+    $s = Invoke-ScrubReplace $s (Get-RootPattern $r) { '/work/example' } $counts 'extra'
+  }
 
   # 1. The home folder. A Windows home folder matches in any case and with
   # one or more slashes or backslashes between its parts.
@@ -94,29 +141,39 @@ function Invoke-Scrub([string]$Text, [string]$HomeDir, [string]$User, [string]$H
   $s = Invoke-ScrubReplace $s ('(?<![A-Za-z0-9_.~-])/(?:Users|home)/[^/\\\s"'':,;()]+') { '~' } $counts 'other-home'
   $s = Invoke-ScrubReplace $s ('(?i)(?<![A-Za-z0-9_.-])[A-Z]:[\\/]+Users[\\/]+[^/\\\s"'':,;()]+') { '~' } $counts 'other-home'
 
-  # 3. Project paths.
+  # 3. Project paths. The first pass takes a path just after a quote, up
+  # to the next quote, so that it can hold spaces. The second pass takes
+  # the other paths.
   $keep = @('Library', 'AppData', 'Applications')
-  $s = Invoke-ScrubReplace $s ('(?<![A-Za-z0-9_.~-])~[/\\]+(' + $pc + '+)') {
-    param($m) Convert-ProjectPath $m.Groups[1].Value $m.Value $keep
-  } $counts 'project'
-  $s = Invoke-ScrubReplace $s ('(?<![A-Za-z0-9_.~/\\-])/srv/(' + $pc + '+)') {
-    param($m) Convert-ProjectPath $m.Groups[1].Value $m.Value @()
-  } $counts 'project'
-  $s = Invoke-ScrubReplace $s ('(?<![A-Za-z0-9_.~/\\-])/work/(' + $pc + '+)') {
-    param($m)
-    $first = ([regex]::Split($m.Groups[1].Value, '[/\\]+'))[0]
-    if ($first -ceq 'example') { $m.Value } else { Convert-ProjectPath $m.Groups[1].Value $m.Value @() }
-  } $counts 'project'
   # A Windows drive path that is not below a home folder, for example
   # D:\Projects\shop. A \\?\ prefix goes with it. The system folders
   # C:\Windows, C:\Program Files, C:\Program Files (x86) and C:\ProgramData
-  # stay. A path ends at white space, so "Program Files" shows as "Program".
-  $system = @('windows', 'program', 'programdata', 'progra~1', 'progra~2')
-  $s = Invoke-ScrubReplace $s ('(?<![A-Za-z0-9_.~-])(?:\\+\?\\*)?[A-Za-z]:[\\/]+(' + $pc + '+)') {
-    param($m)
-    $first = ([regex]::Split($m.Groups[1].Value, '[/\\]+'))[0]
-    if ($system -contains $first.ToLowerInvariant()) { $m.Value } else { Convert-ProjectPath $m.Groups[1].Value $m.Value @() }
-  } $counts 'project'
+  # stay. A path ends at white space before a word with no slash, so
+  # "Program Files (x86)" shows as "Program".
+  $system = @('windows', 'program', 'program files', 'programdata', 'progra~1', 'progra~2')
+  foreach ($quoted in @($true, $false)) {
+    if ($quoted) {
+      $lb1 = '(?<=")'; $lb2 = '(?<=")'; $grp = '([^"\r\n]+)(?=")'
+    } else {
+      $lb1 = '(?<![A-Za-z0-9_.~-])'; $lb2 = '(?<![A-Za-z0-9_.~/\\-])'; $grp = '(' + $pc + '+' + $more + ')'
+    }
+    $s = Invoke-ScrubReplace $s ($lb1 + '~[/\\]+' + $grp) {
+      param($m) Convert-ProjectPath $m.Groups[1].Value $m.Value $keep
+    } $counts 'project'
+    $s = Invoke-ScrubReplace $s ($lb2 + '/srv/' + $grp) {
+      param($m) Convert-ProjectPath $m.Groups[1].Value $m.Value @()
+    } $counts 'project'
+    $s = Invoke-ScrubReplace $s ($lb2 + '/work/' + $grp) {
+      param($m)
+      $first = ([regex]::Split($m.Groups[1].Value, '[/\\]+'))[0]
+      if ($first -ceq 'example') { $m.Value } else { Convert-ProjectPath $m.Groups[1].Value $m.Value @() }
+    } $counts 'project'
+    $s = Invoke-ScrubReplace $s ($lb1 + '(?:\\+\?\\*)?[A-Za-z]:[\\/]+' + $grp) {
+      param($m)
+      $first = ([regex]::Split($m.Groups[1].Value, '[/\\]+'))[0]
+      if ($system -contains $first.ToLowerInvariant()) { $m.Value } else { Convert-ProjectPath $m.Groups[1].Value $m.Value @() }
+    } $counts 'project'
+  }
 
   # 4. Project keys. The Windows form starts with an upper-case drive
   # letter and one or two dashes: Claude D--Projects-shop, Cursor
@@ -134,7 +191,10 @@ function Invoke-Scrub([string]$Text, [string]$HomeDir, [string]$User, [string]$H
     $s = Invoke-ScrubReplace $s ('(?i)' + (Get-WordPattern $User)) { 'dev' } $counts 'user'
   }
 
-  # 6. The host name, then its short form.
+  # 6. The domain, then the host name and its short form.
+  if ($Domain) {
+    $s = Invoke-ScrubReplace $s ('(?i)' + (Get-WordPattern $Domain)) { 'domain' } $counts 'domain'
+  }
   if ($HostName) {
     $names = @($HostName)
     $short = $HostName.Split('.')[0]
@@ -144,16 +204,20 @@ function Invoke-Scrub([string]$Text, [string]$HomeDir, [string]$User, [string]$H
     }
   }
 
-  # 7. UUIDs.
+  # 7. API keys and tokens. A letter, a digit or a "-" must not come just
+  # before a key. A "_" or a "=" can.
+  $s = Invoke-ScrubReplace $s '(?<![A-Za-z0-9-])(?:(?:sk-ant-|sk-proj-|github_pat_|AIza|gh[pousr]_|glpat-|xox[abprs]-)[A-Za-z0-9_-]{16,}|sk-(?!ant-|proj-)(?=[A-Za-z0-9_-]*[0-9])[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16,}|key_[0-9a-fA-F]{32,}|eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]*(?:\.[A-Za-z0-9_-]+)?)' { '<secret>' } $counts 'secret'
+
+  # 8. UUIDs.
   $s = Invoke-ScrubReplace $s '(?i)(?<![0-9a-z])[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![0-9a-z])' { '<uuid>' } $counts 'uuid'
 
-  # 8. Long hex runs.
+  # 9. Long hex runs.
   $s = Invoke-ScrubReplace $s '(?i)(?<![0-9a-z])[0-9a-f]{16,}(?![0-9a-z])' { '<hex>' } $counts 'hex'
 
-  # 9. E-mail addresses.
+  # 10. E-mail addresses.
   $s = Invoke-ScrubReplace $s '[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}' { '<email>' } $counts 'email'
 
-  # 10. IPv4 addresses. A dotted quad after "v" or "version", or before a
+  # 11. IPv4 addresses. A dotted quad after "v" or "version", or before a
   # letter, "-" or "+", is a version number and stays.
   $s = Invoke-ScrubReplace $s '(?<![0-9.vV])(?<!(?i:version)[^0-9\r\n]{0,4})(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?![0-9])(?!\.[0-9])(?![-+A-Za-z])' {
     param($m)
@@ -171,7 +235,15 @@ function Get-ScrubDefaults {
   if (-not $u) { $u = $env:USER }
   $n = $env:SCRUB_HOST
   if (-not $n) { try { $n = [System.Net.Dns]::GetHostName() } catch { $n = $env:COMPUTERNAME } }
-  return New-Object PSObject -Property @{ HomeDir = $h; User = $u; HostName = $n }
+  $x = @()
+  if ($env:SCRUB_EXTRA) { $x += @($env:SCRUB_EXTRA -split "`r?`n" | Where-Object { $_ }) }
+  foreach ($v in @($env:OneDrive, $env:OneDriveCommercial, $env:OneDriveConsumer)) { if ($v) { $x += $v } }
+  $d = $env:SCRUB_DOMAIN
+  if (-not $d -and $env:USERDOMAIN) {
+    $short = ([string]$n).Split('.')[0]
+    if ($env:USERDOMAIN -ne $n -and $env:USERDOMAIN -ne $short -and $env:USERDOMAIN -ne $env:COMPUTERNAME) { $d = $env:USERDOMAIN }
+  }
+  return New-Object PSObject -Property @{ HomeDir = $h; User = $u; HostName = $n; Extra = $x; Domain = $d }
 }
 
 # Stop here when another script dot-sources this file.
@@ -188,7 +260,7 @@ if ($Path) {
 }
 
 $d = Get-ScrubDefaults
-$r = Invoke-Scrub $text $d.HomeDir $d.User $d.HostName
+$r = Invoke-Scrub $text $d.HomeDir $d.User $d.HostName $d.Extra $d.Domain
 
 $bytes = $utf8.GetBytes($r.Text)
 $out = [Console]::OpenStandardOutput()
