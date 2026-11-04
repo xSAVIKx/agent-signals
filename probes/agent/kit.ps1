@@ -10,7 +10,9 @@ $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 . (Join-Path $here 'lib.ps1')
 
 $cmd = if ($args.Count -gt 0) { [string]$args[0] } else { '' }
-$rest = if ($args.Count -gt 1) { $args[1..($args.Count - 1)] } else { @() }
+# @(...) keeps an array: an "if" expression unrolls one item to a string
+# and no item to $null.
+$rest = @($args | Select-Object -Skip 1)
 
 if ($cmd -in '', '-h', '--help', 'help') {
     Write-Output 'usage: kit <command> [arguments]'
