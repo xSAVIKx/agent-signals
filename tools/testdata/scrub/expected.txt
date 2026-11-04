@@ -28,3 +28,10 @@ words: an X-ray, a T-shirt and v1.2.3 stay, and so does the word abcD:\x
 secrets: ANTHROPIC_API_KEY=<secret> and "<secret>", <secret>
 secrets: <secret> <secret> <secret> <secret>
 words: a task-list, sk-short, key_count and the risk-free-mode flag stay
+spaces: /work/example and more
+support: ~/Library/Application Support/Code/User/settings.json
+two paths: /work/example /work/example
+drive: /work/example and more
+run: /work/example/agent-signals-run-linux-1/01-probe.txt
+onedrive: "/work/example" is the OneDrive folder
+domain: domain\dev logged in

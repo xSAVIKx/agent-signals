@@ -7,6 +7,9 @@
 # with the number of lines that changed.
 #
 # Changes, in this order:
+#   0. each extra root: a line of SCRUB_EXTRA (for example the run folder of
+#      the agent kit), and the values of OneDrive, OneDriveCommercial and
+#      OneDriveConsumer                              -> /work/example
 #   1. the home folder of this account               -> ~
 #   2. other home folders (/Users/<name>, /home/<name>, C:\Users\<name>) -> ~
 #   3. a path below ~ that is not in an agent or system folder:
@@ -16,7 +19,8 @@
 #      and a Windows drive path such as D:\Projects\shop, also after a \\?\
 #      prefix. C:\Windows, C:\Program Files and C:\ProgramData stay.
 #   5. the account name                              -> dev
-#   6. the host name                                 -> host
+#   6. the host name                                 -> host,
+#      and SCRUB_DOMAIN as a whole word              -> domain
 #   7. API keys and tokens (sk-ant-, sk-proj-, sk-, AIza, ghp_, gho_,
 #      ghs_, github_pat_, and key_ with 32 or more hex characters) -> <secret>
 #   8. UUIDs                                         -> <uuid>
@@ -24,12 +28,16 @@
 #  10. e-mail addresses                              -> <email>
 #  11. IPv4 addresses, except 127.0.0.1 and 0.0.0.0  -> <ip>
 #      (not a version number: after v or version, or before a letter, - or +)
+#  A path can hold spaces. After a space, a word that holds a / (or a \ in
+#  a drive path) and does not start a new path continues the path. So
+#  ~/My Projects/Client Acme/a.go is one path. A last folder with a space
+#  and no / after it ends the path at the space.
 #  A project key (a path with dashes, see below) becomes -work-example. A
 #  Windows key starts with a drive letter: D--Projects-shop, C-Users-alice-shop.
 #
 # The scrub is a help, not a proof. Read the output before you send it.
 # SCRUB_HOME, SCRUB_USER and SCRUB_HOST replace the values of this machine.
-# The tests use them.
+# The tests use them. SCRUB_EXTRA holds more roots, one on each line.
 set -eu
 
 home=${SCRUB_HOME:-$HOME}
@@ -57,6 +65,22 @@ rule() {
   sed -E "$2" "$tmp/a" >"$tmp/b"
   count "$1"
 }
+
+# 0. The extra roots, the longest first.
+{
+  [ -n "${SCRUB_EXTRA:-}" ] && printf '%s\n' "$SCRUB_EXTRA"
+  for _v in "${OneDrive:-}" "${OneDriveCommercial:-}" "${OneDriveConsumer:-}"; do
+    [ -n "$_v" ] && printf '%s\n' "$_v"
+  done
+} | awk 'length($0) > 1 { print length($0) "\t" $0 }' | sort -rn | cut -f 2- >"$tmp/extra"
+: >"$tmp/extra.sed"
+while IFS= read -r _x; do
+  printf 's#%s#/work/example#g\n' "$(q "$_x")" >>"$tmp/extra.sed"
+done <"$tmp/extra"
+if [ -s "$tmp/extra.sed" ]; then
+  sed -E -f "$tmp/extra.sed" "$tmp/a" >"$tmp/b"
+  count "extra root"
+fi
 
 rule "home folder" "s#$(q "$home")([/\\\\\"' :]|\$)#~\\1#g"
 rule "other home folder" 's#/Users/[A-Za-z0-9._-]+#~#g; s#/home/[A-Za-z0-9._-]+#~#g; s#[A-Za-z]:\\+Users\\+[A-Za-z0-9._-]+#~#g'
@@ -86,7 +110,7 @@ function wfix(path,    rest, first, r, r2, sep) {
   sub(/^(\\|\/)+/, "", rest)
   first = rest
   if (match(rest, /(\\|\/)/)) first = substr(rest, 1, RSTART - 1)
-  if (tolower(first) ~ /^(windows|program|programdata|progra~1|progra~2)$/ || first ~ /^\./) return path
+  if (tolower(first) ~ /^(windows|program|program files|programdata|progra~1|progra~2)$/ || first ~ /^\./) return path
   r = substr(rest, length(first) + 1)
   while (match(r, /^(\\|\/)+/)) {
     sep = substr(r, 1, RLENGTH)
@@ -97,13 +121,27 @@ function wfix(path,    rest, first, r, r2, sep) {
   }
   return "/work/example"
 }
+# more(rest, bs): the length of the words at the start of rest that
+# continue a path. Each word starts with one space, does not start a new
+# path, and holds a / (or a \ when bs is 1).
+function more(rest, bs,    n, w) {
+  n = 0
+  while (1) {
+    w = substr(rest, n + 1)
+    if (bs) {
+      if (!match(w, /^ [^ \t"'\'',:;()\/\\~][^ \t"'\'',:;()\/\\]*[\/\\][^ \t"'\'',:;()]*/)) break
+    } else if (!match(w, /^ [^ \t"'\'',:;()\/~][^ \t"'\'',:;()\/]*\/[^ \t"'\'',:;()]*/)) break
+    n += RLENGTH
+  }
+  return n
+}
 {
   line = $0
   res = ""
   while (1) {
     s1 = 0; s2 = 0
-    if (match(line, /(~|\/srv|\/work)\/[^ \t"'\'',:;()]+/)) { s1 = RSTART; l1 = RLENGTH }
-    if (match(line, /[A-Za-z]:(\\|\/)+[^ \t"'\'',:;()]+/)) { s2 = RSTART; l2 = RLENGTH }
+    if (match(line, /(~|\/srv|\/work)\/[^ \t"'\'',:;()]+/)) { s1 = RSTART; l1 = RLENGTH; l1 += more(substr(line, s1 + l1), 0) }
+    if (match(line, /[A-Za-z]:(\\|\/)+[^ \t"'\'',:;()]+/)) { s2 = RSTART; l2 = RLENGTH; l2 += more(substr(line, s2 + l2), 1) }
     if (s1 == 0 && s2 == 0) break
     # A \\?\ or \\? prefix goes with the drive path. Some awks do not
     # match an optional group before the drive letter, so look back here.
@@ -150,6 +188,7 @@ count "project path"
 rule "project key" 's#(^|[/\\ "])-?(srv|Users|home|var-lib|work)-[A-Za-z0-9._-]+#\1-work-example#g; s#(^|[/\\ "])[A-Z]--?[A-Za-z0-9._]+-[A-Za-z0-9._-]+#\1-work-example#g'
 
 [ -n "$user" ] && rule "account name" "s#(^|[^A-Za-z0-9_.-])$(q "$user")([^A-Za-z0-9_-]|\$)#\\1dev\\2#g"
+[ -n "${SCRUB_DOMAIN:-}" ] && rule "domain" "s#(^|[^A-Za-z0-9_-])$(q "$SCRUB_DOMAIN")([^A-Za-z0-9_-]|\$)#\\1domain\\2#g"
 [ -n "$host" ] && rule "host name" "s#(^|[^A-Za-z0-9_-])($(q "$host")|$(q "$short"))([^A-Za-z0-9_-]|\$)#\\1host\\3#g"
 rule "secret" 's#(^|[^A-Za-z0-9_-])(sk-ant-|sk-proj-|sk-|AIza|ghp_|gho_|ghs_|github_pat_)[A-Za-z0-9_-]{16,}#\1<secret>#g; s#(^|[^A-Za-z0-9_-])key_[0-9a-fA-F]{32,}#\1<secret>#g'
 rule "uuid" 's#[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}#<uuid>#g'
