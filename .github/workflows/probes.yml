@@ -61,7 +61,7 @@ jobs:
           - macos-26-intel
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.os == 'ubuntu-slim' }}
-    timeout-minutes: 12
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -98,6 +98,21 @@ jobs:
           rm -f agent-signals-probe-*.txt
       - name: Guided step test
         run: sh tools/test-guided-step.sh
+      # The tests of kit session need tmux and, for the pty backend, uv.
+      # macOS images and ubuntu-slim have no tmux (fact 049). uv gives
+      # pyte with "uv run --with": no pip install changes the system
+      # Python.
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: false
+      - name: Install tmux
+        run: |
+          if command -v tmux >/dev/null; then exit 0; fi
+          if [ "$RUNNER_OS" = macOS ]; then
+            brew install tmux
+          else
+            sudo apt-get update -q && sudo apt-get install -y -q tmux
+          fi
       - name: Agent kit test
         run: sh tools/test-agent-kit.sh
       - name: Kit through the one-liner

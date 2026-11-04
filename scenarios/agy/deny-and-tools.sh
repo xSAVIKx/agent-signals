@@ -24,6 +24,8 @@ set -eu
 here=$(cd "$(dirname "$0")/.." && pwd)
 # shellcheck source=scenarios/lib.sh
 . "$here/lib.sh"
+# shellcheck source=scenarios/login.sh
+. "$here/login.sh"
 # shellcheck source=scenarios/agy/agy.sh
 . "$here/agy/agy.sh"
 
