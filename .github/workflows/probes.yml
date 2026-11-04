@@ -147,16 +147,21 @@ jobs:
           uv venv --managed-python --python 3.12 .venv-driver
           uv pip install --python .venv-driver pywinpty==3.1.2 pyte==0.8.2 wcwidth==0.9.4 psutil==7.2.2
           if ($LASTEXITCODE -ne 0) { throw "uv pip install: exit $LASTEXITCODE" }
-          "KIT_PYTHON=$((Resolve-Path .venv-driver\Scripts\python.exe).Path)" >> $env:GITHUB_ENV
+          "AGENT_SIGNALS_PYTHON=$((Resolve-Path .venv-driver\Scripts\python.exe).Path)" >> $env:GITHUB_ENV
           choco install psmux --version 3.4.0 -y --no-progress
           if ($LASTEXITCODE -ne 0) { throw "choco install psmux: exit $LASTEXITCODE" }
           "KIT_TEST_SESSIONS=required" >> $env:GITHUB_ENV
       - name: Session tools
         shell: pwsh
         run: |
-          & $env:KIT_PYTHON -c "import platform, winpty, pyte; print(platform.machine())"
+          & $env:AGENT_SIGNALS_PYTHON -c "import platform, winpty, pyte; print(platform.machine())"
           Get-Command psmux | Format-List Source
           psmux -V
+      - name: Scenario driver tests
+        shell: pwsh
+        run: |
+          & $env:AGENT_SIGNALS_PYTHON -I -m unittest discover -s scenarios/tests -v
+          if ($LASTEXITCODE -ne 0) { throw "exit $LASTEXITCODE" }
       - name: Agent kit test (PowerShell 7)
         shell: pwsh
         run: ./tools/test-agent-kit.ps1

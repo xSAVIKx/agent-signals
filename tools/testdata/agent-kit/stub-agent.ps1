@@ -8,6 +8,8 @@
 # When STUB_LOG is set, it writes one line for each key to that file:
 # "key Enter", "key Escape", "key Tab", or "char N" (N is the code of the
 # character). A test reads the file to see the bytes that a backend sent.
+# The kit gives the agent a clean environment, so a test sets STUB_LOG and
+# STUB_ENV in the --cmd of the session.
 #
 # Run: powershell -NoProfile -ExecutionPolicy Bypass -File stub-agent.ps1
 $ErrorActionPreference = 'Stop'
@@ -37,6 +39,12 @@ $esc = [char]27
 
 function Write-Log([string]$Line) {
     if ($env:STUB_LOG) { Add-Content -LiteralPath $env:STUB_LOG -Value $Line }
+}
+
+# When STUB_ENV is set, write the names of the environment variables to
+# that file, one on each line, so that a test can check the environment.
+if ($env:STUB_ENV) {
+    Get-ChildItem Env: | ForEach-Object { $_.Name } | Sort-Object | Set-Content -LiteralPath $env:STUB_ENV
 }
 
 function Show-Screen {

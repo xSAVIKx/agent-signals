@@ -64,15 +64,15 @@ function Start-KitPiped {
 
 function Test-Conpty {
     $c = @()
-    if ($env:KIT_PYTHON) { $c += $env:KIT_PYTHON }
+    if ($env:AGENT_SIGNALS_PYTHON) { $c += $env:AGENT_SIGNALS_PYTHON }
     $g = Get-Command python -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($g -and $g.Source -notmatch '\\WindowsApps\\') { $c += $g.Source }
     foreach ($py in $c) {
         $ErrorActionPreference = 'Continue'
-        & $py -c 'import winpty, pyte, wcwidth' 2>$null | Out-Null
+        & $py -c 'import winpty, pyte, wcwidth, psutil' 2>$null | Out-Null
         if ($LASTEXITCODE -eq 0) { return '' }
     }
-    return 'needs a Python with pywinpty and pyte'
+    return 'needs a Python with pywinpty, pyte, wcwidth and psutil'
 }
 
 function Test-Psmux {
@@ -85,12 +85,16 @@ Expect-Code 'session with no command is bad use' 2 (Invoke-Kit 'session')
 Expect-Code 'start with no backend is bad use' 2 (Invoke-Kit 'session' 'start' 'x' 'claude')
 Expect-Code 'start with an unknown backend is bad use' 2 (Invoke-Kit 'session' 'start' 'x' 'claude' '--via' 'tmux')
 Expect-Code 'a bad session name is bad use' 2 (Invoke-Kit 'session' 'screen' '..\x')
+Expect-Code 'a name with a dot is bad use' 2 (Invoke-Kit 'session' 'start' 'a.b' 'claude' '--via' 'conpty')
+Expect-Code 'a name with a colon is bad use' 2 (Invoke-Kit 'session' 'start' 'a:b' 'claude' '--via' 'psmux')
+Expect-Code 'a bad --home is bad use' 2 (Invoke-Kit 'session' 'start' 'h' 'claude' '--via' 'conpty' '--home' 'other')
 Expect-Code 'screen of no session is bad use' 2 (Invoke-Kit 'session' 'screen' 'none')
-$saved = $env:PATH; $savedPy = $env:KIT_PYTHON
-$env:PATH = Join-Path $env:SystemRoot 'System32'; $env:KIT_PYTHON = ''
+Expect-Code 'wait with bad seconds is bad use' 2 (Invoke-Kit 'session' 'wait' 'none' 'x' '0')
+$saved = $env:PATH; $savedPy = $env:AGENT_SIGNALS_PYTHON
+$env:PATH = Join-Path $env:SystemRoot 'System32'; $env:AGENT_SIGNALS_PYTHON = ''
 Expect-Code 'conpty with no Python exits 3' 3 (Invoke-Kit 'session' 'start' 'np' 'claude' '--via' 'conpty')
 Expect-Code 'psmux not on PATH exits 3' 3 (Invoke-Kit 'session' 'start' 'nm' 'claude' '--via' 'psmux')
-$env:PATH = $saved; $env:KIT_PYTHON = $savedPy
+$env:PATH = $saved; $env:AGENT_SIGNALS_PYTHON = $savedPy
 
 foreach ($b in 'conpty', 'psmux') {
     $why = if ($b -eq 'conpty') { Test-Conpty } else { Test-Psmux }
@@ -102,18 +106,31 @@ foreach ($b in 'conpty', 'psmux') {
     try {
         $s = "drive-$b"
         $log = Join-Path $T "keys-$b.log"
-        $env:STUB_LOG = $log
+        $envf = Join-Path $T "env-$b.txt"
+        # The agent gets a clean environment, so the command sets the
+        # variables of the stub. "claude" is the stub on PATH.
+        $cmd = "`$env:STUB_LOG = '$log'; `$env:STUB_ENV = '$envf'; claude"
 
         # test_session_drives_the_stub, each command in a new process.
-        Expect-Code "${b}: start" 0 (Invoke-Kit 'session' 'start' $s 'claude' '--via' $b)
+        Expect-Code "${b}: start" 0 (Invoke-Kit 'session' 'start' $s 'claude' '--via' $b '--cmd' $cmd)
         Get-Content -LiteralPath $out | Write-Output
+        Expect-Code "${b}: a second start of a running session is bad use" 2 (Invoke-Kit 'session' 'start' $s 'claude' '--via' $b)
         foreach ($k in 'backend', 'work', 'pid') {
             if (Test-Path -LiteralPath (Join-Path $run "sessions/$s/$k")) { Pass "${b}: state file $k" } else { Fail "${b}: state file $k" 'missing' }
         }
         $sock = if ($b -eq 'conpty') { 'pipe' } else { 'socket' }
         if (Test-Path -LiteralPath (Join-Path $run "sessions/$s/$sock")) { Pass "${b}: state file $sock" } else { Fail "${b}: state file $sock" 'missing' }
         $work = (Get-Text (Join-Path $run "sessions/$s/work")).Trim()
+        $pidsText = Get-Text (Join-Path $run "sessions/$s/pids")
+        foreach ($role in 'server', 'agent') {
+            if ($pidsText -match "(?m)^\d+ session $s $role`t\d+") { Pass "${b}: the pids file has the $role" } else { Fail "${b}: the pids file has the $role" "pids: $($pidsText -replace '\r?\n', ',')" }
+        }
         Expect-Code "${b}: wait for the idle screen" 0 (Invoke-Kit 'session' 'wait' $s 'stub idle' '60')
+        $names = @((Get-Text $envf) -split '\r?\n' | Where-Object { $_ })
+        if ($names -contains 'Path' -or $names -contains 'PATH') { Pass "${b}: the agent has PATH" } else { Fail "${b}: the agent has PATH" "env: $($names -join ',')" }
+        $leak = @($names | Where-Object { $_ -match '^(AGENT_SIGNALS_|KIT_|CLAUDECODE$|TERM_PROGRAM$|GITHUB_)' -and $_ -notin 'STUB_LOG', 'STUB_ENV' })
+        if ($leak.Count -eq 0) { Pass "${b}: the agent has a clean environment" } else { Fail "${b}: the agent has a clean environment" "it has: $($leak -join ',')" }
+        if ((Get-Text (Join-Path $run "sessions/$s/home-mode")).Trim() -eq 'throwaway') { Pass "${b}: the default home is throwaway" } else { Fail "${b}: the default home is throwaway" 'no' }
         Expect-Code "${b}: screen" 0 (Invoke-Kit 'session' 'screen' $s)
         Expect-Line "${b}: the screen shows the stub" '^stub idle$' $out
         Expect-Code "${b}: send" 0 (Invoke-Kit 'session' 'send' $s 'write')
@@ -139,13 +156,21 @@ foreach ($b in 'conpty', 'psmux') {
 
         # The time limit of wait.
         Expect-Code "${b}: wait at the time limit exits 1" 1 (Invoke-Kit 'session' 'wait' $s 'no-such-text' '2')
+        Expect-Line "${b}: wait names the last screen" 'last\.screen$' $out
         $last = Join-Path $run "sessions/$s/last.screen"
         if ((Get-Text $last) -match '(?m)^stub idle$') { Pass "${b}: wait saved the last screen" } else { Fail "${b}: wait saved the last screen" "no stub idle in $last" }
         Expect-Code "${b}: an unknown key is bad use" 2 (Invoke-Kit 'session' 'key' $s 'NoSuchKey')
 
+        Expect-Code "${b}: an unknown key in lower case is bad use" 2 (Invoke-Kit 'session' 'key' $s 'enter')
+
         Expect-Code "${b}: stop" 0 (Invoke-Kit 'session' 'stop' $s)
+        Expect-Line "${b}: stop prints the line of session.sh" "^session: $s stopped$" $out
         Expect-NoLivePids "${b}: no pid of the session runs after stop" $s
-        Remove-Item Env:\STUB_LOG
+        if (Test-Path -LiteralPath (Join-Path $run "sessions/$s/stopped")) { Pass "${b}: stop writes stopped" } else { Fail "${b}: stop writes stopped" 'no file' }
+        if (-not (Test-Path -LiteralPath $work)) { Pass "${b}: stop removes the work folder" } else { Fail "${b}: stop removes the work folder" $work }
+        Expect-Code "${b}: send to a stopped session fails" 1 (Invoke-Kit 'session' 'send' $s 'x')
+        Expect-Code "${b}: a start reuses the name of a stopped session" 0 (Invoke-Kit 'session' 'start' $s 'claude' '--via' $b)
+        Expect-Code "${b}: stop the reused session" 0 (Invoke-Kit 'session' 'stop' $s)
 
         # The start returns when the caller reads the output through a pipe.
         $s2 = "piped-$b"

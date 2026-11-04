@@ -167,7 +167,6 @@ class Helpers(unittest.TestCase):
             shutil.rmtree(d)
 
 
-@unittest.skipUnless(shutil.which("tmux"), "tmux is not installed")
 class ServeArguments(unittest.TestCase):
     def test_parse_serve(self):
         o = conpty.parse_serve(["\\\\.\\pipe\\kit-a", "120", "40", "--cwd", "C:\\w x",
@@ -194,12 +193,28 @@ class ServeArguments(unittest.TestCase):
         with self.assertRaises(ValueError):
             conpty.key_text("C-m-x")
 
+    def test_key_file(self):
+        o = conpty.parse_serve(["p", "120", "40", "--key", "k.txt", "--", "a.exe"])
+        self.assertEqual(o["key"], "k.txt")
+        d = tempfile.mkdtemp()
+        try:
+            f = os.path.join(d, "k.txt")
+            with open(f, "w") as h:
+                h.write("00ff\n")
+            self.assertEqual(conpty.read_key(f), b"00ff")
+            self.assertIsNone(conpty.read_key(None))
+        finally:
+            shutil.rmtree(d)
+
     def test_bad_use_exits_2(self):
+        self.assertEqual(conpty.main(["--key"]), 2)
+        self.assertEqual(conpty.main(["detach", "p", "1", "2", "--", "a"]), 2)
         self.assertEqual(conpty.main(["serve", "p", "1"]), 2)
         self.assertEqual(conpty.main(["p", "key", "NoSuchKey"]), 2)
         self.assertEqual(conpty.main(["p", "jump"]), 2)
 
 
+@unittest.skipUnless(shutil.which("tmux"), "tmux is not installed")
 class SameAsTmux(unittest.TestCase):
     """pyte must give the same text as tmux capture-pane -p for the same
     output."""
