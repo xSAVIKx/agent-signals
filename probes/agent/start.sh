@@ -13,8 +13,8 @@
 # ~/.cursor or a git work tree.
 #
 # The run folder holds manifest.tsv. Its first lines are the facts of the
-# run, one "KEY<tab>VALUE" line each: kit, os, os_version, cpu, home,
-# orchestrator, start. "kit step" adds the step lines, and "kit edit" the
+# run, one "meta<tab>KEY<tab>VALUE" line each: kit, os, os_version, cpu,
+# home, orchestrator, start. "kit step" adds the step lines, and "kit edit" the
 # edit lines. The manifest never holds the host name, the account name or
 # the home folder.
 set -u
@@ -54,13 +54,13 @@ umask 077
 mkdir "$run" 2>/dev/null || kit_die "$KIT_FAIL" "cannot make the run folder $run"
 chmod 700 "$run"
 {
-  printf 'kit\t%s\n' "$(kit_version)"
-  printf 'os\t%s\n' "$os"
-  printf 'os_version\t%s\n' "$(kit_os_version | tr '\t' ' ')"
-  printf 'cpu\t%s\n' "$(kit_cpu)"
-  printf 'home\t%s\n' "$home"
-  printf 'orchestrator\t%s\n' "$(kit_orchestrator)"
-  printf 'start\t%s\n' "$(kit_now)"
+  printf 'meta\tkit\t%s\n' "$(kit_version)"
+  printf 'meta\tos\t%s\n' "$os"
+  printf 'meta\tos_version\t%s\n' "$(kit_os_version | tr '\t' ' ')"
+  printf 'meta\tcpu\t%s\n' "$(kit_cpu)"
+  printf 'meta\thome\t%s\n' "$home"
+  printf 'meta\torchestrator\t%s\n' "$(kit_orchestrator)"
+  printf 'meta\tstart\t%s\n' "$(kit_now)"
 } >"$run/manifest.tsv"
 kit_json "$run"
 kit_summary "$run"

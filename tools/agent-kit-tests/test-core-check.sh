@@ -27,7 +27,8 @@ echo "API_KEY=LEAK-CANARY-SESSION" >"$run/sessions/s1/env"
 check clean
 expect_code "kit check passes a clean run" 0 $?
 expect_line "kit check prints the archive" "^archive: $(basename "$run")\.tar\.gz$|^archive: .*/$(basename "$run")\.tar\.gz$" "$T/out"
-expect_line "kit check prints pass" '^check: pass$' "$T/out"
+expect_line "kit check prints ok" '^check: ok$' "$T/out"
+if [ "$(head -n 1 "$T/out")" = "check: ok" ]; then pass "check: ok is the first line"; else fail "check: ok is the first line" "$(head -n 1 "$T/out")"; fi
 expect_file "the archive is next to the run folder" "$run.tar.gz"
 tar -tzf "$run.tar.gz" >"$T/list"
 expect_line "the archive holds the step file" "^$(basename "$run")/01-permission-claude@pty\.txt$" "$T/list"
@@ -44,6 +45,17 @@ check clean
 expect_code "kit check accepts the doctor line" 0 $?
 tar -tzf "$run.tar.gz" >"$T/list"
 expect_line "the archive holds the doctor file" "/00-doctor\.txt$" "$T/list"
+
+# The next step after the doctor line gets the next number.
+(cd "$T/clean" && HOME=$H kitc "$T/k" step permission-claude@pty) >/dev/null 2>&1
+expect_file "the next step gets the next number" "$run/02-permission-claude@pty.txt"
+
+new_run raw
+mkdir -p "$run/.raw"
+echo "raw" >"$run/.raw/09.raw"
+check raw
+expect_code "kit check fails a leftover raw file" 1 $?
+expect_line "the failure names the raw file" '^check: the raw file \.raw/09\.raw ' "$T/out"
 
 new_run changed
 echo "a name" >>"$file"

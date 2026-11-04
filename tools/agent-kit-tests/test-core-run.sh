@@ -38,8 +38,8 @@ case $(basename "$run") in
 esac
 # shellcheck disable=SC2012
 case $(ls -ld "$run" | cut -c1-10) in drwx------) pass "the run folder has mode 0700" ;; *) fail "the run folder has mode 0700" "$(ls -ld "$run")" ;; esac
-expect_line "the manifest has the home mode" '^home	real$' "$run/manifest.tsv"
-expect_line "the manifest has the kit version" '^kit	' "$run/manifest.tsv"
+expect_line "the manifest has the home mode" '^meta	home	real$' "$run/manifest.tsv"
+expect_line "the manifest has the kit version" '^meta	kit	' "$run/manifest.tsv"
 expect_no_line "the manifest has no host name" "$(hostname 2>/dev/null || uname -n)" "$run/manifest.tsv"
 
 # The probe step, with no stdin.
@@ -53,7 +53,7 @@ n=$(grep -c '^step	' "$run/manifest.tsv")
 if [ "$n" = 1 ]; then pass "the manifest has one step line"; else fail "the manifest has one step line" "$n lines"; fi
 sha=$(. "$ROOT/probes/agent/lib.sh" && kit_sha256 "$run/01-probe@none.txt")
 expect_line "the step line has the SHA-256 of the file" "^step	probe	none	ok	[^	]+	[^	]+	01-probe@none\.txt	$sha	-$" "$run/manifest.tsv"
-if [ -d "$run/.work" ]; then fail "the step leaves no raw file" "$(ls -A "$run/.work")"; else pass "the step leaves no raw file"; fi
+if [ -d "$run/.raw" ]; then fail "the step leaves no raw file" "$(ls -A "$run/.raw")"; else pass "the step leaves no raw file"; fi
 
 # manifest.json and summary.txt.
 expect_line "the summary has the fixed first line" '^kit [^ ]+ on (linux|macos) \([^)]+\), .+\. Run from [0-9T:Z-]+ to [0-9T:Z-]+ \(real\)\.$' "$run/summary.txt"
@@ -116,7 +116,7 @@ echo "fake probe" >"$KIT_OUT"
 EOF
 (cd "$T/r" && HOME=$H kitc "$T/k" step probe) >"$T/out" 2>&1
 expect_code "a step with one backend runs with no @" 0 $?
-expect_file "the next step has the next number" "$run2/05-probe@none.txt"
+expect_file "the next step has the next number" "$run2/04-probe@none.txt"
 
 # A throwaway home skips a login step.
 mkdir -m 0700 "$T/t"

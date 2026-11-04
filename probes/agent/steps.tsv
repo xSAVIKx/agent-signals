@@ -41,7 +41,9 @@
 #   windows     The changes on Windows, as KEY=VALUE pairs separated by ";".
 #               "send=Tab": the key that sends the prompt is Tab, not Enter.
 #               Codex 0.164.0 on Windows sends a message with Tab (aw,
-#               reported; not measured here).
+#               reported; not measured here). "no", "false" or "0": the
+#               line is not for Windows, and the Windows kit hides it. "-":
+#               no change.
 #   measures    What the step measures, for a person.
 #   facts       A comma list of the numbers of the facts that the step
 #               checks.

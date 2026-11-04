@@ -31,7 +31,7 @@ expect_code "kit step probe@none exits 0" 0 $?
 expect_line "the probe read the fake home" '^################ claude$' "$run/01-probe@none.txt"
 (cd "$T/out" && leak_env sh "$ROOT/probes/agent/kit.sh" check) >"$T/log" 2>&1
 expect_code "kit check passes" 0 $?
-[ "$(cat "$T/log")" ] && sed 's/^/  /' "$T/log" | grep '^  check: ' | grep -v 'pass$'
+grep '^check: ' "$T/log" | grep -v '^check: ok$' | sed 's/^/  /'
 
 if grep -rl LEAK-CANARY "$run" >"$T/hits" 2>/dev/null; then
   fail "no canary in the run folder" "$(tr '\n' ' ' <"$T/hits")"

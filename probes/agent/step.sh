@@ -11,7 +11,7 @@
 # write one line of reason to KIT_OUT.reason. Its exit code: 0 ok, 1 fail,
 # 3 skip (a needed tool is missing), 4 the operator must act.
 #
-# Then "kit step" scrubs KIT_OUT with tools/scrub.sh into
+# KIT_OUT is in RUN/.raw/. Then "kit step" scrubs KIT_OUT with tools/scrub.sh into
 # NN-NAME@BACKEND.txt in the run folder, deletes KIT_OUT, adds the line
 #   step<tab>NAME<tab>BACKEND<tab>RESULT<tab>START<tab>END<tab>FILE<tab>SHA256<tab>REASON
 # to manifest.tsv ("-" for no file or no reason), writes manifest.json and
@@ -63,10 +63,12 @@ if [ "$needs" = login ] && [ "$home" = throwaway ]; then
   exit 0
 fi
 
-n=$(awk -F '\t' '$1 == "step" && $2 != "doctor" { n++ } END { print n + 1 }' "$run/manifest.tsv")
+# The number is one more than the highest number of a file in the manifest
+# (00-doctor.txt is 00).
+n=$(awk -F '\t' '$1 == "step" && $7 ~ /^[0-9][0-9]*-/ { k = substr($7, 1, index($7, "-") - 1) + 0; if (k > n) n = k } END { print n + 1 }' "$run/manifest.tsv")
 nn=$(printf '%02d' "$n")
 file=$nn-$name@$backend.txt
-work=$run/.work
+work=$run/.raw
 mkdir -p "$work"
 out=$work/$nn.raw
 rm -f "$out" "$out.reason"

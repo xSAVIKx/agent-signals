@@ -16,9 +16,10 @@
 #   7. the run folder belongs to the user and has mode 0700.
 # Then it writes manifest.json, summary.txt and the archive
 # agent-signals-run-<os>-<time>.tar.gz next to the run folder, and prints
-# "run: <path>", "archive: <path>" and "check: pass". The archive holds the
-# files of 3 only, not pids/ or sessions/, which can hold the environment
-# of a session. Each failure prints "check: <reason>", and the exit code is
+# "check: ok", "run: <path>" and "archive: <path>". The archive holds the
+# files of 3 only, not pids/, sessions/, .kit/ or .raw/. sessions/ can hold
+# the environment of a session. A file in .raw/ is a failure: a step did
+# not scrub it. Each failure prints "check: <reason>", and the exit code is
 # 1.
 set -u
 . "$(dirname "$0")/lib.sh"
@@ -51,6 +52,11 @@ while IFS='	' read -r name backend result file sha; do
   awk -F '\t' -v f="$file" -v s="$now" '$1 == "edit" && $2 == f && $4 == s { ok = 1 } END { exit ok ? 0 : 1 }' "$m" ||
     say "$file: the file changed after the step, and no 'kit edit' line has its SHA-256"
 done <"$tmp/steps"
+
+# A raw file that a step left: the scrub did not run on it.
+for f in "$run"/.raw/*; do
+  [ -e "$f" ] && say "the raw file .raw/$(basename "$f") is still in the run folder. Run the step again"
+done
 
 # 3. The files of the run folder. The archive gets only these.
 : >"$tmp/files"
@@ -169,6 +175,6 @@ if ! (cd "$parent" && tar -cf - "$@" | gzip -c >"$archive"); then
   rm -f "$archive"
   kit_die "$KIT_FAIL" "cannot write the archive $archive"
 fi
+echo "check: ok"
 echo "run: $run"
 echo "archive: $archive"
-echo "check: pass"

@@ -198,10 +198,10 @@ kit_step_field() {
     END { exit found ? 0 : 1 }' "$KIT_STEPS"
 }
 
-# kit_manifest_value RUN KEY: the value of the run line KEY of
-# RUN/manifest.tsv.
+# kit_manifest_value RUN KEY: the value of the line "meta<tab>KEY<tab>VALUE"
+# of RUN/manifest.tsv.
 kit_manifest_value() {
-  awk -F '\t' -v k="$2" '$1 == k { print $2; exit }' "$1/manifest.tsv"
+  awk -F '\t' -v k="$2" '$1 == "meta" && $2 == k { print $3; exit }' "$1/manifest.tsv"
 }
 
 # kit_has_word LIST WORD: true when the comma list LIST holds WORD.
@@ -240,7 +240,7 @@ kit_json() {
       edits = edits (ne++ ? ",\n" : "") "    {\"file\": " s($2) ", \"reason\": " s($3) ", \"sha256\": " s($4) "}"
       next
     }
-    { run[$1] = $2 }
+    $1 == "meta" { run[$2] = $3 }
     END {
       if (end == "") end = run["start"]
       printf "{\n"
@@ -260,7 +260,7 @@ kit_summary() {
       end = $6
       next
     }
-    $1 != "edit" { run[$1] = $2 }
+    $1 == "meta" { run[$2] = $3 }
     END {
       if (end == "") end = run["start"]
       printf "kit %s on %s (%s), %s. Run from %s to %s (%s).\n", run["kit"], run["os"], run["cpu"], run["os_version"], run["start"], end, run["home"]
