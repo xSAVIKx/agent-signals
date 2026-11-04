@@ -89,3 +89,209 @@ kit_pid_ours() {
   [ -n "$_want" ] || return 1
   [ "$_want" = "$(kit_pid_start "$2")" ]
 }
+
+# kit_now: the time now, in UTC, as 2026-11-01T12:00:00Z.
+kit_now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+
+# kit_sha256 FILE: the SHA-256 of FILE, in hex.
+kit_sha256() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  else
+    shasum -a 256 "$1" | awk '{print $1}'
+  fi
+}
+
+# kit_cpu: the CPU type, as uname -m prints it.
+kit_cpu() { uname -m; }
+
+# kit_os_version: the name and version of the OS, for example
+# "macOS 15.5" or "Ubuntu 24.04.3 LTS".
+kit_os_version() {
+  if [ "$(kit_os)" = macos ]; then
+    echo "macOS $(sw_vers -productVersion 2>/dev/null)"
+  elif [ -r /etc/os-release ]; then
+    (. /etc/os-release && echo "${PRETTY_NAME:-Linux}")
+  else
+    echo "Linux $(uname -r)"
+  fi
+}
+
+# The agents that the kit knows, as probes/run.sh names them.
+KIT_ALL_AGENTS="claude codex agy cursor opencode copilot gemini"
+
+# kit_agent_command AGENT: the command of AGENT on PATH, or nothing. The
+# Cursor CLI is "cursor-agent" or "agent".
+kit_agent_command() {
+  case $1 in
+    cursor)
+      for _c in cursor-agent agent; do
+        command -v "$_c" >/dev/null 2>&1 && { echo "$_c"; return 0; }
+      done
+      ;;
+    *) command -v "$1" >/dev/null 2>&1 && echo "$1" ;;
+  esac
+  return 0
+}
+
+# kit_agents: the agents on PATH, one name on each line.
+kit_agents() {
+  for _a in $KIT_ALL_AGENTS; do
+    [ -n "$(kit_agent_command "$_a")" ] && echo "$_a"
+  done
+  return 0
+}
+
+# kit_backends: the backends of test sessions whose tool is installed, one
+# name on each line. "none" (a step with no session) and "operator" (a
+# real terminal that the operator starts) need no tool. "pty" needs
+# python3, and uv or pyte.
+kit_backends() {
+  echo none
+  command -v tmux >/dev/null 2>&1 && echo tmux
+  if command -v python3 >/dev/null 2>&1; then
+    if command -v uv >/dev/null 2>&1 || python3 -I -c 'import pyte' >/dev/null 2>&1; then
+      echo pty
+    fi
+  fi
+  echo operator
+}
+
+# kit_agent_pattern AGENT: the process pattern of AGENT: the first
+# "pids '...'" call of its probe, as probes/run.sh reads it.
+kit_agent_pattern() {
+  [ -r "$KIT_ROOT/probes/$1/unix.sh" ] || return 0
+  sed -n "s/.*pids '\([^']*\)'.*/\1/p" "$KIT_ROOT/probes/$1/unix.sh" | head -n 1
+}
+
+# kit_orchestrator: the name of the agent that runs the kit: the first
+# process above the kit whose command line matches the pattern of an
+# agent. It prints "unknown" when it finds no such process.
+kit_orchestrator() {
+  _p=$$
+  while _p=$(ps -o ppid= -p "$_p" 2>/dev/null | tr -d ' ') && [ "${_p:-0}" -gt 1 ]; do
+    _cl=$(ps -o args= -p "$_p" 2>/dev/null)
+    for _a in $KIT_ALL_AGENTS; do
+      _re=$(kit_agent_pattern "$_a")
+      [ -n "$_re" ] || continue
+      if printf '%s\n' "$_cl" | grep -Eq -- "$_re"; then
+        echo "$_a"
+        return 0
+      fi
+    done
+  done
+  echo unknown
+}
+
+# KIT_STEPS: the step list. The comment at the start of the file tells
+# the columns.
+KIT_STEPS=$KIT_DIR/steps.tsv
+
+# kit_step_field NAME COLUMN: the value of COLUMN in the line NAME of the
+# step list. The value "-" prints nothing. It exits 1 when the list has no
+# line NAME.
+kit_step_field() {
+  awk -F '\t' -v n="$1" -v c="$2" '
+    /^#/ || NF == 0 { next }
+    !h { for (i = 1; i <= NF; i++) col[$i] = i; h = 1; next }
+    $1 == n { found = 1; if ((c in col) && $col[c] != "-") print $col[c]; exit }
+    END { exit found ? 0 : 1 }' "$KIT_STEPS"
+}
+
+# kit_manifest_value RUN KEY: the value of the run line KEY of
+# RUN/manifest.tsv.
+kit_manifest_value() {
+  awk -F '\t' -v k="$2" '$1 == k { print $2; exit }' "$1/manifest.tsv"
+}
+
+# kit_has_word LIST WORD: true when the comma list LIST holds WORD.
+kit_has_word() {
+  case ",$1," in *",$2,"*) return 0 ;; esac
+  return 1
+}
+
+# kit_json RUN: write RUN/manifest.json from RUN/manifest.tsv, with awk
+# only. The value "-" becomes null.
+kit_json() {
+  awk -F '\t' '
+    BEGIN { for (i = 1; i < 32; i++) ctl[sprintf("%c", i)] = sprintf("\\u%04x", i) }
+    function s(v,    o, ch, k) {
+      if (v == "-" || v == "") return "null"
+      gsub(/\\/, "\\\\", v)
+      gsub(/"/, "\\\"", v)
+      if (v ~ /[[:cntrl:]]/) {
+        o = ""
+        for (k = 1; k <= length(v); k++) {
+          ch = substr(v, k, 1)
+          o = o ((ch in ctl) ? ctl[ch] : ch)
+        }
+        v = o
+      }
+      return "\"" v "\""
+    }
+    $1 == "step" {
+      steps = steps (ns++ ? ",\n" : "") "    {\"name\": " s($2) ", \"backend\": " s($3) \
+        ", \"result\": " s($4) ", \"reason\": " s($9) ", \"start\": " s($5) \
+        ", \"end\": " s($6) ", \"file\": " s($7) ", \"sha256\": " s($8) "}"
+      end = $6
+      next
+    }
+    $1 == "edit" {
+      edits = edits (ne++ ? ",\n" : "") "    {\"file\": " s($2) ", \"reason\": " s($3) ", \"sha256\": " s($4) "}"
+      next
+    }
+    { run[$1] = $2 }
+    END {
+      if (end == "") end = run["start"]
+      printf "{\n"
+      printf "  \"kit\": %s,\n  \"os\": %s,\n  \"os_version\": %s,\n  \"cpu\": %s,\n", s(run["kit"]), s(run["os"]), s(run["os_version"]), s(run["cpu"])
+      printf "  \"home\": %s,\n  \"orchestrator\": %s,\n  \"start\": %s,\n  \"end\": %s,\n", s(run["home"]), s(run["orchestrator"]), s(run["start"]), s(end)
+      printf "  \"steps\": [%s%s%s],\n", (ns ? "\n" : ""), steps, (ns ? "\n  " : "")
+      printf "  \"edits\": [%s%s%s]\n}\n", (ne ? "\n" : ""), edits, (ne ? "\n  " : "")
+    }' "$1/manifest.tsv" >"$1/manifest.json"
+}
+
+# kit_summary RUN: write RUN/summary.txt: the fixed first line, then one
+# line for each step.
+kit_summary() {
+  awk -F '\t' '
+    $1 == "step" {
+      line[++n] = $2 "@" $3 ": " $4 ($9 != "-" ? " " $9 : "") ($7 != "-" ? ", " $7 : "")
+      end = $6
+      next
+    }
+    $1 != "edit" { run[$1] = $2 }
+    END {
+      if (end == "") end = run["start"]
+      printf "kit %s on %s (%s), %s. Run from %s to %s (%s).\n", run["kit"], run["os"], run["cpu"], run["os_version"], run["start"], end, run["home"]
+      for (i = 1; i <= n; i++) print line[i]
+    }' "$1/manifest.tsv" >"$1/summary.txt"
+}
+
+# kit_dir_problem DIR: print why DIR cannot hold a run folder, or nothing.
+# DIR must belong to the user. Other accounts must not be able to write to
+# it. It must not be in an agent folder or in a git work tree.
+kit_dir_problem() {
+  _d=$(cd "$1" 2>/dev/null && pwd -P) || { echo "the folder does not exist"; return 0; }
+  # shellcheck disable=SC2012
+  _m=$(ls -ldn "$_d" | awk '{print $1}')
+  # shellcheck disable=SC2012
+  _u=$(ls -ldn "$_d" | awk '{print $3}')
+  [ "$_u" = "$(id -u)" ] || { echo "the folder does not belong to you"; return 0; }
+  case $_m in
+    ?????w* | ????????w*) echo "other accounts can write to the folder"; return 0 ;;
+  esac
+  _h=$(cd "$HOME" 2>/dev/null && pwd -P)
+  if [ -n "$_h" ]; then
+    for _x in .claude .codex .gemini .cursor; do
+      case "$_d/" in "$_h/$_x/"*) echo "the folder is in an agent folder"; return 0 ;; esac
+    done
+  fi
+  _w=$_d
+  while :; do
+    [ -e "$_w/.git" ] && { echo "the folder is in a git work tree"; return 0; }
+    [ "$_w" = / ] && break
+    _w=$(dirname "$_w")
+  done
+  return 0
+}

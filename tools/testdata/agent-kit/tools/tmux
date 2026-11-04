@@ -1,0 +1,3 @@
+#!/bin/sh
+# A fake tmux for the plan tests: "kit plan" only looks for it on PATH.
+exit 1
