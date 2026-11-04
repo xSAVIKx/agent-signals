@@ -52,6 +52,10 @@ have() {
 for via in tmux pty; do
   if ! have "$via"; then
     echo "skip: $via: the backend tool is missing"
+    # The reason, for the CI log.
+    if [ "$via" = pty ] && command -v uv >/dev/null 2>&1; then
+      uv run --no-project --with pyte==0.8.2 --with wcwidth==0.9.4 python -c 'import pyte' 2>&1 </dev/null | tail -n 5 | sed 's/^/  uv: /'
+    fi
     continue
   fi
   # A run folder with a space in its path.
@@ -62,16 +66,18 @@ for via in tmux pty; do
   # test_session_drives_the_stub. The start returns also when its output
   # is a pipe: no process of the session keeps the pipe open.
   t0=$(date +%s)
-  kit session start s1 stub --via "$via" --cmd "sh '$stub'" 2>&1 | cat >"$T/out"
+  kit session start s1 stub --via "$via" --cmd "env STUB_LOG='$T/keys-$via' sh '$stub'" 2>&1 | cat >"$T/out"
   t1=$(date +%s)
-  expect_line "$via: start" '^session: s1 '"$via"'$' "$T/out"
+  expect_line "$via: start" '^session: s1 '"$via"' ' "$T/out"
+  if [ "$(tail -n 1 "$T/out")" = "session: s1 $via $run/work/s1" ]; then pass "$via: start prints the work folder"; else fail "$via: start prints the work folder" "$(tail -n 1 "$T/out")"; fi
   # The limit is high for a slow runner. A pipe that a daemon keeps open
   # makes the start wait until the session ends.
   if [ $((t1 - t0)) -lt 30 ]; then pass "$via: start returns through a pipe"; else fail "$via: start returns through a pipe" "$((t1 - t0)) s"; fi
-  for f in backend pid socket; do
+  for f in backend pid socket work pids agent; do
     if [ -s "$run/sessions/s1/$f" ]; then pass "$via: the state has $f"; else fail "$via: the state has $f" "no file"; fi
   done
-  if [ -d "$run/sessions/s1/work" ]; then pass "$via: the state has work"; else fail "$via: the state has work" "no folder"; fi
+  if [ "$(cat "$run/sessions/s1/work")" = "$run/work/s1" ] && [ -d "$run/work/s1" ]; then pass "$via: the work folder"; else fail "$via: the work folder" "not $run/work/s1"; fi
+  if grep -q '^[0-9][0-9]* session s1 agent	' "$run/sessions/s1/pids"; then pass "$via: the pids file of the session"; else fail "$via: the pids file of the session" "no agent line"; fi
   if [ "$(cat "$run/sessions/s1/backend")" = "$via" ]; then pass "$via: backend file"; else fail "$via: backend file" "wrong value"; fi
   n=$(pids_run "$run" | wc -l | tr -d ' ')
   if [ "$n" -ge 2 ]; then pass "$via: the pids are recorded"; else fail "$via: the pids are recorded" "$n run"; fi
@@ -91,11 +97,13 @@ for via in tmux pty; do
   expect_code "$via: key 1" 0 $?
   kit session wait s1 'created agent-signals-test' 10 >"$T/out" 2>&1
   expect_code "$via: wait after the answer" 0 $?
-  if [ "$(cat "$run/sessions/s1/work/agent-signals-test.txt" 2>/dev/null)" = hello ]; then
+  if [ "$(cat "$run/work/s1/agent-signals-test.txt" 2>/dev/null)" = hello ]; then
     pass "$via: the stub wrote the file in work"
   else
     fail "$via: the stub wrote the file in work" "no file"
   fi
+  printf 'char w\nchar r\nchar i\nchar t\nchar e\nkey Enter\nchar 1\n' >"$T/keys-want"
+  if cmp -s "$T/keys-want" "$T/keys-$via"; then pass "$via: the stub logs each key"; else fail "$via: the stub logs each key" "$(tr '\n' ' ' <"$T/keys-$via")"; fi
   kit session key s1 NoSuchKey >"$T/out" 2>&1
   expect_code "$via: an unknown key is bad use" 2 $?
   # The kill of the stub ends the agent. The screen stays.
@@ -121,8 +129,8 @@ for via in tmux pty; do
     in_new_shell key s2 Enter >>"$T/out" 2>&1 &&
     in_new_shell wait s2 'env saved' 10 >>"$T/out" 2>&1
   expect_code "$via: a session across shells" 0 $?
-  envf="$run/sessions/s2/work/stub-env.txt"
-  expect_line "$via: a throwaway home is in the session folder" "^HOME=$run/sessions/s2/home\$" "$envf"
+  envf="$run/work/s2/stub-env.txt"
+  expect_line "$via: a throwaway home is in the session folder" "^HOME=$run/home/s2\$" "$envf"
   in_new_shell stop s2 >"$T/out" 2>&1
   expect_code "$via: stop across shells" 0 $?
 
@@ -134,7 +142,7 @@ for via in tmux pty; do
     kit session key s4 Enter >>"$T/out" 2>&1 &&
     kit session wait s4 'env saved' 10 >>"$T/out" 2>&1
   expect_code "$via: the stub saves its environment" 0 $?
-  envf="$run/sessions/s4/work/stub-env.txt"
+  envf="$run/work/s4/stub-env.txt"
   if [ -s "$envf" ]; then pass "$via: the environment file exists"; else fail "$via: the environment file exists" "no file"; : >"$envf"; fi
   expect_line "$via: --home real keeps HOME" "^HOME=$HOME\$" "$envf"
   if [ "$via" = pty ]; then

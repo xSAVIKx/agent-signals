@@ -9,6 +9,10 @@
 #   kit session stop NAME
 #   kit session stop --all
 #
+# CMD is one simple command, for example "env NAME=VALUE prog arg". The
+# agent starts as "exec CMD", so that its pid is the pid of the pane or of
+# the pty.
+#
 # The tmux backend uses a private tmux server. The pty backend uses
 # ptydrive.py: a plain pty with no multiplexer. The agent starts in a new
 # work folder with a clean environment: only HOME, PATH, TERM, LANG and
@@ -20,13 +24,13 @@
 #   backend    tmux or pty
 #   agent      the agent name
 #   home-mode  real or throwaway
-#   work/      the work folder of the agent
-#   home/      the throwaway home
+#   work       the path of the work folder of the agent, RUN/work/NAME
 #   socket     the path of the socket of the server
 #   pid        the pid of the agent
-#   agent-pids the agent and its children, one pid on each line
+#   pids       the pids of the session: lines "PID LABEL<tab>START"
 #   last.screen  the last screen that "wait" read
 #   stopped    the session has stopped
+# A throwaway home is RUN/home/NAME.
 # A socket path has a limit of about 104 bytes on macOS, so the socket is
 # in a new short folder below /tmp, not in the run folder.
 #
@@ -80,11 +84,18 @@ client() {
 
 tm() { tmux -S "$sock" "$@"; }
 
+# add_pid PID LABEL: record a pid of the session in RUN/pids/ and in the
+# pids file of the session.
+add_pid() {
+  kit_add_pid "$run" "$1" "$2"
+  printf '%s %s\n' "$1" "$(cat "$run/pids/$1")" >>"$sdir/pids"
+}
+
 # label PIDFILE: the label of a pid file.
 label() { awk -F '	' 'NR == 1 { print $1 }' "$1" 2>/dev/null; }
 
 # track: add the agent, its descendants and the members of its process
-# group to RUN/pids/ and to agent-pids. A daemon that leaves its parent
+# group to RUN/pids/ and to the pids file of the session. A daemon that leaves its parent
 # (the Codex app-server, fact 067) stays in the group, or is found while
 # its parent still runs.
 track() {
@@ -105,10 +116,7 @@ track() {
     }' | sort -n >"$sdir/track.tmp"
   while read -r p; do
     [ -n "$p" ] || continue
-    if [ ! -f "$run/pids/$p" ]; then
-      kit_add_pid "$run" "$p" "session $name child"
-    fi
-    grep -qx "$p" "$sdir/agent-pids" 2>/dev/null || echo "$p" >>"$sdir/agent-pids"
+    [ -f "$run/pids/$p" ] || add_pid "$p" "session $name child"
   done <"$sdir/track.tmp"
   rm -f "$sdir/track.tmp"
   # A child that has ended (a short command of the agent) leaves the list.
@@ -116,7 +124,11 @@ track() {
     [ -f "$f" ] || continue
     case $(label "$f") in
       "session $name child")
-        kit_pid_ours "$run" "${f##*/}" || rm -f "$f"
+        p=${f##*/}
+        if ! kit_pid_ours "$run" "$p"; then
+          rm -f "$f"
+          awk -v p="$p" '$1 != p' "$sdir/pids" >"$sdir/pids.tmp" && mv "$sdir/pids.tmp" "$sdir/pids"
+        fi
         ;;
     esac
   done
@@ -132,14 +144,24 @@ grab() {
   esac
 }
 
-# pty_python: set serve_cmd to a command that runs Python with pyte, or
-# exit 3. uv gives pyte in a temporary environment, and no pip install
-# changes the system Python.
+# pty_python: set serve_cmd to the path of a Python with pyte, or to "uv",
+# or exit 3. The order: AGENT_SIGNALS_PYTHON, then RUN/.kit/python (the
+# --python option of kit start), then uv, then python3. uv gives pyte in
+# a temporary environment: no pip install changes the system Python.
 # shellcheck disable=SC2086
 pty_python() {
+  serve_cmd=${AGENT_SIGNALS_PYTHON:-}
+  if [ -z "$serve_cmd" ] && [ -r "$run/.kit/python" ]; then
+    serve_cmd=$(head -n 1 "$run/.kit/python")
+  fi
+  if [ -n "$serve_cmd" ]; then
+    "$serve_cmd" -c 'import pyte, wcwidth' </dev/null >/dev/null 2>&1 ||
+      kit_die 3 "needs pyte: $serve_cmd has no pyte"
+    return 0
+  fi
   if command -v uv >/dev/null 2>&1 &&
     uv run --no-project $PYTE python -c 'import pyte' </dev/null >/dev/null 2>&1; then
-    serve_cmd="uv run --no-project $PYTE python"
+    serve_cmd=uv
   elif command -v python3 >/dev/null 2>&1 &&
     python3 -c 'import pyte, wcwidth' </dev/null >/dev/null 2>&1; then
     serve_cmd=python3
@@ -188,20 +210,23 @@ do_start() {
     [ -f "$sdir/stopped" ] || kit_die 2 "the session exists: $name"
     rm -rf "$sdir"
   fi
-  mkdir -p "$sdir/work" || kit_die 1 "cannot make $sdir"
+  work=$run/work/$name
+  rm -rf "$work"
+  mkdir -p "$sdir" "$work" || kit_die 1 "cannot make $sdir"
   chmod 700 "$sdir"
   backend=$via
   echo "$via" >"$sdir/backend"
   echo "$agent" >"$sdir/agent"
   echo "$mode" >"$sdir/home-mode"
-  : >"$sdir/agent-pids"
-  work=$sdir/work
+  echo "$work" >"$sdir/work"
+  : >"$sdir/pids"
   if [ "$mode" = real ]; then
     h=$HOME
     u=${USER:-$(id -un)}
   else
-    h=$sdir/home
+    h=$run/home/$name
     u=dev
+    rm -rf "$h"
     mkdir -p "$h"
   fi
   sockdir=$(mktemp -d /tmp/as.XXXXXX) || kit_die 1 "mktemp failed"
@@ -221,13 +246,19 @@ do_start() {
         kit_die 1 "tmux did not start: $(cat "$sdir/server.log")"
       server=$(tm display -p -t kit '#{pid}' 2>/dev/null)
       a=$(tm display -p -t kit '#{pane_pid}' 2>/dev/null)
-      [ -n "$server" ] && kit_add_pid "$run" "$server" "session $name server"
+      [ -n "$server" ] && add_pid "$server" "session $name server"
       ;;
     pty)
       sock=$sockdir/pty.sock
       echo "$sock" >"$sdir/socket"
-      # shellcheck disable=SC2086
-      $serve_cmd "$KIT_DIR/ptydrive.py" serve "$sock" "$COLS" "$ROWS" -- \
+      # serve_cmd is one path, or "uv" for the uv command line.
+      if [ "$serve_cmd" = uv ]; then
+        # shellcheck disable=SC2086
+        set -- uv run --no-project $PYTE python
+      else
+        set -- "$serve_cmd"
+      fi
+      "$@" "$KIT_DIR/ptydrive.py" serve "$sock" "$COLS" "$ROWS" -- \
         env -i HOME="$h" PATH="$PATH" TERM=xterm-256color LANG="${LANG:-C.UTF-8}" USER="$u" \
         sh -c 'cd "$1" && eval "exec $0"' "$cmd" "$work" \
         </dev/null >"$sdir/server.log" 2>&1 ||
@@ -236,15 +267,14 @@ do_start() {
       server=$(awk '$1 == "driver" { print $2 }' "$sdir/pids.tmp")
       a=$(awk '$1 == "agent" { print $2 }' "$sdir/pids.tmp")
       rm -f "$sdir/pids.tmp"
-      [ -n "$server" ] && kit_add_pid "$run" "$server" "session $name driver"
+      [ -n "$server" ] && add_pid "$server" "session $name driver"
       ;;
   esac
   [ -n "${a:-}" ] || kit_die 1 "no agent pid"
   echo "$a" >"$sdir/pid"
-  kit_add_pid "$run" "$a" "session $name agent"
+  add_pid "$a" "session $name agent"
   track
-  echo "session: $name $via"
-  echo "work: $work"
+  echo "session: $name $via $work"
 }
 
 do_send() {
@@ -361,12 +391,14 @@ stop_session() {
   # Claude Code keeps task output outside HOME, in
   # /tmp/claude-<uid>/<key>/. The key is the work folder path with each
   # character that is not a letter or a digit changed to "-".
-  k=$(printf '%s' "$sdir/work" | tr -c 'A-Za-z0-9' '-')
+  work=$(cat "$sdir/work" 2>/dev/null || true)
+  k=$(printf '%s' "$work" | tr -c 'A-Za-z0-9' '-')
   for t in /tmp "${TMPDIR:-/tmp}"; do
     t=${t%/}/claude-$(id -u)/$k
     [ -d "$t" ] && rm -rf "$t"
   done
-  rm -rf "${sdir:?}/work" "${sdir:?}/home"
+  [ -n "$work" ] && rm -rf "$work"
+  rm -rf "${run:?}/home/$name"
   : >"$sdir/stopped"
   echo "session: $name stopped"
 }

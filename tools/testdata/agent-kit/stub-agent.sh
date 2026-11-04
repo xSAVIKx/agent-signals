@@ -11,6 +11,10 @@
 #   2 or Escape in the dialog goes back to idle.
 #   C-c or C-d         stops the stub.
 #
+# When STUB_LOG is set, the stub adds one line to that file for each key:
+# "key Enter", "key Escape", "key C-c", "key C-d", or "char C" for a
+# character C.
+#
 # Run: sh tools/testdata/agent-kit/stub-agent.sh
 set -u
 esc=$(printf '\033')
@@ -51,6 +55,16 @@ while :; do
   c=$(dd bs=1 count=1 2>/dev/null; echo x)
   c=${c%x}
   [ -n "$c" ] || exit 0
+  if [ -n "${STUB_LOG:-}" ]; then
+    case $c in
+      "$nl" | "$cr") k="key Enter" ;;
+      "$esc") k="key Escape" ;;
+      "$etx") k="key C-c" ;;
+      "$eot") k="key C-d" ;;
+      *) k="char $c" ;;
+    esac
+    echo "$k" >>"$STUB_LOG"
+  fi
   case $c in
     "$etx" | "$eot") exit 0 ;;
   esac
