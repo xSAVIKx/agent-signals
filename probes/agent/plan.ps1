@@ -33,15 +33,18 @@ if ($homeMode -cnotin 'real', 'throwaway') { Stop-Kit 2 "unknown home mode: $hom
 $agents = @{}
 foreach ($a in @(Find-KitAgents)) { $agents[$a.Name] = $a }
 $conpty = Get-KitConptyTool $python $run
+$scenario = Test-KitScenario
 
 foreach ($s in @(Read-KitSteps)) {
-    $backend = Get-KitWindowsBackend $s
-    if (-not $backend) { continue }
     $agent = [string]$s.agent
     if ($agent -and $agent -ne '-' -and -not $agents.ContainsKey($agent)) { continue }
-    if ($backend -eq 'conpty' -and -not $conpty) { continue }
-    $line = 'step: {0}@{1} needs={2} cost={3} measures={4}' -f $s.name, $backend, $s.needs, $s.cost, $s.measures
-    if ($homeMode -eq 'throwaway' -and $s.needs -eq 'login') { $line += ' skip=no-login' }
-    Write-Output $line
+    foreach ($backend in @(Get-KitStepBackends $s)) {
+        if (-not (Test-KitStepRuns $s $backend)) { continue }
+        # The conpty first run needs a driver Python and the scenario files.
+        if ($backend -eq 'conpty' -and (-not $conpty -or -not $scenario)) { continue }
+        $line = 'step: {0}@{1} needs={2} cost={3} measures={4}' -f $s.name, $backend, $s.needs, $s.cost, $s.measures
+        if ($homeMode -eq 'throwaway' -and $s.needs -eq 'login') { $line += ' skip=no-login' }
+        Write-Output $line
+    }
 }
 exit 0

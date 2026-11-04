@@ -48,14 +48,20 @@ foreach ($f in $lines) {
 
 # The files of the run.
 $content = @()
+$rawLeft = $false
+$env:KIT_RUN = $run
 foreach ($i in @(Get-ChildItem -LiteralPath $run -Recurse -File -Force)) {
     $rel = $i.FullName.Substring($run.Length + 1).Replace('\', '/')
     if ($rel -match '^(pids|sessions|\.kit)/' -or $rel -in 'manifest.json', 'summary.txt') { continue }
-    if ($rel -match '^\.raw/') { Add-Fail "a raw file of a stopped step is left: $rel"; continue }
+    if ($rel -match '^\.raw/') { Add-Fail "a raw file of a stopped step is left: $rel"; $rawLeft = $true; continue }
     if ($rel -eq 'manifest.tsv') { $content += $i.FullName; continue }
     $content += $i.FullName
     if (-not $want.ContainsKey($rel)) { Add-Fail "the file is not in the manifest: $rel"; continue }
     if ((Get-KitSha256 $i.FullName) -ne $want[$rel]) { Add-Fail "the file changed with no 'kit edit' line: $rel" }
+}
+if ($rawLeft) {
+    $rd = Join-Path $run '.raw'
+    Add-Fail "a step stopped before its end. Run it again, or delete the folder: Remove-Item -Recurse -Force -LiteralPath '$rd'"
 }
 
 # The raw values. They stay in memory.
@@ -63,8 +69,10 @@ $raw = @()
 foreach ($h in @(Get-KitHomes)) {
     $t = $h.TrimEnd('/', '\')
     if ($t.Length -lt 3) { continue }
-    $parts = @($t -split '[\\/]+' | ForEach-Object { [regex]::Escape($_) })
-    $raw += New-Object PSObject -Property @{ Kind = 'the home folder'; Pattern = '(?i)' + ($parts -join '[\\/]+') }
+    $raw += New-Object PSObject -Property @{ Kind = 'the home folder'; Pattern = (Get-KitPathPattern $t) }
+}
+foreach ($p in @(Get-KitLiteralPaths)) {
+    $raw += New-Object PSObject -Property @{ Kind = $p.Kind; Pattern = (Get-KitPathPattern $p.Path) }
 }
 $d = Get-ScrubDefaults
 if ($d.User -and $d.User -ne 'dev') {
@@ -75,7 +83,12 @@ if ($d.HostName) { $hosts += $d.HostName.Split('.')[0] }
 foreach ($n in @($hosts | Where-Object { $_ -and $_ -ne 'host' } | Select-Object -Unique)) {
     $raw += New-Object PSObject -Property @{ Kind = 'the host name'; Pattern = '(?i)' + (Get-WordPattern $n) }
 }
-foreach ($e in @(Get-ChildItem env: | Where-Object { $_.Name -match '(?i)(_API_KEY|_TOKEN)$' -and ([string]$_.Value).Length -ge 8 })) {
+# The domain of the account, when it is not the host name.
+$dom = $env:USERDOMAIN
+if ($dom -and $dom.Length -ge 2 -and @($hosts | Where-Object { $_ -and $_ -ieq $dom }).Count -eq 0) {
+    $raw += New-Object PSObject -Property @{ Kind = 'the account domain'; Pattern = '(?i)' + (Get-WordPattern $dom) }
+}
+foreach ($e in @(Get-ChildItem env: | Where-Object { $_.Name -match '(?i)(_API_KEY|_TOKEN|_SECRET|_PASSWORD|_PAT|_KEY)$' -and ([string]$_.Value).Length -ge 8 })) {
     $raw += New-Object PSObject -Property @{ Kind = "the value of $($e.Name)"; Pattern = [regex]::Escape([string]$e.Value) }
 }
 foreach ($c in $content) {

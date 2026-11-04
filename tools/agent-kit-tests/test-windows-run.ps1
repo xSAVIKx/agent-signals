@@ -30,6 +30,10 @@ $env:APPDATA = Join-Path $h 'AppData\Roaming'
 $env:LOCALAPPDATA = Join-Path $h 'AppData\Local'
 New-Item -ItemType Directory -Force -Path $env:APPDATA, $env:LOCALAPPDATA | Out-Null
 $env:EXAMPLE_API_KEY = 'LEAK-CANARY-5-example'
+$env:EXAMPLE_SECRET = 'LEAK-CANARY-6-secret'
+# A OneDrive folder with a space and a company name, which tools\scrub.ps1
+# cannot find by itself.
+$env:OneDrive = Join-Path $h 'OneDrive - Contoso'
 
 # A fake claude on PATH, and a stub Python that draws the files of
 # scenarios\first-run-windows.py.
@@ -46,6 +50,7 @@ New-TextFile $py (@(
         '>"%SCN_OUT%\02-after-20s.screen" echo stub screen after 20 s'
         '>"%SCN_OUT%\02-after-20s.ps" echo 100 99 stub.exe stub'
         '>"%SCN_OUT%\02-after-20s.files" echo 10 0 ^<sandbox^>/home/.stub/state.json'
+        '>>"%SCN_OUT%\02-after-20s.screen" echo kit %KIT_ROOT%\probes and %OneDrive%\doc.txt'
         'echo done: stub'
         'exit /b 0'
     ) -join "`r`n")
@@ -60,6 +65,7 @@ New-TextFile $steps ((@(
             "probe`tprobe`t-`t-`tnone`tnone`t-`t-`t-`tthe full probe kit`t-"
             "first-run-claude`tfirst-run`tclaude`ttmux,conpty`tnone`tnone`t-`t-`t-`tthe first start with no login`t029"
             "first-run-codex`tfirst-run`tcodex`ttmux,conpty`tnone`tnone`t-`t-`t-`tthe first start with no login`t029"
+            "first-run-tmux-claude`tfirst-run`tclaude`ttmux,pty`tnone`tnone`t-`t-`t-`ta line with no Windows backend`t-"
             "first-login-claude`tfirst-run`tclaude`tconpty`tlogin`tturns:1`t-`t-`t-`ta test line with a login`t-"
             "permission-claude`tpermission`tclaude`ttmux,pty,conpty`tlogin`tturns:1`tCreate a file named agent-signals-test.txt that holds the word hello.`tDo you want`t1`tthe permission dialog`t023"
         ) -join "`n") + "`n")
@@ -78,6 +84,15 @@ $null = & icacls.exe $open /grant "*S-1-1-0:(OI)(CI)M" 2>&1
 $ErrorActionPreference = "Stop"
 Expect-Kit 'start refuses a folder that Everyone can write' 2 'start' '--out' $open
 Expect-Line 'start names the reason' 'Everyone can write' $out
+Expect-Line 'start prints the icacls fix' '^  icacls ".*open" /inheritance:r /grant:r ' $out
+# The allow list: an account that is not in it (Backup Operators) fails.
+$other = Join-Path $T 'other'
+New-Item -ItemType Directory -Path $other | Out-Null
+$ErrorActionPreference = "Continue"
+$null = & icacls.exe $other /grant "*S-1-5-32-551:(OI)(CI)M" 2>&1
+$ErrorActionPreference = "Stop"
+Expect-Kit 'start refuses a write right outside the allow list' 2 'start' '--out' $other
+Expect-Line 'start names the account' 'can write to the folder' $out
 Expect-Kit 'start refuses an unknown home mode' 2 'start' '--home' 'other' '--out' (Join-Path $T 'x')
 Expect-Kit 'start refuses an unknown option' 2 'start' '-Home' 'real'
 
@@ -91,6 +106,20 @@ Expect-Line 'the manifest has the home mode' '^meta\thome\treal$' (Join-Path $ru
 $acl = Get-Acl -LiteralPath $run
 $openRule = @($acl.Access | Where-Object { $_.IdentityReference.Value -match '(?i)Everyone|\\Users$|Authenticated Users' })
 if ($openRule.Count -eq 0) { Pass 'the run folder is private' } else { Fail 'the run folder is private' "$($openRule.Count) open rules" }
+# start made DIR, so DIR is private too.
+$me = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+$dacl = @((Get-Acl -LiteralPath $dir).GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]) | ForEach-Object { $_.IdentityReference.Value } | Where-Object { $_ -ne $me -and $_ -ne 'S-1-5-18' })
+if ($dacl.Count -eq 0) { Pass 'a new DIR is private' } else { Fail 'a new DIR is private' ($dacl -join ' ') }
+
+# A run folder with letters outside ASCII: a new shell finds it from the
+# pointer file, also in Windows PowerShell 5.1.
+$uni = Join-Path $T ('run ' + [char]0x00E9 + [char]0x4E2D)
+Expect-Kit 'start in a folder outside ASCII exits 0' 0 'start' '--out' $uni
+Push-Location -LiteralPath $uni
+Expect-Kit 'doctor finds a run outside ASCII' 0 'doctor'
+Pop-Location
+$uniRun = @(Get-ChildItem -LiteralPath $uni -Directory | Select-Object -First 1)
+if ($uniRun.Count -eq 1 -and (Test-Path -LiteralPath (Join-Path $uniRun[0].FullName '00-doctor.txt'))) { Pass 'the doctor file is in the run outside ASCII' } else { Fail 'the doctor file is in the run outside ASCII' 'no 00-doctor.txt' }
 
 # kit plan, from the current folder (a new shell finds the run there).
 Push-Location -LiteralPath $dir
@@ -100,6 +129,7 @@ Expect-Line 'plan lists the probe' '^step: probe@none needs=none cost=none measu
 Expect-Line 'plan lists the first run on conpty' '^step: first-run-claude@conpty needs=none cost=none measures=the first start with no login$' $out
 Expect-NoLine 'plan skips an agent that is not installed' 'first-run-codex' $out
 Expect-NoLine 'plan lists no session step yet' 'permission-claude' $out
+Expect-NoLine 'plan skips a line with no Windows backend' 'first-run-tmux-claude' $out
 Expect-NoLine 'plan with the real home has no skip' 'skip=' $out
 Expect-Kit 'plan --home throwaway exits 0' 0 'plan' '--home' 'throwaway'
 Expect-Line 'plan marks a login step' '^step: first-login-claude@conpty needs=login cost=turns:1 .* skip=no-login$' $out
@@ -113,6 +143,7 @@ $env:AGENT_SIGNALS_RUN = $run
 Expect-Kit 'an unknown step is bad use' 2 'step' 'no-such@none'
 Expect-Kit 'a step with no backend is bad use' 2 'step' 'probe'
 Expect-Kit 'the first run on tmux is bad use on Windows' 2 'step' 'first-run-claude@tmux'
+Expect-Kit 'a line with no Windows backend is bad use' 2 'step' 'first-run-tmux-claude@conpty'
 Expect-Kit 'step probe exits 0' 0 'step' 'probe@none'
 Expect-Line 'step probe prints ok' '^step: probe@none ok$' $out
 $f1 = Join-Path $run '01-probe@none.txt'
@@ -125,6 +156,8 @@ Expect-Line 'step first-run prints ok' '^step: first-run-claude@conpty ok$' $out
 $f2 = Join-Path $run '02-first-run-claude@conpty.txt'
 Expect-Line 'the first-run file has the screen' '^stub screen after 20 s' $f2
 Expect-Line 'the first-run file has the folders' '\.stub' $f2
+Expect-Line 'the kit folder changes to <kit>' '^kit <kit>\\probes and ' $f2
+Expect-NoLine 'the OneDrive folder is scrubbed' 'Contoso' $f2
 $env:AGENT_SIGNALS_PYTHON = Join-Path $T 'no-such-python.exe'
 Expect-Kit 'step first-run with no Python skips' 3 'step' 'first-run-claude@conpty'
 Expect-Line 'the skip has a reason' '^step: first-run-claude@conpty skip needs-conpty-python$' $out
@@ -179,8 +212,22 @@ Expect-Line 'check names the home folder' '^check: 02-first-run-claude@conpty\.t
 $null = Invoke-Kit 'edit' '02-first-run-claude@conpty.txt' 'test'
 Expect-Kit 'check fails a secret value over two lines' 1 'check'
 Expect-Line 'check names the variable' '^check: 02-first-run-claude@conpty\.txt holds the value of EXAMPLE_API_KEY$' $out
+[IO.File]::WriteAllText($f2, $keep + "key LEAK-CANARY-6-secret`n")
+$null = Invoke-Kit 'edit' '02-first-run-claude@conpty.txt' 'test'
+Expect-Kit 'check fails a _SECRET value' 1 'check'
+Expect-Line 'check names the secret variable' '^check: 02-first-run-claude@conpty\.txt holds the value of EXAMPLE_SECRET$' $out
+[IO.File]::WriteAllText($f2, $keep + "file $($env:OneDrive)\doc.txt`n")
+$null = Invoke-Kit 'edit' '02-first-run-claude@conpty.txt' 'test'
+Expect-Kit 'check fails a raw OneDrive folder' 1 'check'
+Expect-Line 'check names the OneDrive folder' '^check: 02-first-run-claude@conpty\.txt holds the OneDrive folder$' $out
 [IO.File]::WriteAllText($f2, $keep)
 $null = Invoke-Kit 'edit' '02-first-run-claude@conpty.txt' 'test'
+
+# A raw file of a stopped step fails, and check names the folder to delete.
+New-TextFile (Join-Path $run '.raw\09-probe@none.out') 'x'
+Expect-Kit 'check fails a leftover raw file' 1 'check'
+Expect-Line 'check tells how to clean the raw folder' "Remove-Item -Recurse -Force -LiteralPath '.*\.raw'" $out
+Remove-Item -LiteralPath (Join-Path $run '.raw') -Recurse -Force
 
 # A probe file with a missing section fails.
 $pkeep = [IO.File]::ReadAllText($f1)
@@ -199,6 +246,8 @@ Expect-Kit 'check fails a pid that runs' 1 'check'
 Expect-Line 'check names the pid' "^check: the pid $($sleep.Id) of the run still runs \(test sleep\)$" $out
 [IO.File]::WriteAllText((Join-Path $run "pids\$($sleep.Id)"), "test sleep`t1`n")
 Expect-Kit 'check ignores a reused pid' 0 'check'
+[IO.File]::WriteAllText((Join-Path $run "pids\$($sleep.Id)"), "test sleep`n")
+Expect-Kit 'check ignores a pid with no start time' 0 'check'
 Stop-Process -Id $sleep.Id -Force
 Remove-Item -LiteralPath (Join-Path $run "pids\$($sleep.Id)")
 Expect-Kit 'check passes at the end' 0 'check'
@@ -207,6 +256,31 @@ Expect-Kit 'check passes at the end' 0 'check'
 [IO.File]::WriteAllText((Join-Path $run 'extra.txt'), "x`n")
 Expect-Kit 'check fails an unknown file' 1 'check'
 Expect-Line 'check names the unknown file' '^check: the file is not in the manifest: extra\.txt$' $out
+
+Remove-Item -LiteralPath (Join-Path $run 'extra.txt')
+
+# A kit with no scenario files: the plan has no first run, and the step
+# skips with needs-scenario.
+$mini = Join-Path $T 'kit'
+foreach ($f in @('probes\agent\kit.ps1', 'probes\agent\lib.ps1', 'probes\agent\start.ps1', 'probes\agent\plan.ps1', 'probes\agent\step.ps1',
+        'probes\agent\steps\first-run.ps1', 'probes\lib.ps1', 'probes\claude\windows.ps1', 'tools\scrub.ps1')) {
+    $to = Join-Path $mini $f
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $to) | Out-Null
+    Copy-Item -LiteralPath (Join-Path $env:ROOT $f) -Destination $to
+}
+$miniOut = Join-Path $T 'mini-out'
+function Invoke-Mini {
+    $ErrorActionPreference = 'Continue'
+    & $Exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $mini 'probes\agent\kit.ps1') @args *> $out
+    return $LASTEXITCODE
+}
+Remove-Item Env:\AGENT_SIGNALS_RUN
+Expect-Code 'start in a kit with no scenario' 0 (Invoke-Mini 'start' '--out' $miniOut)
+$env:AGENT_SIGNALS_RUN = @(Get-ChildItem -LiteralPath $miniOut -Directory)[0].FullName
+Expect-Code 'plan in a kit with no scenario' 0 (Invoke-Mini 'plan')
+Expect-NoLine 'plan has no first run with no scenario' 'first-run-claude' $out
+Expect-Code 'the first run with no scenario skips' 3 (Invoke-Mini 'step' 'first-run-claude@conpty')
+Expect-Line 'the skip names the scenario' '^step: first-run-claude@conpty skip needs-scenario$' $out
 
 Remove-Item Env:\AGENT_SIGNALS_RUN
 Complete-Tests

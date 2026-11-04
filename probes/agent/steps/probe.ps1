@@ -6,11 +6,15 @@
 # nothing.
 $ErrorActionPreference = 'Stop'
 . (Join-Path (Split-Path -Parent $PSScriptRoot) 'lib.ps1')
+# The console files of kit step are UTF-8.
+try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false } catch { }
 
 $run = $env:KIT_RUN
 $out = $env:KIT_OUT
 if (-not $run -or -not $out) { Stop-Kit 2 'run this script with kit step' }
-$work = Join-Path (Split-Path -Parent $out) ('probe-' + [guid]::NewGuid().ToString('N'))
+# The work folder starts with the name of KIT_OUT, so that kit step
+# deletes it also after a stop.
+$work = $out + '.work'
 New-Item -ItemType Directory -Path $work | Out-Null
 
 # The terminal question of macOS has no Windows form. The variable is set
@@ -20,15 +24,15 @@ $exe = (Get-Process -Id $PID).Path
 $runPs1 = Join-Path $script:KitRoot 'probes\run.ps1'
 $argText = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File ' + (Format-KitArg $runPs1)
 $p = Start-KitProcess $run 'probe' $exe $argText (Join-Path $work 'stdout') (Join-Path $work 'stderr') $work
-$code = Wait-KitProcess $run $p 1500
+$w = Wait-KitProcess $run $p 1500
 
 $files = @(Get-ChildItem -LiteralPath $work -Filter 'agent-signals-probe-windows-*.txt' -File)
 $rc = 0
-if ($files.Count -eq 1 -and $code -eq 0) {
+if ($files.Count -eq 1 -and $w.Code -eq 0 -and -not $w.TimedOut) {
     Write-KitText $out (Read-KitText $files[0].FullName)
 } else {
     $rc = 1
-    if ($code -eq -1) { $why = 'time-limit' } elseif ($files.Count -eq 0) { $why = 'no-file' } else { $why = "exit-$code" }
+    if ($w.TimedOut) { $why = 'time-limit' } elseif ($files.Count -eq 0) { $why = 'no-file' } else { $why = "exit-$($w.Code)" }
     Write-KitText "$out.reason" "$why`n"
     $text = ''
     foreach ($f in $files) { $text += Read-KitText $f.FullName }

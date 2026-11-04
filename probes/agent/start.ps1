@@ -34,15 +34,27 @@ if ($python) {
     $python = (Resolve-Path -LiteralPath $python).ProviderPath
 }
 
+function Stop-Place([string]$Dir, [string[]]$Why) {
+    foreach ($w in $Why) { [Console]::Error.WriteLine("start: $w") }
+    if (@($Why | Where-Object { $_ -match 'can write|belongs to' }).Count -gt 0) {
+        [Console]::Error.WriteLine('start: to give only this account and SYSTEM access to the folder, run:')
+        [Console]::Error.WriteLine('  ' + (Get-KitPrivateCommand $Dir))
+    }
+    Stop-Kit 2 'the folder is not a safe place for a run'
+}
+
+# A new DIR: check the place first, then make DIR private. An existing DIR
+# keeps its access list, and the check names what is wrong.
 if (-not (Test-Path -LiteralPath $out -PathType Container)) {
-    New-Item -ItemType Directory -Force -Path $out | Out-Null
+    $full = [IO.Path]::GetFullPath($out)
+    $why = @(Test-KitPlace $full)
+    if ($why.Count -gt 0) { Stop-Place $full $why }
+    New-Item -ItemType Directory -Force -Path $full | Out-Null
+    if ((Set-KitPrivate $full) -ne 0) { Stop-Kit 1 'icacls did not set the access list of the folder' }
 }
 $out = (Resolve-Path -LiteralPath $out).ProviderPath
 $why = @(Test-KitPlace $out)
-if ($why.Count -gt 0) {
-    foreach ($w in $why) { [Console]::Error.WriteLine("start: $w") }
-    Stop-Kit 2 'the folder is not a safe place for a run'
-}
+if ($why.Count -gt 0) { Stop-Place $out $why }
 
 $time = Get-KitTime
 $run = Join-Path $out "agent-signals-run-windows-$time"
@@ -61,6 +73,10 @@ if ($python) {
     New-Item -ItemType Directory -Path (Join-Path $run '.kit') | Out-Null
     Write-KitText (Join-Path $run '.kit\python') ($python + "`n")
 }
+# The pointer goes to DIR and to the kit root, as kit_run_dir of lib.sh
+# reads it, so that a command in a new shell in another folder finds the
+# run.
 Write-KitText (Join-Path $out '.agent-signals-run') ($run + "`n")
+try { Write-KitText (Join-Path $script:KitRoot '.agent-signals-run') ($run + "`n") } catch { }
 Write-Output "run: $run"
 exit 0

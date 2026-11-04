@@ -36,8 +36,11 @@ $run = Get-KitRunDir
 $homeMode = Get-KitMeta $run 'home'
 if (-not $homeMode) { $homeMode = 'real' }
 
-$want = Get-KitWindowsBackend $step
-if ($want -and $want -ne $backend) { Stop-Kit 2 "the step $name runs on $want on Windows, not on $backend" }
+$backends = @(Get-KitStepBackends $step)
+if ($backends -notcontains $backend) {
+    Stop-Kit 2 ("the step $name has no Windows backend $backend; it has: " + (($backends | ForEach-Object { $_ }) -join ', '))
+}
+$env:KIT_RUN = $run
 
 # The number of the file: one more than the highest number in the manifest.
 $n = 0
@@ -50,58 +53,66 @@ $base = '{0:D2}-{1}@{2}' -f ($n + 1), $name, $backend
 $file = Join-Path $run "$base.txt"
 $raw = Join-Path $run '.raw'
 New-Item -ItemType Directory -Force -Path $raw | Out-Null
+# All raw files of the step start with "$base.": KIT_OUT, KIT_OUT.reason,
+# the console files and the work folders of the step script.
 $kitOut = Join-Path $raw "$base.out"
 $start = Get-KitTime
 $code = 3
 $reason = ''
 $console = ''
 
-if (-not $want) {
-    $reason = 'not-on-windows'
-} elseif ($homeMode -eq 'throwaway' -and $step.needs -eq 'login') {
-    $reason = 'no-login'
-} else {
-    $scriptFile = Join-Path $PSScriptRoot ("steps\{0}.ps1" -f $step.kind)
-    if (-not (Test-Path -LiteralPath $scriptFile -PathType Leaf)) { Stop-Kit 1 "no script for the kind $($step.kind)" }
-    $env:KIT_RUN = $run
-    $env:KIT_ROOT = $script:KitRoot
-    $env:KIT_STEP = $name
-    $env:KIT_KIND = [string]$step.kind
-    $env:KIT_AGENT = [string]$step.agent
-    $env:KIT_BACKEND = $backend
-    $env:KIT_PROMPT = [string]$step.prompt
-    $env:KIT_WAIT_REGEX = [string]$step.wait_regex
-    $env:KIT_ANSWER = [string]$step.answer
-    $env:KIT_HOME = $homeMode
-    $env:KIT_OUT = $kitOut
-    $exe = (Get-Process -Id $PID).Path
-    $argText = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File ' + (Format-KitArg $scriptFile)
-    foreach ($x in $extra) { $argText += ' ' + (Format-KitArg $x) }
-    $p = Start-KitProcess $run "step $name@$backend" $exe $argText "$kitOut.console" "$kitOut.err" $run
-    $code = Wait-KitProcess $run $p 1800
-    if ($code -eq -1) { $code = 1; $reason = 'time-limit' }
-    $r = (Read-KitText "$kitOut.reason") -split "`r?`n" | Where-Object { $_ } | Select-Object -First 1
-    if ($r -and -not $reason) { $reason = [string]$r }
-    $console = (Read-KitText "$kitOut.console") + (Read-KitText "$kitOut.err")
-}
+try {
+    if (-not (Test-KitStepRuns $step $backend)) {
+        $reason = 'not-on-windows'
+    } elseif ($homeMode -eq 'throwaway' -and $step.needs -eq 'login') {
+        $reason = 'no-login'
+    } else {
+        $scriptFile = Join-Path $PSScriptRoot ("steps\{0}.ps1" -f $step.kind)
+        if (-not (Test-Path -LiteralPath $scriptFile -PathType Leaf)) { Stop-Kit 1 "no script for the kind $($step.kind)" }
+        $env:KIT_ROOT = $script:KitRoot
+        $env:KIT_STEP = $name
+        $env:KIT_KIND = [string]$step.kind
+        $env:KIT_AGENT = [string]$step.agent
+        $env:KIT_BACKEND = $backend
+        $env:KIT_PROMPT = [string]$step.prompt
+        $env:KIT_WAIT_REGEX = [string]$step.wait_regex
+        $env:KIT_ANSWER = [string]$step.answer
+        $env:KIT_HOME = $homeMode
+        $env:KIT_OUT = $kitOut
+        $exe = (Get-Process -Id $PID).Path
+        $argText = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File ' + (Format-KitArg $scriptFile)
+        foreach ($x in $extra) { $argText += ' ' + (Format-KitArg $x) }
+        $p = Start-KitProcess $run "step $name@$backend" $exe $argText "$kitOut.console" "$kitOut.err" $run
+        $w = Wait-KitProcess $run $p 1800
+        $code = $w.Code
+        if ($w.TimedOut) { $code = 1; $reason = 'time-limit' }
+        $r = (Read-KitText "$kitOut.reason") -split "`r?`n" | Where-Object { $_ } | Select-Object -First 1
+        if ($r -and -not $reason) { $reason = [string]$r }
+        $console = (Read-KitText "$kitOut.console") + (Read-KitText "$kitOut.err")
+    }
 
-switch ($code) {
-    0 { $result = 'ok' }
-    3 { $result = 'skip' }
-    4 { $result = 'operator' }
-    default { $result = 'fail'; $code = 1 }
+    switch ($code) {
+        0 { $result = 'ok' }
+        3 { $result = 'skip' }
+        4 { $result = 'operator' }
+        default { $result = 'fail'; $code = 1 }
+    }
+    $text = Read-KitText $kitOut
+    if ($console.Trim()) {
+        if ($text -and -not $text.EndsWith("`n")) { $text += "`n" }
+        $text += "### console`n" + $console
+    }
+    if (-not $text.Trim()) { $text = "result: $result $reason".TrimEnd() + "`n" }
+    Write-KitText $file (ConvertTo-KitScrubbed $text)
+    Add-KitManifest $run @('step', $name, $backend, $result, $start, (Get-KitTime), "$base.txt", (Get-KitSha256 $file))
+} finally {
+    # Delete the raw files of this step, also after an error.
+    foreach ($x in @(Get-ChildItem -LiteralPath $raw -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name.StartsWith("$base.") })) {
+        Remove-Item -LiteralPath $x.FullName -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    if (@(Get-ChildItem -LiteralPath $raw -Force -ErrorAction SilentlyContinue).Count -eq 0) {
+        Remove-Item -LiteralPath $raw -Force -ErrorAction SilentlyContinue
+    }
 }
-$text = Read-KitText $kitOut
-if ($console.Trim()) {
-    if ($text -and -not $text.EndsWith("`n")) { $text += "`n" }
-    $text += "### console`n" + $console
-}
-if (-not $text.Trim()) { $text = "result: $result $reason".TrimEnd() + "`n" }
-Write-KitText $file (ConvertTo-KitScrubbed $text)
-foreach ($x in @($kitOut, "$kitOut.reason", "$kitOut.console", "$kitOut.err")) {
-    Remove-Item -LiteralPath $x -Force -ErrorAction SilentlyContinue
-}
-if (@(Get-ChildItem -LiteralPath $raw -Force).Count -eq 0) { Remove-Item -LiteralPath $raw -Force }
-Add-KitManifest $run @('step', $name, $backend, $result, $start, (Get-KitTime), "$base.txt", (Get-KitSha256 $file))
 Write-Output ("step: $name@$backend $result $reason".TrimEnd())
 exit $code

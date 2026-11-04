@@ -15,6 +15,8 @@
 # Needs: no login. Cost: none. It types nothing into the agent.
 $ErrorActionPreference = 'Stop'
 . (Join-Path (Split-Path -Parent $PSScriptRoot) 'lib.ps1')
+# The console files of kit step are UTF-8.
+try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false } catch { }
 
 $run = $env:KIT_RUN
 $out = $env:KIT_OUT
@@ -24,6 +26,12 @@ function Exit-Step([int]$Code, [string]$Reason) {
     exit $Code
 }
 
+# A release kit can lack the scenario files.
+if (-not (Test-KitScenario)) {
+    Write-KitText $out "first-run: the kit has no scenarios\first-run-windows.py or scenarios\conpty.py`n"
+    Exit-Step 3 'needs-scenario'
+}
+
 $agent = $null
 foreach ($a in @(Find-KitAgents)) { if ($a.Name -eq $env:KIT_AGENT) { $agent = $a } }
 if (-not $agent) { Write-KitText $out "first-run: $env:KIT_AGENT is not installed`n"; Exit-Step 3 'not-installed' }
@@ -31,13 +39,15 @@ if (-not $agent) { Write-KitText $out "first-run: $env:KIT_AGENT is not installe
 $tool = Get-KitConptyTool '' $run
 if (-not $tool) { Write-KitText $out "first-run: no Python with pywinpty, pyte and psutil, and no uv`n"; Exit-Step 3 'needs-conpty-python' }
 $cmd = Get-KitConptyCommand $tool
-$raw = Split-Path -Parent $out
-$work = Join-Path $raw ('first-run-' + [guid]::NewGuid().ToString('N'))
+# The work folder starts with the name of KIT_OUT, so that kit step
+# deletes it also after a stop.
+$work = $out + '.work'
 New-Item -ItemType Directory -Path $work | Out-Null
 
 if ($tool.Kind -eq 'python') {
     $p = Start-KitProcess $run 'python import check' $cmd.Exe '-c "import winpty, pyte, psutil"' (Join-Path $work 'check.out') (Join-Path $work 'check.err') $work
-    if ((Wait-KitProcess $run $p 120) -ne 0) {
+    $w = Wait-KitProcess $run $p 120
+    if ($w.TimedOut -or $w.Code -ne 0) {
         Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
         Write-KitText $out "first-run: the Python has not got pywinpty, pyte and psutil`n"
         Exit-Step 3 'needs-conpty-python'
@@ -51,7 +61,8 @@ $argText = (@($cmd.Args, (Format-KitArg $scriptFile), (Format-KitArg $agent.Name
 $stdout = Join-Path $work 'stdout'
 $stderr = Join-Path $work 'stderr'
 $p = Start-KitProcess $run "first-run $($agent.Name)" $cmd.Exe $argText $stdout $stderr $work
-$code = Wait-KitProcess $run $p 420
+$w = Wait-KitProcess $run $p 420
+$timedOut = $w.TimedOut
 
 function Get-Lines([string]$File, [int]$Max) {
     @((Read-KitText $File) -split "`r?`n" | Where-Object { $_.Trim() } | Select-Object -First $Max)
@@ -75,7 +86,7 @@ Add-Out @("# first-run-windows $($agent.Name) (conpty, throwaway home, no login)
 Add-Out @('### scenario output')
 Add-Out @((Get-Lines $stdout 200) | Where-Object { $_ -notmatch '^output: ' })
 Add-Out @((Get-Lines $stderr 40))
-if ($code -eq -1) { Add-Out @('first-run: stopped at the time limit of 420 s') }
+if ($timedOut) { Add-Out @('first-run: stopped at the time limit of 420 s') }
 Add-Out @('### log')
 Add-Out (Get-Lines (Join-Path $scnOut 'log.txt') 100)
 foreach ($s in '01-after-5s', '02-after-20s') {
@@ -100,7 +111,7 @@ Write-KitText $out $sb.ToString()
 $done = (Read-KitText $stdout) -match '(?m)^done: '
 $errText = Read-KitText $stderr
 Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
-if ($code -eq -1) { Exit-Step 1 'time-limit' }
+if ($timedOut) { Exit-Step 1 'time-limit' }
 if ($done -and (Test-Path -LiteralPath $out)) { Exit-Step 0 '' }
 if ($errText -match 'not installed') { Exit-Step 3 'not-installed' }
 if ($errText -match "No module named|ModuleNotFoundError") { Exit-Step 3 'needs-conpty-python' }

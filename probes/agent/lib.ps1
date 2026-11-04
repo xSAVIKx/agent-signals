@@ -29,28 +29,42 @@ function Get-KitVersion {
     return 'dev'
 }
 
-# Get-KitRunDir: the path of the current run folder, from
-# $env:AGENT_SIGNALS_RUN or the file .agent-signals-run in the current
-# folder. With no run, it exits 2.
+# Get-KitRunDir: the full path of the current run folder. It reads, in
+# this order: $env:AGENT_SIGNALS_RUN, the file .agent-signals-run in the
+# current folder, the file .agent-signals-run in the kit root, as
+# kit_run_dir of lib.sh does. kit start writes both files. With no run, it
+# exits 2.
 function Get-KitRunDir {
-    $r = $env:AGENT_SIGNALS_RUN
-    if (-not $r -and (Test-Path -LiteralPath '.agent-signals-run')) {
-        $r = (Get-Content -LiteralPath '.agent-signals-run' -TotalCount 1)
-    }
+    $r = Get-KitRunPointer
     if (-not $r) { Stop-Kit 2 "no run: do 'kit start' first" }
     if (-not (Test-Path -LiteralPath $r -PathType Container)) { Stop-Kit 2 "the run folder does not exist: $r" }
-    return $r
+    return (Resolve-Path -LiteralPath $r).ProviderPath
 }
 
-# Add-KitPid RUN PID LABEL: record a pid that the kit started. The kit
-# stops only the pids in RUN\pids\, never a process found by its name.
+# Get-KitRunPointer: the run path that the environment or a
+# .agent-signals-run file names, or ''. The file is UTF-8, so that a path
+# with letters outside ASCII works also in Windows PowerShell 5.1.
+function Get-KitRunPointer {
+    if ($env:AGENT_SIGNALS_RUN) { return $env:AGENT_SIGNALS_RUN }
+    foreach ($f in @('.agent-signals-run', (Join-Path $script:KitRoot '.agent-signals-run'))) {
+        if (Test-Path -LiteralPath $f -PathType Leaf) {
+            $l = ([IO.File]::ReadAllText((Resolve-Path -LiteralPath $f).ProviderPath, (New-Object System.Text.UTF8Encoding $false)) -split "`r?`n")[0].Trim()
+            if ($l) { return $l }
+        }
+    }
+    return ''
+}
+
+# Add-KitPid RUN PID LABEL [START]: record a pid that the kit started. The
+# kit stops only the pids in RUN\pids\, never a process found by its name.
 # The file RUN\pids\PID holds "LABEL<tab>START", where START is the start
 # time of the process in UTC ticks, so that a reused pid does not count.
-function Add-KitPid([string]$Run, [int]$ProcessId, [string]$Label) {
+# With no START, the function reads the start time of the process.
+function Add-KitPid([string]$Run, [int]$ProcessId, [string]$Label, [string]$Start) {
     $d = Join-Path $Run 'pids'
     New-Item -ItemType Directory -Force -Path $d | Out-Null
-    $t = Get-KitProcessStart $ProcessId
-    Set-Content -LiteralPath (Join-Path $d "$ProcessId") -Value (($Label -replace "[`t`r`n]+", ' ') + "`t" + $t)
+    if (-not $Start) { $Start = Get-KitProcessStart $ProcessId }
+    Set-Content -LiteralPath (Join-Path $d "$ProcessId") -Value (($Label -replace "[`t`r`n]+", ' ') + "`t" + $Start)
 }
 
 # Get-KitProcessStart PID: the start time of the process in UTC ticks, or
@@ -61,15 +75,16 @@ function Get-KitProcessStart([int]$ProcessId) {
 
 # Test-KitPidOurs RUN PID: true when the process of RUN\pids\PID runs and
 # has the start time of the file, so that it is the process that the kit
-# started and not a new process with a reused pid.
+# started and not a new process with a reused pid. A pid file with no
+# start time is not ours, as in kit_pid_ours of lib.sh.
 function Test-KitPidOurs([string]$Run, [int]$ProcessId) {
     $f = Join-Path (Join-Path $Run 'pids') "$ProcessId"
+    if (-not (Test-Path -LiteralPath $f -PathType Leaf)) { return $false }
+    $parts = ([string](Get-Content -LiteralPath $f -TotalCount 1)) -split "`t"
+    if ($parts.Count -lt 2 -or -not $parts[1].Trim()) { return $false }
     $now = Get-KitProcessStart $ProcessId
     if (-not $now) { return $false }
-    if (-not (Test-Path -LiteralPath $f)) { return $true }
-    $parts = ([string](Get-Content -LiteralPath $f -TotalCount 1)) -split "`t"
-    if ($parts.Count -lt 2 -or -not $parts[1]) { return $true }
-    return ($parts[1] -eq $now)
+    return ($parts[1].Trim() -eq $now)
 }
 
 # ---- Helpers of the Windows commands (doctor, start, plan, step, check,
@@ -110,14 +125,11 @@ function Get-KitSha256([string]$File) {
     return (Get-FileHash -Algorithm SHA256 -LiteralPath $File).Hash.ToLowerInvariant()
 }
 
-# Find-KitRunDir: the run folder as Get-KitRunDir finds it, or $null when
-# there is no run. It does not exit.
+# Find-KitRunDir: the full path of the run folder as Get-KitRunDir finds
+# it, or $null when there is no run. It does not exit.
 function Find-KitRunDir {
-    $r = $env:AGENT_SIGNALS_RUN
-    if (-not $r -and (Test-Path -LiteralPath '.agent-signals-run')) {
-        $r = (Get-Content -LiteralPath '.agent-signals-run' -TotalCount 1)
-    }
-    if ($r -and (Test-Path -LiteralPath $r -PathType Container)) { return $r }
+    $r = Get-KitRunPointer
+    if ($r -and (Test-Path -LiteralPath $r -PathType Container)) { return (Resolve-Path -LiteralPath $r).ProviderPath }
     return $null
 }
 
@@ -144,15 +156,45 @@ function Get-KitHomes {
     return $list
 }
 
-# ConvertTo-KitScrubbed TEXT: the text after tools\scrub.ps1, for each
-# home folder of Get-KitHomes.
+# Get-KitPathPattern PATH: a pattern for PATH in any case, with one or more
+# slashes or backslashes between its parts.
+function Get-KitPathPattern([string]$Path) {
+    $parts = @($Path.TrimEnd('/', '\') -split '[\\/]+' | ForEach-Object { [regex]::Escape($_) })
+    return '(?i)(?<![A-Za-z0-9_.-])' + ($parts -join '[\\/]+') + '(?![A-Za-z0-9._-])'
+}
+
+# Get-KitLiteralPaths: the raw folders that the scrub cannot find by
+# itself, with the text that replaces each one, longest first: the run
+# folder (<run>), the kit root (<kit>), and the OneDrive folders
+# (<onedrive>). tools\scrub.ps1 ends a path at a space, so a folder such as
+# "OneDrive - Contoso" needs this. The kit writes these values nowhere.
+function Get-KitLiteralPaths {
+    $list = @()
+    $run = $env:KIT_RUN
+    if (-not $run) { $run = Find-KitRunDir }
+    if ($run) { $list += New-Object PSObject -Property @{ Kind = 'the run folder'; Path = [string]$run; New = '<run>' } }
+    $list += New-Object PSObject -Property @{ Kind = 'the kit folder'; Path = [string]$script:KitRoot; New = '<kit>' }
+    foreach ($v in 'OneDrive', 'OneDriveCommercial', 'OneDriveConsumer') {
+        $x = [Environment]::GetEnvironmentVariable($v)
+        if ($x) { $list += New-Object PSObject -Property @{ Kind = "the $v folder"; Path = $x; New = '<onedrive>' } }
+    }
+    $list | Where-Object { $_.Path.TrimEnd('/', '\').Length -ge 4 } | Sort-Object { $_.Path.Length } -Descending
+}
+
+# ConvertTo-KitScrubbed TEXT: the text after the literal folders of
+# Get-KitLiteralPaths and after tools\scrub.ps1, for each home folder of
+# Get-KitHomes.
 function ConvertTo-KitScrubbed([string]$Text) {
     $d = Get-ScrubDefaults
+    $s = $Text
+    foreach ($p in @(Get-KitLiteralPaths)) {
+        $s = [regex]::Replace($s, (Get-KitPathPattern $p.Path), $p.New.Replace('$', '$$'))
+    }
     # The longest home folder first, so that a home folder below another
     # home folder changes to ~ as a whole.
     $homes = @(Get-KitHomes | Sort-Object { $_.Length } -Descending)
     if ($homes.Count -eq 0) { $homes = @('') }
-    $s = (Invoke-Scrub $Text $homes[0] $d.User $d.HostName).Text
+    $s = (Invoke-Scrub $s $homes[0] $d.User $d.HostName).Text
     for ($i = 1; $i -lt $homes.Count; $i++) { $s = (Invoke-Scrub $s $homes[$i] '' '').Text }
     return $s
 }
@@ -255,26 +297,64 @@ function Start-KitProcess([string]$Run, [string]$Label, [string]$Exe, [string]$A
     $p = Start-Process @sp
     # The handle keeps the exit code readable after the process stops.
     $null = $p.Handle
-    Add-KitPid $Run $p.Id $Label
+    $start = ''
+    try { $start = [string]$p.StartTime.ToUniversalTime().Ticks } catch { }
+    Add-KitPid $Run $p.Id $Label $start
     return $p
 }
 
+# Get-KitDescendants PROCESS: the pids of the processes below PROCESS that
+# started after it, deepest first. A process that started before the root
+# is not below it, even when its parent pid is the pid of the root: Windows
+# gave that pid again.
+function Get-KitDescendants($Process) {
+    $rootStart = $null
+    try { $rootStart = $Process.StartTime } catch { return }
+    $all = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue)
+    $found = New-Object System.Collections.ArrayList
+    $queue = New-Object System.Collections.Queue
+    $queue.Enqueue([int]$Process.Id)
+    while ($queue.Count -gt 0) {
+        $parent = $queue.Dequeue()
+        foreach ($c in $all) {
+            if ([int]$c.ParentProcessId -ne $parent -or [int]$c.ProcessId -eq $parent) { continue }
+            if (-not $c.CreationDate -or $c.CreationDate -lt $rootStart) { continue }
+            if ($found -contains [int]$c.ProcessId) { continue }
+            [void]$found.Add([int]$c.ProcessId)
+            $queue.Enqueue([int]$c.ProcessId)
+        }
+    }
+    $found.Reverse()
+    $found
+}
+
+# Stop-KitTree PROCESS: stop PROCESS and the processes below it that
+# started after it. It stops no other process.
+function Stop-KitTree($Process) {
+    $kids = @(Get-KitDescendants $Process)
+    try { $Process.Kill() } catch { }
+    foreach ($k in $kids) { Stop-Process -Id $k -Force -ErrorAction SilentlyContinue }
+}
+
 # Wait-KitProcess RUN PROCESS SECONDS: wait for the process. At the time
-# limit, stop it and its children (taskkill /T on its own pid), and return
-# -1. Else return its exit code. Then delete its pid file.
+# limit, stop it and the processes below it (Stop-KitTree). It returns an
+# object with Code (the exit code, or 1 at the time limit) and TimedOut.
+# Then it deletes the pid file of the process.
 function Wait-KitProcess([string]$Run, $Process, [int]$Seconds) {
-    $code = -1
+    $timedOut = $false
+    $code = 1
     if ($Process.WaitForExit($Seconds * 1000)) {
         $Process.WaitForExit()
         $code = $Process.ExitCode
     } else {
-        $null = Invoke-KitNative 'taskkill.exe' @('/T', '/F', '/PID', "$($Process.Id)")
+        $timedOut = $true
+        Stop-KitTree $Process
         $null = $Process.WaitForExit(10000)
     }
     if ($Process.HasExited) {
         Remove-Item -LiteralPath (Join-Path (Join-Path $Run 'pids') "$($Process.Id)") -Force -ErrorAction SilentlyContinue
     }
-    return $code
+    return New-Object PSObject -Property @{ Code = $code; TimedOut = $timedOut }
 }
 
 # Get-KitCommandFile NAME: the program file of a command on PATH: an .exe
@@ -422,10 +502,25 @@ function Get-KitAgentPattern([string]$Agent) {
     return $null
 }
 
+# The accounts that may write to the folder of a run, as SIDs: SYSTEM,
+# Administrators, CREATOR OWNER and TrustedInstaller. The current account
+# comes on top. Any other account with a write right fails.
+$script:KitTrustedSids = @(
+    'S-1-5-18', 'S-1-5-32-544', 'S-1-3-0',
+    'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464'
+)
+
+# Get-KitPrivateCommand DIR: the icacls command that gives only this
+# account and SYSTEM access to DIR.
+function Get-KitPrivateCommand([string]$Dir) {
+    $me = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+    return ('icacls "{0}" /inheritance:r /grant:r "*{1}:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F"' -f $Dir.TrimEnd('\'), $me)
+}
+
 # Test-KitPlace DIR: the reasons why DIR must not hold a run folder: in a
-# git work tree, in an agent folder, not owned by this account, or
-# writable by Everyone, Users, Authenticated Users, Guests or Anonymous.
-# No reason means that the place is good.
+# git work tree, in an agent folder, an owner that is not this account, or
+# a write right for an account that is not in the allow list. No reason
+# means that the place is good.
 function Test-KitPlace([string]$Dir) {
     $why = @()
     $full = [IO.Path]::GetFullPath($Dir).TrimEnd('\', '/')
@@ -444,25 +539,37 @@ function Test-KitPlace([string]$Dir) {
             }
         }
     }
+    # A folder that does not exist yet has no access list to check.
+    if (-not (Test-Path -LiteralPath $full -PathType Container)) { return ($why | Select-Object -Unique) }
     try {
         $acl = Get-Acl -LiteralPath $full
         $sidType = [System.Security.Principal.SecurityIdentifier]
         $me = [System.Security.Principal.WindowsIdentity]::GetCurrent()
-        $owner = $acl.GetOwner($sidType)
-        $admins = New-Object System.Security.Principal.SecurityIdentifier 'S-1-5-32-544'
-        # An elevated administrator makes files that the Administrators
-        # group owns.
-        $ownOk = ($owner -eq $me.User) -or (($owner -eq $admins) -and ($me.Groups -contains $admins))
-        if (-not $ownOk) { $why += 'the folder belongs to another account' }
-        $open = @{ 'S-1-1-0' = 'Everyone'; 'S-1-5-32-545' = 'Users'; 'S-1-5-11' = 'Authenticated Users'; 'S-1-5-32-546' = 'Guests'; 'S-1-5-7' = 'Anonymous' }
-        # WriteData, AppendData, DeleteSubdirectoriesAndFiles, Delete,
+        $ok = @($script:KitTrustedSids) + @([string]$me.User.Value)
+        # WriteData, AppendData, WriteExtendedAttributes,
+        # DeleteSubdirectoriesAndFiles, WriteAttributes, Delete,
         # ChangePermissions, TakeOwnership, GENERIC_ALL, GENERIC_WRITE.
-        $mask = 0x2 -bor 0x4 -bor 0x40 -bor 0x10000 -bor 0x40000 -bor 0x80000 -bor 0x10000000 -bor 0x40000000
+        $mask = 0x2 -bor 0x4 -bor 0x10 -bor 0x40 -bor 0x100 -bor 0x10000 -bor 0x40000 -bor 0x80000 -bor 0x10000000 -bor 0x40000000
+        $dacl = $true
         foreach ($r in $acl.GetAccessRules($true, $true, $sidType)) {
-            $sid = $r.IdentityReference.Value
-            if ([string]$r.AccessControlType -ne 'Allow' -or -not $open.ContainsKey($sid)) { continue }
-            if (([int64]$r.FileSystemRights -band $mask) -ne 0) { $why += "$($open[$sid]) can write to the folder" }
+            $sid = [string]$r.IdentityReference.Value
+            if ([string]$r.AccessControlType -ne 'Allow' -or $ok -contains $sid) { continue }
+            if (([int64]$r.FileSystemRights -band $mask) -eq 0) { continue }
+            $name = $sid
+            try { $name = $r.IdentityReference.Translate([System.Security.Principal.NTAccount]).Value } catch { }
+            $why += "$name can write to the folder"
+            $dacl = $false
         }
+        # The owner: this account, the default owner of its token, or the
+        # Administrators group (an elevated administrator makes files that
+        # the group owns) when the access list is good.
+        $owner = [string]$acl.GetOwner($sidType).Value
+        $admins = 'S-1-5-32-544'
+        $ownOk = ($owner -eq [string]$me.User.Value) -or ($me.Owner -and $owner -eq [string]$me.Owner.Value)
+        if (-not $ownOk -and $owner -eq $admins -and $dacl) {
+            $ownOk = @($me.Groups | Where-Object { $_.Value -eq $admins }).Count -gt 0
+        }
+        if (-not $ownOk) { $why += 'the folder belongs to another account' }
     } catch {
         [Console]::Error.WriteLine('kit: the access list was not read: ' + $_.Exception.GetType().Name)
     }
@@ -531,19 +638,40 @@ function Get-KitOption([object[]]$ArgList, [string]$Name) {
     return ''
 }
 
-# Get-KitWindowsBackend STEP: the backend of a step on Windows, or $null
-# when the step does not run on Windows yet. The probe runs on "none". The
-# first run runs on "conpty", the Windows twin of the tmux first run. The
-# session steps come with Task 10 of the plan.
-function Get-KitWindowsBackend($Step) {
-    $w = ''
-    if ($Step.PSObject.Properties['windows']) { $w = [string]$Step.windows }
-    if ($w -in 'no', 'false', '0') { return $null }
-    switch ([string]$Step.kind) {
-        'probe' { return 'none' }
-        'first-run' { return 'conpty' }
+# The backends of the Windows kit. A step line lists its backends in the
+# column "backends"; "-" or an empty value means "none" (the probe).
+$script:KitWindowsBackends = @('none', 'conpty', 'psmux', 'operator')
+# The kinds and backends that this kit runs on Windows now. The session
+# steps come with Task 10 of the plan.
+$script:KitWindowsRuns = @{ 'probe' = @('none'); 'first-run' = @('conpty') }
+
+# Get-KitStepBackends STEP: the backends of the step line that are Windows
+# backends, in the order of the line. The column "windows" (when the step
+# list has it) hides a line with "no", "false" or "0".
+function Get-KitStepBackends($Step) {
+    if ($Step.PSObject.Properties['windows'] -and ([string]$Step.windows) -in 'no', 'false', '0') { return }
+    $col = ([string]$Step.backends).Trim()
+    if (-not $col -or $col -eq '-') { $col = 'none' }
+    foreach ($b in ($col -split ',')) {
+        $b = $b.Trim()
+        if ($script:KitWindowsBackends -contains $b) { $b }
     }
-    return $null
+}
+
+# Test-KitStepRuns STEP BACKEND: true when this kit runs the step on the
+# backend on Windows now.
+function Test-KitStepRuns($Step, [string]$Backend) {
+    $k = [string]$Step.kind
+    return ($script:KitWindowsRuns.ContainsKey($k) -and ($script:KitWindowsRuns[$k] -contains $Backend))
+}
+
+# Test-KitScenario: true when the kit has the files of the conpty first
+# run. A release kit can lack them.
+function Test-KitScenario {
+    foreach ($f in 'scenarios\first-run-windows.py', 'scenarios\conpty.py') {
+        if (-not (Test-Path -LiteralPath (Join-Path $script:KitRoot $f) -PathType Leaf)) { return $false }
+    }
+    return $true
 }
 
 # Set-KitPrivate DIR: give only this account and SYSTEM access to DIR, as
