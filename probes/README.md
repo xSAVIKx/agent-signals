@@ -101,7 +101,48 @@ sh probes/run.sh --guided interrupt codex     # Esc while the agent works
 sh probes/run.sh --guided front-tab           # macOS: select a tab by its tty
 ```
 
-`front-tab` changes the selected tab, so it asks before it runs.
+`front-tab` changes the selected tab, so it asks before it runs. It needs a
+terminal.
+
+### A guided step with no person at the terminal
+
+An agent tool or a script can run a guided step. These options and
+variables remove each question:
+
+| Option or variable | What it does |
+|---|---|
+| `--wait N` | The kit reads no key. It takes the before snapshot, prints `kit: watch starts, N s`, watches for N seconds (1 to 600), and then takes the after snapshot. Do the action after that line. A different process can do the action. |
+| `--pids FILE` | The kit counts only the pids in FILE and their children. FILE holds one pid on each line. FILE can also be a folder that holds one file for each pid, named by the pid. Other processes with the same name do not count, for example a tmux server whose command line holds the agent name. |
+| `--files-of-pids` | Sections 1 to 3 show only the files that the counted processes hold open, and the files under a `--scope` folder. The files of other sessions in the same home folder do not show. |
+| `--scope DIR` | A folder for `--files-of-pids`, for example the project folder of the session in `~/.claude/projects`. Give the option again for more folders. |
+| `--out FILE` | The kit writes its file to FILE, not to the current folder. |
+| `AGENT_SIGNALS_WATCH=N` | The length of the watch without `--wait`, in seconds. The default is 30. |
+| `AGENT_SIGNALS_TERMINALS=yes` or `no` | On macOS, the answer to the question about the terminal probe. |
+
+When stdin is not a terminal, the kit asks no question. Without `--wait`,
+the watch starts at once. On macOS, the terminal probe does not run.
+
+```sh
+sh probes/run.sh --guided permission claude --wait 90 --pids run/pids \
+  --files-of-pids --scope "$HOME/.claude/projects/<key>" --out step.txt &
+# Wait for the line "kit: watch starts", then do the action in the session.
+```
+
+### Keep the kit
+
+`--get DIR` extracts the kit to `DIR/agent-signals-kit` and keeps it. The
+kit prints `kit: ready DIR/agent-signals-kit` and runs nothing else. When
+`DIR/agent-signals-kit` exists, the kit stops with exit code 2. It does not
+overwrite a folder. On Windows, `iex` takes no arguments, so set
+`AGENT_SIGNALS_GET` to the folder:
+
+```sh
+curl -fsSL https://xsavikx.github.io/agent-signals/kit.sh | sh -s -- --get ~/kits
+```
+
+```powershell
+$env:AGENT_SIGNALS_GET = "$HOME\kits"; irm https://xsavikx.github.io/agent-signals/kit.ps1 | iex
+```
 
 ## How a probe becomes a fact
 

@@ -3,6 +3,11 @@
 #
 #   curl -fsSL https://xsavikx.github.io/agent-signals/kit.sh | sh
 #   curl -fsSL https://xsavikx.github.io/agent-signals/kit.sh | sh -s -- --guided permission agent
+#   curl -fsSL https://xsavikx.github.io/agent-signals/kit.sh | sh -s -- --get DIR
+#
+# With --get DIR, it extracts the kit to DIR/agent-signals-kit, keeps it,
+# prints "kit: ready DIR/agent-signals-kit" and runs nothing else. It does
+# not overwrite a folder: when DIR/agent-signals-kit exists, it exits 2.
 #
 # It downloads the kit of the latest release (agent-signals-kit.tar.gz) to a
 # temporary folder, runs probes/run.sh with the arguments, and deletes the
@@ -22,6 +27,20 @@ elif [ -n "${AGENT_SIGNALS_REF:-}" ]; then
   urls=https://codeload.github.com/xSAVIKx/agent-signals/tar.gz/$AGENT_SIGNALS_REF
 else
   urls="$repo/releases/latest/download/agent-signals-kit.tar.gz https://codeload.github.com/xSAVIKx/agent-signals/tar.gz/main"
+fi
+
+keep=
+if [ "${1:-}" = --get ]; then
+  if [ "$#" -ne 2 ] || [ -z "$2" ]; then
+    echo "kit: use --get DIR" >&2
+    exit 2
+  fi
+  mkdir -p "$2"
+  keep=$(cd "$2" && pwd)/agent-signals-kit
+  if [ -e "$keep" ]; then
+    echo "kit: $keep already exists. Remove it or use a different folder." >&2
+    exit 2
+  fi
 fi
 
 tmp=$(mktemp -d 2>/dev/null || mktemp -d -t agent-signals)
@@ -55,6 +74,13 @@ run=$(find "$tmp/src" -maxdepth 3 -path '*/probes/run.sh' | head -n 1)
 if [ -z "$run" ]; then
   echo "kit: no probes/run.sh in the archive" >&2
   exit 1
+fi
+
+if [ -n "$keep" ]; then
+  # The folder that holds probes/ is the top of the kit.
+  mv "$(dirname "$(dirname "$run")")" "$keep"
+  echo "kit: ready $keep"
+  exit 0
 fi
 
 # With "curl | sh", stdin is the script. The kit asks questions, so it
