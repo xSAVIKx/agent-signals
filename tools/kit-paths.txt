@@ -1,0 +1,7 @@
+# The paths of the probe kit archive, one on each line. The release
+# (release-please.yml), CI (probes.yml) and the tests build the archive from
+# this list with tools/kit-archive.sh. A line that starts with # is a
+# comment.
+probes
+tools/scrub.sh
+tools/scrub.ps1

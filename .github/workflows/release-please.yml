@@ -42,11 +42,9 @@ jobs:
           GH_REPO: ${{ github.repository }}
           TAG: ${{ steps.release.outputs.tag_name }}
         run: |
-          paths="probes tools/scrub.sh tools/scrub.ps1"
-          # shellcheck disable=SC2086
-          git archive --format=tar.gz --prefix=agent-signals-kit/ -o agent-signals-kit.tar.gz HEAD $paths
-          # shellcheck disable=SC2086
-          git archive --format=zip --prefix=agent-signals-kit/ -o agent-signals-kit.zip HEAD $paths
+          version=${TAG#corpus-v}
+          sh tools/kit-archive.sh tar.gz agent-signals-kit.tar.gz "$version"
+          sh tools/kit-archive.sh zip agent-signals-kit.zip "$version"
           sha256sum agent-signals-kit.tar.gz agent-signals-kit.zip >agent-signals-kit.sha256
           cat agent-signals-kit.sha256
           gh release upload "$TAG" agent-signals-kit.tar.gz agent-signals-kit.zip agent-signals-kit.sha256 --clobber

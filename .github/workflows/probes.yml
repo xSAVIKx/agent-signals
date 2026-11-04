@@ -20,6 +20,8 @@ on:
       - "tools/test-probe-lib*"
       - "tools/testdata/probe-lib/**"
       - "tools/check-probe-output.sh"
+      - "tools/kit-paths.txt"
+      - "tools/kit-archive.sh"
       - "tools/test-guided-step.sh"
       - "tools/test-agent-kit*"
       - "tools/agent-kit-tests/**"
@@ -31,6 +33,8 @@ on:
     paths:
       - "probes/**"
       - "tools/scrub*"
+      - "tools/kit-paths.txt"
+      - "tools/kit-archive.sh"
       - ".github/workflows/probes.yml"
   workflow_dispatch:
 
@@ -100,7 +104,9 @@ jobs:
         # The one-liner reads a local archive here, so the step needs no
         # network.
         run: |
-          git archive --format=tar.gz --prefix=agent-signals-kit/ -o "$RUNNER_TEMP/kit.tar.gz" HEAD probes tools/scrub.sh tools/scrub.ps1
+          sh tools/kit-archive.sh tar.gz "$RUNNER_TEMP/kit.tar.gz" 0.0.0-ci
+          tar -xzf "$RUNNER_TEMP/kit.tar.gz" -C "$RUNNER_TEMP"
+          test "$(sh "$RUNNER_TEMP/agent-signals-kit/probes/agent/kit.sh" version)" = 0.0.0-ci
           AGENT_SIGNALS_URL="file://$RUNNER_TEMP/kit.tar.gz" sh -c 'cat probes/kit.sh | sh -s -- --all'
           f=$(ls agent-signals-probe-*.txt)
           grep -c '^### ' "$f"
@@ -166,7 +172,8 @@ jobs:
         shell: pwsh
         run: |
           $zip = Join-Path $env:RUNNER_TEMP 'kit.zip'
-          git archive --format=zip --prefix=agent-signals-kit/ -o $zip HEAD probes tools/scrub.sh tools/scrub.ps1
+          bash tools/kit-archive.sh zip $zip 0.0.0-ci
+          if ($LASTEXITCODE -ne 0) { throw "exit $LASTEXITCODE from kit-archive.sh" }
           $env:AGENT_SIGNALS_URL = $zip
           foreach ($exe in 'pwsh', 'powershell') {
             & $exe -NoProfile -Command "& ([scriptblock]::Create((Get-Content -Raw probes/kit.ps1))) -All"
