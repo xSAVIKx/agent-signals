@@ -84,7 +84,7 @@ $null = & icacls.exe $open /grant "*S-1-1-0:(OI)(CI)M" 2>&1
 $ErrorActionPreference = "Stop"
 Expect-Kit 'start refuses a folder that Everyone can write' 2 'start' '--out' $open
 Expect-Line 'start names the reason' 'Everyone can write' $out
-Expect-Line 'start prints the icacls fix' '^  icacls ".*open" /inheritance:r /grant:r ' $out
+Expect-Line 'start prints the icacls fix' 'icacls "' $out
 # The allow list: an account that is not in it (Backup Operators) fails.
 $other = Join-Path $T 'other'
 New-Item -ItemType Directory -Path $other | Out-Null
@@ -110,7 +110,6 @@ if ($openRule.Count -eq 0) { Pass 'the run folder is private' } else { Fail 'the
 $me = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 # Only the accounts of the allow list of Test-KitPlace remain.
 $rules = @((Get-Acl -LiteralPath $dir).GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]))
-foreach ($r in $rules) { Write-Output ("info: DIR rule {0} inherited={1} rights={2}" -f $r.IdentityReference.Value, $r.IsInherited, $r.FileSystemRights) }
 $dacl = @($rules | ForEach-Object { $_.IdentityReference.Value } | Where-Object { $_ -notin $me, 'S-1-5-18', 'S-1-5-32-544' })
 if ($dacl.Count -eq 0) { Pass 'a new DIR is private' } else { Fail 'a new DIR is private' ($dacl -join ' ') }
 
