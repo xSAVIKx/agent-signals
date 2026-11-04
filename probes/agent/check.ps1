@@ -23,8 +23,8 @@
 # The archive does not hold pids\, sessions\, .kit\ or .raw\.
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib.ps1')
-# kit.ps1 can pass one $null for no arguments.
-$argv = @($args | Where-Object { $null -ne $_ })
+# The arguments as strings (see Get-KitArgs in lib.ps1).
+[string[]]$argv = @(Get-KitArgs $args)
 if ($argv.Count -gt 0) { Stop-Kit 2 'usage: kit check' }
 
 $run = (Resolve-Path -LiteralPath (Get-KitRunDir)).ProviderPath.TrimEnd('\', '/')

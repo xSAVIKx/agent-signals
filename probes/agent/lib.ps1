@@ -511,6 +511,16 @@ function Get-KitConptyCommand($Tool) {
     return New-Object PSObject -Property @{ Exe = $Tool.Path; Args = '' }
 }
 
+# Get-KitArgs ARGS: the arguments of a command as strings. kit.ps1 splats
+# a single argument as a string, and PowerShell can then pass one $null or
+# the characters of the string. This function undoes both. Call it as
+#   [string[]]$argv = @(Get-KitArgs $args)
+function Get-KitArgs([object[]]$ArgList) {
+    $a = @($ArgList | Where-Object { $null -ne $_ })
+    if ($a.Count -gt 1 -and @($a | Where-Object { $_ -isnot [char] }).Count -eq 0) { return [string](-join $a) }
+    foreach ($x in $a) { [string]$x }
+}
+
 # Get-KitOption ARGS NAME: the value after the option NAME (for example
 # --python) in ARGS, or ''. The commands read their options by hand, so
 # that the spelling is the same as in kit.sh.

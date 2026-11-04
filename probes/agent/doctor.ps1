@@ -39,8 +39,8 @@
 # All output goes through tools\scrub.ps1. It opens no session file.
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib.ps1')
-# kit.ps1 can pass one $null for no arguments.
-$argv = @($args | Where-Object { $null -ne $_ })
+# The arguments as strings (see Get-KitArgs in lib.ps1).
+[string[]]$argv = @(Get-KitArgs $args)
 . (Join-Path $script:KitRoot 'probes\lib.ps1')
 
 $python = ''

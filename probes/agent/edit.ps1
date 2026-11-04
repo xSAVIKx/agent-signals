@@ -9,8 +9,8 @@
 # and prints "edit: <file> <sha256>".
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib.ps1')
-# kit.ps1 can pass one $null for no arguments.
-$argv = @($args | Where-Object { $null -ne $_ })
+# The arguments as strings (see Get-KitArgs in lib.ps1).
+[string[]]$argv = @(Get-KitArgs $args)
 
 if ($argv.Count -lt 2) { Stop-Kit 2 'usage: kit edit FILE REASON...' }
 $run = Get-KitRunDir
