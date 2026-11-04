@@ -20,6 +20,11 @@ on:
       - "tools/test-probe-lib*"
       - "tools/testdata/probe-lib/**"
       - "tools/check-probe-output.sh"
+      - "tools/test-guided-step.sh"
+      - "tools/test-agent-kit*"
+      - "tools/agent-kit-tests/**"
+      - "tools/testdata/agent-kit/**"
+      - "scenarios/**"
       - ".github/workflows/probes.yml"
   push:
     branches: [main]
@@ -89,6 +94,8 @@ jobs:
           rm -f agent-signals-probe-*.txt
       - name: Guided step test
         run: sh tools/test-guided-step.sh
+      - name: Agent kit test
+        run: sh tools/test-agent-kit.sh
       - name: Kit through the one-liner
         # The one-liner reads a local archive here, so the step needs no
         # network.
@@ -122,6 +129,12 @@ jobs:
       - name: Probe library test (Windows PowerShell 5.1)
         shell: powershell
         run: ./tools/test-probe-lib.ps1
+      - name: Agent kit test (PowerShell 7)
+        shell: pwsh
+        run: ./tools/test-agent-kit.ps1
+      - name: Agent kit test (Windows PowerShell 5.1)
+        shell: powershell
+        run: ./tools/test-agent-kit.ps1
       - name: Probes
         shell: bash
         run: |
