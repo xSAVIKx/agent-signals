@@ -1,0 +1,2 @@
+{"type": "user", "message": {"role": "user", "content": "LEAK-CANARY-10"}}
+{"type": "assistant", "message": {"role": "assistant", "content": "LEAK-CANARY-11"}}
