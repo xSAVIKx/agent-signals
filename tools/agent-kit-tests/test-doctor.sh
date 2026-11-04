@@ -32,16 +32,30 @@ done
 expect_no_line "doctor prints no psmux on Unix" '^tool: psmux' "$T/out"
 
 # test_doctor_versions_from_paths
-expect_line "claude version from versions/" '^agent: claude /.*/\.local/share/claude/versions/2\.1\.316 2\.1\.316$' "$T/out"
-expect_line "cursor version from versions/" '^agent: cursor /.*/cursor-agent/versions/2026\.10\.22-27dcf5f/cursor-agent 2026\.10\.22-27dcf5f$' "$T/out"
-expect_line "codex version from package.json" '^agent: codex /.*/node_modules/@openai/codex/bin/codex\.js 0\.166\.0$' "$T/out"
-expect_line "gemini version from package.json" '^agent: gemini /.*/@google/gemini-cli/dist/index\.js 0\.66\.0$' "$T/out"
-expect_line "copilot version from package.json" '^agent: copilot /.*/@github/copilot/npm-loader\.js 1\.0\.105$' "$T/out"
-expect_line "opencode version from package.json" '^agent: opencode /.*/opencode-ai/bin/opencode 1\.19\.5$' "$T/out"
-expect_line "agy with no version in the path is unknown" '^agent: agy /.*/\.local/bin/agy unknown$' "$T/out"
-expect_no_line "each agent line has a known form" '^agent: [a-z]+ ($|[^/m])' "$T/out"
+expect_line "claude version from versions/" '^agent: claude ~/\.local/share/claude/versions/2\.1\.316 2\.1\.316$' "$T/out"
+expect_line "cursor version from versions/" '^agent: cursor ~/\.local/share/cursor-agent/versions/2026\.10\.22-27dcf5f/cursor-agent 2026\.10\.22-27dcf5f$' "$T/out"
+expect_line "codex version from package.json" '^agent: codex ~/\.npm-global/lib/node_modules/@openai/codex/bin/codex\.js 0\.166\.0$' "$T/out"
+expect_line "gemini version from package.json" '^agent: gemini ~/.npm-global/lib/node_modules/@google/gemini-cli/dist/index\.js 0\.66\.0$' "$T/out"
+expect_line "copilot version from package.json" '^agent: copilot ~/.npm-global/lib/node_modules/@github/copilot/npm-loader\.js 1\.0\.105$' "$T/out"
+expect_line "opencode version from package.json" '^agent: opencode ~/.npm-global/lib/node_modules/opencode-ai/bin/opencode 1\.19\.5$' "$T/out"
+expect_line "agy with no version in the path is unknown" '^agent: agy ~/\.local/bin/agy unknown$' "$T/out"
+expect_no_line "each agent line has a known form" '^agent: [a-z]+ ($|[^~/m])' "$T/out"
 expect_line "doctor prints the orchestrator" '^orchestrator: [a-z]+ [0-9-]+$' "$T/out"
 expect_line "doctor prints the orchestrator terminal" '^orchestrator_terminal: .' "$T/out"
+
+expect_line "doctor prints the sandbox" '^orchestrator_sandbox: .' "$T/out"
+
+# The sandbox variables of Codex.
+doctor "$T/out5" CODEX_SANDBOX=seatbelt CODEX_SANDBOX_NETWORK_DISABLED=1
+expect_line "doctor prints CODEX_SANDBOX" '^orchestrator_sandbox: CODEX_SANDBOX=seatbelt$' "$T/out5"
+expect_line "doctor prints CODEX_SANDBOX_NETWORK_DISABLED" '^orchestrator_sandbox: CODEX_SANDBOX_NETWORK_DISABLED=1$' "$T/out5"
+
+# Git Bash on Windows: the doctor names kit.ps1.
+doctor "$T/out6" DOCTOR_UNAME=MINGW64_NT-10.0-26100
+expect_code "doctor under Git Bash exits 0" 0 $?
+expect_line "doctor under Git Bash prints windows-gitbash" '^os: windows-gitbash$' "$T/out6"
+expect_line "doctor under Git Bash names kit.ps1" '^hint: run probes/agent/kit\.ps1 with powershell -NoProfile -ExecutionPolicy Bypass -File$' "$T/out6"
+expect_no_line "doctor under Git Bash prints no agent" '^agent:' "$T/out6"
 
 # test_doctor_runs_no_agent
 if ls "$T"/marker.* >/dev/null 2>&1; then
@@ -89,6 +103,8 @@ expect_code "doctor with a run exits 0" 0 $?
 if [ -f "$T/run/00-doctor.txt" ]; then pass "doctor writes 00-doctor.txt"; else fail "doctor writes 00-doctor.txt" "no file"; fi
 expect_line "00-doctor.txt has the agent lines" '^agent: claude ~/\.local/share/claude/versions/2\.1\.316 2\.1\.316$' "$T/run/00-doctor.txt"
 if grep -qF "$H" "$T/run/00-doctor.txt"; then fail "00-doctor.txt is scrubbed" "it holds the home folder"; else pass "00-doctor.txt is scrubbed"; fi
+if grep -qF "$H" "$T/out4"; then fail "stdout is scrubbed" "it holds the home folder"; else pass "stdout is scrubbed"; fi
+if cmp -s "$T/out4" "$T/run/00-doctor.txt"; then pass "stdout is the text of 00-doctor.txt"; else fail "stdout is the text of 00-doctor.txt" "they differ"; fi
 if [ -n "$(find "$T/run" -mindepth 1 ! -name 00-doctor.txt)" ]; then fail "the run has no raw file" "$(ls "$T/run")"; else pass "the run has no raw file"; fi
 
 # The manifest line, from the helper of doctor.sh.

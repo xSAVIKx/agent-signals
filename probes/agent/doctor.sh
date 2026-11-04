@@ -1,9 +1,11 @@
 #!/bin/sh
 # kit doctor: print the facts of this machine as "key: value" lines. The
 # doctor is a fact collector, not a pass or fail list. It needs no run
-# folder. When a run exists (AGENT_SIGNALS_RUN or .agent-signals-run), it
-# also writes the lines, scrubbed with tools/scrub.sh, to 00-doctor.txt in
-# the run folder. It always exits 0.
+# folder. It prints the lines after tools/scrub.sh, because the output
+# goes to the model of the orchestrator. When a run exists
+# (AGENT_SIGNALS_RUN or .agent-signals-run), it also writes the same text
+# to 00-doctor.txt in the run folder. It exits 0, or 1 when the scrub
+# fails; then it prints no line.
 #
 #   sh probes/agent/kit.sh doctor
 #
@@ -42,8 +44,26 @@
 #   orchestrator_terminal: <NAME=value>
 #       one line for each terminal variable of the orchestrator process
 #       (terminal_env of probes/lib.sh, fact 069), or "none".
+#   orchestrator_sandbox: <fact>
+#       one line for each sign of a sandbox around the kit, or "none found":
+#         CODEX_SANDBOX=<value> and CODEX_SANDBOX_NETWORK_DISABLED=<value>
+#           from the environment of the kit. Codex sets them in the
+#           commands that it runs in its sandbox (codex-rs source, not
+#           measured in this repository).
+#         ancestor <bwrap|sandbox-exec>: a sandbox program in the parent
+#           chain of the kit.
+#         seccomp <0|1|2> no_new_privs <0|1>: Linux, from
+#           /proc/self/status. A value other than 0 can come from a
+#           sandbox, a container or a service manager.
+#       A sandboxed orchestrator can fail to download the kit, or to let a
+#       test agent write its home folder.
+#       No environment name of a Claude Code sandbox is known.
+#
+# Under Git Bash, MSYS or Cygwin on Windows, the doctor prints
+# "os: windows-gitbash" and a hint line for kit.ps1, and nothing else.
+# The tests set DOCTOR_UNAME to replace the output of "uname -s".
 set -u
-. "$(dirname "$0")/lib.sh"
+. "${KIT_DIR:-$(dirname "$0")}/lib.sh"
 # shellcheck source=probes/lib.sh
 . "$KIT_ROOT/probes/lib.sh"
 
@@ -81,9 +101,11 @@ doctor_pattern() {
   sed -n "s/.*pids '\([^']*\)'.*/\1/p" "$KIT_ROOT/probes/$1/unix.sh" | head -n 1
 }
 
-# doctor_abs PATH: PATH with each folder link and each "..", resolved.
+# doctor_abs PATH: PATH with each ".." resolved. It keeps folder links
+# (no "pwd -P"), so that the home folder stays in the form that the scrub
+# knows. On macOS, /var/folders is a link to /private/var/folders.
 doctor_abs() {
-  _d=$(cd "$(dirname "$1")" 2>/dev/null && pwd -P) || { echo "$1"; return 0; }
+  _d=$(cd "$(dirname "$1")" 2>/dev/null && pwd) || { echo "$1"; return 0; }
   echo "$_d/$(basename "$1")"
 }
 
@@ -170,6 +192,38 @@ doctor_os_version() {
   echo "$_o, kernel $(uname -r)"
 }
 
+# doctor_sandbox: the orchestrator_sandbox lines.
+doctor_sandbox() {
+  _n=0
+  for _e in CODEX_SANDBOX CODEX_SANDBOX_NETWORK_DISABLED; do
+    eval "_s=\${$_e:-}"
+    if [ -n "$_s" ]; then
+      echo "orchestrator_sandbox: $_e=$_s"
+      _n=1
+    fi
+  done
+  _q=$$
+  while [ -n "$_q" ] && [ "$_q" -gt 1 ]; do
+    _c=$(ps -o comm= -p "$_q" 2>/dev/null)
+    case ${_c##*/} in
+      bwrap | sandbox-exec)
+        echo "orchestrator_sandbox: ancestor ${_c##*/}"
+        _n=1
+        ;;
+    esac
+    _q=$(ps -o ppid= -p "$_q" 2>/dev/null | tr -d ' ')
+  done
+  if [ -r /proc/self/status ]; then
+    _sc=$(sed -n 's/^Seccomp:[[:space:]]*//p' /proc/self/status)
+    _np=$(sed -n 's/^NoNewPrivs:[[:space:]]*//p' /proc/self/status)
+    if [ "${_sc:-0}" != 0 ] || [ "${_np:-0}" != 0 ]; then
+      echo "orchestrator_sandbox: seccomp ${_sc:-unknown} no_new_privs ${_np:-unknown}"
+      _n=1
+    fi
+  fi
+  [ "$_n" = 1 ] || echo "orchestrator_sandbox: none found"
+}
+
 doctor_lines() {
   echo "kit: $(kit_version)"
   echo "os: $(kit_os)"
@@ -204,27 +258,35 @@ doctor_lines() {
   else
     echo "orchestrator_terminal: none"
   fi
+  doctor_sandbox
 }
 
+# Git Bash, MSYS and Cygwin on Windows: the Windows doctor is kit.ps1.
+case ${DOCTOR_UNAME:-$(uname -s)} in
+  MINGW* | MSYS* | CYGWIN*)
+    echo "os: windows-gitbash"
+    echo "hint: run probes/agent/kit.ps1 with powershell -NoProfile -ExecutionPolicy Bypass -File"
+    exit 0
+    ;;
+esac
+
 start=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+# The output goes to the model of the orchestrator, so stdout gets the
+# scrubbed text too. The raw text stays in a temporary file.
+raw=$(mktemp) || kit_die "$KIT_FAIL" "mktemp failed"
+trap 'rm -f "$raw" "$raw.s"' EXIT
+doctor_lines >"$raw"
+if ! sh "$KIT_ROOT/tools/scrub.sh" "$raw" >"$raw.s" 2>/dev/null; then
+  kit_die "$KIT_FAIL" "the scrub failed; the doctor prints nothing"
+fi
+cat "$raw.s"
 # A run is optional. kit_run_dir exits when there is none, so it runs in a
 # subshell.
 run=$( (kit_run_dir) 2>/dev/null) || run=
-if [ -z "$run" ]; then
-  doctor_lines
-  exit 0
-fi
-raw=$(mktemp) || kit_die "$KIT_FAIL" "mktemp failed"
-trap 'rm -f "$raw"' EXIT
-doctor_lines >"$raw"
-cat "$raw"
-if sh "$KIT_ROOT/tools/scrub.sh" "$raw" >"$run/00-doctor.txt" 2>/dev/null; then
-  echo "kit: wrote $run/00-doctor.txt" >&2
-  if [ "$doctor_add_to_manifest" = yes ]; then
-    doctor_manifest_line "$run" "$start" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >>"$run/manifest.tsv"
-  fi
-else
-  rm -f "$run/00-doctor.txt"
-  echo "kit: the scrub failed; the doctor wrote no file" >&2
+[ -n "$run" ] || exit 0
+cp "$raw.s" "$run/00-doctor.txt" || kit_die "$KIT_FAIL" "cannot write 00-doctor.txt"
+echo "kit: wrote 00-doctor.txt in the run folder" >&2
+if [ "$doctor_add_to_manifest" = yes ]; then
+  doctor_manifest_line "$run" "$start" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >>"$run/manifest.tsv"
 fi
 exit 0
