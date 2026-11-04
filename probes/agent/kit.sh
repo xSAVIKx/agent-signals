@@ -11,7 +11,27 @@
 # command can run in a new shell.
 set -u
 here=$(cd "$(dirname "$0")" && pwd)
+# The command files and the step scripts in steps/ source lib.sh. They find
+# the kit folders from these variables, not from their own path.
+KIT_DIR=$here
+KIT_ROOT=$(cd "$here/../.." && pwd)
+export KIT_DIR KIT_ROOT
 . "$here/lib.sh"
+
+# Under Git Bash, MSYS or Cygwin on Windows, the Windows kit is the right
+# kit: hand over to it.
+case $(uname -s) in
+  MINGW*|MSYS*|CYGWIN*)
+    if [ -z "${AGENT_SIGNALS_NO_HANDOVER:-}" ]; then
+      for ps in pwsh powershell; do
+        if command -v "$ps" >/dev/null 2>&1; then
+          exec "$ps" -NoProfile -ExecutionPolicy Bypass -File "$here/kit.ps1" "$@"
+        fi
+      done
+      kit_die 3 "this is Windows, and no PowerShell is on PATH"
+    fi
+    ;;
+esac
 
 cmd=${1:-}
 case $cmd in
