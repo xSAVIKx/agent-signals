@@ -16,8 +16,9 @@
 # The tmux backend uses a private tmux server. The pty backend uses
 # ptydrive.py: a plain pty with no multiplexer. The agent starts in a new
 # work folder with a clean environment: only HOME, PATH, TERM, LANG and
-# USER. With --home throwaway (the default), HOME is a new empty folder.
-# With --home real, HOME is the real home. The kit copies no login.
+# USER. With --home throwaway, HOME is a new empty folder. With --home
+# real, HOME is the real home. The default comes from KIT_HOME, else from
+# the manifest of the run, else throwaway. The kit copies no login.
 #
 # All state is in RUN/sessions/NAME/, so each command can run in a new
 # shell:
@@ -95,13 +96,14 @@ add_pid() {
 label() { awk -F '	' 'NR == 1 { print $1 }' "$1" 2>/dev/null; }
 
 # track: add the agent, its descendants and the members of its process
-# group to RUN/pids/ and to the pids file of the session. A daemon that leaves its parent
-# (the Codex app-server, fact 067) stays in the group, or is found while
-# its parent still runs.
+# group to RUN/pids/ and to the pids file of the session. A daemon that
+# leaves its parent (the Codex app-server, fact 067) stays in the group, or
+# is found while its parent still runs.
 track() {
   [ -f "$sdir/pid" ] || return 0
   a=$(cat "$sdir/pid")
-  kit_pid_runs "$a" || return 0
+  kit_pid_ours "$run" "$a" || return 0
+  trk_f=$(mktemp "$sdir/track.XXXXXX") || return 0
   ps -A -o pid= -o ppid= -o pgid= 2>/dev/null | awk -v a="$a" '
     { pid[NR] = $1; ppid[NR] = $2; pgid[NR] = $3; n = NR }
     END {
@@ -113,12 +115,12 @@ track() {
           if ((ppid[i] in want) && !(pid[i] in want)) { want[pid[i]] = 1; more = 1 }
       } while (more)
       for (p in want) print p
-    }' | sort -n >"$sdir/track.tmp"
+    }' | sort -n >"$trk_f"
   while read -r p; do
     [ -n "$p" ] || continue
     [ -f "$run/pids/$p" ] || add_pid "$p" "session $name child"
-  done <"$sdir/track.tmp"
-  rm -f "$sdir/track.tmp"
+  done <"$trk_f"
+  rm -f "$trk_f"
   # A child that has ended (a short command of the agent) leaves the list.
   for f in "$run"/pids/*; do
     [ -f "$f" ] || continue
@@ -127,7 +129,8 @@ track() {
         p=${f##*/}
         if ! kit_pid_ours "$run" "$p"; then
           rm -f "$f"
-          awk -v p="$p" '$1 != p' "$sdir/pids" >"$sdir/pids.tmp" && mv "$sdir/pids.tmp" "$sdir/pids"
+          trk_f=$(mktemp "$sdir/pids.XXXXXX") &&
+            awk -v p="$p" '$1 != p' "$sdir/pids" >"$trk_f" && mv "$trk_f" "$sdir/pids"
         fi
         ;;
     esac
@@ -170,6 +173,20 @@ pty_python() {
   fi
 }
 
+# pty_serve VAR=VALUE...: start ptydrive.py serve with the agent command
+# in a clean environment that holds only the VAR=VALUE pairs. It reads
+# serve_cmd (a path, or "uv"), sock, cmd and work.
+pty_serve() {
+  if [ "$serve_cmd" = uv ]; then
+    # shellcheck disable=SC2086
+    uv run --no-project $PYTE python "$KIT_DIR/ptydrive.py" serve "$sock" "$COLS" "$ROWS" -- \
+      env -i "$@" sh -c 'cd "$1" && eval "exec $0"' "$cmd" "$work"
+  else
+    "$serve_cmd" "$KIT_DIR/ptydrive.py" serve "$sock" "$COLS" "$ROWS" -- \
+      env -i "$@" sh -c 'cd "$1" && eval "exec $0"' "$cmd" "$work"
+  fi
+}
+
 do_start() {
   [ "$#" -ge 2 ] || usage
   check_name "$1"
@@ -179,7 +196,13 @@ do_start() {
   case $agent in
     '' | *[!A-Za-z0-9._-]*) kit_die 2 "bad agent name: $agent" ;;
   esac
-  via='' cmd='' mode=${KIT_HOME:-throwaway}
+  # The home mode: --home, else KIT_HOME, else the line "meta home MODE"
+  # that kit start writes to the manifest, else throwaway.
+  via='' cmd='' mode=${KIT_HOME:-}
+  if [ -z "$mode" ] && [ -r "$run/manifest.tsv" ]; then
+    mode=$(awk -F '\t' '$1 == "meta" && $2 == "home" { m = $3 } END { print m }' "$run/manifest.tsv")
+  fi
+  mode=${mode:-throwaway}
   while [ "$#" -gt 0 ]; do
     case $1 in
       --via) [ "$#" -ge 2 ] || usage; via=$2; shift 2 ;;
@@ -229,20 +252,45 @@ do_start() {
     rm -rf "$h"
     mkdir -p "$h"
   fi
+  # The environment of the agent. LC_ALL and LC_CTYPE pass only when they
+  # name UTF-8.
+  term=xterm-256color
+  echo "$term" >"$sdir/term"
+  lang=${LANG:-}
+  set -- HOME="$h" PATH="$PATH" TERM="$term" USER="$u"
+  for v in LC_ALL LC_CTYPE; do
+    x=
+    eval "x=\${$v:-}"
+    case $x in
+      *[Uu][Tt][Ff]-8* | *[Uu][Tt][Ff]8*)
+        set -- "$@" "$v=$x"
+        [ -n "$lang" ] || lang=$x
+        ;;
+    esac
+  done
+  set -- "$@" LANG="${lang:-C.UTF-8}"
+  # Claude Code keeps its settings in CLAUDE_CONFIG_DIR. On macOS its login
+  # is in the Keychain, which a throwaway home does not isolate.
+  [ "$mode" = throwaway ] && set -- "$@" CLAUDE_CONFIG_DIR="$h/.claude"
   sockdir=$(mktemp -d /tmp/as.XXXXXX) || kit_die 1 "mktemp failed"
   chmod 700 "$sockdir"
   # The agent starts with "exec", so that its pid is the pid of the pane
-  # or of the pty.
+  # or of the pty. The servers get no file of the caller above fd 2: the
+  # tmux server keeps each file that it gets, and an open pipe of the
+  # caller would wait until the session ends. sh can close fd 3 to 9 only;
+  # ptydrive.py closes all others itself.
   case $via in
     tmux)
       sock=$sockdir/tmux.sock
       echo "$sock" >"$sdir/socket"
-      # remain-on-exit keeps the last screen after the agent ends.
-      echo 'set -g remain-on-exit on' >"$sdir/tmux.conf"
-      env -i HOME="$h" PATH="$PATH" TERM=xterm-256color LANG="${LANG:-C.UTF-8}" USER="$u" \
+      # remain-on-exit keeps the last screen after the agent ends. The
+      # pane gets the TERM of the pty backend.
+      printf 'set -g remain-on-exit on\nset -g default-terminal %s\n' "$term" >"$sdir/tmux.conf"
+      env -i "$@" \
         tmux -S "$sock" -f "$sdir/tmux.conf" new-session -d -s kit \
         -x "$COLS" -y "$ROWS" -c "$work" \
-        sh -c 'eval "exec $0"' "$cmd" </dev/null >"$sdir/server.log" 2>&1 ||
+        sh -c 'eval "exec $0"' "$cmd" </dev/null >"$sdir/server.log" 2>&1 \
+        3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- ||
         kit_die 1 "tmux did not start: $(cat "$sdir/server.log")"
       server=$(tm display -p -t kit '#{pid}' 2>/dev/null)
       a=$(tm display -p -t kit '#{pane_pid}' 2>/dev/null)
@@ -251,22 +299,14 @@ do_start() {
     pty)
       sock=$sockdir/pty.sock
       echo "$sock" >"$sdir/socket"
-      # serve_cmd is one path, or "uv" for the uv command line.
-      if [ "$serve_cmd" = uv ]; then
-        # shellcheck disable=SC2086
-        set -- uv run --no-project $PYTE python
-      else
-        set -- "$serve_cmd"
-      fi
-      "$@" "$KIT_DIR/ptydrive.py" serve "$sock" "$COLS" "$ROWS" -- \
-        env -i HOME="$h" PATH="$PATH" TERM=xterm-256color LANG="${LANG:-C.UTF-8}" USER="$u" \
-        sh -c 'cd "$1" && eval "exec $0"' "$cmd" "$work" \
-        </dev/null >"$sdir/server.log" 2>&1 ||
+      pty_serve "$@" </dev/null >"$sdir/server.log" 2>&1 \
+        3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- ||
         kit_die 1 "ptydrive did not start: $(cat "$sdir/server.log")"
-      client pids >"$sdir/pids.tmp" 2>/dev/null
-      server=$(awk '$1 == "driver" { print $2 }' "$sdir/pids.tmp")
-      a=$(awk '$1 == "agent" { print $2 }' "$sdir/pids.tmp")
-      rm -f "$sdir/pids.tmp"
+      start_f=$(mktemp "$sdir/pids.XXXXXX") || kit_die 1 "mktemp failed"
+      client pids >"$start_f" 2>/dev/null
+      server=$(awk '$1 == "driver" { print $2 }' "$start_f")
+      a=$(awk '$1 == "agent" { print $2 }' "$start_f")
+      rm -f "$start_f"
       [ -n "$server" ] && add_pid "$server" "session $name driver"
       ;;
   esac
@@ -315,10 +355,11 @@ do_screen() {
   [ "$#" -eq 1 ] || usage
   open_session "$1"
   need_running
-  grab >"$sdir/screen.tmp" || { rm -f "$sdir/screen.tmp"; kit_die 1 "no screen"; }
+  screen_f=$(mktemp "$sdir/screen.XXXXXX") || kit_die 1 "mktemp failed"
+  grab >"$screen_f" || { rm -f "$screen_f"; kit_die 1 "no screen"; }
   track
-  cat "$sdir/screen.tmp"
-  rm -f "$sdir/screen.tmp"
+  cat "$screen_f"
+  rm -f "$screen_f"
 }
 
 do_wait() {
@@ -334,70 +375,88 @@ do_wait() {
   [ "$?" -ne 2 ] || kit_die 2 "bad REGEX: $re"
   need_running
   end=$(($(date +%s) + secs))
+  wait_f=$(mktemp "$sdir/wait.XXXXXX") || kit_die 1 "mktemp failed"
   while :; do
-    grab >"$sdir/wait.tmp" 2>/dev/null
+    grab >"$wait_f" 2>/dev/null
     track
-    if grep -Eq -- "$re" "$sdir/wait.tmp"; then
-      mv "$sdir/wait.tmp" "$sdir/last.screen"
+    if grep -Eq -- "$re" "$wait_f"; then
+      mv "$wait_f" "$sdir/last.screen"
       return 0
     fi
     [ "$(date +%s)" -lt "$end" ] || break
     sleep 0.5
   done
-  mv "$sdir/wait.tmp" "$sdir/last.screen"
+  mv "$wait_f" "$sdir/last.screen"
   echo "kit: no match in $secs s: $re" >&2
   echo "$sdir/last.screen"
   exit 1
 }
 
-# end_pid PID WAIT: wait up to WAIT seconds for PID to end, then stop it.
-# It sends a signal only to a pid of RUN/pids/ with its start time. It
-# removes the pid file.
-end_pid() {
+# end_pids PID...: stop the pids of RUN/pids/ in the list. It sends TERM
+# to each pid that runs with its recorded start time, waits once for all of
+# them (5 s), then sends KILL to the rest. It removes their pid files.
+end_pids() {
+  for p in "$@"; do
+    if kit_pid_ours "$run" "$p"; then
+      echo "stop: $p $(label "$run/pids/$p")"
+      kill "$p" 2>/dev/null
+    fi
+  done
   n=0
-  while kit_pid_ours "$run" "$1" && [ "$n" -lt "$(($2 * 10))" ]; do
+  while [ "$n" -lt 50 ]; do
+    left=
+    for p in "$@"; do
+      kit_pid_ours "$run" "$p" && left=1 && break
+    done
+    [ -n "$left" ] || break
     sleep 0.1
     n=$((n + 1))
   done
-  if kit_pid_ours "$run" "$1"; then
-    echo "stop: $1 $(label "$run/pids/$1")"
-    kill "$1" 2>/dev/null
-    n=0
-    while kit_pid_ours "$run" "$1" && [ "$n" -lt 20 ]; do
-      sleep 0.1
-      n=$((n + 1))
-    done
-    kit_pid_ours "$run" "$1" && kill -9 "$1" 2>/dev/null
-  fi
-  rm -f "$run/pids/$1"
+  for p in "$@"; do
+    kit_pid_ours "$run" "$p" && kill -9 "$p" 2>/dev/null
+    rm -f "$run/pids/$p"
+  done
+}
+
+# session_pids: the pids of RUN/pids/ with the label "session NAME ...".
+session_pids() {
+  for f in "$run"/pids/*; do
+    [ -f "$f" ] || continue
+    case $(label "$f") in
+      "session $name "*) echo "${f##*/}" ;;
+    esac
+  done
 }
 
 # stop_session: stop the session in sdir.
 stop_session() {
   [ -f "$sdir/stopped" ] && return 0
   track
+  # The server hangs up the agent first, so that it can end in its own way.
   case $backend in
     tmux) [ -n "$sock" ] && tm kill-server >/dev/null 2>&1 ;;
     pty) [ -n "$sock" ] && client stop >/dev/null 2>&1 ;;
   esac
-  # The agent can still write files for a short time after the hangup.
-  for f in "$run"/pids/*; do
-    [ -f "$f" ] || continue
-    case $(label "$f") in
-      "session $name "*) end_pid "$(basename "$f")" 5 ;;
-    esac
-  done
+  # shellcheck disable=SC2046
+  end_pids $(session_pids)
   [ -n "$sock" ] && rm -rf "$(dirname "$sock")"
   # Claude Code keeps task output outside HOME, in
   # /tmp/claude-<uid>/<key>/. The key is the work folder path with each
-  # character that is not a letter or a digit changed to "-".
+  # character that is not a letter or a digit changed to "-". On macOS the
+  # real path (/private/var/...) can differ from the given path, so both
+  # forms are removed.
   work=$(cat "$sdir/work" 2>/dev/null || true)
-  k=$(printf '%s' "$work" | tr -c 'A-Za-z0-9' '-')
-  for t in /tmp "${TMPDIR:-/tmp}"; do
-    t=${t%/}/claude-$(id -u)/$k
-    [ -d "$t" ] && rm -rf "$t"
-  done
-  [ -n "$work" ] && rm -rf "$work"
+  if [ -n "$work" ]; then
+    real=$(cd "$work" 2>/dev/null && pwd -P)
+    for w in "$work" ${real:+"$real"}; do
+      k=$(printf '%s' "$w" | tr -c 'A-Za-z0-9' '-')
+      for t in /tmp "${TMPDIR:-/tmp}"; do
+        t=${t%/}/claude-$(id -u)/$k
+        [ -d "$t" ] && rm -rf "$t"
+      done
+    done
+    rm -rf "$work"
+  fi
   rm -rf "${run:?}/home/$name"
   : >"$sdir/stopped"
   echo "session: $name stopped"
@@ -411,10 +470,11 @@ do_stop() {
       open_session "$(basename "$d")"
       stop_session
     done
+    set --
     for f in "$run"/pids/*; do
-      [ -f "$f" ] || continue
-      end_pid "$(basename "$f")" 0
+      [ -f "$f" ] && set -- "$@" "${f##*/}"
     done
+    [ "$#" -eq 0 ] || end_pids "$@"
     return 0
   fi
   open_session "$1"

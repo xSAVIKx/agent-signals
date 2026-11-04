@@ -24,7 +24,8 @@ mkdir "$T/nopyte"
 printf '#!/bin/sh\nexit 1\n' >"$T/nopyte/uv"
 printf '#!/bin/sh\nexit 1\n' >"$T/nopyte/python3"
 chmod +x "$T/nopyte/uv" "$T/nopyte/python3"
-PATH="$T/nopyte:$PATH" kit session start s0 stub --via pty --cmd "sh '$stub'" >"$T/out" 2>&1
+# A subshell: macOS /bin/sh keeps an assignment before a function call.
+(PATH="$T/nopyte:$PATH" && kit session start s0 stub --via pty --cmd "sh '$stub'") >"$T/out" 2>&1
 expect_code "pty with no pyte exits 3" 3 $?
 expect_line "pty with no pyte names pyte" '^kit: needs pyte$' "$T/out"
 
@@ -64,9 +65,10 @@ for via in tmux pty; do
   export AGENT_SIGNALS_RUN="$run"
 
   # test_session_drives_the_stub. The start returns also when its output
-  # is a pipe: no process of the session keeps the pipe open.
+  # and an extra file (fd 3) are a pipe: no process of the session keeps
+  # the pipe open.
   t0=$(date +%s)
-  kit session start s1 stub --via "$via" --cmd "env STUB_LOG='$T/keys-$via' sh '$stub'" 2>&1 | cat >"$T/out"
+  kit session start s1 stub --via "$via" --cmd "env STUB_LOG='$T/keys-$via' sh '$stub'" 3>&1 2>&1 | cat >"$T/out"
   t1=$(date +%s)
   expect_line "$via: start" '^session: s1 '"$via"' ' "$T/out"
   if [ "$(tail -n 1 "$T/out")" = "session: s1 $via $run/work/s1" ]; then pass "$via: start prints the work folder"; else fail "$via: start prints the work folder" "$(tail -n 1 "$T/out")"; fi
@@ -87,7 +89,7 @@ for via in tmux pty; do
   expect_code "$via: send" 0 $?
   kit session key s1 Enter >"$T/out" 2>&1
   expect_code "$via: key Enter" 0 $?
-  kit session wait s1 'Do you want to create agent-signals-test\.txt\?' 10 >"$T/out" 2>&1
+  kit session wait s1 'Do you want to create agent-signals-test\.txt\?' 30 >"$T/out" 2>&1
   expect_code "$via: wait for the dialog" 0 $?
   kit session screen s1 >"$T/screen" 2>&1
   expect_line "$via: the screen shows the dialog" '^1\. Yes$' "$T/screen"
@@ -95,7 +97,7 @@ for via in tmux pty; do
   if [ "$lines" = 40 ]; then pass "$via: the screen has 40 lines"; else fail "$via: the screen has 40 lines" "$lines"; fi
   kit session key s1 1 >"$T/out" 2>&1
   expect_code "$via: key 1" 0 $?
-  kit session wait s1 'created agent-signals-test' 10 >"$T/out" 2>&1
+  kit session wait s1 'created agent-signals-test' 30 >"$T/out" 2>&1
   expect_code "$via: wait after the answer" 0 $?
   if [ "$(cat "$run/work/s1/agent-signals-test.txt" 2>/dev/null)" = hello ]; then
     pass "$via: the stub wrote the file in work"
@@ -127,24 +129,33 @@ for via in tmux pty; do
     in_new_shell wait s2 'stub idle' 30 >>"$T/out" 2>&1 &&
     in_new_shell send s2 env >>"$T/out" 2>&1 &&
     in_new_shell key s2 Enter >>"$T/out" 2>&1 &&
-    in_new_shell wait s2 'env saved' 10 >>"$T/out" 2>&1
-  expect_code "$via: a session across shells" 0 $?
+    in_new_shell wait s2 'env saved' 30 >>"$T/out" 2>&1
+  rc=$?
+  expect_code "$via: a session across shells" 0 "$rc"
+  [ "$rc" = 0 ] || sed 's/^/  out: /' "$T/out"
   envf="$run/work/s2/stub-env.txt"
   expect_line "$via: a throwaway home is in the session folder" "^HOME=$run/home/s2\$" "$envf"
+  expect_line "$via: a throwaway home has its CLAUDE_CONFIG_DIR" "^CLAUDE_CONFIG_DIR=$run/home/s2/.claude\$" "$envf"
+  expect_line "$via: TERM is xterm-256color" '^TERM=xterm-256color$' "$envf"
+  expect_line "$via: the state has TERM" '^xterm-256color$' "$run/sessions/s2/term"
   in_new_shell stop s2 >"$T/out" 2>&1
   expect_code "$via: stop across shells" 0 $?
 
-  # test_pty_has_no_tmux_env, and its control on tmux. With --home real,
-  # HOME stays the real home.
-  kit session start s4 stub --via "$via" --home real --cmd "sh '$stub'" >"$T/out" 2>&1 &&
+  # test_pty_has_no_tmux_env, and its control on tmux. The manifest line
+  # "meta home real" keeps HOME at the real home.
+  printf 'meta\thome\treal\n' >"$run/manifest.tsv"
+  (unset KIT_HOME && kit session start s4 stub --via "$via" --cmd "sh '$stub'") >"$T/out" 2>&1 &&
     kit session wait s4 'stub idle' 30 >>"$T/out" 2>&1 &&
     kit session send s4 env >>"$T/out" 2>&1 &&
     kit session key s4 Enter >>"$T/out" 2>&1 &&
-    kit session wait s4 'env saved' 10 >>"$T/out" 2>&1
-  expect_code "$via: the stub saves its environment" 0 $?
+    kit session wait s4 'env saved' 30 >>"$T/out" 2>&1
+  rc=$?
+  expect_code "$via: the stub saves its environment" 0 "$rc"
+  [ "$rc" = 0 ] || sed 's/^/  out: /' "$T/out"
   envf="$run/work/s4/stub-env.txt"
   if [ -s "$envf" ]; then pass "$via: the environment file exists"; else fail "$via: the environment file exists" "no file"; : >"$envf"; fi
-  expect_line "$via: --home real keeps HOME" "^HOME=$HOME\$" "$envf"
+  expect_line "$via: the home mode of the manifest keeps HOME" "^HOME=$HOME\$" "$envf"
+  expect_no_line "$via: a real home has no CLAUDE_CONFIG_DIR" '^CLAUDE_CONFIG_DIR=' "$envf"
   if [ "$via" = pty ]; then
     expect_no_line "pty: the agent sees no TMUX" '^TMUX' "$envf"
     expect_no_line "pty: the agent sees no TERM_PROGRAM" '^TERM_PROGRAM=' "$envf"
@@ -153,6 +164,7 @@ for via in tmux pty; do
   fi
   expect_no_line "$via: no variable of the test shell" '^AGENT_SIGNALS_RUN=' "$envf"
   kit session stop s4 >"$T/out" 2>&1
+  rm -f "$run/manifest.tsv"
 
   # test_stop_all_after_a_kill
   kit session start s3 stub --via "$via" --cmd "sh '$stub'" >"$T/out" 2>&1

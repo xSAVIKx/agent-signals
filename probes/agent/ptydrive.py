@@ -55,6 +55,16 @@ except ImportError:  # The client commands do not need pyte.
 
 COLS = 120
 ROWS = 40
+# A send waits when the program has this much input that it has not read.
+MAX_PENDING = 1 << 20
+
+
+def _max_fd():
+    try:
+        n = os.sysconf("SC_OPEN_MAX")
+    except (ValueError, OSError):
+        n = 1024
+    return min(max(n, 256), 65536)
 
 # Keys with tmux names, for a program that reads VT input.
 KEYS = {
@@ -142,10 +152,41 @@ if pyte is not None:
                 self._drawing = False
 
         def linefeed(self):
-            # A line feed in draw is an automatic wrap.
+            # A line feed in draw is an automatic wrap. tmux 3.5a keeps the
+            # mark at any other line feed (measured in the tests).
             if self._drawing:
                 self.wrapped = self.wrapped | {self.cursor.y}
             super().linefeed()
+
+        def erase_in_line(self, how=0, private=False):
+            # An erase of the whole row, or of the row from its start, ends
+            # the row and the join from the row before.
+            if how == 2 or (how == 0 and self.cursor.x == 0):
+                y = self.cursor.y
+                self.wrapped = self.wrapped - {y, y - 1}
+            super().erase_in_line(how, private)
+
+        # The marks move with the rows, as in tmux. An insert also ends the
+        # row before the cursor and the row before the moved rows. A delete
+        # also ends the row before the cursor (measured with tmux 3.5a in
+        # the tests).
+        def insert_lines(self, count=None):
+            top, bottom = self._margins()
+            y, n = self.cursor.y, count or 1
+            if top <= y <= bottom:
+                self.wrapped = frozenset(
+                    r + n if y <= r <= bottom else r for r in self.wrapped
+                    if not (y <= r <= bottom and r + n > bottom) and r not in (y - 1, y + n - 1))
+            super().insert_lines(count)
+
+        def delete_lines(self, count=None):
+            top, bottom = self._margins()
+            y, n = self.cursor.y, count or 1
+            if top <= y <= bottom:
+                self.wrapped = frozenset(
+                    r - n if y + n <= r <= bottom else r for r in self.wrapped
+                    if not (y <= r < y + n) and r != y - 1)
+            super().delete_lines(count)
 
         def _margins(self):
             m = self.margins
@@ -266,6 +307,11 @@ class Server:
         self.pid = None
         self.fd = None
         self.status = None
+        # The input for the program that it has not read yet. The driver
+        # never blocks on a write: a program that does not read must not
+        # stop the driver.
+        self.pending = b""
+        self.group_gone = False
         self.spawn(argv)
 
     def spawn(self, argv):
@@ -275,6 +321,8 @@ class Server:
         pid, fd = pty.fork()
         if pid == 0:
             try:
+                # Only the pty goes to the program.
+                os.closerange(3, _max_fd())
                 fcntl.ioctl(0, termios.TIOCSWINSZ, size)
                 for s in (signal.SIGPIPE, signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
                     signal.signal(s, signal.SIG_DFL)
@@ -286,20 +334,29 @@ class Server:
             fcntl.ioctl(fd, termios.TIOCSWINSZ, size)
         except OSError:
             pass
+        os.set_blocking(fd, False)
         self.pid, self.fd = pid, fd
         self.decoder = codecs.getincrementaldecoder("utf-8")("replace")
 
     def write(self, data):
+        """Queue data for the program, and write what the pty takes now."""
         if self.fd is None:
             return
         if isinstance(data, str):
             data = data.encode("utf-8")
-        while data:
+        self.pending += data
+        self.flush()
+
+    def flush(self):
+        while self.pending and self.fd is not None:
             try:
-                n = os.write(self.fd, data)
-            except OSError:
+                n = os.write(self.fd, self.pending[:65536])
+            except BlockingIOError:
                 return
-            data = data[n:]
+            except OSError:
+                self.pending = b""
+                return
+            self.pending = self.pending[n:]
 
     def alive(self):
         if self.status is None and self.pid is not None:
@@ -314,6 +371,8 @@ class Server:
     def read_output(self):
         try:
             data = os.read(self.fd, 65536)
+        except BlockingIOError:
+            return
         except OSError:
             data = b""
         if not data:
@@ -339,8 +398,11 @@ class Server:
         if op == "screen":
             out = {"ok": True, "screen": self.terminal.joined()}
         elif op == "send":
-            self.write("".join(args))
-            out = {"ok": True}
+            if len(self.pending) > MAX_PENDING:
+                out = {"ok": False, "code": 1, "error": "the program does not read its input"}
+            else:
+                self.write("".join(args))
+                out = {"ok": True}
         elif op == "key":
             keys = [key_bytes(a) for a in args]
             if None in keys or not keys:
@@ -366,7 +428,10 @@ class Server:
     def loop(self):
         while True:
             fds = [self.listener] + ([self.fd] if self.fd is not None else [])
-            ready, _, _ = select.select(fds, [], [], 0.5)
+            wfds = [self.fd] if self.fd is not None and self.pending else []
+            ready, writable, _ = select.select(fds, wfds, [], 0.5)
+            if self.fd is not None and self.fd in writable:
+                self.flush()
             if self.fd is not None and self.fd in ready:
                 self.read_output()
             if self.listener in ready:
@@ -384,13 +449,28 @@ class Server:
             self.alive()
 
     def _signal_group(self, sig):
-        """Send sig to the process group of the program. Return False when
-        the group is empty."""
+        """Send sig to the process group of the program. When the group is
+        gone (ESRCH), set group_gone and send nothing more: its id can then
+        belong to a new process."""
+        if self.group_gone:
+            return False
+        self.alive()
         try:
-            os.killpg(self.pid, sig)
-            return True
+            os.killpg(self.pid, 0)
+        except ProcessLookupError:
+            self.group_gone = True
+            return False
         except OSError:
             return False
+        if sig:
+            try:
+                os.killpg(self.pid, sig)
+            except ProcessLookupError:
+                self.group_gone = True
+                return False
+            except OSError:
+                return False
+        return True
 
     def stop_program(self):
         """Hang up the process group of the program, then kill it."""
@@ -398,16 +478,9 @@ class Server:
             return
         for sig, wait in ((signal.SIGHUP, 3.0), (signal.SIGTERM, 2.0), (signal.SIGKILL, 2.0)):
             if not self._signal_group(sig):
-                if self.alive():
-                    try:
-                        os.kill(self.pid, sig)
-                    except OSError:
-                        pass
-                elif sig != signal.SIGHUP:
-                    return
+                return
             end = time.monotonic() + wait
             while time.monotonic() < end:
-                self.alive()
                 if not self._signal_group(0):
                     return
                 time.sleep(0.05)
@@ -459,6 +532,10 @@ def serve(sock_path, cols, rows, argv):
         os.dup2(log, 2)
         os.close(null)
         os.close(log)
+        # No other file of the caller stays open: an inherited pipe would
+        # keep the call of the caller waiting until the agent ends.
+        os.closerange(3, w)
+        os.closerange(w + 1, _max_fd())
         signal.signal(signal.SIGTERM, _term)
         signal.signal(signal.SIGHUP, signal.SIG_IGN)
         signal.signal(signal.SIGPIPE, signal.SIG_IGN)

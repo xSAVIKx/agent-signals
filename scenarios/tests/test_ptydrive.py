@@ -10,6 +10,7 @@ program need a Unix pty. The tmux test runs only when tmux is installed.
 """
 
 import os
+import select
 import shlex
 import shutil
 import subprocess
@@ -159,6 +160,36 @@ class Serve(unittest.TestCase):
             with self.assertRaises(OSError):
                 os.kill(pid, 0)
 
+    def test_a_program_that_does_not_read(self):
+        # The program reads no input. A large send must not stop the
+        # driver: the screen still answers.
+        self.start("sh", "-c", "stty raw -echo; echo ready; sleep 60")
+        wait_text(self.screen, "ready")
+        r = driver(self.sock, "send", "x" * 120000, timeout=20)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        t0 = time.monotonic()
+        self.assertIn("ready", self.screen())
+        self.assertLess(time.monotonic() - t0, 10)
+
+    def test_no_file_of_the_caller_stays_open(self):
+        # An extra pipe of the caller must close when serve returns, also
+        # while the program runs.
+        r, w = os.pipe()
+        try:
+            p = subprocess.run([sys.executable, DRIVER, "serve", self.sock, str(COLS), str(ROWS),
+                                "--", "sleep", "60"], pass_fds=(w,), capture_output=True,
+                               timeout=30, stdin=subprocess.DEVNULL)
+            self.assertEqual(p.returncode, 0, p.stderr)
+            os.close(w)
+            w = None
+            ready, _, _ = select.select([r], [], [], 10)
+            self.assertTrue(ready, "the pipe is still open")
+            self.assertEqual(os.read(r, 10), b"")
+        finally:
+            os.close(r)
+            if w is not None:
+                os.close(w)
+
     def test_no_session(self):
         self.assertEqual(driver(self.sock, "screen").returncode, 1)
 
@@ -188,6 +219,13 @@ JOINED.update({
     "wrap-and-scroll": "".join("%d %s\r\n" % (i, "w" * 125) for i in range(30)),
     "wrap-then-clear": "z" * 130 + "\x1b[2J\x1b[Hfresh",
     "wrap-with-spaces": "p" * 118 + "    q",
+    "wrap-then-erase-rows": "x" * 130 + "\x1b[H\x1b[2Kshort\x1b[2;1H\x1b[2Knext",
+    "wrap-then-erase-to-end": "x" * 130 + "\x1b[2;1H\x1b[Knext",
+    "wrap-then-linefeed": "y" * 130 + "\x1b[1;1H\n",
+    "insert-in-a-wrap": "a" * 130 + "\r\n" + "b" * 130 + "\x1b[4;1H\x1b[L",
+    "insert-before-a-wrap": "a" * 130 + "\r\n" + "b" * 130 + "\x1b[3;1H\x1b[L",
+    "delete-in-a-wrap": "a" * 130 + "\r\n" + "b" * 130 + "\x1b[2;1H\x1b[M",
+    "delete-before-a-wrap": "c\r\n" + "a" * 130 + "\x1b[1;1H\x1b[M",
 })
 
 
