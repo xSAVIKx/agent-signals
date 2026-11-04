@@ -11,7 +11,8 @@
 #   kit session stop --all
 #
 # All state is in files in RUN\sessions\NAME\, so that each command can run
-# in a new shell: backend, work (a new folder), pid (the agent), and pipe
+# in a new shell: backend, work (the path of a new folder RUN\work\NAME),
+# pid (the agent), and pipe
 # (conpty) or socket (the psmux server name). Each started pid also goes to
 # RUN\pids\. A stop ends only these pids, never a process found by its name.
 #
@@ -276,7 +277,8 @@ function Start-Session([string[]]$A) {
     $argv = Get-AgentArgv $agent $cmd
 
     New-Item -ItemType Directory -Force -Path $dir | Out-Null
-    $work = Join-Path $dir 'work'
+    # The file "work" holds the path of the work folder, RUN\work\NAME.
+    $work = Join-Path (Join-Path $run 'work') $name
     New-Item -ItemType Directory -Force -Path $work | Out-Null
     Write-State $dir 'backend' $via
     Write-State $dir 'work' $work
