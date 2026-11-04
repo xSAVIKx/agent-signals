@@ -18,14 +18,16 @@
 # 4 the operator must act. It reads no key.
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib.ps1')
+# kit.ps1 can pass one $null for no arguments.
+$argv = @($args | Where-Object { $null -ne $_ })
 
-if ($args.Count -lt 1 -or [string]$args[0] -cnotmatch '^([a-z0-9][a-z0-9-]*)@([a-z]+)$') {
-    Stop-Kit 2 'usage: kit step NAME@BACKEND [ARGUMENTS]'
-}
-$name = $Matches[1]
-$backend = $Matches[2]
+$nm = $null
+if ($argv.Count -gt 0) { $nm = [regex]::Match([string]$argv[0], '^([a-z0-9][a-z0-9-]*)@([a-z]+)$') }
+if (-not $nm -or -not $nm.Success) { Stop-Kit 2 'usage: kit step NAME@BACKEND [ARGUMENTS]' }
+$name = $nm.Groups[1].Value
+$backend = $nm.Groups[2].Value
 $extra = @()
-if ($args.Count -gt 1) { $extra = @($args[1..($args.Count - 1)] | ForEach-Object { [string]$_ }) }
+if ($argv.Count -gt 1) { $extra = @($argv[1..($argv.Count - 1)] | ForEach-Object { [string]$_ }) }
 
 $step = $null
 foreach ($s in @(Read-KitSteps)) { if ($s.name -ceq $name) { $step = $s } }

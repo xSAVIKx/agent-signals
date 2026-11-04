@@ -9,12 +9,14 @@
 # and prints "edit: <file> <sha256>".
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib.ps1')
+# kit.ps1 can pass one $null for no arguments.
+$argv = @($args | Where-Object { $null -ne $_ })
 
-if ($args.Count -lt 2) { Stop-Kit 2 'usage: kit edit FILE REASON...' }
+if ($argv.Count -lt 2) { Stop-Kit 2 'usage: kit edit FILE REASON...' }
 $run = Get-KitRunDir
 $runFull = [IO.Path]::GetFullPath($run).TrimEnd('\', '/')
-$f = [string]$args[0]
-$reason = (@($args[1..($args.Count - 1)] | ForEach-Object { [string]$_ }) -join ' ').Trim()
+$f = [string]$argv[0]
+$reason = (@($argv[1..($argv.Count - 1)] | ForEach-Object { [string]$_ }) -join ' ').Trim()
 if (-not $reason) { Stop-Kit 2 'the reason is empty' }
 
 $cand = $f

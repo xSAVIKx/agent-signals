@@ -2,6 +2,13 @@
 # and the orchestrator from the parent processes.
 . (Join-Path $env:ROOT 'tools/agent-kit-tests/lib.ps1')
 $out = Join-Path $T 'out'
+# Expect-Kit NAME CODE ARGS: run the kit, and show its output when the
+# exit code is not CODE.
+function Expect-Kit([string]$Name, [int]$Want) {
+    $c = Invoke-Kit @args
+    Expect-Code $Name $Want $c
+    if ($c -ne $Want) { Get-Content -LiteralPath (Join-Path $T 'out') | ForEach-Object { "  | $_" } }
+}
 function Expect-NoLine([string]$Name, [string]$Pattern, [string]$File) {
     if (Select-String -LiteralPath $File -Pattern $Pattern -Quiet) { Fail $Name "a line matches: $Pattern" } else { Pass $Name }
 }
@@ -33,7 +40,7 @@ $env:APPDATA = Join-Path $h 'AppData\Roaming'
 $env:PATH = "$npm;$env:SystemRoot\System32;$env:SystemRoot;$env:SystemRoot\System32\WindowsPowerShell\v1.0"
 Remove-Item Env:\AGENT_SIGNALS_RUN -ErrorAction SilentlyContinue
 
-Expect-Code 'doctor exits 0' 0 (Invoke-Kit 'doctor')
+Expect-Kit 'doctor exits 0' 0 'doctor'
 Expect-Line 'the first line is the kit version' '^kit: ' $out
 Expect-Line 'os is windows' '^os: windows$' $out
 Expect-Line 'cpu' '^cpu: (x86_64|arm64)$' $out
@@ -65,9 +72,9 @@ Expect-Line 'the orchestrator is the claude parent' ('^orchestrator: claude ' + 
 $run = Join-Path $T 'run'
 New-Item -ItemType Directory -Path $run | Out-Null
 $env:AGENT_SIGNALS_RUN = $run
-Expect-Code 'doctor with a run exits 0' 0 (Invoke-Kit 'doctor')
+Expect-Kit 'doctor with a run exits 0' 0 'doctor'
 if (Test-Path -LiteralPath (Join-Path $run '00-doctor.txt')) { Pass 'the doctor file' } else { Fail 'the doctor file' 'no 00-doctor.txt' }
 Expect-Line 'the doctor manifest line' '^step\tdoctor\tnone\tok\t[0-9]{8}T[0-9]{6}Z\t[0-9]{8}T[0-9]{6}Z\t00-doctor\.txt\t[0-9a-f]{64}$' (Join-Path $run 'manifest.tsv')
-Expect-Code 'doctor with an argument is bad use' 2 (Invoke-Kit 'doctor' 'extra')
+Expect-Kit 'doctor with an argument is bad use' 2 'doctor' 'extra'
 
 Complete-Tests

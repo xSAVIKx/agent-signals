@@ -39,12 +39,14 @@
 # All output goes through tools\scrub.ps1. It opens no session file.
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib.ps1')
+# kit.ps1 can pass one $null for no arguments.
+$argv = @($args | Where-Object { $null -ne $_ })
 . (Join-Path $script:KitRoot 'probes\lib.ps1')
 
 $python = ''
-for ($i = 0; $i -lt $args.Count; $i++) {
-    $a = [string]$args[$i]
-    if ($a -eq '--python' -and $i + 1 -lt $args.Count) { $python = [string]$args[++$i] }
+for ($i = 0; $i -lt $argv.Count; $i++) {
+    $a = [string]$argv[$i]
+    if ($a -eq '--python' -and $i + 1 -lt $argv.Count) { $python = [string]$argv[++$i] }
     else { Stop-Kit 2 'usage: kit doctor [--python PATH]' }
 }
 $run = Find-KitRunDir

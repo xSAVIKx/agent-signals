@@ -12,13 +12,15 @@
 # (backend "conpty"). The session steps come with Task 10 of the plan.
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib.ps1')
+# kit.ps1 can pass one $null for no arguments.
+$argv = @($args | Where-Object { $null -ne $_ })
 
 $homeMode = ''
 $python = ''
-for ($i = 0; $i -lt $args.Count; $i++) {
-    $a = [string]$args[$i]
-    if ($a -eq '--home' -and $i + 1 -lt $args.Count) { $homeMode = [string]$args[++$i] }
-    elseif ($a -eq '--python' -and $i + 1 -lt $args.Count) { $python = [string]$args[++$i] }
+for ($i = 0; $i -lt $argv.Count; $i++) {
+    $a = [string]$argv[$i]
+    if ($a -eq '--home' -and $i + 1 -lt $argv.Count) { $homeMode = [string]$argv[++$i] }
+    elseif ($a -eq '--python' -and $i + 1 -lt $argv.Count) { $python = [string]$argv[++$i] }
     else { Stop-Kit 2 'usage: kit plan [--home real|throwaway] [--python PATH]' }
 }
 $run = Find-KitRunDir

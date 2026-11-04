@@ -3,6 +3,13 @@
 # Python for the conpty first run.
 . (Join-Path $env:ROOT 'tools/agent-kit-tests/lib.ps1')
 $out = Join-Path $T 'out'
+# Expect-Kit NAME CODE ARGS: run the kit, and show its output when the
+# exit code is not CODE.
+function Expect-Kit([string]$Name, [int]$Want) {
+    $c = Invoke-Kit @args
+    Expect-Code $Name $Want $c
+    if ($c -ne $Want) { Get-Content -LiteralPath (Join-Path $T 'out') | ForEach-Object { "  | $_" } }
+}
 function Expect-NoLine([string]$Name, [string]$Pattern, [string]$File) {
     if (Select-String -LiteralPath $File -Pattern $Pattern -Quiet) { Fail $Name "a line matches: $Pattern" } else { Pass $Name }
 }
@@ -61,22 +68,22 @@ $env:KIT_STEPS = $steps
 # kit start refuses unsafe places.
 $repo = Join-Path $T 'repo'
 New-Item -ItemType Directory -Force -Path (Join-Path $repo '.git'), (Join-Path $repo 'sub') | Out-Null
-Expect-Code 'start refuses a git work tree' 2 (Invoke-Kit 'start' '--out' (Join-Path $repo 'sub'))
+Expect-Kit 'start refuses a git work tree' 2 'start' '--out' (Join-Path $repo 'sub')
 $agentDir = Join-Path $h '.claude\runs'
-Expect-Code 'start refuses an agent folder' 2 (Invoke-Kit 'start' '--out' $agentDir)
+Expect-Kit 'start refuses an agent folder' 2 'start' '--out' $agentDir
 $open = Join-Path $T 'open'
 New-Item -ItemType Directory -Path $open | Out-Null
 $ErrorActionPreference = "Continue"
 $null = & icacls.exe $open /grant "*S-1-1-0:(OI)(CI)M" 2>&1
 $ErrorActionPreference = "Stop"
-Expect-Code 'start refuses a folder that Everyone can write' 2 (Invoke-Kit 'start' '--out' $open)
+Expect-Kit 'start refuses a folder that Everyone can write' 2 'start' '--out' $open
 Expect-Line 'start names the reason' 'Everyone can write' $out
-Expect-Code 'start refuses an unknown home mode' 2 (Invoke-Kit 'start' '--home' 'other' '--out' (Join-Path $T 'x'))
-Expect-Code 'start refuses an unknown option' 2 (Invoke-Kit 'start' '-Home' 'real')
+Expect-Kit 'start refuses an unknown home mode' 2 'start' '--home' 'other' '--out' (Join-Path $T 'x')
+Expect-Kit 'start refuses an unknown option' 2 'start' '-Home' 'real'
 
 # kit start in a folder with a space.
 $dir = Join-Path $T 'out dir'
-Expect-Code 'start exits 0' 0 (Invoke-Kit 'start' '--out' $dir)
+Expect-Kit 'start exits 0' 0 'start' '--out' $dir
 Expect-Line 'start prints the run' '^run: .*agent-signals-run-windows-[0-9]{8}T[0-9]{6}Z$' $out
 $run = (Get-Content -LiteralPath (Join-Path $dir '.agent-signals-run') -TotalCount 1)
 if ($run -and (Test-Path -LiteralPath $run -PathType Container)) { Pass 'the run file names the run' } else { Fail 'the run file names the run' 'no run folder' }
@@ -87,45 +94,45 @@ if ($openRule.Count -eq 0) { Pass 'the run folder is private' } else { Fail 'the
 
 # kit plan, from the current folder (a new shell finds the run there).
 Push-Location -LiteralPath $dir
-Expect-Code 'plan exits 0' 0 (Invoke-Kit 'plan')
+Expect-Kit 'plan exits 0' 0 'plan'
 Pop-Location
 Expect-Line 'plan lists the probe' '^step: probe@none needs=none cost=none measures=the full probe kit$' $out
 Expect-Line 'plan lists the first run on conpty' '^step: first-run-claude@conpty needs=none cost=none measures=the first start with no login$' $out
 Expect-NoLine 'plan skips an agent that is not installed' 'first-run-codex' $out
 Expect-NoLine 'plan lists no session step yet' 'permission-claude' $out
 Expect-NoLine 'plan with the real home has no skip' 'skip=' $out
-Expect-Code 'plan --home throwaway exits 0' 0 (Invoke-Kit 'plan' '--home' 'throwaway')
+Expect-Kit 'plan --home throwaway exits 0' 0 'plan' '--home' 'throwaway'
 Expect-Line 'plan marks a login step' '^step: first-login-claude@conpty needs=login cost=turns:1 .* skip=no-login$' $out
 $env:AGENT_SIGNALS_PYTHON = Join-Path $T 'no-such-python.exe'
-Expect-Code 'plan with no conpty Python exits 0' 0 (Invoke-Kit 'plan')
+Expect-Kit 'plan with no conpty Python exits 0' 0 'plan'
 Expect-NoLine 'plan skips conpty with no Python' 'first-run-claude' $out
 $env:AGENT_SIGNALS_PYTHON = $py
 
 # kit step, in a new process for each command.
 $env:AGENT_SIGNALS_RUN = $run
-Expect-Code 'an unknown step is bad use' 2 (Invoke-Kit 'step' 'no-such@none')
-Expect-Code 'a step with no backend is bad use' 2 (Invoke-Kit 'step' 'probe')
-Expect-Code 'the first run on tmux is bad use on Windows' 2 (Invoke-Kit 'step' 'first-run-claude@tmux')
-Expect-Code 'step probe exits 0' 0 (Invoke-Kit 'step' 'probe@none')
+Expect-Kit 'an unknown step is bad use' 2 'step' 'no-such@none'
+Expect-Kit 'a step with no backend is bad use' 2 'step' 'probe'
+Expect-Kit 'the first run on tmux is bad use on Windows' 2 'step' 'first-run-claude@tmux'
+Expect-Kit 'step probe exits 0' 0 'step' 'probe@none'
 Expect-Line 'step probe prints ok' '^step: probe@none ok$' $out
 $f1 = Join-Path $run '01-probe@none.txt'
 if (Test-Path -LiteralPath $f1) { Pass 'the probe file' } else { Fail 'the probe file' 'no 01-probe@none.txt' }
 Expect-Line 'the probe ran the claude probe' '^==== probe claude/windows\.ps1$' $f1
 Expect-Line 'the manifest line of the probe' ('^step\tprobe\tnone\tok\t[0-9]{8}T[0-9]{6}Z\t[0-9]{8}T[0-9]{6}Z\t01-probe@none\.txt\t' + (Get-Sha $f1) + '$') (Join-Path $run 'manifest.tsv')
 
-Expect-Code 'step first-run exits 0' 0 (Invoke-Kit 'step' 'first-run-claude@conpty')
+Expect-Kit 'step first-run exits 0' 0 'step' 'first-run-claude@conpty'
 Expect-Line 'step first-run prints ok' '^step: first-run-claude@conpty ok$' $out
 $f2 = Join-Path $run '02-first-run-claude@conpty.txt'
 Expect-Line 'the first-run file has the screen' '^stub screen after 20 s' $f2
 Expect-Line 'the first-run file has the folders' '\.stub' $f2
 $env:AGENT_SIGNALS_PYTHON = Join-Path $T 'no-such-python.exe'
-Expect-Code 'step first-run with no Python skips' 3 (Invoke-Kit 'step' 'first-run-claude@conpty')
+Expect-Kit 'step first-run with no Python skips' 3 'step' 'first-run-claude@conpty'
 Expect-Line 'the skip has a reason' '^step: first-run-claude@conpty skip needs-conpty-python$' $out
 $env:AGENT_SIGNALS_PYTHON = $py
-Expect-Code 'a session step skips on Windows' 3 (Invoke-Kit 'step' 'permission-claude@conpty')
+Expect-Kit 'a session step skips on Windows' 3 'step' 'permission-claude@conpty'
 
 # kit check passes a clean run, and writes the summary, the JSON and the zip.
-Expect-Code 'check passes a clean run' 0 (Invoke-Kit 'check')
+Expect-Kit 'check passes a clean run' 0 'check'
 Expect-Line 'check prints ok' '^check: ok$' $out
 Expect-Line 'check prints the archive' '^archive: .*\.zip$' $out
 $summary = Join-Path $run 'summary.txt'
@@ -154,23 +161,23 @@ if ($hits.Count -eq 0) { Pass 'no canary in the archive' } else { Fail 'no canar
 # A change with no kit edit fails; kit edit records it.
 $keep = [IO.File]::ReadAllText($f2)
 [IO.File]::AppendAllText($f2, "a note`n")
-Expect-Code 'check fails a changed file' 1 (Invoke-Kit 'check')
+Expect-Kit 'check fails a changed file' 1 'check'
 Expect-Line 'check names the changed file' "^check: the file changed with no 'kit edit' line: 02-first-run-claude@conpty\.txt$" $out
-Expect-Code 'edit exits 0' 0 (Invoke-Kit 'edit' '02-first-run-claude@conpty.txt' 'added' 'a note')
+Expect-Kit 'edit exits 0' 0 'edit' '02-first-run-claude@conpty.txt' 'added' 'a note'
 Expect-Line 'edit prints the file' '^edit: 02-first-run-claude@conpty\.txt [0-9a-f]{64}$' $out
 Expect-Line 'the edit line' ('^edit\t02-first-run-claude@conpty\.txt\tadded a note\t' + (Get-Sha $f2) + '$') (Join-Path $run 'manifest.tsv')
-Expect-Code 'check passes after kit edit' 0 (Invoke-Kit 'check')
-Expect-Code 'edit of a missing file is bad use' 2 (Invoke-Kit 'edit' 'no-such.txt' 'x')
-Expect-Code 'edit of the manifest is bad use' 2 (Invoke-Kit 'edit' 'manifest.tsv' 'x')
+Expect-Kit 'check passes after kit edit' 0 'check'
+Expect-Kit 'edit of a missing file is bad use' 2 'edit' 'no-such.txt' 'x'
+Expect-Kit 'edit of the manifest is bad use' 2 'edit' 'manifest.tsv' 'x'
 
 # A raw home folder, account name or secret value fails the check.
 [IO.File]::AppendAllText($f2, "home $h`n")
 $null = Invoke-Kit 'edit' '02-first-run-claude@conpty.txt' 'test'
-Expect-Code 'check fails the raw home folder' 1 (Invoke-Kit 'check')
+Expect-Kit 'check fails the raw home folder' 1 'check'
 Expect-Line 'check names the home folder' '^check: 02-first-run-claude@conpty\.txt holds the home folder$' $out
 [IO.File]::WriteAllText($f2, $keep + "key LEAK-CANARY-5-exam`nple`n")
 $null = Invoke-Kit 'edit' '02-first-run-claude@conpty.txt' 'test'
-Expect-Code 'check fails a secret value over two lines' 1 (Invoke-Kit 'check')
+Expect-Kit 'check fails a secret value over two lines' 1 'check'
 Expect-Line 'check names the variable' '^check: 02-first-run-claude@conpty\.txt holds the value of EXAMPLE_API_KEY$' $out
 [IO.File]::WriteAllText($f2, $keep)
 $null = Invoke-Kit 'edit' '02-first-run-claude@conpty.txt' 'test'
@@ -179,7 +186,7 @@ $null = Invoke-Kit 'edit' '02-first-run-claude@conpty.txt' 'test'
 $pkeep = [IO.File]::ReadAllText($f1)
 [IO.File]::WriteAllText($f1, ($pkeep -replace '(?m)^### 2\. ', '### two. '))
 $null = Invoke-Kit 'edit' '01-probe@none.txt' 'test'
-Expect-Code 'check fails a probe with a missing section' 1 (Invoke-Kit 'check')
+Expect-Kit 'check fails a probe with a missing section' 1 'check'
 Expect-Line 'check names the section' '^check: 01-probe@none\.txt: claude/windows\.ps1: no section 2$' $out
 [IO.File]::WriteAllText($f1, $pkeep)
 $null = Invoke-Kit 'edit' '01-probe@none.txt' 'test'
@@ -188,17 +195,17 @@ $null = Invoke-Kit 'edit' '01-probe@none.txt' 'test'
 $sleep = Start-Process -FilePath $Exe -ArgumentList '-NoProfile -Command Start-Sleep -Seconds 120' -PassThru -WindowStyle Hidden
 $ticks = $sleep.StartTime.ToUniversalTime().Ticks
 [IO.File]::WriteAllText((Join-Path $run "pids\$($sleep.Id)"), "test sleep`t$ticks`n")
-Expect-Code 'check fails a pid that runs' 1 (Invoke-Kit 'check')
+Expect-Kit 'check fails a pid that runs' 1 'check'
 Expect-Line 'check names the pid' "^check: the pid $($sleep.Id) of the run still runs \(test sleep\)$" $out
 [IO.File]::WriteAllText((Join-Path $run "pids\$($sleep.Id)"), "test sleep`t1`n")
-Expect-Code 'check ignores a reused pid' 0 (Invoke-Kit 'check')
+Expect-Kit 'check ignores a reused pid' 0 'check'
 Stop-Process -Id $sleep.Id -Force
 Remove-Item -LiteralPath (Join-Path $run "pids\$($sleep.Id)")
-Expect-Code 'check passes at the end' 0 (Invoke-Kit 'check')
+Expect-Kit 'check passes at the end' 0 'check'
 
 # A file that is not in the manifest fails.
 [IO.File]::WriteAllText((Join-Path $run 'extra.txt'), "x`n")
-Expect-Code 'check fails an unknown file' 1 (Invoke-Kit 'check')
+Expect-Kit 'check fails an unknown file' 1 'check'
 Expect-Line 'check names the unknown file' '^check: the file is not in the manifest: extra\.txt$' $out
 
 Remove-Item Env:\AGENT_SIGNALS_RUN

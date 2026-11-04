@@ -15,15 +15,17 @@
 # that Everyone, Users, Authenticated Users, Guests or Anonymous can write.
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib.ps1')
+# kit.ps1 can pass one $null for no arguments.
+$argv = @($args | Where-Object { $null -ne $_ })
 
 $homeMode = 'real'
 $python = ''
 $out = (Get-Location).ProviderPath
-for ($i = 0; $i -lt $args.Count; $i++) {
-    $a = [string]$args[$i]
-    if ($a -eq '--home' -and $i + 1 -lt $args.Count) { $homeMode = [string]$args[++$i] }
-    elseif ($a -eq '--out' -and $i + 1 -lt $args.Count) { $out = [string]$args[++$i] }
-    elseif ($a -eq '--python' -and $i + 1 -lt $args.Count) { $python = [string]$args[++$i] }
+for ($i = 0; $i -lt $argv.Count; $i++) {
+    $a = [string]$argv[$i]
+    if ($a -eq '--home' -and $i + 1 -lt $argv.Count) { $homeMode = [string]$argv[++$i] }
+    elseif ($a -eq '--out' -and $i + 1 -lt $argv.Count) { $out = [string]$argv[++$i] }
+    elseif ($a -eq '--python' -and $i + 1 -lt $argv.Count) { $python = [string]$argv[++$i] }
     else { Stop-Kit 2 'usage: kit start [--home real|throwaway] [--out DIR] [--python PATH]' }
 }
 if ($homeMode -cnotin 'real', 'throwaway') { Stop-Kit 2 "unknown home mode: $homeMode" }
