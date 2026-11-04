@@ -21,8 +21,13 @@
 #   5. the account name                              -> dev
 #   6. the host name                                 -> host,
 #      and SCRUB_DOMAIN as a whole word              -> domain
-#   7. API keys and tokens (sk-ant-, sk-proj-, sk-, AIza, ghp_, gho_,
-#      ghs_, github_pat_, and key_ with 32 or more hex characters) -> <secret>
+#   7. API keys and tokens                           -> <secret>
+#      sk-ant-, sk-proj-, AIza, ghp_, gho_, ghu_, ghs_, ghr_, github_pat_,
+#      glpat- and xoxa-, xoxb-, xoxp-, xoxr-, xoxs-, each with 16 or more
+#      key characters after it; sk- with 16 or more and one digit or more;
+#      AKIA with 16 upper-case letters or digits; key_ with 32 or more hex
+#      characters; a JWT (eyJ..., a dot, eyJ...). A letter, a digit or a
+#      "-" must not come just before it. A "_" or a "=" can.
 #   8. UUIDs                                         -> <uuid>
 #   9. hex runs of 16 characters or more             -> <hex>
 #  10. e-mail addresses                              -> <email>
@@ -31,7 +36,8 @@
 #  A path can hold spaces. After a space, a word that holds a / (or a \ in
 #  a drive path) and does not start a new path continues the path. So
 #  ~/My Projects/Client Acme/a.go is one path. A last folder with a space
-#  and no / after it ends the path at the space.
+#  and no / after it ends the path at the space, except in quotes: a path
+#  just after a " goes to the next ".
 #  A project key (a path with dashes, see below) becomes -work-example. A
 #  Windows key starts with a drive letter: D--Projects-shop, C-Users-alice-shop.
 #
@@ -50,6 +56,8 @@ short=${host%%.*}
 q() { printf '%s' "$1" | sed 's/[][\.*^$+?(){}|#]/\\&/g'; }
 
 tmp=$(mktemp -d)
+# dash runs no EXIT trap on a signal, so a signal exits first.
+trap 'exit 130' INT TERM
 trap 'rm -rf "$tmp"' EXIT
 cat "${1:--}" >"$tmp/a"
 
@@ -135,13 +143,22 @@ function more(rest, bs,    n, w) {
   }
   return n
 }
+# span(line, s, l, bs): the length of the path that starts at s and whose
+# first word has the length l. A path just after a " goes to the next ".
+function span(line, s, l, bs,    q) {
+  if (s > 1 && substr(line, s - 1, 1) == "\"") {
+    q = index(substr(line, s), "\"")
+    if (q - 1 > l) return q - 1
+  }
+  return l + more(substr(line, s + l), bs)
+}
 {
   line = $0
   res = ""
   while (1) {
     s1 = 0; s2 = 0
-    if (match(line, /(~|\/srv|\/work)\/[^ \t"'\'',:;()]+/)) { s1 = RSTART; l1 = RLENGTH; l1 += more(substr(line, s1 + l1), 0) }
-    if (match(line, /[A-Za-z]:(\\|\/)+[^ \t"'\'',:;()]+/)) { s2 = RSTART; l2 = RLENGTH; l2 += more(substr(line, s2 + l2), 1) }
+    if (match(line, /(~|\/srv|\/work)\/[^ \t"'\'',:;()]+/)) { s1 = RSTART; l1 = span(line, RSTART, RLENGTH, 0) }
+    if (match(line, /[A-Za-z]:(\\|\/)+[^ \t"'\'',:;()]+/)) { s2 = RSTART; l2 = span(line, RSTART, RLENGTH, 1) }
     if (s1 == 0 && s2 == 0) break
     # A \\?\ or \\? prefix goes with the drive path. Some awks do not
     # match an optional group before the drive letter, so look back here.
@@ -190,7 +207,34 @@ rule "project key" 's#(^|[/\\ "])-?(srv|Users|home|var-lib|work)-[A-Za-z0-9._-]+
 [ -n "$user" ] && rule "account name" "s#(^|[^A-Za-z0-9_.-])$(q "$user")([^A-Za-z0-9_-]|\$)#\\1dev\\2#g"
 [ -n "${SCRUB_DOMAIN:-}" ] && rule "domain" "s#(^|[^A-Za-z0-9_-])$(q "$SCRUB_DOMAIN")([^A-Za-z0-9_-]|\$)#\\1domain\\2#g"
 [ -n "$host" ] && rule "host name" "s#(^|[^A-Za-z0-9_-])($(q "$host")|$(q "$short"))([^A-Za-z0-9_-]|\$)#\\1host\\3#g"
-rule "secret" 's#(^|[^A-Za-z0-9_-])(sk-ant-|sk-proj-|sk-|AIza|ghp_|gho_|ghs_|github_pat_)[A-Za-z0-9_-]{16,}#\1<secret>#g; s#(^|[^A-Za-z0-9_-])key_[0-9a-fA-F]{32,}#\1<secret>#g'
+# 7. API keys and tokens. awk finds each word that can be a key, and
+# secret() checks its length and its form, because the ERE of some awks
+# has no {n,} and no look-ahead.
+awk '
+function secret(w,    r) {
+  if (w ~ /^eyJ/) return w ~ /^eyJ[A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-]*\.eyJ/
+  if (w ~ /^AKIA/) return length(w) >= 20
+  if (w ~ /^key_/) return length(w) >= 36
+  if (w ~ /^(sk-ant-|sk-proj-|github_pat_)/) { r = w; sub(/^(sk-ant-|sk-proj-|github_pat_)/, "", r); return length(r) >= 16 }
+  if (w ~ /^sk-/) { r = substr(w, 4); return length(r) >= 16 && r ~ /[0-9]/ }
+  r = w
+  sub(/^(AIza|gh[pousr]_|glpat-|xox[abprs]-)/, "", r)
+  return length(r) >= 16
+}
+{
+  line = $0
+  out = ""
+  while (match(line, /(sk-|AIza|gh[pousr]_|github_pat_|glpat-|xox[abprs]-)[A-Za-z0-9_-]+|AKIA[0-9A-Z]+|key_[0-9a-fA-F]+|eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]*(\.[A-Za-z0-9_-]+)?/)) {
+    s = RSTART
+    w = substr(line, s, RLENGTH)
+    pre = (s > 1) ? substr(line, s - 1, 1) : ""
+    if (pre !~ /[A-Za-z0-9-]/ && secret(w)) w = "<secret>"
+    out = out substr(line, 1, s - 1) w
+    line = substr(line, s + RLENGTH)
+  }
+  print out line
+}' "$tmp/a" >"$tmp/b"
+count "secret"
 rule "uuid" 's#[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}#<uuid>#g'
 rule "hex" 's#[0-9a-fA-F]{16,}#<hex>#g'
 rule "email" 's#[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}#<email>#g'

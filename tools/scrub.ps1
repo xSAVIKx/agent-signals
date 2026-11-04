@@ -28,9 +28,12 @@
 #   5. user       the account name as a whole word -> dev
 #   6. domain     the domain as a whole word -> domain
 #      host       the host name and its short form as whole words -> host
-#   7. secret     API keys and tokens: sk-ant-, sk-proj-, sk-, AIza, ghp_,
-#                 gho_, ghs_, github_pat_, and key_ with 32 or more hex
-#                 characters (Cursor) -> <secret>
+#   7. secret     API keys and tokens -> <secret>: sk-ant-, sk-proj-, AIza,
+#                 gh[pousr]_, github_pat_, glpat-, xox[abprs]- with 16 or
+#                 more key characters; sk- with 16 or more and a digit;
+#                 AKIA with 16 upper-case letters or digits; key_ with 32
+#                 or more hex characters (Cursor); a JWT. A letter, a digit
+#                 or a "-" must not come just before it.
 #   8. uuid       UUIDs -> <uuid>
 #   9. hex        hex runs of 16 or more characters -> <hex>
 #  10. email      e-mail addresses -> <email>
@@ -41,7 +44,8 @@
 # A path can hold spaces. After a space, a word that holds a / or a \ and
 # does not start a new path continues the path. So
 # ~/My Projects/Client Acme/a.go is one path. A last folder with a space
-# and no / after it ends the path at the space.
+# and no / after it ends the path at the space, except in quotes: a path
+# just after a " goes to the next ".
 #
 # Other scripts can dot-source this file to get Invoke-Scrub. Then the file
 # does not read stdin.
@@ -137,30 +141,39 @@ function Invoke-Scrub([string]$Text, [string]$HomeDir, [string]$User, [string]$H
   $s = Invoke-ScrubReplace $s ('(?<![A-Za-z0-9_.~-])/(?:Users|home)/[^/\\\s"'':,;()]+') { '~' } $counts 'other-home'
   $s = Invoke-ScrubReplace $s ('(?i)(?<![A-Za-z0-9_.-])[A-Z]:[\\/]+Users[\\/]+[^/\\\s"'':,;()]+') { '~' } $counts 'other-home'
 
-  # 3. Project paths.
+  # 3. Project paths. The first pass takes a path just after a quote, up
+  # to the next quote, so that it can hold spaces. The second pass takes
+  # the other paths.
   $keep = @('Library', 'AppData', 'Applications')
-  $s = Invoke-ScrubReplace $s ('(?<![A-Za-z0-9_.~-])~[/\\]+(' + $pc + '+' + $more + ')') {
-    param($m) Convert-ProjectPath $m.Groups[1].Value $m.Value $keep
-  } $counts 'project'
-  $s = Invoke-ScrubReplace $s ('(?<![A-Za-z0-9_.~/\\-])/srv/(' + $pc + '+' + $more + ')') {
-    param($m) Convert-ProjectPath $m.Groups[1].Value $m.Value @()
-  } $counts 'project'
-  $s = Invoke-ScrubReplace $s ('(?<![A-Za-z0-9_.~/\\-])/work/(' + $pc + '+' + $more + ')') {
-    param($m)
-    $first = ([regex]::Split($m.Groups[1].Value, '[/\\]+'))[0]
-    if ($first -ceq 'example') { $m.Value } else { Convert-ProjectPath $m.Groups[1].Value $m.Value @() }
-  } $counts 'project'
   # A Windows drive path that is not below a home folder, for example
   # D:\Projects\shop. A \\?\ prefix goes with it. The system folders
   # C:\Windows, C:\Program Files, C:\Program Files (x86) and C:\ProgramData
   # stay. A path ends at white space before a word with no slash, so
   # "Program Files (x86)" shows as "Program".
   $system = @('windows', 'program', 'program files', 'programdata', 'progra~1', 'progra~2')
-  $s = Invoke-ScrubReplace $s ('(?<![A-Za-z0-9_.~-])(?:\\+\?\\*)?[A-Za-z]:[\\/]+(' + $pc + '+' + $more + ')') {
-    param($m)
-    $first = ([regex]::Split($m.Groups[1].Value, '[/\\]+'))[0]
-    if ($system -contains $first.ToLowerInvariant()) { $m.Value } else { Convert-ProjectPath $m.Groups[1].Value $m.Value @() }
-  } $counts 'project'
+  foreach ($quoted in @($true, $false)) {
+    if ($quoted) {
+      $lb1 = '(?<=")'; $lb2 = '(?<=")'; $grp = '([^"\r\n]+)(?=")'
+    } else {
+      $lb1 = '(?<![A-Za-z0-9_.~-])'; $lb2 = '(?<![A-Za-z0-9_.~/\\-])'; $grp = '(' + $pc + '+' + $more + ')'
+    }
+    $s = Invoke-ScrubReplace $s ($lb1 + '~[/\\]+' + $grp) {
+      param($m) Convert-ProjectPath $m.Groups[1].Value $m.Value $keep
+    } $counts 'project'
+    $s = Invoke-ScrubReplace $s ($lb2 + '/srv/' + $grp) {
+      param($m) Convert-ProjectPath $m.Groups[1].Value $m.Value @()
+    } $counts 'project'
+    $s = Invoke-ScrubReplace $s ($lb2 + '/work/' + $grp) {
+      param($m)
+      $first = ([regex]::Split($m.Groups[1].Value, '[/\\]+'))[0]
+      if ($first -ceq 'example') { $m.Value } else { Convert-ProjectPath $m.Groups[1].Value $m.Value @() }
+    } $counts 'project'
+    $s = Invoke-ScrubReplace $s ($lb1 + '(?:\\+\?\\*)?[A-Za-z]:[\\/]+' + $grp) {
+      param($m)
+      $first = ([regex]::Split($m.Groups[1].Value, '[/\\]+'))[0]
+      if ($system -contains $first.ToLowerInvariant()) { $m.Value } else { Convert-ProjectPath $m.Groups[1].Value $m.Value @() }
+    } $counts 'project'
+  }
 
   # 4. Project keys. The Windows form starts with an upper-case drive
   # letter and one or two dashes: Claude D--Projects-shop, Cursor
@@ -191,9 +204,9 @@ function Invoke-Scrub([string]$Text, [string]$HomeDir, [string]$User, [string]$H
     }
   }
 
-  # 7. API keys and tokens.
-  $s = Invoke-ScrubReplace $s '(?<![A-Za-z0-9_-])(?:sk-ant-|sk-proj-|sk-|AIza|ghp_|gho_|ghs_|github_pat_)[A-Za-z0-9_-]{16,}' { '<secret>' } $counts 'secret'
-  $s = Invoke-ScrubReplace $s '(?<![A-Za-z0-9_-])key_[0-9a-fA-F]{32,}' { '<secret>' } $counts 'secret'
+  # 7. API keys and tokens. A letter, a digit or a "-" must not come just
+  # before a key. A "_" or a "=" can.
+  $s = Invoke-ScrubReplace $s '(?<![A-Za-z0-9-])(?:(?:sk-ant-|sk-proj-|github_pat_|AIza|gh[pousr]_|glpat-|xox[abprs]-)[A-Za-z0-9_-]{16,}|sk-(?!ant-|proj-)(?=[A-Za-z0-9_-]*[0-9])[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16,}|key_[0-9a-fA-F]{32,}|eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]*(?:\.[A-Za-z0-9_-]+)?)' { '<secret>' } $counts 'secret'
 
   # 8. UUIDs.
   $s = Invoke-ScrubReplace $s '(?i)(?<![0-9a-z])[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![0-9a-z])' { '<uuid>' } $counts 'uuid'
