@@ -27,7 +27,7 @@ awk -F '\t' '
     want = $c["kind"] ($c["agent"] == "-" ? "" : "-" $c["agent"])
     if ($1 != want) print $1 ": the name is not " want
   }
-  END { if (n != 15) print "the header has " n " columns, want 15" }' "$steps" >"$T/shape"
+  END { if (n != 17) print "the header has " n " columns, want 17" }' "$steps" >"$T/shape"
 if [ -s "$T/shape" ]; then fail "each line of steps.tsv has a known shape" "$(head -n 3 "$T/shape" | tr '\n' ';')"; else pass "each line of steps.tsv has a known shape"; fi
 
 for k in probe terminals first-run permission new-chat resume interrupt real-session; do
@@ -43,31 +43,79 @@ field() {
   awk -F '\t' -v n="$1" -v c="$2" '/^#/ { next } !h { for (i = 1; i <= NF; i++) col[$i] = i; h = 1; next } $1 == n { print $col[c] }' "$steps"
 }
 
-# The regexes match the screens of the corpus: the dialog regex each
-# permission screen and no idle screen, the idle regex each idle screen,
-# the busy regex each busy screen.
+# The regexes agree with the state of each corpus screen (the "state:" of
+# its .yaml). A screen is idle when a line matches idle_regex and no line
+# matches busy_regex or dialog_regex. An IDLE screen is idle (not a
+# "typed" or "paste" screen: the step waits for idle before it types). A
+# BUSY, PERMISSION, DIALOG_OVER_BOX or TRUST screen is not idle. A BUSY
+# screen matches busy_regex and not dialog_regex. A dialog screen matches
+# dialog_regex and not busy_regex. The file write regex of the permission
+# step matches each write dialog and no other state.
+# has RE FILE: a line of FILE matches RE.
+has() { grep -Eq -- "$1" "$2"; }
 for a in claude codex agy; do
-  re=$(field "permission-$a" wait_regex)
   idle=$(field "permission-$a" idle_regex)
-  busy=$(field "interrupt-$a" wait_regex)
+  busy=$(field "permission-$a" busy_regex)
+  dialog=$(field "permission-$a" dialog_regex)
+  write=$(field "permission-$a" wait_regex)
+  [ "$(field "interrupt-$a" wait_regex)" = "$busy" ] || fail "the interrupt step of $a waits for busy_regex" "another regex"
   n=0
-  for s in "$ROOT"/corpus/$a/screens/*permission*.screen "$ROOT"/corpus/$a/screens/approval*.screen; do
+  : >"$T/bad"
+  for y in "$ROOT"/corpus/$a/screens/*.yaml; do
+    s=${y%.yaml}.screen
     [ -f "$s" ] || continue
+    st=$(sed -n 's/^  state: *//p' "$y" | head -n 1)
+    b=$(basename "$s" .screen)
     n=$((n + 1))
-    grep -Eq -- "$re" "$s" || fail "the dialog regex of $a matches $(basename "$s")" "no match"
+    i=no
+    has "$idle" "$s" && ! has "$busy" "$s" && ! has "$dialog" "$s" && i=yes
+    case $st in
+      IDLE)
+        case $b in typed* | paste*) ;; *) [ "$i" = yes ] || echo "$b ($st) is not idle" >>"$T/bad" ;; esac
+        ! has "$write" "$s" || echo "$b ($st) matches the write regex" >>"$T/bad"
+        ;;
+      BUSY)
+        [ "$i" = no ] || echo "$b ($st) is idle" >>"$T/bad"
+        has "$busy" "$s" || echo "$b ($st) does not match busy_regex" >>"$T/bad"
+        ! has "$dialog" "$s" || echo "$b ($st) matches dialog_regex" >>"$T/bad"
+        ! has "$write" "$s" || echo "$b ($st) matches the write regex" >>"$T/bad"
+        ;;
+      PERMISSION | DIALOG_OVER_BOX | TRUST)
+        [ "$i" = no ] || echo "$b ($st) is idle" >>"$T/bad"
+        has "$dialog" "$s" || echo "$b ($st) does not match dialog_regex" >>"$T/bad"
+        ! has "$busy" "$s" || echo "$b ($st) matches busy_regex" >>"$T/bad"
+        ;;
+    esac
+    case $b in
+      *permission* | approval*) has "$write" "$s" || echo "$b does not match the write regex" >>"$T/bad" ;;
+    esac
   done
-  [ "$n" -gt 0 ] && pass "the dialog regex of $a matches its $n dialog screens"
-  for s in "$ROOT"/corpus/$a/screens/idle*.screen; do
-    [ -f "$s" ] || continue
-    if grep -Eq -- "$re" "$s"; then fail "the dialog regex of $a does not match $(basename "$s")" "a match"; fi
-    grep -Eq -- "$idle" "$s" || fail "the idle regex of $a matches $(basename "$s")" "no match"
-  done
-  pass "the idle screens of $a match the idle regex, not the dialog regex"
-  for s in "$ROOT"/corpus/$a/screens/busy*.screen; do
-    [ -f "$s" ] || continue
-    grep -Eq -- "$busy" "$s" || fail "the busy regex of $a matches $(basename "$s")" "no match"
-  done
-  pass "the busy screens of $a match the busy regex"
+  if [ -s "$T/bad" ]; then
+    fail "the regexes of $a agree with its $n corpus screens" "$(tr '\n' ';' <"$T/bad")"
+  else
+    pass "the regexes of $a agree with its $n corpus screens"
+  fi
+  # Each pre pair matches a screen of the agent, and no IDLE, BUSY or
+  # PERMISSION screen.
+  field "permission-$a" pre | awk '{ n = split($0, p, ";;"); for (i = 1; i <= n; i++) { sub(/=>.*/, "", p[i]); print p[i] } }' >"$T/pre"
+  : >"$T/bad"
+  while IFS= read -r re; do
+    hit=no
+    for y in "$ROOT"/corpus/$a/screens/*.yaml; do
+      s=${y%.yaml}.screen
+      [ -f "$s" ] && has "$re" "$s" || continue
+      hit=yes
+      case $(sed -n 's/^  state: *//p' "$y" | head -n 1) in
+        IDLE | BUSY | PERMISSION) echo "$re matches $(basename "$s")" >>"$T/bad" ;;
+      esac
+    done
+    [ "$hit" = yes ] || echo "$re matches no screen" >>"$T/bad"
+  done <"$T/pre"
+  if [ -s "$T/bad" ]; then
+    fail "the pre answers of $a match only the screens before idle" "$(tr '\n' ';' <"$T/bad")"
+  else
+    pass "the pre answers of $a match only the screens before idle"
+  fi
 done
 
 # A kit copy with fake step scripts for the kinds that later tasks add, a
