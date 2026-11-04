@@ -279,15 +279,15 @@ The one-liners stay. A new one-liner prints the prompt.
   needs a login prints `step: NAME skip no login`. An agent with an API
   key (for example `CURSOR_API_KEY`) can run there, when the operator
   gives the key through a file that only the owner can read.
-- **Windows in the first release.** Windows gets `doctor`, `plan`,
-  `probe`, `first-run-<agent>`, `check` and `edit`. Test sessions and the
-  guided watch on Windows come in a later change. `first-run` needs
-  pywinpty, pyte and psutil; the kit asks the operator before a
-  `pip install`.
-- **CI.** CI tests `kit session` and each test-session step with a stub
-  agent: a small script that draws a known idle screen and a known dialog
-  screen, and writes a state file. Runs against real agents stay with the
-  operator and the scheduled scenario workflow.
+- **Windows in the first release.** Windows gets all commands, with test
+  sessions on `conpty` and `psmux` (the operator asked for all tests in
+  CI, Windows too). `conpty` needs pywinpty, pyte and psutil; the kit asks
+  the operator before a `pip install`.
+- **CI.** Each PR tests every command on Linux, macOS and Windows with a
+  stub agent: a small script that draws a known idle screen and a known
+  dialog screen, and writes a file. The scheduled workflow runs the kit
+  against real agents: with no login each week, and with the CI secrets
+  for the steps that need a login.
 - **Saved screens.** A step saves screens only of its own test session.
   The prompts are fixed, neutral text, so the reply on a screen is a
   reply to that text. The screen goes through the scrub. The kit never
