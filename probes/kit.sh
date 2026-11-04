@@ -35,8 +35,9 @@ if [ "${1:-}" = --get ]; then
     echo "kit: use --get DIR" >&2
     exit 2
   fi
-  mkdir -p "$2"
-  keep=$(cd "$2" && pwd)/agent-signals-kit
+  mkdir -p -- "$2"
+  dir=$(CDPATH='' cd -P -- "$2" && pwd -P) || exit 2
+  keep=$dir/agent-signals-kit
   if [ -e "$keep" ]; then
     echo "kit: $keep already exists. Remove it or use a different folder." >&2
     exit 2
@@ -44,7 +45,13 @@ if [ "${1:-}" = --get ]; then
 fi
 
 tmp=$(mktemp -d 2>/dev/null || mktemp -d -t agent-signals)
-trap 'rm -rf "$tmp"' EXIT INT TERM
+# With --get, the kit extracts into a new folder in DIR, and then renames
+# it. The rename is in one file system, so DIR never holds a part of a kit.
+stage=
+trap 'rm -rf "$tmp" ${stage:+"$stage"}' EXIT
+trap 'exit 143' TERM
+trap 'exit 130' INT
+trap 'exit 129' HUP
 
 fetch() {
   if command -v curl >/dev/null 2>&1; then
@@ -68,17 +75,33 @@ if [ -z "$got" ]; then
   echo "kit: the download failed" >&2
   exit 1
 fi
-mkdir "$tmp/src"
-tar -xzf "$tmp/kit.tar.gz" -C "$tmp/src"
-run=$(find "$tmp/src" -maxdepth 3 -path '*/probes/run.sh' | head -n 1)
+if [ -n "$keep" ]; then
+  stage=$(mktemp -d "$dir/.agent-signals-kit.XXXXXX") || exit 1
+  src=$stage
+else
+  src=$tmp/src
+  mkdir "$src"
+fi
+tar -xzf "$tmp/kit.tar.gz" -C "$src"
+run=$(find "$src" -maxdepth 3 -path '*/probes/run.sh' | head -n 1)
 if [ -z "$run" ]; then
   echo "kit: no probes/run.sh in the archive" >&2
   exit 1
 fi
 
 if [ -n "$keep" ]; then
-  # The folder that holds probes/ is the top of the kit.
-  mv "$(dirname "$(dirname "$run")")" "$keep"
+  # The folder that holds probes/ is the top of the kit. mv into a folder
+  # that exists puts the kit inside it, so the kit checks again first.
+  top=$(dirname "$(dirname "$run")")
+  if [ -e "$keep" ]; then
+    echo "kit: $keep already exists. Remove it or use a different folder." >&2
+    exit 2
+  fi
+  mv "$top" "$keep" || exit 1
+  if [ ! -f "$keep/probes/run.sh" ]; then
+    echo "kit: $keep appeared during the download, and the kit is in it now. Check it." >&2
+    exit 2
+  fi
   echo "kit: ready $keep"
   exit 0
 fi

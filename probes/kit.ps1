@@ -22,14 +22,21 @@
 #
 #   $env:AGENT_SIGNALS_GET = 'C:\kits'; irm https://xsavikx.github.io/agent-signals/kit.ps1 | iex
 #
-# The kit then extracts to <folder>\agent-signals-kit, prints
-# "kit: ready <folder>\agent-signals-kit" and runs nothing else. It does
-# not overwrite a folder: when <folder>\agent-signals-kit exists, it stops
-# (exit 2 when it runs as a file).
+# The kit reads AGENT_SIGNALS_GET and then removes it, so the next
+# one-line start runs the probes again. It extracts to
+# <folder>\agent-signals-kit, prints "kit: ready <folder>\agent-signals-kit"
+# and runs nothing else. It does not overwrite a folder: when
+# <folder>\agent-signals-kit exists, it stops. As a file (-File kit.ps1),
+# it then exits 2. In "irm | iex", it sets $LASTEXITCODE to 2.
 
 & {
   param([switch]$All)
   $ErrorActionPreference = 'Stop'
+  # The kit runs as the file kit.ps1, or as text in "irm | iex". In the
+  # second case, exit would close the window of the operator.
+  $asFile = $MyInvocation.ScriptName -and ((Split-Path -Leaf $MyInvocation.ScriptName) -eq 'kit.ps1')
+  $get = $env:AGENT_SIGNALS_GET
+  Remove-Item Env:AGENT_SIGNALS_GET -ErrorAction SilentlyContinue
   if ($env:AGENT_SIGNALS_URL) {
     $urls = @($env:AGENT_SIGNALS_URL)
   } elseif ($env:AGENT_SIGNALS_REF) {
@@ -39,16 +46,20 @@
       'https://codeload.github.com/xSAVIKx/agent-signals/zip/main')
   }
   $keep = $null
-  if ($env:AGENT_SIGNALS_GET) {
-    New-Item -ItemType Directory -Force -Path $env:AGENT_SIGNALS_GET | Out-Null
-    $keep = Join-Path (Resolve-Path -LiteralPath $env:AGENT_SIGNALS_GET).ProviderPath 'agent-signals-kit'
+  $stage = $null
+  if ($get) {
+    New-Item -ItemType Directory -Force -Path $get | Out-Null
+    $dir = (Resolve-Path -LiteralPath $get).ProviderPath
+    $keep = Join-Path $dir 'agent-signals-kit'
     if (Test-Path -LiteralPath $keep) {
       Write-Host "kit: $keep already exists. Remove it or use a different folder."
-      # In "irm | iex", exit would close the window of the operator.
-      if ($PSCommandPath) { exit 2 }
+      if ($asFile) { exit 2 }
       $global:LASTEXITCODE = 2
       return
     }
+    # The kit extracts into a new folder in the same folder, and then
+    # renames it. So the folder never holds a part of a kit.
+    $stage = Join-Path $dir ('.agent-signals-kit.' + [guid]::NewGuid().ToString('N'))
   }
   $tmp = Join-Path ([IO.Path]::GetTempPath()) ('agent-signals-' + [guid]::NewGuid().ToString('N'))
   New-Item -ItemType Directory -Path $tmp | Out-Null
@@ -71,14 +82,21 @@
       }
     }
     if (-not $got) { throw 'kit: the download failed' }
-    Expand-Archive -LiteralPath $zip -DestinationPath (Join-Path $tmp 'src')
-    $run = Get-ChildItem -Path (Join-Path $tmp 'src') -Filter 'run.ps1' -Recurse |
+    $src = if ($stage) { $stage } else { Join-Path $tmp 'src' }
+    Expand-Archive -LiteralPath $zip -DestinationPath $src
+    $run = Get-ChildItem -Path $src -Filter 'run.ps1' -Recurse |
       Where-Object { $_.Directory.Name -eq 'probes' } | Select-Object -First 1
     if (-not $run) { throw 'kit: no probes\run.ps1 in the archive' }
     if ($keep) {
-      # The folder that holds probes\ is the top of the kit. Copy-Item
-      # works across drives. The finally block deletes the temporary folder.
-      Copy-Item -LiteralPath $run.Directory.Parent.FullName -Destination $keep -Recurse
+      # The folder that holds probes\ is the top of the kit. Move-Item
+      # into a folder that exists puts the kit inside it, so check again.
+      if (Test-Path -LiteralPath $keep) {
+        Write-Host "kit: $keep already exists. Remove it or use a different folder."
+        if ($asFile) { exit 2 }
+        $global:LASTEXITCODE = 2
+        return
+      }
+      Move-Item -LiteralPath $run.Directory.Parent.FullName -Destination $keep
       Write-Output "kit: ready $keep"
       return
     }
@@ -88,5 +106,8 @@
     & $exe @argv
   } finally {
     Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
+    if ($stage -and (Test-Path -LiteralPath $stage)) {
+      Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue
+    }
   }
 } @args

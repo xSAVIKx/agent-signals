@@ -34,7 +34,33 @@ if (Test-Path -LiteralPath (Join-Path $want 'probes/run.ps1')) { Pass 'get keeps
 $last = (Get-Content -LiteralPath $out | Select-Object -Last 1)
 if ($last -eq "kit: ready $want") { Pass 'get prints the folder' } else { Fail 'get prints the folder' "last line: $last" }
 if (Get-ChildItem -Path $T -Filter 'agent-signals-probe-*' -Recurse) { Fail 'get runs no probe' 'a probe file exists' } else { Pass 'get runs no probe' }
+if (Get-ChildItem -LiteralPath $k -Force -Filter '.agent-signals-kit.*') { Fail 'get leaves no temporary folder' 'a .agent-signals-kit.* folder exists' } else { Pass 'get leaves no temporary folder' }
 Expect-Code 'get does not overwrite a kit' 2 (Get-Kit $k)
 Expect-Line 'get names the folder that exists' 'already exists' $out
+
+# Run-Text DIR: run the kit as text in "iex", as the one-liner does, and
+# print the exit code and the variable after it.
+function Run-Text([string]$Dir) {
+    $cmd = "`$env:AGENT_SIGNALS_URL = '$zip'; `$env:AGENT_SIGNALS_GET = '$Dir'; " +
+        "Get-Content -Raw -LiteralPath '$kitPs1' | Invoke-Expression; " +
+        "Write-Output ('code=' + `$global:LASTEXITCODE); Write-Output ('left=' + [string]`$env:AGENT_SIGNALS_GET)"
+    Push-Location -LiteralPath $T
+    try {
+        & $script:Exe -NoProfile -ExecutionPolicy Bypass -Command $cmd *> $out
+    } finally {
+        Pop-Location
+    }
+}
+
+# In "iex", a refusal does not close the window: the next command runs,
+# and $LASTEXITCODE is 2. The kit removes AGENT_SIGNALS_GET, so the next
+# one-liner runs the probes.
+Run-Text $k
+Expect-Line 'iex: a refusal sets the exit code 2' '^code=2$' $out
+Expect-Line 'iex: the kit removes AGENT_SIGNALS_GET after a refusal' '^left=$' $out
+$k3 = Join-Path $T 'k3'
+Run-Text $k3
+Expect-Line 'iex: get prints the folder' ([regex]::Escape("kit: ready $(Join-Path $k3 'agent-signals-kit')")) $out
+Expect-Line 'iex: the kit removes AGENT_SIGNALS_GET' '^left=$' $out
 
 Complete-Tests

@@ -111,16 +111,26 @@ variables remove each question:
 
 | Option or variable | What it does |
 |---|---|
-| `--wait N` | The kit reads no key. It takes the before snapshot, prints `kit: watch starts, N s`, watches for N seconds (1 to 600), and then takes the after snapshot. Do the action after that line. A different process can do the action. |
-| `--pids FILE` | The kit counts only the pids in FILE and their children. FILE holds one pid on each line. FILE can also be a folder that holds one file for each pid, named by the pid. Other processes with the same name do not count, for example a tmux server whose command line holds the agent name. |
-| `--files-of-pids` | Sections 1 to 3 show only the files that the counted processes hold open, and the files under a `--scope` folder. The files of other sessions in the same home folder do not show. |
-| `--scope DIR` | A folder for `--files-of-pids`, for example the project folder of the session in `~/.claude/projects`. Give the option again for more folders. |
-| `--out FILE` | The kit writes its file to FILE, not to the current folder. |
+| `--wait N` | The kit reads no key. It takes the before snapshot, prints `kit: watch starts, N s`, watches for N seconds (1 to 600, with no leading 0), and then takes the after snapshot. Do the action after that line. A different process can do the action. |
+| `--pids FILE` | The kit counts only the pids in FILE and their children. FILE holds one pid on each line (CRLF line ends are also correct). FILE can also be the `pids/` folder of a kit run, or one file of that folder. A file of `pids/` is named by the pid and holds `LABEL<tab>START`. When START is not the start time of the process, the system gave the pid to a different process, and the pid does not count. A listed tmux or psmux process does not count itself, because its command line can hold the agent name. Only its children count. |
+| `--files-of-pids` | It needs `--pids`. Sections 1 to 3 show only the files that the counted processes hold open, and the files under a `--scope` folder. Section 4 shows only the Claude pid files of the watched pids. Section 5 is left out, because the agy summaries hold the rows of all conversations. The files of other sessions in the same home folder do not show. |
+| `--scope DIR` | A folder that exists, for `--files-of-pids`, for example the project folder of the session in `~/.claude/projects`. Give the option again for more folders. |
+| `--out FILE` | The kit writes its file to FILE, not to the current folder. The folder of FILE must exist. The kit writes `FILE.part` first and renames it. When the scrub fails, the kit writes no file and exits 1. |
 | `AGENT_SIGNALS_WATCH=N` | The length of the watch without `--wait`, in seconds. The default is 30. |
 | `AGENT_SIGNALS_TERMINALS=yes` or `no` | On macOS, the answer to the question about the terminal probe. |
 
-When stdin is not a terminal, the kit asks no question. Without `--wait`,
-the watch starts at once. On macOS, the terminal probe does not run.
+The kit asks no question when stdin is not a terminal, or when the kit is
+not in the foreground process group of the terminal (a background job).
+Without `--wait`, the watch then starts at once. On macOS, the terminal
+probe does not run.
+
+A shell that runs command text (`sh -c TEXT`, `bash -lc TEXT`) does not
+count as an agent process, also when the text holds the agent name. The
+shell of a different tool session can hold such text. A shell that runs a
+script file (`sh /path/agy`) still counts.
+
+When a caller stops the step with TERM, INT or HUP, the kit deletes its
+temporary files and exits 143, 130 or 129.
 
 ```sh
 sh probes/run.sh --guided permission claude --wait 90 --pids run/pids \
@@ -133,8 +143,11 @@ sh probes/run.sh --guided permission claude --wait 90 --pids run/pids \
 `--get DIR` extracts the kit to `DIR/agent-signals-kit` and keeps it. The
 kit prints `kit: ready DIR/agent-signals-kit` and runs nothing else. When
 `DIR/agent-signals-kit` exists, the kit stops with exit code 2. It does not
-overwrite a folder. On Windows, `iex` takes no arguments, so set
-`AGENT_SIGNALS_GET` to the folder:
+overwrite a folder. The kit extracts into a temporary folder in DIR and
+then renames it, so DIR never holds a part of a kit. On Windows, `iex`
+takes no arguments, so set `AGENT_SIGNALS_GET` to the folder. The kit reads
+the variable and removes it, so the next one-liner runs the probes. In
+`iex`, a refusal sets `$LASTEXITCODE` to 2 and does not close the window.
 
 ```sh
 curl -fsSL https://xsavikx.github.io/agent-signals/kit.sh | sh -s -- --get ~/kits

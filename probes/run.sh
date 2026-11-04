@@ -15,15 +15,21 @@
 #                        watch, also from a different process.
 #       --pids FILE      count only the pids in FILE and their children.
 #                        FILE holds one pid on each line, or it is a
-#                        folder of files named by pid (a run's pids/).
+#                        folder of files named by pid (a run's pids/),
+#                        or one such file. A pids/ file must hold the
+#                        start time of the process. A listed tmux or
+#                        psmux process counts only its children.
 #       --files-of-pids  show only the files that the counted processes
 #                        hold open, and the files under a --scope folder.
-#       --scope DIR      a folder for --files-of-pids. Give it again for
-#                        more folders.
+#                        It needs --pids. It leaves out the agy summaries.
+#       --scope DIR      a folder that exists, for --files-of-pids. Give
+#                        it again for more folders.
 #       --out FILE       write the file to FILE.
 #   Without --wait, the kit waits for Enter, and then watches for
-#   AGENT_SIGNALS_WATCH seconds (default 30). With no terminal, it does
-#   not wait for Enter.
+#   AGENT_SIGNALS_WATCH seconds (default 30). When stdin is not a
+#   terminal, or the kit is not in the foreground, it does not wait.
+#   A shell that runs command text (sh -c TEXT) does not count as an
+#   agent, also when the text holds the agent name.
 #
 # On macOS, AGENT_SIGNALS_TERMINALS=yes or no answers the question about
 # the terminal probe. With no value and no terminal, the answer is no.
@@ -43,7 +49,12 @@ root=$(cd "$here/.." && pwd)
 stamp=$(date -u +%Y%m%dT%H%M%SZ)
 out=$PWD/agent-signals-probe-$PROBE_OS-$stamp.txt
 raw=$(mktemp)
-trap 'rm -f "$raw" "$raw".*' EXIT
+# The EXIT trap deletes the temporary files. A signal runs it too, so a
+# step that a caller stops in the background leaves no file.
+trap 'rm -f "$raw" "$raw".* "$out.part"' EXIT
+trap 'exit 143' TERM
+trap 'exit 130' INT
+trap 'exit 129' HUP
 
 agents="claude codex agy cursor opencode copilot gemini"
 command_of() {
@@ -73,8 +84,27 @@ pattern_of() {
   sed -n "s/.*pids '\([^']*\)'.*/\1/p" "$here/$1/unix.sh" | head -n 1
 }
 
+# can_ask: true when the kit can read a key: stdin is a terminal and the
+# kit is in the foreground process group of that terminal. A background
+# job or a pane that a different program drives gives false, so a read
+# does not wait or stop the kit with SIGTTIN.
+can_ask() {
+  [ -t 0 ] || return 1
+  _tp=$(ps -o tpgid= -p $$ 2>/dev/null | tr -d ' ')
+  _pg=$(ps -o pgid= -p $$ 2>/dev/null | tr -d ' ')
+  [ -n "$_tp" ] && [ "$_tp" = "$_pg" ]
+}
+
+# finish: scrub the raw file into $out. The scrub writes $out.part first,
+# so $out never holds a part of a file. When the scrub fails, the kit
+# writes no file and exits 1.
 finish() {
-  sh "$root/tools/scrub.sh" "$raw" >"$out" 2>"$raw.scrub"
+  if ! sh "$root/tools/scrub.sh" "$raw" >"$out.part" 2>"$raw.scrub"; then
+    cat "$raw.scrub" >&2
+    echo "kit: the scrub failed, so the kit wrote no file"
+    exit 1
+  fi
+  mv "$out.part" "$out"
   cat "$raw.scrub" >&2
   echo "kit: wrote $out"
   echo "kit: read the file before you send it."
@@ -96,7 +126,7 @@ run_all() {
     # Automation access to Terminal or iTerm2. You can say no.
     # AGENT_SIGNALS_TERMINALS gives the answer before the question.
     ans=${AGENT_SIGNALS_TERMINALS:-}
-    if [ -z "$ans" ] && [ -t 0 ]; then
+    if [ -z "$ans" ] && can_ask; then
       printf 'kit: run the terminal probe? It can open an Automation dialog. [y/N] '
       read -r ans
     elif [ -z "$ans" ]; then
@@ -119,29 +149,104 @@ pids_from=
 scoped=
 scope=
 
-# watched: the pids of the --pids file or folder, and their children. A
-# folder holds one file for each pid, named by the pid (the pids/ folder
-# of a kit run).
-watched() {
+# start_of PID: the start time of PID, in the form that kit_pid_start of
+# probes/agent/lib.sh writes in a pids/ file.
+start_of() {
+  ps -o lstart= -p "$1" 2>/dev/null | tr -s ' ' | sed 's/^ //; s/ $//'
+}
+
+# ours FILE PID: true when PID runs and has the start time in field 2 of
+# the first line of FILE (the form "LABEL<tab>START" of a pids/ file). A
+# pid that the system gave again to a new process does not count.
+ours() {
+  kill -0 "$2" 2>/dev/null || return 1
+  _want=$(tr -d '\r' <"$1" | awk -F '\t' 'NR == 1 { print $2 }')
+  [ -n "$_want" ] && [ "$_want" = "$(start_of "$2")" ]
+}
+
+# listed: the pids of the --pids file or folder, one on each line.
+# - A folder holds one file for each pid, named by the pid (the pids/
+#   folder of a kit run). Each file holds "LABEL<tab>START".
+# - A file named by a pid whose first line holds a tab is one such file.
+# - Each other file holds one pid on each line. The kit accepts CRLF line
+#   ends and a last line with no line end.
+listed() {
   if [ -d "$pids_from" ]; then
-    ls "$pids_from"
-  else
-    cat "$pids_from"
-  fi | while read -r _w; do
-    case $_w in '' | *[!0-9]*) continue ;; esac
-    children "$_w"
+    for _f in "$pids_from"/*; do
+      _p=${_f##*/}
+      case $_p in '' | *[!0-9]*) continue ;; esac
+      ours "$_f" "$_p" && echo "$_p"
+    done
+    return 0
+  fi
+  _p=${pids_from##*/}
+  case $_p in
+    '' | *[!0-9]*) ;;
+    *)
+      if head -n 1 "$pids_from" | grep -q '	'; then
+        ours "$pids_from" "$_p" && echo "$_p"
+        return 0
+      fi
+      ;;
+  esac
+  tr -d '\r' <"$pids_from" | awk '{ gsub(/^[ \t]+|[ \t]+$/, "") } /^[0-9]+$/'
+}
+
+# prog_of PID: the program of PID: the base name of the first word of its
+# command line, with no trailing ":".
+prog_of() {
+  ps -o args= -p "$1" 2>/dev/null | awk '{ n = $1; sub(/.*\//, "", n); sub(/:$/, "", n); print n; exit }'
+}
+
+# is_mux PID: true when PID is a tmux or psmux process. A tmux server keeps
+# the command line of its first client, so an agent pattern can match it.
+is_mux() {
+  _c=$(ps -o comm= -p "$1" 2>/dev/null)
+  _c=${_c##*/}
+  case "$(prog_of "$1") $_c" in
+    tmux\ * | psmux\ * | *\ tmux | *\ tmux:* | *\ psmux) return 0 ;;
+  esac
+  return 1
+}
+
+# shell_text PID: true when PID is a shell that runs command text, for
+# example "bash -c TEXT". The text can hold the name of an agent (the shell
+# of a different tool session does this), so the step does not count it.
+# A shell that runs a script file ("sh /path/agy") still counts.
+shell_text() {
+  ps -o args= -p "$1" 2>/dev/null | awk '
+    {
+      n = $1; sub(/.*\//, "", n); sub(/^-/, "", n)
+      if (n !~ /^(sh|bash|zsh|dash|fish|ksh)$/) exit 1
+      for (i = 2; i <= NF && $i ~ /^-/; i++) if ($i ~ /^-[a-z]*c[a-z]*$/) exit 0
+      exit 1
+    }'
+}
+
+# watched: the pids of the --pids file or folder, and their children. A
+# listed tmux or psmux process does not count itself, only its children.
+watched() {
+  listed | while read -r _w; do
+    if is_mux "$_w"; then
+      children "$_w" | sed 1d
+    else
+      children "$_w"
+    fi
   done
 }
 
-# agent_pids AGENT: the pids of the agent processes that the step counts.
+# agent_pids AGENT: the pids of the agent processes that the step counts:
+# the processes that match the pattern of AGENT, are not a shell that runs
+# command text, and, with --pids, are in the watched set.
 agent_pids() {
-  if [ -z "$pids_from" ]; then
-    pids "$(pattern_of "$1")"
-    return
-  fi
-  _set=" $(watched | tr '\n' ' ') "
+  _set=
+  [ -n "$pids_from" ] && _set=" $(watched | tr '\n' ' ') "
   pids "$(pattern_of "$1")" | while read -r _x; do
-    case $_set in *" $_x "*) echo "$_x" ;; esac
+    if [ -n "$pids_from" ]; then
+      case $_set in *" $_x "*) ;; *) continue ;; esac
+    fi
+    shell_text "$_x" && continue
+    echo "$_x"
   done
 }
 
@@ -211,19 +316,26 @@ PY
   rmdir "$_t"
 }
 
-# claude_status: the status field of each Claude pid file (fact 23).
+# claude_status: the status field of each Claude pid file (fact 23). With
+# --files-of-pids, only the files named by a watched pid.
 claude_status() {
+  _cs=
+  [ -n "$scoped" ] && _cs=" $(watched | tr '\n' ' ') "
   for f in "$HOME"/.claude/sessions/*.json; do
     [ -f "$f" ] || continue
+    if [ -n "$scoped" ]; then
+      case $_cs in *" $(basename "$f" .json) "*) ;; *) continue ;; esac
+    fi
     s=$(sed -n 's/.*"status":"\([a-z]*\)".*/\1/p' "$f")
     echo "$(basename "$f" .json) ${s:-none}"
   done
 }
 
-# seconds NAME VALUE: exit 2 when VALUE is not a number from 1 to 600.
+# seconds NAME VALUE: exit 2 when VALUE is not a number from 1 to 600. A
+# leading 0 is refused, because the shell can read 09 as a bad octal.
 seconds() {
   case $2 in
-    '' | *[!0-9]*) echo "kit: $1 takes a number from 1 to 600: $2"; exit 2 ;;
+    '' | 0* | *[!0-9]*) echo "kit: $1 takes a number from 1 to 600: $2"; exit 2 ;;
   esac
   if [ "$2" -lt 1 ] || [ "$2" -gt 600 ]; then
     echo "kit: $1 takes a number from 1 to 600: $2"
@@ -253,12 +365,25 @@ guided() {
       --files-of-pids) scoped=yes; shift ;;
       --scope)
         [ "$#" -ge 2 ] || { echo "kit: --scope needs a folder"; exit 2; }
-        scope="$scope
-${2%/}"
+        [ -d "$2" ] || { echo "kit: --scope: no folder $2"; exit 2; }
+        # The physical path: lsof gives physical paths, for example
+        # /private/var on macOS.
+        _s=$(CDPATH='' cd -P -- "$2" && pwd -P) || { echo "kit: --scope: cannot read $2"; exit 2; }
+        case "
+$scope
+" in
+          *"
+$_s
+"*) ;;
+          *) scope="$scope
+$_s" ;;
+        esac
         shift 2
         ;;
       --out)
-        [ "$#" -ge 2 ] || { echo "kit: --out needs a file"; exit 2; }
+        [ "$#" -ge 2 ] && [ -n "$2" ] || { echo "kit: --out needs a file"; exit 2; }
+        _o=$(dirname -- "$2")
+        [ -d "$_o" ] && [ -w "$_o" ] || { echo "kit: --out: cannot write in $_o"; exit 2; }
         out=$2
         shift 2
         ;;
@@ -270,6 +395,10 @@ ${2%/}"
         ;;
     esac
   done
+  if [ -n "$scoped" ] && [ -z "$pids_from" ]; then
+    echo "kit: --files-of-pids needs --pids"
+    exit 2
+  fi
   watch_s=${AGENT_SIGNALS_WATCH:-30}
   seconds AGENT_SIGNALS_WATCH "$watch_s"
   [ -n "$wait_s" ] && watch_s=$wait_s
@@ -320,8 +449,14 @@ ${2%/}"
   snapshot before $which
   marker=$raw.marker
   : >"$marker"
+  # With --files-of-pids, the kit does not read the agy summaries: the
+  # database holds the rows of all conversations, and a row does not give
+  # the pid of its session.
+  agy_sample() {
+    if [ -n "$scoped" ]; then : >"$1"; else agy_status >"$1"; fi
+  }
   claude_status >"$raw.status.0"
-  agy_status >"$raw.agy.0"
+  agy_sample "$raw.agy.0"
   echo
   if [ -n "$wait_s" ]; then
     # With --wait, the watch starts now. A caller can do the action in
@@ -333,7 +468,7 @@ ${2%/}"
   else
     echo "kit: do this now, then come back and push Enter:"
     echo "  $action"
-    if [ -t 0 ]; then
+    if can_ask; then
       printf 'kit: push Enter when it is done. '
       read -r _
     else
@@ -349,7 +484,7 @@ ${2%/}"
     t=$((t + 2))
     i=$((i + 1))
     claude_status >"$raw.status.$i"
-    agy_status >"$raw.agy.$i"
+    agy_sample "$raw.agy.$i"
   done
   [ "$t" -lt "$watch_s" ] && sleep $((watch_s - t))
   # shellcheck disable=SC2086
@@ -388,6 +523,7 @@ ${2%/}"
       *" claude "*)
         echo
         echo "### 4. Status of the Claude pid files, every 2 s (fact 23)"
+        [ -n "$scoped" ] && echo "only the pid files of the watched pids (--files-of-pids)"
         j=0
         while [ "$j" -le "$i" ]; do
           echo "t=$((j * 2))s: $(tr '\n' ' ' <"$raw.status.$j")"
@@ -399,11 +535,15 @@ ${2%/}"
       *" agy "*)
         echo
         echo "### 5. agy summaries: status, not_fully_idle, step_count of the newest rows, every 2 s (fact 45)"
-        j=0
-        while [ "$j" -le "$i" ]; do
-          echo "t=$((j * 2))s: $(cat "$raw.agy.$j")"
-          j=$((j + 1))
-        done
+        if [ -n "$scoped" ]; then
+          echo "left out: --files-of-pids is set, and the rows do not give the pid of their session"
+        else
+          j=0
+          while [ "$j" -le "$i" ]; do
+            echo "t=$((j * 2))s: $(cat "$raw.agy.$j")"
+            j=$((j + 1))
+          done
+        fi
         ;;
     esac
   } >>"$raw"
@@ -412,7 +552,7 @@ ${2%/}"
 
 front_tab() {
   [ "$PROBE_OS" = macos ] || { echo "kit: front-tab is for macOS"; exit 2; }
-  [ -t 0 ] || { echo "kit: front-tab asks questions, so it needs a terminal"; exit 2; }
+  can_ask || { echo "kit: front-tab asks questions, so it needs a terminal"; exit 2; }
   echo "kit: this step brings one Terminal or iTerm2 tab to the front by its tty."
   echo "kit: it changes the selected tab. Nothing else changes."
   # Caution: the osascript call can open a macOS dialog that asks for
@@ -468,5 +608,5 @@ front_tab() {
 case ${1:-} in
   --guided) shift; guided "$@" ;;
   --all | "") run_all "${1:-}" ;;
-  *) sed -n '2,36p' "$0"; exit 2 ;;
+  *) sed -n '2,42p' "$0"; exit 2 ;;
 esac
