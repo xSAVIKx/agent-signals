@@ -9,7 +9,11 @@ $script:Fail = 0
 
 # Invoke-Kit ARGS: run the kit in a new process. Returns the exit code;
 # the output is in $T\out.
+# In Windows PowerShell 5.1, a line on stderr from a native command is an
+# error record, and "Stop" makes it end the test. So the function uses
+# "Continue".
 function Invoke-Kit {
+    $ErrorActionPreference = 'Continue'
     & $script:Exe -NoProfile -ExecutionPolicy Bypass -File $script:KitPs1 @args *> (Join-Path $script:T 'out')
     return $LASTEXITCODE
 }
