@@ -67,10 +67,10 @@ set -u
 # shellcheck source=probes/lib.sh
 . "$KIT_ROOT/probes/lib.sh"
 
-# Set this to yes when the manifest of the run takes a doctor line. The
-# core of the kit owns manifest.tsv. Until it accepts the doctor line, the
-# doctor writes only 00-doctor.txt.
-doctor_add_to_manifest=no
+# With a run, the doctor appends one line to manifest.tsv:
+#   step	doctor	none	ok	<start>	<end>	00-doctor.txt	<sha256>
+# doctor.ps1 appends the same line on Windows, and kit check accepts it.
+doctor_add_to_manifest=yes
 
 doctor_agents="claude codex agy cursor gemini copilot opencode"
 

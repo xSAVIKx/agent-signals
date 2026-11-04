@@ -105,7 +105,11 @@ expect_line "00-doctor.txt has the agent lines" '^agent: claude ~/\.local/share/
 if grep -qF "$H" "$T/run/00-doctor.txt"; then fail "00-doctor.txt is scrubbed" "it holds the home folder"; else pass "00-doctor.txt is scrubbed"; fi
 if grep -qF "$H" "$T/out4"; then fail "stdout is scrubbed" "it holds the home folder"; else pass "stdout is scrubbed"; fi
 if cmp -s "$T/out4" "$T/run/00-doctor.txt"; then pass "stdout is the text of 00-doctor.txt"; else fail "stdout is the text of 00-doctor.txt" "they differ"; fi
-if [ -n "$(find "$T/run" -mindepth 1 ! -name 00-doctor.txt)" ]; then fail "the run has no raw file" "$(ls "$T/run")"; else pass "the run has no raw file"; fi
+if [ -n "$(find "$T/run" -mindepth 1 ! -name 00-doctor.txt ! -name manifest.tsv)" ]; then fail "the run has no raw file" "$(ls "$T/run")"; else pass "the run has no raw file"; fi
+
+# With a run, the doctor appends its step line to manifest.tsv.
+sum=$(sh "$ROOT/probes/agent/doctor.sh" --manifest-line "$T/run" a b | cut -f 8)
+expect_line "doctor appends its manifest line" "^step	doctor	none	ok	[0-9TZ:-]+	[0-9TZ:-]+	00-doctor\.txt	$sum\$" "$T/run/manifest.tsv"
 
 # The manifest line, from the helper of doctor.sh.
 line=$(sh "$ROOT/probes/agent/doctor.sh" --manifest-line "$T/run" 2026-11-04T10:00:00Z 2026-11-04T10:00:01Z)
