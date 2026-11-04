@@ -349,6 +349,19 @@ def serve(argv, max_seconds=4 * 3600):
             return 0
 
 
+def _in_job(proc):
+    """Return True when the process (a subprocess.Popen) is in a job object.
+    When Windows cannot tell, return True."""
+    try:
+        import ctypes
+
+        result = ctypes.c_int(0)
+        ok = ctypes.windll.kernel32.IsProcessInJob(ctypes.c_void_p(int(proc._handle)), None, ctypes.byref(result))
+        return (not ok) or bool(result.value)
+    except Exception:
+        return True
+
+
 def detach(argv, wait_seconds=30):
     """Start the serve mode as a detached process. Wait for its ready file,
     then print "pid N" (the started process), "server N", "agent N" and
@@ -372,6 +385,11 @@ def detach(argv, wait_seconds=30):
     except OSError:
         # The job of the caller does not let a child break away.
         p = subprocess.Popen(cmd, creationflags=base, **kw)
+        away = "no"
+    # The Python launcher of a virtual environment puts Python in a job of
+    # its own that lets a child break away. So a breakaway can leave only
+    # that job. "yes" means that the new process is in no job at all.
+    if away == "yes" and _in_job(p):
         away = "no"
     try:
         started = psutil.Process(p.pid)
