@@ -168,6 +168,38 @@ class Helpers(unittest.TestCase):
 
 
 @unittest.skipUnless(shutil.which("tmux"), "tmux is not installed")
+class ServeArguments(unittest.TestCase):
+    def test_parse_serve(self):
+        o = conpty.parse_serve(["\\\\.\\pipe\\kit-a", "120", "40", "--cwd", "C:\\w x",
+                                "--ready", "r.json", "--", "a.exe", "-x", "b c"])
+        self.assertEqual(o["pipe"], "\\\\.\\pipe\\kit-a")
+        self.assertEqual((o["cols"], o["rows"]), (120, 40))
+        self.assertEqual(o["cwd"], "C:\\w x")
+        self.assertEqual(o["ready"], "r.json")
+        self.assertEqual(o["argv"], ["a.exe", "-x", "b c"])
+
+    def test_parse_serve_needs_a_command(self):
+        with self.assertRaises(ValueError):
+            conpty.parse_serve(["p", "120", "40"])
+        with self.assertRaises(ValueError):
+            conpty.parse_serve(["p", "120", "40", "--"])
+        with self.assertRaises(ValueError):
+            conpty.parse_serve(["p", "120", "40", "--bad", "--", "a"])
+
+    def test_key_names(self):
+        self.assertEqual(conpty.key_text("Enter"), "\r")
+        self.assertEqual(conpty.key_text("Escape"), "\x1b")
+        self.assertEqual(conpty.key_text("C-c"), "\x03")
+        self.assertEqual(conpty.key_text("1"), "1")
+        with self.assertRaises(ValueError):
+            conpty.key_text("C-m-x")
+
+    def test_bad_use_exits_2(self):
+        self.assertEqual(conpty.main(["serve", "p", "1"]), 2)
+        self.assertEqual(conpty.main(["p", "key", "NoSuchKey"]), 2)
+        self.assertEqual(conpty.main(["p", "jump"]), 2)
+
+
 class SameAsTmux(unittest.TestCase):
     """pyte must give the same text as tmux capture-pane -p for the same
     output."""
