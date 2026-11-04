@@ -17,10 +17,12 @@
 #      prefix. C:\Windows, C:\Program Files and C:\ProgramData stay.
 #   5. the account name                              -> dev
 #   6. the host name                                 -> host
-#   7. UUIDs                                         -> <uuid>
-#   8. hex runs of 16 characters or more             -> <hex>
-#   9. e-mail addresses                              -> <email>
-#  10. IPv4 addresses, except 127.0.0.1 and 0.0.0.0  -> <ip>
+#   7. API keys and tokens (sk-ant-, sk-proj-, sk-, AIza, ghp_, gho_,
+#      ghs_, github_pat_, and key_ with 32 or more hex characters) -> <secret>
+#   8. UUIDs                                         -> <uuid>
+#   9. hex runs of 16 characters or more             -> <hex>
+#  10. e-mail addresses                              -> <email>
+#  11. IPv4 addresses, except 127.0.0.1 and 0.0.0.0  -> <ip>
 #      (not a version number: after v or version, or before a letter, - or +)
 #  A project key (a path with dashes, see below) becomes -work-example. A
 #  Windows key starts with a drive letter: D--Projects-shop, C-Users-alice-shop.
@@ -149,6 +151,7 @@ rule "project key" 's#(^|[/\\ "])-?(srv|Users|home|var-lib|work)-[A-Za-z0-9._-]+
 
 [ -n "$user" ] && rule "account name" "s#(^|[^A-Za-z0-9_.-])$(q "$user")([^A-Za-z0-9_-]|\$)#\\1dev\\2#g"
 [ -n "$host" ] && rule "host name" "s#(^|[^A-Za-z0-9_-])($(q "$host")|$(q "$short"))([^A-Za-z0-9_-]|\$)#\\1host\\3#g"
+rule "secret" 's#(^|[^A-Za-z0-9_-])(sk-ant-|sk-proj-|sk-|AIza|ghp_|gho_|ghs_|github_pat_)[A-Za-z0-9_-]{16,}#\1<secret>#g; s#(^|[^A-Za-z0-9_-])key_[0-9a-fA-F]{32,}#\1<secret>#g'
 rule "uuid" 's#[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}#<uuid>#g'
 rule "hex" 's#[0-9a-fA-F]{16,}#<hex>#g'
 rule "email" 's#[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}#<email>#g'

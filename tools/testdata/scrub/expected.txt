@@ -25,3 +25,6 @@ already clean: \\?\~\.codex\config.toml
 system: C:\Windows\System32\cmd.exe and C:\ProgramData\chocolatey\bin and c:\windows\system32
 system: "C:\Program Files\nodejs\node.exe" and C:\Program Files (x86)\Common Files
 words: an X-ray, a T-shirt and v1.2.3 stay, and so does the word abcD:\x
+secrets: ANTHROPIC_API_KEY=<secret> and "<secret>", <secret>
+secrets: <secret> <secret> <secret> <secret>
+words: a task-list, sk-short, key_count and the risk-free-mode flag stay

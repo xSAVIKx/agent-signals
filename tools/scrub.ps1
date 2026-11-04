@@ -21,10 +21,13 @@
 #                 D--Projects-shop or C-Users-alice-shop -> -work-example
 #   5. user       the account name as a whole word -> dev
 #   6. host       the host name and its short form as whole words -> host
-#   7. uuid       UUIDs -> <uuid>
-#   8. hex        hex runs of 16 or more characters -> <hex>
-#   9. email      e-mail addresses -> <email>
-#  10. ip         IPv4 addresses -> <ip>, but not 127.0.0.1 and 0.0.0.0, and
+#   7. secret     API keys and tokens: sk-ant-, sk-proj-, sk-, AIza, ghp_,
+#                 gho_, ghs_, github_pat_, and key_ with 32 or more hex
+#                 characters (Cursor) -> <secret>
+#   8. uuid       UUIDs -> <uuid>
+#   9. hex        hex runs of 16 or more characters -> <hex>
+#  10. email      e-mail addresses -> <email>
+#  11. ip         IPv4 addresses -> <ip>, but not 127.0.0.1 and 0.0.0.0, and
 #                 not a version number (after v or version, or before a
 #                 letter, - or +)
 #
@@ -33,7 +36,7 @@
 
 param([string]$Path)
 
-$script:ScrubKinds = @('home', 'other-home', 'project', 'key', 'user', 'host', 'uuid', 'hex', 'email', 'ip')
+$script:ScrubKinds = @('home', 'other-home', 'project', 'key', 'user', 'host', 'secret', 'uuid', 'hex', 'email', 'ip')
 
 # A path ends at white space, a quote, a colon, a comma, a semicolon or a
 # parenthesis.
@@ -144,16 +147,20 @@ function Invoke-Scrub([string]$Text, [string]$HomeDir, [string]$User, [string]$H
     }
   }
 
-  # 7. UUIDs.
+  # 7. API keys and tokens.
+  $s = Invoke-ScrubReplace $s '(?<![A-Za-z0-9_-])(?:sk-ant-|sk-proj-|sk-|AIza|ghp_|gho_|ghs_|github_pat_)[A-Za-z0-9_-]{16,}' { '<secret>' } $counts 'secret'
+  $s = Invoke-ScrubReplace $s '(?<![A-Za-z0-9_-])key_[0-9a-fA-F]{32,}' { '<secret>' } $counts 'secret'
+
+  # 8. UUIDs.
   $s = Invoke-ScrubReplace $s '(?i)(?<![0-9a-z])[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![0-9a-z])' { '<uuid>' } $counts 'uuid'
 
-  # 8. Long hex runs.
+  # 9. Long hex runs.
   $s = Invoke-ScrubReplace $s '(?i)(?<![0-9a-z])[0-9a-f]{16,}(?![0-9a-z])' { '<hex>' } $counts 'hex'
 
-  # 9. E-mail addresses.
+  # 10. E-mail addresses.
   $s = Invoke-ScrubReplace $s '[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}' { '<email>' } $counts 'email'
 
-  # 10. IPv4 addresses. A dotted quad after "v" or "version", or before a
+  # 11. IPv4 addresses. A dotted quad after "v" or "version", or before a
   # letter, "-" or "+", is a version number and stays.
   $s = Invoke-ScrubReplace $s '(?<![0-9.vV])(?<!(?i:version)[^0-9\r\n]{0,4})(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?![0-9])(?!\.[0-9])(?![-+A-Za-z])' {
     param($m)
