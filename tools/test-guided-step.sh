@@ -50,10 +50,8 @@ done
 EOF
 chmod +x "$tmp/bin/agy"
 
-# The kit archive, as the release makes it.
-mkdir -p "$tmp/kit/agent-signals-kit"
-(cd "$root" && tar -cf - probes tools/scrub.sh tools/scrub.ps1) | (cd "$tmp/kit/agent-signals-kit" && tar -xf -)
-(cd "$tmp/kit" && tar -czf "$tmp/kit.tar.gz" agent-signals-kit)
+# The kit archive, as the release makes it, from the work tree.
+KIT_ARCHIVE_WORKTREE=1 sh "$root/tools/kit-archive.sh" tar.gz "$tmp/kit.tar.gz"
 
 fail=0
 check() {
