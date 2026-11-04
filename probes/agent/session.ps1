@@ -138,6 +138,7 @@ using System;
 using System.Runtime.InteropServices;
 using System.Text;
 public static class KitSpawn {
+    public static int BreakawayError;
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     public struct STARTUPINFO {
         public int cb; public string lpReserved; public string lpDesktop; public string lpTitle;
@@ -165,6 +166,7 @@ public static class KitSpawn {
             breakaway = true;
             if (!CreateProcessW(app, new StringBuilder(cmdline), IntPtr.Zero, IntPtr.Zero, false, basef | 0x01000000, block, cwd, ref si, out pi)) {
                 breakaway = false;
+                BreakawayError = Marshal.GetLastWin32Error();
                 if (!CreateProcessW(app, new StringBuilder(cmdline), IntPtr.Zero, IntPtr.Zero, false, basef, block, cwd, ref si, out pi)) {
                     throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
                 }
@@ -194,7 +196,7 @@ function Start-KitDetached([string]$File, [string[]]$List, [string]$Dir, [hashta
     $away = $false
     $id = 0
     $rc = [KitSpawn]::Run($File, $line, $Dir, $block, [uint32]($Seconds * 1000), [ref]$away, [ref]$id)
-    return [pscustomobject]@{ Code = $rc; Pid = $id; Breakaway = $away }
+    return [pscustomobject]@{ Code = $rc; Pid = $id; Breakaway = $away; Error = [KitSpawn]::BreakawayError }
 }
 
 # Write-KitText TEXT: write TEXT to stdout as UTF-8 bytes, with no change.
@@ -532,6 +534,7 @@ function Start-Session([string[]]$A) {
         $list = @('-L', $tag, 'new-session', '-d', '-s', 'kit', '-x', "$Cols", '-y', "$Rows", '-c', $work, '--') + $tail
         $s = Start-KitDetached $psmux $list $work $envPsmux 30
         Write-State $dir 'breakaway' $(if ($s.Breakaway) { 'yes' } else { 'no' })
+        if (-not $s.Breakaway) { Write-State $dir 'breakaway-error' "$($s.Error)" }
         foreach ($f in Get-ChildItem -LiteralPath $envPsmux['PSMUX_DATA_DIR'] -Filter '*.pid' -ErrorAction SilentlyContinue) {
             $v = ([IO.File]::ReadAllText($f.FullName)).Trim() -split ':'
             if ($v[0] -match '^\d+$') { Add-SessionPid $run $dir ([int]$v[0]) "session $name server" }

@@ -180,6 +180,8 @@ foreach ($b in 'conpty', 'psmux') {
         if ($sec -ge 0 -and $sec -lt 5) { Pass "${b}: start returns in under 5 s" } else { Fail "${b}: start returns in under 5 s" "it took $sec s" }
         $bw = Join-Path $run "sessions/$s2/breakaway"
         if (Test-Path -LiteralPath $bw) { Write-Output "${b}: breakaway from the job: $((Get-Text $bw).Trim())" }
+        $be = Join-Path $run "sessions/$s2/breakaway-error"
+        if (Test-Path -LiteralPath $be) { Write-Output "${b}: breakaway error: $((Get-Text $be).Trim())" }
         Expect-Code "${b}: wait in the piped session" 0 (Invoke-Kit 'session' 'wait' $s2 'stub idle' '60')
 
         # test_stop_all_after_a_kill and test_stop_ends_only_the_pids.
