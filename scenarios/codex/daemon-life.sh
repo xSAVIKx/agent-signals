@@ -21,6 +21,8 @@ set -eu
 here=$(cd "$(dirname "$0")/.." && pwd)
 # shellcheck source=scenarios/lib.sh
 . "$here/lib.sh"
+# shellcheck source=scenarios/login.sh
+. "$here/login.sh"
 
 SCN_NAME=codex-daemon-life
 sandbox_start
