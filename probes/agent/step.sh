@@ -103,7 +103,9 @@ if [ "$result" = operator ]; then
 fi
 sha=-
 if [ -f "$out" ]; then
-  sh "$KIT_ROOT/tools/scrub.sh" "$out" >"$run/$file" 2>"$work/$nn.scrub"
+  # The run folder and the kit folder can hold spaces and names.
+  SCRUB_EXTRA="$run
+$KIT_ROOT" sh "$KIT_ROOT/tools/scrub.sh" "$out" >"$run/$file" 2>"$work/$nn.scrub"
   sed 's/^/kit: /' "$work/$nn.scrub" >&2
   sha=$(kit_sha256 "$run/$file")
 else

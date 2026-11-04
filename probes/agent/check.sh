@@ -6,7 +6,8 @@
 #   3. the run folder holds no other file (00-doctor.txt, manifest.tsv,
 #      manifest.json and summary.txt are known files);
 #   4. no file holds the home folder, the account name, the host name, or
-#      the value of an environment variable *_API_KEY or *_TOKEN. The check
+#      the value of an environment variable whose name ends in _API_KEY, _TOKEN,
+#      _SECRET, _PASSWORD, _PAT or _KEY. The check
 #      reads these values now and never writes them. It searches each line
 #      and also the text with no line breaks, because a screen wraps long
 #      lines. The account name and the host name match as whole words, as
@@ -90,7 +91,7 @@ for h in "$host" "$short"; do
   [ -n "$h" ] && [ "$h" != host ] &&
     printf 'the host name\t%s\n' "(^|[^A-Za-z0-9_-])$(q "$h")([^A-Za-z0-9_-]|\$)" >>"$tmp/pats"
 done
-env | awk -F '=' '$1 ~ /^[A-Za-z0-9_]+_(API_KEY|TOKEN)$/ { print $1 }' | sort -u >"$tmp/vars"
+env | awk -F '=' '$1 ~ /^[A-Za-z0-9_]*_(API_KEY|TOKEN|SECRET|PASSWORD|PAT|KEY)$/ { print $1 }' | sort -u >"$tmp/vars"
 while read -r b; do
   tr -d '\n' <"$run/$b" >"$tmp/joined"
   while IFS='	' read -r what re; do
