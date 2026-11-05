@@ -24,6 +24,11 @@ ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 sys.path.insert(0, os.path.join(ROOT, "scenarios"))
 sys.path.insert(0, os.path.join(ROOT, "probes", "agent"))
 import conpty  # noqa: E402
+
+# ptydrive drives a Unix pty (fcntl, pty, termios). Windows has no such
+# modules, and the ConPTY backend has its own tests in test_conpty.py.
+if os.name == "nt":
+    raise unittest.SkipTest("ptydrive needs a Unix pty")
 import ptydrive  # noqa: E402
 from test_conpty import SAMPLES  # noqa: E402
 
