@@ -21,6 +21,10 @@ option. It does not depend on where the mark is. A digit that goes to an idle
 box becomes text in the box. A tool must therefore read the state again just
 before it sends the digit.
 
+Fact 074 (2026-11-04, Claude Code 2.1.316 and 2.1.318) measured a digit
+sent before the dialog draws. Sent while the model works, the digit stays
+in the box. Sent near the start of the tool call, it answers the dialog.
+
 ## Incident
 
 None recorded.

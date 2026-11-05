@@ -42,6 +42,7 @@ input `job`.
 | `claude/permission-dialog.sh` | Claude Code | 23, 24 |
 | `claude/dialog-states.sh` | Claude Code | 31, 32, 33, 34 |
 | `claude/plan-and-resume.sh` | Claude Code | 31, 32, 35 |
+| `claude/early-keys.sh digit` / `clear` | Claude Code | 74, 75 |
 | `codex/approval.sh` | Codex CLI | 26, 27 |
 | `codex/two-sessions.sh` | Codex CLI | 26 |
 | `codex/screens.sh` | Codex CLI | 20 (screens of 0.164.0) |

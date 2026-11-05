@@ -24,6 +24,12 @@ A visible clear is not a finished clear. A tool waits a clear gap between the
 `C-u` and the text until it has proved one submission in that process and some
 time has passed since that proof. A new process needs the gap again.
 
+Fact 075 (2026-11-04, Claude Code 2.1.316 and 2.1.318) repeated these
+keys, with the text 20 ms after the `C-u`. No box kept the text after the
+first Enter, in 105 trials. The same method on 2.1.309 failed in only 1
+of 52 trials, so it does not prove that the failure is gone. Keep the
+gap.
+
 ## Incident
 
 A message in the first seconds after a new session, a restart or a resume
