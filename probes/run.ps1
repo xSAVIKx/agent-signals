@@ -436,15 +436,15 @@ foreach ($probe in $probes) {
   $info.StandardErrorEncoding = New-Object System.Text.UTF8Encoding $false
   $info.CreateNoWindow = $true
   $p = [System.Diagnostics.Process]::Start($info)
-  $out = $p.StandardOutput.ReadToEndAsync()
+  $outTask = $p.StandardOutput.ReadToEndAsync()
   $err = $p.StandardError.ReadToEndAsync()
   if (-not $p.WaitForExit(600000)) {
     try { $p.Kill() } catch { }
     [void]$sb.AppendLine('kit: the probe did not stop in 600 s')
   }
-  [void]$out.Wait(5000)
+  [void]$outTask.Wait(5000)
   [void]$err.Wait(5000)
-  [void]$sb.Append($out.Result)
+  [void]$sb.Append($outTask.Result)
   if ($err.Result) {
     [void]$sb.AppendLine('---- stderr')
     [void]$sb.Append($err.Result)
