@@ -8,6 +8,7 @@ already clean: /work/example/.claude
 windows: C:\Users\alice\AppData\Roaming\Cursor
 user alice ran on alice-mbp.local and alice-mbp
 mail: alice@example.org
+kit files: 01-probe@none.txt, 12-permission-claude@pty.txt and dev@tmux.example.org
 ip: 10.1.2.3 and 192.168.1.20 and 127.0.0.1 and 0.0.0.0
 version: 2026.10.22-27dcf5f stays
 login /bin/zsh as alicex stays

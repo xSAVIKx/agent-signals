@@ -8,6 +8,7 @@ already clean: /work/example/.claude
 windows: ~\AppData\Roaming\Cursor
 user dev ran on host and host
 mail: <email>
+kit files: 01-probe@none.txt, 12-permission-claude@pty.txt and <email>
 ip: <ip> and <ip> and 127.0.0.1 and 0.0.0.0
 version: 2026.10.22-27dcf5f stays
 login /bin/zsh as alicex stays

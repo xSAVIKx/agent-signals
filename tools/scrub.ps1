@@ -214,8 +214,9 @@ function Invoke-Scrub([string]$Text, [string]$HomeDir, [string]$User, [string]$H
   # 9. Long hex runs.
   $s = Invoke-ScrubReplace $s '(?i)(?<![0-9a-z])[0-9a-f]{16,}(?![0-9a-z])' { '<hex>' } $counts 'hex'
 
-  # 10. E-mail addresses.
-  $s = Invoke-ScrubReplace $s '[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}' { '<email>' } $counts 'email'
+  # 10. E-mail addresses. The file name of a kit step,
+  # NN-NAME@BACKEND.txt (probes/agent/step.ps1), is not an e-mail address.
+  $s = Invoke-ScrubReplace $s '(?<![A-Za-z0-9._%+-])(?![0-9]+-[a-z0-9-]+@(?:none|tmux|pty|conpty|psmux|operator)\.txt(?![A-Za-z0-9.-]))[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}' { '<email>' } $counts 'email'
 
   # 11. IPv4 addresses. A dotted quad after "v" or "version", or before a
   # letter, "-" or "+", is a version number and stays.

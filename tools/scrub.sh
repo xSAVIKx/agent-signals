@@ -237,7 +237,10 @@ function secret(w,    r) {
 count "secret"
 rule "uuid" 's#[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}#<uuid>#g'
 rule "hex" 's#[0-9a-fA-F]{16,}#<hex>#g'
-rule "email" 's#[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}#<email>#g'
+# The file name of a kit step, NN-NAME@BACKEND.txt (probes/agent/step.sh),
+# is not an e-mail address. The rule hides its "@" while it runs.
+kb='none|tmux|pty|conpty|psmux|operator'
+rule "email" "s#(^|[^A-Za-z0-9._%+-])([0-9]+-[a-z0-9-]+)@($kb)\\.txt([^A-Za-z0-9.-]|\$)#\\1\\2%KITAT%\\3.txt\\4#g; s#(^|[^A-Za-z0-9._%+-])([0-9]+-[a-z0-9-]+)@($kb)\\.txt([^A-Za-z0-9.-]|\$)#\\1\\2%KITAT%\\3.txt\\4#g; s#[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}#<email>#g; s#%KITAT%#@#g"
 # A dotted quad after "v" or "version", or before a letter, "-" or "+", is a
 # version number. Its dots become @D@ until the IP rule is done.
 q4='([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})'
