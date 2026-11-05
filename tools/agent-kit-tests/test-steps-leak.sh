@@ -36,12 +36,12 @@ echo '{"type":"user","message":{"content":"LEAK-CANARY-SCOPE"}}' >"$H/.claude/pr
 if grep -rq LEAK-CANARY "$H"; then pass "the fake home holds canaries"; else fail "the fake home holds canaries" "none"; fi
 
 stub_set STUB_TRUST=yes
-leak_kit step "permission-claude@$via" >"$T/out" 2>&1
+leak_kit step "permission-claude@$via" >"$T/kout" 2>&1
 expect_code "the session step exits 0" 0 $?
-expect_line "the session step is ok" "^step: permission-claude@$via ok" "$T/out"
-leak_kit check >>"$T/out" 2>&1
+expect_line "the session step is ok" "^step: permission-claude@$via ok" "$T/kout"
+leak_kit check >>"$T/kout" 2>&1
 expect_code "kit check passes" 0 $?
-grep '^check: ' "$T/out" | grep -v '^check: ok$' | sed 's/^/  /'
+grep '^check: ' "$T/kout" | grep -v '^check: ok$' | sed 's/^/  /'
 
 if grep -rl LEAK-CANARY "$run" >"$T/hits" 2>/dev/null; then
   fail "no canary in the run folder" "$(tr '\n' ' ' <"$T/hits")"
@@ -55,6 +55,6 @@ elif gzip -dc "$run.tar.gz" | grep -aq LEAK-CANARY; then
 else
   pass "no canary in the archive"
 fi
-if grep -q LEAK-CANARY "$T/out"; then fail "no canary in the output of the kit" "a canary"; else pass "no canary in the output of the kit"; fi
+if grep -q LEAK-CANARY "$T/kout"; then fail "no canary in the output of the kit" "a canary"; else pass "no canary in the output of the kit"; fi
 
 done_tests

@@ -53,7 +53,9 @@ kitx() {
 # stub_set LINES: the settings of the stub agent.
 stub_set() { printf '%s\n' "$@" >"$B/claude.env"; }
 
-# last_file: the file of the last step line of the manifest.
+# last_file: the file of the last step line of the manifest. A test sets
+# run after "kit start".
+run=
 last_file() { awk -F '\t' '$1 == "step" { f = $7 } END { print f }' "$run/manifest.tsv"; }
 
 # have VIA: true when the backend can run here.
