@@ -121,6 +121,8 @@ done
 # A kit copy with fake step scripts for the kinds that later tasks add, a
 # PATH with a fake claude, a fake agy and a fake tmux, and no other agent.
 kit_copy "$T/k"
+# The copy has no script for these kinds, so that the plan leaves them out.
+for k in new-chat resume interrupt real-session; do rm -f "$T/k/probes/agent/steps/$k.sh"; done
 fake_step "$T/k" permission
 fake_step "$T/k" first-run
 mkdir "$T/bin"
