@@ -43,6 +43,8 @@ $py = Join-Path $T 'py\python.cmd'
 New-TextFile $py (@(
         '@echo off'
         'if "%~1"=="-c" exit /b 0'
+        'rem The import check of kit session runs "python -I -c": the stub has no session packages.'
+        'if "%~1"=="-I" exit /b 1'
         'mkdir "%SCN_OUT%" 2>nul'
         'echo scenario: first-run-windows-%~2'
         '>"%SCN_OUT%\log.txt" echo 00:00:00 version: stub 1.0 (exit 0)'
@@ -130,7 +132,7 @@ Pop-Location
 Expect-Line 'plan lists the probe' '^step: probe@none needs=none cost=none measures=the full probe kit$' $out
 Expect-Line 'plan lists the first run on conpty' '^step: first-run-claude@conpty needs=none cost=none measures=the first start with no login$' $out
 Expect-NoLine 'plan skips an agent that is not installed' 'first-run-codex' $out
-Expect-NoLine 'plan lists no session step yet' 'permission-claude' $out
+Expect-NoLine 'plan lists no conpty session step with no session Python' 'permission-claude@conpty' $out
 Expect-NoLine 'plan skips a line with no Windows backend' 'first-run-tmux-claude' $out
 Expect-NoLine 'plan with the real home has no skip' 'skip=' $out
 Expect-Kit 'plan --home throwaway exits 0' 0 'plan' '--home' 'throwaway'
@@ -164,7 +166,8 @@ $env:AGENT_SIGNALS_PYTHON = Join-Path $T 'no-such-python.exe'
 Expect-Kit 'step first-run with no Python skips' 3 'step' 'first-run-claude@conpty'
 Expect-Line 'the skip has a reason' '^step: first-run-claude@conpty skip needs-conpty-python$' $out
 $env:AGENT_SIGNALS_PYTHON = $py
-Expect-Kit 'a session step skips on Windows' 3 'step' 'permission-claude@conpty'
+Expect-Kit 'a session step with no session Python skips' 3 'step' 'permission-claude@conpty'
+Expect-Line 'the session skip has a reason' '^step: permission-claude@conpty skip needs-conpty-python$' $out
 
 # kit check passes a clean run, and writes the summary, the JSON and the zip.
 Expect-Kit 'check passes a clean run' 0 'check'

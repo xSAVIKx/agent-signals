@@ -234,23 +234,15 @@ function Protect-KitDir([string]$Dir) {
     Set-Acl -LiteralPath $Dir -AclObject $acl
 }
 
-# Get-StartTicks PID: the start time of a process in UTC ticks, or ''.
-# This is the START of Add-KitPid in lib.ps1 (pull request 80), which
-# this file copies until that is merged.
-function Get-StartTicks([int]$ProcessId) {
-    try { return [string](Get-Process -Id $ProcessId -ErrorAction Stop).StartTime.ToUniversalTime().Ticks } catch { return '' }
-}
-
-# Add-SessionPid: record a pid in RUN\pids\PID ("LABEL<tab>START") and in
-# the pids file of the session ("PID LABEL<tab>START"). A process that has
-# no start time (it has ended) is not recorded.
+# Add-SessionPid: record a pid in RUN\pids\PID ("LABEL<tab>START", with
+# Add-KitPid of lib.ps1) and in the pids file of the session
+# ("PID LABEL<tab>START"). A process that has no start time (it has
+# ended) is not recorded.
 function Add-SessionPid([string]$Run, [string]$Dir, [int]$ProcessId, [string]$Label) {
     if ($ProcessId -le 0) { return }
-    $ticks = Get-StartTicks $ProcessId
+    $ticks = Get-KitProcessStart $ProcessId
     if (-not $ticks) { return }
-    $d = Join-Path $Run 'pids'
-    New-Item -ItemType Directory -Force -Path $d | Out-Null
-    [IO.File]::WriteAllText((Join-Path $d "$ProcessId"), "$Label`t$ticks`n", $Utf8)
+    Add-KitPid $Run $ProcessId $Label $ticks
     [IO.File]::AppendAllText((Join-Path $Dir 'pids'), "$ProcessId $Label`t$ticks`n", $Utf8)
 }
 
@@ -261,13 +253,16 @@ function Get-LineTicks([string]$Line) {
     return ''
 }
 
-# Test-SessionPid PID START: $true when PID runs and has the start time
-# START. With no START, the answer is $false: the kit stops no process
-# that it cannot identify.
-function Test-SessionPid([int]$ProcessId, [string]$Ticks) {
+# Test-SessionPid RUN PID START: $true when RUN\pids\PID is ours
+# (Test-KitPidOurs of lib.ps1) and the process has the start time START
+# of the pids file of the session. With no START, the answer is $false:
+# the kit stops no process that it cannot identify. So a pid that Windows
+# gave again to a later process of the kit does not count for an old
+# session.
+function Test-SessionPid([string]$Run, [int]$ProcessId, [string]$Ticks) {
     if (-not $Ticks) { return $false }
-    $now = Get-StartTicks $ProcessId
-    return ($now -and $now -eq $Ticks)
+    if (-not (Test-KitPidOurs $Run $ProcessId)) { return $false }
+    return ((Get-KitProcessStart $ProcessId) -eq $Ticks)
 }
 
 # Get-RecordedTicks DIR PID: the START of PID in the pids file of the
@@ -289,7 +284,7 @@ function Get-RecordedTicks([string]$Dir, [string]$ProcessId) {
 function Update-SessionPids([string]$Run, [string]$Dir) {
     $root = Read-State $Dir 'pid'
     if ($root -notmatch '^\d+$') { return }
-    if (-not (Test-SessionPid ([int]$root) (Get-RecordedTicks $Dir $root))) { return }
+    if (-not (Test-SessionPid $Run ([int]$root) (Get-RecordedTicks $Dir $root))) { return }
     try {
         $all = @(Get-CimInstance -ClassName Win32_Process -Property ProcessId, ParentProcessId, CreationDate -ErrorAction Stop)
     } catch { return }
@@ -612,12 +607,17 @@ function Stop-SessionDir([string]$Run, [string]$Dir) {
             $id = ($line -split ' ')[0]
             if ($id -notmatch '^\d+$') { continue }
             $ticks = Get-LineTicks $line
-            for ($n = 0; $n -lt 20 -and (Test-SessionPid ([int]$id) $ticks); $n++) { Start-Sleep -Milliseconds 100 }
-            if (Test-SessionPid ([int]$id) $ticks) {
+            for ($n = 0; $n -lt 20 -and (Test-SessionPid $Run ([int]$id) $ticks); $n++) { Start-Sleep -Milliseconds 100 }
+            if (Test-SessionPid $Run ([int]$id) $ticks) {
                 Write-Output "stop: $id $((($line -split ' ', 2)[1] -split "`t")[0])"
                 Stop-Process -Id ([int]$id) -Force -ErrorAction SilentlyContinue
             }
-            Remove-Item -Force -LiteralPath (Join-Path (Join-Path $Run 'pids') $id) -ErrorAction SilentlyContinue
+            # Remove the pid file only when it is the file of this process,
+            # not the file of a later process with the same pid.
+            $pidFile = Join-Path (Join-Path $Run 'pids') $id
+            $fileTicks = ''
+            if (Test-Path -LiteralPath $pidFile -PathType Leaf) { $fileTicks = Get-LineTicks ([IO.File]::ReadAllText($pidFile)) }
+            if (-not $fileTicks -or $fileTicks -eq $ticks) { Remove-Item -Force -LiteralPath $pidFile -ErrorAction SilentlyContinue }
         }
     }
     $work = Read-State $Dir 'work'
@@ -716,7 +716,7 @@ switch ($sub) {
                 foreach ($f in Get-ChildItem -LiteralPath $pd -File) {
                     if ($f.Name -notmatch '^\d+$') { continue }
                     $text = [IO.File]::ReadAllText($f.FullName)
-                    if (Test-SessionPid ([int]$f.Name) (Get-LineTicks $text)) {
+                    if (Test-KitPidOurs $run ([int]$f.Name)) {
                         Write-Output "stop: $($f.Name) $(($text -split "`t")[0])"
                         Stop-Process -Id ([int]$f.Name) -Force -ErrorAction SilentlyContinue
                     }

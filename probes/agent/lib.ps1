@@ -641,9 +641,18 @@ function Get-KitOption([object[]]$ArgList, [string]$Name) {
 # The backends of the Windows kit. A step line lists its backends in the
 # column "backends"; "-" or an empty value means "none" (the probe).
 $script:KitWindowsBackends = @('none', 'conpty', 'psmux', 'operator')
-# The kinds and backends that this kit runs on Windows now. The session
-# steps come with Task 10 of the plan.
-$script:KitWindowsRuns = @{ 'probe' = @('none'); 'first-run' = @('conpty') }
+# The kinds and backends that this kit runs on Windows now. The kinds
+# permission, new-chat and interrupt run steps\session-step.ps1 in a test
+# session. "resume" does not run on Windows yet: a stop of a test session
+# deletes its work folder and its home, so a new start cannot resume it.
+$script:KitWindowsRuns = @{
+    'probe'        = @('none')
+    'first-run'    = @('conpty')
+    'permission'   = @('conpty', 'psmux')
+    'new-chat'     = @('conpty', 'psmux')
+    'interrupt'    = @('conpty', 'psmux')
+    'real-session' = @('operator')
+}
 
 # Get-KitStepBackends STEP: the backends of the step line that are Windows
 # backends, in the order of the line. The column "windows" (when the step
