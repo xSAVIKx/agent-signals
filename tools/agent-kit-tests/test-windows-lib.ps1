@@ -62,4 +62,31 @@ $x = ConvertTo-KitScrubbed ("a $script:KitRoot\probes b`nc $env:OneDrive\doc.txt
 Expect-True 'the kit folder changes to <kit>' ($x -match '(?m)^a <kit>\\probes b$') $x
 Expect-True 'a OneDrive folder changes to <onedrive>' ($x -match '(?m)^c <onedrive>\\doc\.txt d$') $x
 
+# Explicit entries of wide groups, as a new folder in RUNNER_TEMP has them
+# on windows-11-arm. The kit removes them and keeps the other entries.
+function New-WideFolder([string]$Name) {
+    $d = Join-Path $T $Name
+    New-Item -ItemType Directory -Path $d | Out-Null
+    $null = & icacls.exe $d /grant '*S-1-5-11:(OI)(CI)M' '*S-1-5-32-545:(OI)(CI)M' '*S-1-5-32-544:(OI)(CI)F' 2>&1
+    return $d
+}
+function Get-AclSids([string]$Dir) {
+    @((Get-Acl -LiteralPath $Dir).GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]) | ForEach-Object { [string]$_.IdentityReference.Value })
+}
+$me = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+$d = New-WideFolder 'wide-set'
+Expect-True 'Set-KitPrivate exits 0' ((Set-KitPrivate $d) -eq 0) 'icacls failed'
+$sids = @(Get-AclSids $d)
+Expect-True 'Set-KitPrivate removes Authenticated Users' ($sids -notcontains 'S-1-5-11') ($sids -join ' ')
+Expect-True 'Set-KitPrivate removes Users' ($sids -notcontains 'S-1-5-32-545') ($sids -join ' ')
+Expect-True 'Set-KitPrivate keeps this account' ($sids -contains $me) ($sids -join ' ')
+Expect-True 'Set-KitPrivate keeps SYSTEM' ($sids -contains 'S-1-5-18') ($sids -join ' ')
+Expect-True 'Set-KitPrivate keeps Administrators' ($sids -contains 'S-1-5-32-544') ($sids -join ' ')
+$d = New-WideFolder 'wide-hint'
+$hint = Get-KitPrivateCommand $d
+Expect-True 'the hint removes the wide groups' ($hint -match '/remove:g \*S-1-1-0 ') $hint
+$null = & cmd.exe /d /c $hint 2>&1
+$sids = @(Get-AclSids $d)
+Expect-True 'the hint works' ($sids -notcontains 'S-1-5-11' -and $sids -notcontains 'S-1-5-32-545' -and $sids -contains $me) ($sids -join ' ')
+
 Complete-Tests

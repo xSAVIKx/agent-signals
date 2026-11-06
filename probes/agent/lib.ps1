@@ -510,11 +510,20 @@ $script:KitTrustedSids = @(
     'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464'
 )
 
+# The wide groups that a folder can hold as explicit entries: Everyone,
+# Anonymous, Interactive, Authenticated Users, Users and Guests. On
+# windows-11-arm, a new folder in RUNNER_TEMP has such entries, and
+# "icacls /inheritance:r" does not remove them. So the kit removes them
+# with /remove:g.
+$script:KitWideSids = @('S-1-1-0', 'S-1-5-7', 'S-1-5-4', 'S-1-5-11', 'S-1-5-32-545', 'S-1-5-32-546')
+
 # Get-KitPrivateCommand DIR: the icacls command that gives only this
-# account and SYSTEM access to DIR.
+# account and SYSTEM access to DIR. An explicit entry of Administrators
+# stays.
 function Get-KitPrivateCommand([string]$Dir) {
     $me = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-    return ('icacls "{0}" /inheritance:r /grant:r "*{1}:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F"' -f $Dir.TrimEnd('\'), $me)
+    $wide = (@($script:KitWideSids | ForEach-Object { "*$_" }) -join ' ')
+    return ('icacls "{0}" /inheritance:r /remove:g {1} /grant:r "*{2}:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F"' -f $Dir.TrimEnd('\'), $wide, $me)
 }
 
 # Test-KitPlace DIR: the reasons why DIR must not hold a run folder: in a
@@ -708,6 +717,7 @@ function Test-KitScenario {
 # mode 0700 does on Unix. It returns the exit code of icacls.
 function Set-KitPrivate([string]$Dir) {
     $me = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-    $r = Invoke-KitNative 'icacls.exe' @($Dir, '/inheritance:r', '/grant:r', "*${me}:(OI)(CI)F", '*S-1-5-18:(OI)(CI)F')
+    $wide = @($script:KitWideSids | ForEach-Object { "*$_" })
+    $r = Invoke-KitNative 'icacls.exe' (@($Dir, '/inheritance:r', '/remove:g') + $wide + @('/grant:r', "*${me}:(OI)(CI)F", '*S-1-5-18:(OI)(CI)F'))
     return $r.Code
 }
