@@ -104,11 +104,13 @@ $w = Wait-KitProcess $run $p ($watchS + 15)
 $console = (Read-KitText "$out.watch.console") + (Read-KitText "$out.watch.err")
 $text = Read-KitText $watchOut
 foreach ($x in $watchOut, "$out.watch.console", "$out.watch.err") { Remove-Item -LiteralPath $x -Force -ErrorAction SilentlyContinue }
-if ($w.Code -eq 2 -and $console -match 'more than one session') { Write-Operator "more than one session of $agent runs. Keep one session." 'more-than-one' }
+if ($w.Code -eq 2 -and $console -match 'more than one session') { Write-Operator "more than one session of $agent runs. Keep one session." 'many-sessions' }
 if ($w.Code -eq 2 -and $console -match 'no session of') { Write-Operator "no session of $agent runs that started after the kit asked." 'no-session' }
 if ($w.TimedOut -or $w.Code -ne 0 -or -not $text) {
     Write-KitText $out ("# real-session ${agent}: the watch failed (exit $($w.Code))`n" + $console)
-    Write-KitText "$out.reason" "watch-failed`n"
+    $why = "guided-exit-$($w.Code)"
+    if ($w.TimedOut) { $why = 'watch-timeout' }
+    Write-KitText "$out.reason" "$why`n"
     exit 1
 }
 Write-KitText $out ("# agent-signals real session: $env:KIT_STEP@operator, kind $kind`n" + $text)

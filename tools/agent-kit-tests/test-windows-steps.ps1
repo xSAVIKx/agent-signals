@@ -34,13 +34,12 @@ function Start-Stub {
     return (Start-Process -FilePath $Exe -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$bin\claude.ps1`"") -WindowStyle Hidden -PassThru)
 }
 
-# The welcome box of a Claude screen is blank. A dialog box stays.
-$tl = [string][char]0x256D
-$bl = [string][char]0x2570
-$box = "$tl--- Claude Code ---`n| Welcome back alice`n$bl---`nidle`n$tl---`n| Do you want to proceed?`n$bl---`n"
-$clean = Clear-KitWelcomeBox $box
-if ($clean -notmatch 'alice') { Pass 'the welcome box is blank' } else { Fail 'the welcome box is blank' $clean }
-if ($clean -match '(?m)^idle$' -and $clean -match 'Do you want to proceed') { Pass 'the other lines stay' } else { Fail 'the other lines stay' $clean }
+# The lines of a Claude welcome box that can show a name are blank.
+$dot = [string][char]0x00B7
+$box = "| Welcome back alice`n| Example Org Ltd`n| Opus $dot Claude Max $dot bob`nidle`n| Do you want to proceed?`n"
+$clean = Clear-KitWelcomeBox $box @('Example Org')
+if ($clean -notmatch 'alice|Example Org|bob') { Pass 'the welcome box lines are blank' } else { Fail 'the welcome box lines are blank' $clean }
+if ($clean -match 'Claude Max' -and $clean -match '(?m)^idle$' -and $clean -match 'Do you want to proceed') { Pass 'the other lines stay' } else { Fail 'the other lines stay' $clean }
 
 # A fake home: the session uses the home of the run ("real"), so the stub
 # writes its key log in the Claude project folder of its work folder.
@@ -59,6 +58,8 @@ New-TextFile (Join-Path $bin 'claude.ps1') (@(
         '$env:STUB_LOG = Join-Path $d ''keys.jsonl'''
         "& '$stub'"
     ) -join "`r`n")
+# A fake agy writes no file, so its step has no records.
+New-TextFile (Join-Path $bin 'agy.ps1') "& '$stub'`r`n"
 $env:PATH = "$bin;$env:PATH"
 
 # The step list of the test, with the columns of probes/agent/steps.tsv.
@@ -74,11 +75,12 @@ New-TextFile $steps ((@(
             "stays-claude`tnew-chat`t$common`thello`t^stub idle`$`t-`tsend=Tab`tthe prompt stays on the screen`t-"
             "nobusy-claude`tinterrupt`t$common`twrite`tno-such-text`tEscape C-c`t-`tno busy screen`t-"
             "unmeasured-claude`tnew-chat`t$common`t/new-chat`t-`t-`t-`tno wait_regex`t-"
+            "ended-claude`tpermission`t$common`tnothing`tno-such-text`tEscape`t-`tthe agent ends`t-"
+            "norecords-agy`tpermission`t$($common -replace '^claude', 'agy')`twrite`tDo you want to create`tEscape`t-`tno file changes`t-"
             "real-session-claude`treal-session`tclaude`toperator`twindows`toperator`tnone`t-`t-`t-`t-`t-`t-`t-`t-`tthe real session`t-"
         ) -join "`n") + "`n")
 $env:KIT_STEPS = $steps
 $env:AGENT_SIGNALS_WATCH = '8'
-$env:AGENT_SIGNALS_STEP_WAIT = '6'
 
 Remove-Item Env:\AGENT_SIGNALS_RUN -ErrorAction SilentlyContinue
 $runs = Join-Path $T 'runs'
@@ -164,8 +166,8 @@ try {
         foreach ($s in 'idle', 'dialog', 'after') { Expect-Line "${b}: the step file has the $s screen" "^### screen $s$" $f }
         Expect-Line "${b}: the dialog screen shows the dialog" '^Do you want to create agent-signals-test\.txt\?$' $f
         Expect-Line "${b}: the step file has the guided watch" '^### guided watch$' $f
-        Expect-Line "${b}: the watch covers the wait and the hold" '^kit: watch starts, 14 s$' $f
-        Expect-Line "${b}: the step holds the answer" '^t=\S+ hold the answer for 8 s$' $f
+        Expect-Line "${b}: the watch covers the wait and the hold" '^kit: watch starts, 24 s$' $f
+        Expect-Line "${b}: the step holds the answer" '^t=\S+ the dialog shows\. Hold it for 8 s$' $f
         Expect-Line "${b}: the watch counts only the session pids" '^processes: claude=1$' $f
         Expect-NoLine "${b}: the watch does not count the other stub" "pid=$($other.Id) " $f
         Expect-Line "${b}: the watch reads the new JSONL lines" '^== ~\\\.claude\\projects\\<key>\\<file>\.jsonl \(bytes 0 -> \d+, \d+ new lines\)$' $f
@@ -174,6 +176,10 @@ try {
         Expect-NoLine "${b}: another project does not show" 'type=other' $f
         Expect-NoLine "${b}: one transcript shows" 'type=counted' $f
         Expect-Line "${b}: the step stops the session" '^t=\S+ stop: exit 0$' $f
+        # The stop file ends the watch, and the last snapshot sees the agent.
+        $seen = @(Select-String -LiteralPath $f -Pattern '^claude pid=').Count
+        if ($seen -ge 2) { Pass "${b}: the last snapshot sees the session" } else { Fail "${b}: the last snapshot sees the session" "$seen lines" }
+        Expect-Line "${b}: the step ends the watch before the stop" '^t=\S+ end the watch$' $f
         $live = @(Get-LivePids)
         if ($live.Count -eq 0) { Pass "${b}: no session pid runs after the step" } else { Fail "${b}: no session pid runs after the step" ($live -join ' ') }
         if (Get-Process -Id $other.Id -ErrorAction SilentlyContinue) { Pass "${b}: the step leaves the other stub" } else { Fail "${b}: the step leaves the other stub" 'it stopped' }
@@ -189,8 +195,8 @@ try {
         Expect-Line "${b}: no-dialog keeps the last screen" '^### screen last$' $f
         Expect-Line "${b}: the send key is Tab" '^send key: Tab$' $f
         $log = @(Get-ChildItem -Path (Join-Path $h '.claude\projects') -Recurse -Filter 'keys.jsonl' -File | Sort-Object LastWriteTimeUtc | Select-Object -Last 1)[0].FullName
-        $last = @((Get-Text $log) -split '\r?\n' | Where-Object { $_ })[-1]
-        if ($last -eq 'key Tab') { Pass "${b}: the stub got Tab after the prompt" } else { Fail "${b}: the stub got Tab after the prompt" "last key: $last" }
+        $keyLines = @((Get-Text $log) -split '\r?\n' | Where-Object { $_ })
+        if ($keyLines -contains 'key Tab' -and $keyLines -notcontains 'key Enter') { Pass "${b}: the stub got Tab, not Enter" } else { Fail "${b}: the stub got Tab, not Enter" ($keyLines -join ',') }
 
         # A prompt that starts with "/" gets Enter, also with send=Tab.
         Expect-Kit "${b}: the new-chat step exits 0" 0 'step' "newchat-claude@$b"
@@ -200,7 +206,7 @@ try {
 
         # The prompt text stays on the screen: no new chat.
         Expect-Kit "${b}: new-chat with the prompt on the screen fails" 1 'step' "stays-claude@$b"
-        Expect-Line "${b}: the reason is no-idle" "^step: stays-claude@$b fail no-idle$" $out
+        Expect-Line "${b}: the reason is prompt-on-screen" "^step: stays-claude@$b fail prompt-on-screen$" $out
 
         # no-dialog is only for permission.
         Expect-Kit "${b}: interrupt with no busy screen fails" 1 'step' "nobusy-claude@$b"
@@ -209,6 +215,27 @@ try {
         # A line with no wait_regex is not measured.
         Expect-Kit "${b}: a line with no wait_regex skips" 3 'step' "unmeasured-claude@$b"
         Expect-Line "${b}: the reason is unmeasured" "^step: unmeasured-claude@$b skip unmeasured$" $out
+
+        # The agent writes no file: the step is ok, and says so.
+        Expect-Kit "${b}: a step with no records exits 0" 0 'step' "norecords-agy@$b"
+        Expect-Line "${b}: the reason is no-records" "^step: norecords-agy@$b ok no-records$" $out
+
+        # The agent ends in the step.
+        $killPs1 = Join-Path $T 'kill.ps1'
+        New-TextFile $killPs1 (@(
+                '$end = (Get-Date).AddSeconds(60)'
+                '$f = $null'
+                'while (-not $f -and (Get-Date) -lt $end) {'
+                "  `$f = @(Get-ChildItem -Path '$run\sessions\st-*\pid' -File -ErrorAction SilentlyContinue | Where-Object { -not (Test-Path -LiteralPath (Join-Path `$_.DirectoryName 'stopped')) }) | Select-Object -First 1"
+                '  Start-Sleep -Milliseconds 300'
+                '}'
+                'Start-Sleep -Seconds 4'
+                'if ($f) { Stop-Process -Id ([int](Get-Content -LiteralPath $f.FullName)) -Force }'
+            ) -join "`r`n")
+        $killer = Start-Process -FilePath $Exe -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$killPs1`"") -WindowStyle Hidden -PassThru
+        Expect-Kit "${b}: a step whose agent ends fails" 1 'step' "ended-claude@$b"
+        Expect-Line "${b}: the reason is agent-ended" "^step: ended-claude@$b fail agent-ended$" $out
+        Stop-Process -Id $killer.Id -Force -ErrorAction SilentlyContinue
     }
 
     # test_real_session_asks_first.
@@ -261,7 +288,7 @@ try {
     $late2 = Start-Stub
     Start-Sleep -Seconds 2
     Expect-Kit 'real-session --ready refuses two sessions' 4 'step' 'real-session-claude@operator' '--ready'
-    Expect-Line 'the reason is more-than-one' '^step: real-session-claude@operator operator more-than-one$' $out
+    Expect-Line 'the reason is many-sessions' '^step: real-session-claude@operator operator many-sessions$' $out
 
     # test_stop_ends_only_the_pids: a stop --all after the steps leaves
     # the stubs that the kit did not start.

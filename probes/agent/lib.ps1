@@ -683,23 +683,24 @@ function Test-KitStepRuns($Step, [string]$Backend) {
     return ($script:KitWindowsRuns.ContainsKey($k) -and ($script:KitWindowsRuns[$k] -contains $Backend))
 }
 
-# Clear-KitWelcomeBox TEXT: TEXT with each line of the welcome box of a
-# Claude screen blank. The box can hold the account name, the organization
-# and the folder. It starts with U+256D and ends with U+2570, and it holds
-# "Claude Code" or "Welcome". A dialog box stays. Not measured on a real
-# screen on Windows.
-function Clear-KitWelcomeBox([string]$Text) {
-    $top = [string][char]0x256D
-    $end = [string][char]0x2570
+
+# Clear-KitWelcomeBox TEXT [VALUES]: TEXT with each line that can show a
+# display name or an organisation changed to <blanked by the kit>, as
+# blank() of session-step.sh does: "Welcome back", "Organisation", each
+# line that holds one of VALUES, and the end of a line after
+# " . Claude Max . " (the dots are U+00B7). Not measured on a real screen.
+function Clear-KitWelcomeBox([string]$Text, [string[]]$Values = @()) {
+    $x = '<blanked by the kit>'
+    $dot = [string][char]0x00B7
+    $plan = " $dot Claude [A-Z][A-Za-z]*( [A-Za-z]+)? $dot "
     $lines = @($Text -split "`n")
     for ($i = 0; $i -lt $lines.Count; $i++) {
-        if (-not $lines[$i].TrimStart().StartsWith($top)) { continue }
-        $j = $i
-        while ($j -lt $lines.Count - 1 -and -not $lines[$j].TrimStart().StartsWith($end)) { $j++ }
-        if (-not $lines[$j].TrimStart().StartsWith($end)) { continue }
-        if (($lines[$i..$j] -join "`n") -notmatch 'Claude Code|Welcome') { continue }
-        for ($k = $i; $k -le $j; $k++) { $lines[$k] = '' }
-        $i = $j
+        $l = $lines[$i]
+        $hit = $l -match 'Welcome back|Organi[sz]ation'
+        foreach ($v in $Values) { if ($v.Length -gt 2 -and $l.Contains($v)) { $hit = $true } }
+        if ($hit) { $lines[$i] = $x; continue }
+        $m = [regex]::Match($l, $plan)
+        if ($m.Success) { $lines[$i] = $l.Substring(0, $m.Index + $m.Length) + $x }
     }
     return ($lines -join "`n")
 }

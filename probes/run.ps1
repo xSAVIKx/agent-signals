@@ -35,8 +35,12 @@
 #                  and the processes below that agent.
 #   -StateHome DIR read the agent folders below DIR, not below the
 #                  profile (for example the throwaway home of a session).
-#   -Scope LIST    folders that the step can show, separated by "|". A
-#                  folder can appear after the watch starts.
+#   -Scope LIST    folders that the step can show, separated by "|". Each
+#                  folder must exist.
+#   -ScopeNew LIST as -Scope, for absolute paths of folders that can
+#                  appear after the watch starts.
+#   -StopFile FILE end the watch early: when FILE exists, the kit takes the
+#                  last snapshot and writes the file.
 #   -StartedAfter T  count only the processes that started after T (UTC
 #                  ticks).
 #   -RealSession   count only the processes of this user that have a
@@ -66,6 +70,8 @@ param(
   [switch]$ExceptCaller,
   [string]$StateHome,
   [string]$Scope,
+  [string]$ScopeNew,
+  [string]$StopFile,
   [long]$StartedAfter = 0,
   [switch]$RealSession,
   [string]$Out
@@ -339,9 +345,16 @@ if ($Guided) {
   }
   function Get-AllCounted($Set) { foreach ($a in $which) { $Set[$a] } }
 
-  # The folders of -Scope: a list separated by "|". A folder can appear
-  # after the first prompt, so it can be missing now.
+  # The folders of -Scope and -ScopeNew: lists separated by "|". A folder of
+  # -ScopeNew can appear after the first prompt, so it can be missing now.
   $scopes = @(([string]$Scope -split '\|') | Where-Object { $_ })
+  foreach ($s in $scopes) {
+    if (-not (Test-Path -LiteralPath $s -PathType Container)) { Stop-Guided "-Scope: no folder $s" }
+  }
+  foreach ($s in @(([string]$ScopeNew -split '\|') | Where-Object { $_ })) {
+    if (-not [IO.Path]::IsPathRooted($s)) { Stop-Guided "-ScopeNew needs an absolute path: $s" }
+    $scopes += $s
+  }
   $script:HandleTool = $null
   foreach ($t in 'handle64.exe', 'handle.exe') {
     $c = Get-Command $t -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -520,17 +533,18 @@ if ($Guided) {
   Say "  $($actions[$Guided])"
   Say "kit: watch starts, $watchS s"
 
-  # A sample every 2 s.
+  # A sample every 2 s. A -StopFile ends the watch early.
   $t0 = Get-Date
-  $t = 0
-  while ($t + 2 -le $watchS) {
-    $t += 2
-    $left = ($t0.AddSeconds($t) - (Get-Date)).TotalMilliseconds
-    if ($left -gt 0) { Start-Sleep -Milliseconds ([int]$left) }
-    [void]$status.Add((Get-ClaudeStatus $firstProcs))
+  $endAt = $t0.AddSeconds($watchS)
+  $next = 2
+  while ((Get-Date) -lt $endAt) {
+    if ($StopFile -and (Test-Path -LiteralPath $StopFile)) { break }
+    Start-Sleep -Milliseconds 200
+    if (((Get-Date) - $t0).TotalSeconds -ge $next) {
+      [void]$status.Add((Get-ClaudeStatus $firstProcs))
+      $next += 2
+    }
   }
-  $left = ($t0.AddSeconds($watchS) - (Get-Date)).TotalMilliseconds
-  if ($left -gt 0) { Start-Sleep -Milliseconds ([int]$left) }
 
   $counted = Get-Counted
   Add-Line 'processes after the step:'
