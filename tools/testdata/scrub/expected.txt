@@ -17,6 +17,7 @@ claude key: ~/.claude/projects/-work-example/1.jsonl and /tmp/claude-501/-work-e
 cursor key: ~/.cursor/projects/-work-example/agent-transcripts
 versions: os: linux 6.8.0.1017-azure, FileVersion 1.4.4.0, v1.2.3.4 and <ip> stays an ip
 claude key windows: ~\.claude\projects\-work-example\1.jsonl and -work-example
+claude key lower case: ~\.claude\projects\-work-example\1.jsonl
 cursor key windows: ~\.cursor\projects\-work-example\agent-transcripts and "-work-example"
 drive path: /work/example and /work/example and /work/example
 drive path with hidden folder: /work/example\.codex\hooks.json

@@ -674,6 +674,27 @@ function Test-KitStepRuns($Step, [string]$Backend) {
     return ($script:KitWindowsRuns.ContainsKey($k) -and ($script:KitWindowsRuns[$k] -contains $Backend))
 }
 
+# Clear-KitWelcomeBox TEXT: TEXT with each line of the welcome box of a
+# Claude screen blank. The box can hold the account name, the organization
+# and the folder. It starts with U+256D and ends with U+2570, and it holds
+# "Claude Code" or "Welcome". A dialog box stays. Not measured on a real
+# screen on Windows.
+function Clear-KitWelcomeBox([string]$Text) {
+    $top = [string][char]0x256D
+    $end = [string][char]0x2570
+    $lines = @($Text -split "`n")
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        if (-not $lines[$i].TrimStart().StartsWith($top)) { continue }
+        $j = $i
+        while ($j -lt $lines.Count - 1 -and -not $lines[$j].TrimStart().StartsWith($end)) { $j++ }
+        if (-not $lines[$j].TrimStart().StartsWith($end)) { continue }
+        if (($lines[$i..$j] -join "`n") -notmatch 'Claude Code|Welcome') { continue }
+        for ($k = $i; $k -le $j; $k++) { $lines[$k] = '' }
+        $i = $j
+    }
+    return ($lines -join "`n")
+}
+
 # Test-KitScenario: true when the kit has the files of the conpty first
 # run. A release kit can lack them.
 function Test-KitScenario {

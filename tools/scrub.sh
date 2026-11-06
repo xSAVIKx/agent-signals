@@ -198,11 +198,11 @@ count "project path"
 
 # Agents name a project folder by its path with dashes: Claude
 # "-srv-work-app" or "-Users-alice-code-app", Cursor "Users-alice-code-app".
-# On Windows the key starts with an upper-case drive letter: Claude
+# On Windows the key starts with a drive letter: Claude
 # "D--Projects-app", Cursor "C-Users-alice-app" or "D-Projects-app". The
 # token after the drive letter must hold one more dash, so that a word such
 # as "X-ray" stays.
-rule "project key" 's#(^|[/\\ "])-?(srv|Users|home|var-lib|work)-[A-Za-z0-9._-]+#\1-work-example#g; s#(^|[/\\ "])[A-Z]--?[A-Za-z0-9._]+-[A-Za-z0-9._-]+#\1-work-example#g'
+rule "project key" 's#(^|[/\\ "])-?(srv|Users|home|var-lib|work)-[A-Za-z0-9._-]+#\1-work-example#g; s#(^|[/\\ "])[A-Za-z]--?[A-Za-z0-9._]+-[A-Za-z0-9._-]+#\1-work-example#g'
 # A key on another root: the key form of each extra root and of $PWD (one
 # or more dashes for each run of other characters), and each key in a
 # "projects" folder. A key with one word needs its dash.

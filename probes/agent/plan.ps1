@@ -11,9 +11,10 @@
 # The backends on Windows, from the column "backends":
 #   none      the probe.
 #   conpty    the first run: a driver Python (or uv) and the scenario
-#             files. A test session (permission, new-chat, interrupt): a
-#             Python that imports winpty, pyte, wcwidth and psutil, as
-#             "kit session start --via conpty" finds it.
+#             files. A test session (permission, new-chat, interrupt):
+#             scenarios\conpty.py and a Python that imports winpty, pyte,
+#             wcwidth and psutil, as "kit session start --via conpty"
+#             finds it.
 #   psmux     a test session: psmux (or pmux) on PATH.
 #   operator  the real session of the operator: no tool.
 $ErrorActionPreference = 'Stop'
@@ -40,6 +41,9 @@ $agents = @{}
 foreach ($a in @(Find-KitAgents)) { $agents[$a.Name] = $a }
 $conpty = Get-KitConptyTool $python $run
 $scenario = Test-KitScenario
+# A release kit can lack the driver of the test sessions. Then "kit step"
+# skips with the reason needs-scenario, as the first run does.
+$conptyDriver = Test-Path -LiteralPath (Join-Path $script:KitRoot 'scenarios\conpty.py') -PathType Leaf
 
 # Test-SessionPython: true when a Python of "kit session" imports the
 # packages of the conpty driver. The order of session.ps1:
@@ -77,7 +81,7 @@ foreach ($s in @(Read-KitSteps)) {
             if ($s.kind -eq 'first-run') {
                 # The conpty first run needs a driver Python and the scenario files.
                 if (-not $conpty -or -not $scenario) { continue }
-            } elseif (-not (Test-SessionPython)) { continue }
+            } elseif (-not $conptyDriver -or -not (Test-SessionPython)) { continue }
         }
         if ($backend -eq 'psmux' -and -not $psmux) { continue }
         $line = 'step: {0}@{1} needs={2} cost={3} measures={4}' -f $s.name, $backend, $s.needs, $s.cost, $s.measures

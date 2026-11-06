@@ -6,14 +6,20 @@
 #   kit step real-session-AGENT@operator            exit 4: what to do
 #   kit step real-session-AGENT@operator --ready [--kind KIND]
 #
-# The first call writes "operator: <action>" lines to the step file and
-# exits 4. With --ready, it runs the guided watch (probes\run.ps1 -Guided
-# KIND AGENT) for AGENT_SIGNALS_WATCH seconds (default 30). KIND is
-# permission (the default), new-chat, resume or interrupt. The watch
-# counts only the processes of the agent that are not in RUN\pids\ (the
-# kit started them), not above this step, and not the agent that runs the
-# kit (the orchestrator) or a process below it. When no such process runs,
-# the step exits 4 again.
+# The first call writes "operator: <action>" lines to the step file,
+# records the time in RUN\.kit\, and exits 4. With --ready, it runs the
+# guided watch (probes\run.ps1 -Guided KIND AGENT) for AGENT_SIGNALS_WATCH
+# seconds (default 30). KIND is permission (the default), new-chat, resume
+# or interrupt. The watch takes a process of the agent only when:
+#   - this user owns it, and it started after the first call;
+#   - it has a console host or a terminal above it;
+#   - it is not in RUN\pids\ (the kit started it), not above this step,
+#     and not the agent that runs the kit (the orchestrator) or a process
+#     below that agent.
+# With no such process, or with more than one session, the step writes
+# the "operator:" lines again and exits 4. The watch shows only the session
+# files of the process, not the files of an excepted process. The step
+# prints the line "kit: watch starts, N s" on its stdout.
 # Exit codes: 0 ok, 1 fail, 4 the operator must act.
 $ErrorActionPreference = 'Stop'
 . (Join-Path (Split-Path -Parent $PSScriptRoot) 'lib.ps1')
@@ -41,7 +47,7 @@ $actions = @{
     'interrupt'  = 'send a prompt that takes some time, then push Esc while the agent works. Then push Ctrl+C one time.'
 }
 
-function Write-Operator([string]$Why) {
+function Write-Operator([string]$Why, [string]$Reason) {
     $lines = @(
         "operator: start $agent in a real terminal app (Windows Terminal, a JetBrains IDE or VS Code), in a folder that you choose."
         "operator: wait for its idle screen. Do not type into it yet."
@@ -52,24 +58,54 @@ function Write-Operator([string]$Why) {
     $text = ($lines -join "`n") + "`n"
     Write-KitText $out $text
     [Console]::Out.Write($text)
-    Write-KitText "$out.reason" "start-$agent-then-ready`n"
+    Write-KitText "$out.reason" "$Reason`n"
     exit 4
 }
 
-if (-not $ready) { Write-Operator '' }
+# The time of the first call, in UTC ticks. A later call keeps it, so that
+# a session that the operator started after the first call still counts.
+$askFile = Join-Path $run ".kit\ask-$agent"
+$ask = (Read-KitText $askFile).Trim()
+if (-not $ready) {
+    if (-not $ask) {
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $askFile) | Out-Null
+        Write-KitText $askFile ([string](Get-Date).ToUniversalTime().Ticks + "`n")
+    }
+    Write-Operator '' 'ask'
+}
+if ($ask -notmatch '^\d+$') {
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $askFile) | Out-Null
+    Write-KitText $askFile ([string](Get-Date).ToUniversalTime().Ticks + "`n")
+    Write-Operator 'the kit must ask first, so that it knows the start of the session.' 'ask'
+}
+
+function Read-Shared([string]$File) {
+    try {
+        $fs = New-Object System.IO.FileStream($File, [IO.FileMode]::Open, [IO.FileAccess]::Read, ([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete))
+        try { return (New-Object System.IO.StreamReader($fs)).ReadToEnd() } finally { $fs.Dispose() }
+    } catch { return '' }
+}
 
 $runPs1 = Join-Path $script:KitRoot 'probes\run.ps1'
 $exe = (Get-Process -Id $PID).Path
 $watchOut = "$out.watch"
-$argText = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File ' + (Format-KitArg $runPs1) +
-    " -Guided $kind $agent -Wait $watchS -ExceptPids " + (Format-KitArg (Join-Path $run 'pids')) + ' -ExceptCaller -Out ' + (Format-KitArg $watchOut)
 New-Item -ItemType Directory -Force -Path (Join-Path $run 'pids') | Out-Null
+$argText = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File ' + (Format-KitArg $runPs1) +
+    " -Guided $kind $agent -Wait $watchS -ExceptPids " + (Format-KitArg (Join-Path $run 'pids')) +
+    " -ExceptCaller -RealSession -StartedAfter $ask -Out " + (Format-KitArg $watchOut)
 $p = Start-KitProcess $run "watch real-session $agent" $exe $argText "$out.watch.console" "$out.watch.err" $run
-$w = Wait-KitProcess $run $p ($watchS + 120)
+$end = (Get-Date).AddSeconds(60)
+while ((Get-Date) -lt $end -and -not $p.HasExited) {
+    $m = [regex]::Match((Read-Shared "$out.watch.console"), '(?m)^kit: watch starts, .*$')
+    if ($m.Success) { [Console]::Out.WriteLine($m.Value.TrimEnd()); [Console]::Out.Flush(); break }
+    Start-Sleep -Milliseconds 200
+}
+$w = Wait-KitProcess $run $p ($watchS + 15)
 $console = (Read-KitText "$out.watch.console") + (Read-KitText "$out.watch.err")
 $text = Read-KitText $watchOut
 foreach ($x in $watchOut, "$out.watch.console", "$out.watch.err") { Remove-Item -LiteralPath $x -Force -ErrorAction SilentlyContinue }
-if ($w.Code -eq 2 -and $console -match 'no session of') { Write-Operator "no session of $agent runs outside the kit." }
+if ($w.Code -eq 2 -and $console -match 'more than one session') { Write-Operator "more than one session of $agent runs. Keep one session." 'more-than-one' }
+if ($w.Code -eq 2 -and $console -match 'no session of') { Write-Operator "no session of $agent runs that started after the kit asked." 'no-session' }
 if ($w.TimedOut -or $w.Code -ne 0 -or -not $text) {
     Write-KitText $out ("# real-session ${agent}: the watch failed (exit $($w.Code))`n" + $console)
     Write-KitText "$out.reason" "watch-failed`n"

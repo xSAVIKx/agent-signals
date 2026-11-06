@@ -35,12 +35,25 @@
 #                  and the processes below that agent.
 #   -StateHome DIR read the agent folders below DIR, not below the
 #                  profile (for example the throwaway home of a session).
+#   -Scope LIST    folders that the step can show, separated by "|". A
+#                  folder can appear after the watch starts.
+#   -StartedAfter T  count only the processes that started after T (UTC
+#                  ticks).
+#   -RealSession   count only the processes of this user that have a
+#                  console host or a terminal above them. Stop with exit 2
+#                  when more than one session matches.
 #   -Out FILE      write the file to FILE.
+# The step never walks the home folder. It shows only the files below
+# -Scope, the Claude pid file and the transcript of a counted process, and
+# the files that a counted process holds open. It does not show the files
+# of an excepted process. Paths have the project key, the other folder
+# names and the file stem masked.
 # The file of a guided step has the sections of the Unix guided file that
 # Windows can measure: the processes before and after, 1. the files that
-# changed, 2. the open state files (not measured: it needs Sysinternals
-# handle.exe), 3. the record types of the new JSONL lines, 4. the status
-# of the Claude pid files every 2 s. It holds no conversation text.
+# changed in length or time, 2. the open state files (not measured with no
+# Sysinternals handle.exe), 3. the record types of the JSONL lines after
+# the length at the start, 4. the status of the Claude pid files every
+# 2 s. It holds no conversation text, and it writes no copy of a file.
 # The exit code of a guided step: 0 ok, 2 bad use or no session runs.
 
 param(
@@ -52,6 +65,9 @@ param(
   [string]$ExceptPids,
   [switch]$ExceptCaller,
   [string]$StateHome,
+  [string]$Scope,
+  [long]$StartedAfter = 0,
+  [switch]$RealSession,
   [string]$Out
 )
 
@@ -238,8 +254,65 @@ if ($Guided) {
     return $set
   }
 
+  # Test-AnyAgent PROCESS: true when PROCESS matches an agent pattern.
+  function Test-AnyAgent($P) {
+    foreach ($pat in $patterns.Values) { if (Test-GuidedAgent $P $pat) { return $true } }
+    return $false
+  }
+
+  # Test-OwnProcess PROCESS: true when this user owns PROCESS.
+  $script:MySid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+  function Test-OwnProcess($P) {
+    try {
+      $r = Invoke-CimMethod -InputObject $P -MethodName GetOwnerSid -ErrorAction Stop
+      return ([string]$r.Sid -eq $script:MySid)
+    } catch { return $false }
+  }
+
+  # Test-HasTerminal PROCESS: true when PROCESS or a process above it has a
+  # console host as a child, or is a terminal program. A service or a
+  # background agent has neither.
+  function Test-HasTerminal($P) {
+    $hosts = @{}
+    foreach ($q in $script:Table.Values) {
+      $b = [IO.Path]::GetFileNameWithoutExtension([string]$q.Name)
+      if ($b -ieq 'conhost' -or $b -ieq 'OpenConsole') { $hosts[[int]$q.ParentProcessId] = $true }
+    }
+    $known = 'WindowsTerminal', 'Code', 'pycharm64', 'idea64', 'wezterm-gui', 'alacritty', 'mintty', 'ConEmu64'
+    $q = $P
+    for ($n = 0; $n -lt 40 -and $q; $n++) {
+      if ($hosts.ContainsKey([int]$q.ProcessId)) { return $true }
+      $b = [IO.Path]::GetFileNameWithoutExtension([string]$q.Name)
+      foreach ($k in $known) { if ($b -ieq $k) { return $true } }
+      $next = $script:Table[[int]$q.ParentProcessId]
+      if ($next -and $next.CreationDate -and $q.CreationDate -and $next.CreationDate -gt $q.CreationDate) { break }
+      $q = $next
+    }
+    return $false
+  }
+
+  # Get-Tops LIST: the processes of LIST with no process of LIST above
+  # them. One session can have a launcher and a program that both match.
+  function Get-Tops($List) {
+    $ids = @{}
+    foreach ($p in $List) { $ids[[int]$p.ProcessId] = $true }
+    foreach ($p in $List) {
+      $top = $true
+      $q = $p
+      for ($n = 0; $n -lt 40 -and $q; $n++) {
+        $pp = [int]$q.ParentProcessId
+        if ($ids.ContainsKey($pp)) { $top = $false; break }
+        $q = $script:Table[$pp]
+      }
+      if ($top) { $p }
+    }
+  }
+
   # Get-Counted: for each agent, the process objects that the step counts.
+  # It also sets $script:Excepted: the agent processes that the step must
+  # not show.
   $script:Table = $null
+  $script:Excepted = @()
   function Get-Counted {
     $script:Table = Get-Table
     $in = $null
@@ -247,52 +320,175 @@ if ($Guided) {
     $outSet = @{}
     if ($ExceptPids) { $outSet = Get-Below $script:Table @(Get-ListedPids $ExceptPids) }
     if ($ExceptCaller) { foreach ($k in (Get-CallerSet $script:Table).Keys) { $outSet[$k] = $true } }
+    $script:Excepted = @($script:Table.Values | Where-Object { $outSet.ContainsKey([int]$_.ProcessId) -and (Test-AnyAgent $_) })
     $self = '(?i)probes[\\/]([^\\/]+[\\/]windows|run)\.ps1'
     $r = [ordered]@{}
     foreach ($a in $which) {
-      $r[$a] = @($script:Table.Values | Where-Object {
+      $list = @($script:Table.Values | Where-Object {
           $id = [int]$_.ProcessId
           $id -ne $PID -and -not $outSet.ContainsKey($id) -and ($null -eq $in -or $in.ContainsKey($id)) -and
           -not ($_.CommandLine -and $_.CommandLine -match $self) -and (Test-GuidedAgent $_ $patterns[$a])
         } | Sort-Object ProcessId)
+      if ($StartedAfter -gt 0) {
+        $list = @($list | Where-Object { $_.CreationDate -and $_.CreationDate.ToUniversalTime().Ticks -gt $StartedAfter })
+      }
+      if ($RealSession) { $list = @($list | Where-Object { (Test-OwnProcess $_) -and (Test-HasTerminal $_) }) }
+      $r[$a] = $list
     }
     return $r
   }
+  function Get-AllCounted($Set) { foreach ($a in $which) { $Set[$a] } }
 
-  # Get-Lines: the line count of each JSONL file below the state folders.
-  function Get-JsonlCounts {
-    $c = @{}
-    foreach ($a in $which) {
-      foreach ($d in @(Get-StateDirs $a)) {
-        if (-not (Test-Path -LiteralPath $d -PathType Container)) { continue }
-        foreach ($f in @(Get-ChildItem -LiteralPath $d -Recurse -File -Filter '*.jsonl' -ErrorAction SilentlyContinue)) {
-          try { $c[$f.FullName] = @([IO.File]::ReadAllLines($f.FullName)).Count } catch { }
-        }
-      }
-    }
-    return $c
+  # The folders of -Scope: a list separated by "|". A folder can appear
+  # after the first prompt, so it can be missing now.
+  $scopes = @(([string]$Scope -split '\|') | Where-Object { $_ })
+  $script:HandleTool = $null
+  foreach ($t in 'handle64.exe', 'handle.exe') {
+    $c = Get-Command $t -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($c) { $script:HandleTool = $c.Source; break }
   }
 
-  # Get-ClaudeStatus: "PID STATUS" of each Claude pid file (fact 23). With
-  # -PidsFile, only the files named by a counted pid.
-  function Get-ClaudeStatus([hashtable]$Only) {
-    $d = Join-Path $StateHome '.claude\sessions'
+  # Get-OpenOf PROCESSES: the state files that the processes hold open. It
+  # needs Sysinternals handle.exe.
+  function Get-OpenOf($Procs) {
+    if (-not $script:HandleTool) { return }
+    foreach ($p in $Procs) {
+      $r = Invoke-Captured $script:HandleTool "-nobanner -p $($p.ProcessId)" 8000
+      if ($r.TimedOut) { continue }
+      foreach ($l in ((Remove-Ansi $r.Out) -split "`r?`n")) {
+        $m = [regex]::Match($l, '\bFile\b.*?([A-Za-z]:\\.+?)\s*$')
+        if ($m.Success -and $m.Groups[1].Value -match '(?i)\\\.?(claude|codex|gemini|cursor|opencode|copilot)\\') { $m.Groups[1].Value }
+      }
+    }
+  }
+
+  # Get-SessionFiles PROCESSES: the Claude pid file of each process and the
+  # transcript that the pid file names. The name of a project folder does
+  # not show, and the kit reads no other project.
+  function Get-SessionFiles($Procs) {
+    foreach ($p in $Procs) {
+      $f = Join-Path $StateHome ".claude\sessions\$($p.ProcessId).json"
+      if (-not (Test-Path -LiteralPath $f -PathType Leaf)) { continue }
+      $f
+      $sid = ''
+      try { $sid = [regex]::Match((Read-Shared $f), '"sessionId"\s*:\s*"([0-9A-Za-z-]{8,64})"').Groups[1].Value } catch { }
+      if (-not $sid) { continue }
+      $pd = Join-Path $StateHome '.claude\projects'
+      foreach ($d in @(Get-ChildItem -LiteralPath $pd -Directory -Force -ErrorAction SilentlyContinue)) {
+        $t = Join-Path $d.FullName "$sid.jsonl"
+        if (Test-Path -LiteralPath $t -PathType Leaf) { $t }
+      }
+    }
+  }
+
+  # Read-Shared FILE: the text of a file that an agent can write or delete
+  # now.
+  function Read-Shared([string]$File) {
+    $fs = New-Object System.IO.FileStream($File, [IO.FileMode]::Open, [IO.FileAccess]::Read, ([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete))
+    try { return (New-Object System.IO.StreamReader($fs, $utf8)).ReadToEnd() } finally { $fs.Dispose() }
+  }
+
+  # Get-InScope PROCESSES OPEN: the files that the step can show: the files
+  # below the -Scope folders, the session files of PROCESSES, and the files
+  # OPEN. The files of an excepted process do not show. The step reads no
+  # other file of the home folder.
+  function Get-InScope($Procs, $Open) {
+    $set = @{}
+    foreach ($d in $scopes) {
+      if (-not (Test-Path -LiteralPath $d -PathType Container)) { continue }
+      foreach ($f in @(Get-ChildItem -LiteralPath $d -Recurse -File -Force -ErrorAction SilentlyContinue)) { $set[$f.FullName] = $true }
+    }
+    foreach ($f in @(Get-SessionFiles $Procs)) { $set[$f] = $true }
+    foreach ($f in @($Open)) { if ($f) { $set[$f] = $true } }
+    if ($script:Excepted.Count -gt 0) {
+      foreach ($f in @(Get-SessionFiles $script:Excepted) + @(Get-OpenOf $script:Excepted)) { if ($f) { $set.Remove($f) } }
+    }
+    return $set
+  }
+
+  # The roots that Format-Masked knows: each state folder below the home.
+  $maskRoots = New-Object System.Collections.ArrayList
+  $homeBase = $StateHome.TrimEnd('\', '/')
+  foreach ($a in $which) {
+    foreach ($d in @(Get-StateDirs $a)) {
+      $label = '<state>'
+      if ($d.StartsWith($homeBase + '\', [StringComparison]::OrdinalIgnoreCase)) { $label = '~' + $d.Substring($homeBase.Length) }
+      [void]$maskRoots.Add(@($d, $label))
+    }
+  }
+  # Format-Masked FILE: FILE with the project key, the other folder names
+  # and the file stem masked. Folders of digits (a date) stay.
+  function Format-Masked([string]$File) {
+    $label = ''
+    $rest = ''
+    foreach ($r in $maskRoots) {
+      if ($File.StartsWith($r[0] + '\', [StringComparison]::OrdinalIgnoreCase)) { $label = $r[1]; $rest = $File.Substring($r[0].Length + 1); break }
+    }
+    if (-not $label) {
+      foreach ($s in $scopes) {
+        $b = $s.TrimEnd('\', '/')
+        if ($File.StartsWith($b + '\', [StringComparison]::OrdinalIgnoreCase)) { $label = '<scope>'; $rest = $File.Substring($b.Length + 1); break }
+      }
+    }
+    if (-not $label) { $label = '<other>'; $rest = Split-Path -Leaf $File }
+    $parts = @($rest -split '[\\/]+')
+    $o = $label
+    for ($i = 0; $i -lt $parts.Count - 1; $i++) {
+      if ($parts[$i] -match '^\d+$') { $o += '\' + $parts[$i] } elseif ($i -eq 0) { $o += '\<key>' } else { $o += '\<dir>' }
+    }
+    $ext = [IO.Path]::GetExtension($parts[-1])
+    if ($ext -notmatch '^\.[A-Za-z0-9]{1,8}$') { $ext = '' }
+    return "$o\<file>$ext"
+  }
+
+  # Read-NewLines FILE OFFSET: the whole lines of FILE after the byte
+  # OFFSET, at most 8 MiB, in memory. The file stays open for the agent.
+  function Read-NewLines([string]$File, [long]$Offset) {
+    $fs = New-Object System.IO.FileStream($File, [IO.FileMode]::Open, [IO.FileAccess]::Read, ([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete))
+    try {
+      $len = $fs.Length
+      if ($len -lt $Offset) { return [pscustomobject]@{ Length = $len; Short = $true; Lines = @() } }
+      [void]$fs.Seek($Offset, [IO.SeekOrigin]::Begin)
+      $n = [int][math]::Min($len - $Offset, 8MB)
+      $buf = New-Object byte[] $n
+      $got = 0
+      while ($got -lt $n) {
+        $k = $fs.Read($buf, $got, $n - $got)
+        if ($k -le 0) { break }
+        $got += $k
+      }
+    } finally { $fs.Dispose() }
+    # The text after the last line end is not a whole record yet.
+    $parts = @($utf8.GetString($buf, 0, $got) -split "`n")
+    $lines = @()
+    if ($parts.Count -gt 1) { $lines = @($parts[0..($parts.Count - 2)]) }
+    return [pscustomobject]@{ Length = $len; Short = $false; Lines = $lines }
+  }
+
+  # Get-ClaudeStatus PROCESSES: "PID STATUS" of the Claude pid file of each
+  # process (fact 23).
+  function Get-ClaudeStatus($Procs) {
     $parts = @()
-    foreach ($f in @(Get-ChildItem -LiteralPath $d -File -Filter '*.json' -ErrorAction SilentlyContinue | Sort-Object Name)) {
-      if ($Only -and -not $Only.ContainsKey($f.BaseName)) { continue }
+    foreach ($p in $Procs) {
+      $f = Join-Path $StateHome ".claude\sessions\$($p.ProcessId).json"
+      if (-not (Test-Path -LiteralPath $f -PathType Leaf)) { continue }
       $s = 'none'
       try {
-        $m = [regex]::Match([IO.File]::ReadAllText($f.FullName), '"status"\s*:\s*"([a-z]*)"')
+        $m = [regex]::Match((Read-Shared $f), '"status"\s*:\s*"([a-z]*)"')
         if ($m.Success) { $s = $m.Groups[1].Value }
-      } catch { }
-      $parts += "$($f.BaseName) $s"
+      } catch { $s = 'unreadable' }
+      $parts += "$($p.ProcessId) $s"
     }
     return ($parts -join ' ')
   }
 
   $counted = Get-Counted
   $running = @()
-  foreach ($a in $which) { if ($counted[$a].Count -gt 0) { $running += "$a=$($counted[$a].Count)" } }
+  foreach ($a in $which) {
+    $n = @(Get-Tops $counted[$a]).Count
+    if ($RealSession -and $n -gt 1) { Stop-Guided "more than one session of $a runs: $n" }
+    if ($counted[$a].Count -gt 0) { $running += "$a=$($counted[$a].Count)" }
+  }
   if ($running.Count -eq 0) { Stop-Guided "no session of $($which -join ' ') runs. Start a session, then run the step again." }
 
   $sb = New-Object System.Text.StringBuilder
@@ -302,17 +498,20 @@ if ($Guided) {
   Add-Line "watch: $watchS s"
   Add-Line "processes: $($running -join ' ')"
   foreach ($a in $which) { foreach ($p in $counted[$a]) { Add-Line "$a $(Format-ProcessLine $p)" } }
-  $before = Get-JsonlCounts
+
+  # The baseline: the length and the time of each file in the scope.
+  $firstProcs = @(Get-AllCounted $counted)
+  $openBefore = @(Get-OpenOf $firstProcs)
   $mark = (Get-Date).ToUniversalTime()
-  $only = $null
-  function Get-Only {
-    if (-not $PidsFile) { return $null }
-    $o = @{}
-    foreach ($a in $which) { foreach ($p in $counted[$a]) { $o[[string]$p.ProcessId] = $true } }
-    return $o
+  $base = @{}
+  foreach ($f in @((Get-InScope $firstProcs $openBefore).Keys)) {
+    try {
+      $fi = New-Object IO.FileInfo $f
+      if ($fi.Exists) { $base[$f] = @($fi.Length, $fi.LastWriteTimeUtc) }
+    } catch { }
   }
   $status = New-Object System.Collections.ArrayList
-  [void]$status.Add((Get-ClaudeStatus (Get-Only)))
+  [void]$status.Add((Get-ClaudeStatus $firstProcs))
   Add-Line ''
   Add-Line "kit: do this now. The kit watches the agent folders for $watchS s:"
   Add-Line "  $($actions[$Guided])"
@@ -328,7 +527,7 @@ if ($Guided) {
     $t += 2
     $left = ($t0.AddSeconds($t) - (Get-Date)).TotalMilliseconds
     if ($left -gt 0) { Start-Sleep -Milliseconds ([int]$left) }
-    [void]$status.Add((Get-ClaudeStatus (Get-Only)))
+    [void]$status.Add((Get-ClaudeStatus $firstProcs))
   }
   $left = ($t0.AddSeconds($watchS) - (Get-Date)).TotalMilliseconds
   if ($left -gt 0) { Start-Sleep -Milliseconds ([int]$left) }
@@ -336,43 +535,66 @@ if ($Guided) {
   $counted = Get-Counted
   Add-Line 'processes after the step:'
   foreach ($a in $which) { foreach ($p in $counted[$a]) { Add-Line "$a $(Format-ProcessLine $p)" } }
+  $lastProcs = @(Get-AllCounted $counted)
+  $openAfter = @(Get-OpenOf $lastProcs)
+
+  # The files of the scope now, for the processes of the start and of the
+  # end. A process can end in the watch.
+  $byId = @{}
+  foreach ($p in $firstProcs + $lastProcs) { $byId[[int]$p.ProcessId] = $p }
+  $now = Get-InScope @($byId.Values) $openAfter
+  $who = $which[0]
   Add-Line ''
   Add-Line '### 1. Files that changed during the step (size, path)'
-  foreach ($a in $which) {
-    $seen = @{}
-    foreach ($d in @(Get-StateDirs $a)) {
-      if (-not (Test-Path -LiteralPath $d -PathType Container)) { continue }
-      foreach ($f in @(Get-ChildItem -LiteralPath $d -Recurse -File -Force -ErrorAction SilentlyContinue | Sort-Object FullName)) {
-        if ($f.LastWriteTimeUtc -lt $mark -or $seen.ContainsKey($f.FullName)) { continue }
-        $seen[$f.FullName] = $true
-        Add-Line "$a $($f.Length) $($f.FullName)"
+  if (-not $script:HandleTool) { Add-Line 'not measured: the files that the processes hold open (no Sysinternals handle.exe)' }
+  $changed = New-Object System.Collections.ArrayList
+  foreach ($f in @(@($now.Keys) + @($base.Keys) | Sort-Object -Unique)) {
+    $mask = Format-Masked $f
+    try {
+      $fi = New-Object IO.FileInfo $f
+      $fi.Refresh()
+      if (-not $fi.Exists) {
+        if ($base.ContainsKey($f)) { Add-Line "$who deleted $mask" }
+        continue
       }
-    }
+      $offset = -1L
+      if ($base.ContainsKey($f)) {
+        if ($fi.Length -eq $base[$f][0] -and $fi.LastWriteTimeUtc -eq $base[$f][1]) { continue }
+        $offset = [long]$base[$f][0]
+      } elseif ($fi.CreationTimeUtc -ge $mark) {
+        $offset = 0L
+      } elseif ($fi.LastWriteTimeUtc -lt $mark) {
+        continue
+      }
+      Add-Line "$who $($fi.Length) $mask"
+      [void]$changed.Add(@($f, $mask, $offset))
+    } catch { Add-Line "$who unreadable $mask" }
   }
   Add-Line ''
   Add-Line '### 2. Open state files: before (<) and after (>)'
-  Add-Line 'not measured on Windows: the open files need Sysinternals handle.exe'
+  if ($script:HandleTool) {
+    foreach ($f in @($openBefore | Where-Object { $openAfter -notcontains $_ } | Sort-Object -Unique)) { Add-Line "< $(Format-Masked $f)" }
+    foreach ($f in @($openAfter | Where-Object { $openBefore -notcontains $_ } | Sort-Object -Unique)) { Add-Line "> $(Format-Masked $f)" }
+  } else {
+    Add-Line 'not measured on Windows: the open files need Sysinternals handle.exe'
+  }
   Add-Line ''
   Add-Line '### 3. New records in JSONL files (types only)'
-  $after = Get-JsonlCounts
-  foreach ($f in @($after.Keys | Sort-Object)) {
-    $o = 0
-    if ($before.ContainsKey($f)) { $o = $before[$f] }
-    $n = $after[$f]
-    if ($n -eq $o) { continue }
-    Add-Line "== $f (lines $o -> $n)"
-    if ($n -lt $o) { continue }
-    $new = @([IO.File]::ReadAllLines($f) | Select-Object -Skip $o -First 40)
-    $tmp = [IO.Path]::GetTempFileName()
+  foreach ($c in $changed) {
+    $f = $c[0]; $mask = $c[1]; $o = [long]$c[2]
+    if ($f -notmatch '(?i)\.jsonl$') { continue }
+    if ($o -lt 0) { Add-Line "== $mask (no length at the start of the watch)"; continue }
     try {
-      [IO.File]::WriteAllLines($tmp, [string[]]$new, $utf8)
-      foreach ($l in @(Get-JsonlTypes $tmp 40)) { Add-Line "  $l" }
-    } finally { Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue }
+      $r = Read-NewLines $f $o
+      if ($r.Short) { Add-Line "== $mask (bytes $o -> $($r.Length), shorter)"; continue }
+      Add-Line "== $mask (bytes $o -> $($r.Length), $($r.Lines.Count) new lines)"
+      foreach ($l in @($r.Lines | Select-Object -First 40)) { Add-Line "  $(Format-JsonlLine $l)" }
+    } catch { Add-Line "== $mask unreadable" }
   }
   if ($which -contains 'claude') {
     Add-Line ''
     Add-Line '### 4. Status of the Claude pid files, every 2 s (fact 23)'
-    if ($PidsFile) { Add-Line 'only the pid files of the counted pids (-PidsFile)' }
+    Add-Line 'only the pid files of the counted pids'
     for ($j = 0; $j -lt $status.Count; $j++) { Add-Line ("t={0}s: {1}" -f ($j * 2), $status[$j]) }
   }
 
