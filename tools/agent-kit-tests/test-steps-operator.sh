@@ -22,13 +22,43 @@ kitx step real-session-agy@operator --ready >"$T/step" 2>&1
 expect_code "real-session with no session: exit 4" 4 $?
 expect_line "real-session with no session: the reason" '^step: real-session-agy@operator operator no-session$' "$T/step"
 
+# detached CMD...: start CMD with no parent in this test, and print its
+# pid. A test can run below a real agent. The step leaves out the processes
+# below that agent, as it must.
+detached() {
+  (HOME=$H "$@" </dev/null >/dev/null 2>&1 & echo $!)
+}
+
+# An agy that started before the ask does not count.
+old=$(detached "$T/other/agy")
+bg_pid "$old"
+sleep 2
+kitx step real-session-agy@operator >"$T/step" 2>&1
+kitx step real-session-agy@operator --ready >"$T/step" 2>&1
+expect_code "real-session: an old session does not count: exit 4" 4 $?
+expect_line "real-session: an old session does not count: the reason" '^step: real-session-agy@operator operator no-session$' "$T/step"
+
+# Two new sessions: the kit does not guess.
+two1=$(detached "$T/other/agy")
+bg_pid "$two1"
+two2=$(detached "$T/other/agy")
+bg_pid "$two2"
+sleep 1
+kitx step real-session-agy@operator --ready >"$T/step" 2>&1
+expect_code "real-session with two sessions: exit 4" 4 $?
+expect_line "real-session with two sessions: an operator line" '^operator: 2 sessions of agy started after the kit asked' "$T/step"
+expect_line "real-session with two sessions: the reason" '^step: real-session-agy@operator operator many-sessions$' "$T/step"
+kill "$two1" "$two2" 2>/dev/null
+
+# A shell that runs command text with the agent name does not count.
+st=$(detached sh -c 'sleep 3600; : agy')
+bg_pid "$st"
+
 # test_real_session_ready: one agy that the test starts, outside the kit,
 # counts. An agy below the orchestrator and an agy in pids/ do not count.
-HOME=$H "$T/other/agy" &
-op=$!
+op=$(detached "$T/other/agy")
 bg_pid "$op"
-HOME=$H "$T/other/agy" &
-kp=$!
+kp=$(detached "$T/other/agy")
 bg_pid "$kp"
 (. "$ROOT/probes/agent/lib.sh" && kit_add_pid "$run" "$kp" "session test agent")
 (export ORCH_CHILD="$T/other/agy" ORCH_CHILD_PID="$T/orch-child" && WATCH=3 kitx step real-session-agy@operator --ready) >"$T/step" 2>&1
@@ -40,6 +70,8 @@ expect_line "real-session ready: the file has the guided step" '^agent-signals g
 expect_line "real-session ready: one agy counts" '^processes: agy=1$' "$f"
 expect_line "real-session ready: the agy of the operator counts" "^agy +$op " "$f"
 expect_no_line "real-session ready: the agy in pids/ does not count" "^agy +$kp " "$f"
+expect_no_line "real-session ready: the shell text does not count" "^agy +$st " "$f"
+expect_no_line "real-session ready: the old agy does not count" "^agy +$old " "$f"
 oc=$(cat "$T/orch-child" 2>/dev/null)
 if [ -n "$oc" ]; then
   expect_no_line "real-session ready: the agy below the orchestrator does not count" "^agy +$oc " "$f"
@@ -47,7 +79,7 @@ else
   fail "real-session ready: the agy below the orchestrator does not count" "the orchestrator started no child"
 fi
 [ "$rc" = 0 ] || show "$T/step"
-kill "$kp" "$op" 2>/dev/null
+kill "$kp" "$op" "$st" "$old" 2>/dev/null
 rm -f "$run/pids/$kp"
 
 # test_first_run_step: the stub agent as claude, on tmux, with no login.

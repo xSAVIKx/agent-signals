@@ -26,10 +26,20 @@
 #                      "key Escape", "key C-c", "key C-d", or "char C" for
 #                      a character C.
 #   STUB_DIALOG=no     the prompt of the permission steps opens no dialog.
+#   STUB_RECORDS=no    the stub writes no record (read record below).
+#   STUB_WELCOME=TEXT  the idle screen shows TEXT, as a welcome box does.
+#   STUB_EXIT=yes      the stub stops at a prompt.
+#   STUB_BUSY=no       "Count ..." does not make the stub busy.
+#   STUB_KEEP=yes      "/clear" stays on the screen.
 #   STUB_TRUST=yes     start with a trust question, with the selection on
 #                      "No, exit". Down moves the selection to "Yes, I
 #                      trust this folder". Enter on Yes goes to idle, Enter
 #                      on No stops the stub.
+#
+# Each prompt of a session step (Create, Count, /clear, Reply) writes the
+# file stub-work.txt in the current folder, and one record to the file
+# stub.jsonl in the Claude project folder of the current folder. The stub
+# makes that folder at the first prompt, and holds the file open.
 #
 # The stub starts no process while it waits for a key, except dd, so that
 # a process count sees one stub process.
@@ -78,10 +88,24 @@ draw() {
       ;;
     *)
       printf 'stub idle\r\n'
+      [ -n "${STUB_WELCOME:-}" ] && printf '%s\r\n' "$STUB_WELCOME"
       [ -n "$note" ] && printf '%s\r\n' "$note"
       printf '\r\n> %s\r\n? for shortcuts' "$buf"
       ;;
   esac
+}
+
+# record: read the comment at the start of this file.
+held=
+record() {
+  [ "${STUB_RECORDS:-}" = no ] && return 0
+  echo stub >stub-work.txt
+  if [ -z "$held" ]; then
+    held=${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects/$(printf '%s' "$(pwd -P)" | tr -c 'A-Za-z0-9' '-')
+    mkdir -p "$held"
+    exec 3>>"$held/stub.jsonl"
+  fi
+  echo '{"type":"user"}' >&3
 }
 
 # key: read one byte into c. dd writes it to a file, and "read" gets it
@@ -151,6 +175,12 @@ while :; do
       case $c in
         "$cr")
           case $buf in
+            "Create a file named"* | Count* | /clear | Reply*)
+              record
+              [ "${STUB_EXIT:-}" = yes ] && exit 0
+              ;;
+          esac
+          case $buf in
             write | "Create a file named"*)
               if [ "${STUB_DIALOG:-}" = no ]; then note="no dialog"; else state=dialog; fi
               ;;
@@ -158,8 +188,11 @@ while :; do
               env >stub-env.txt
               note="env saved"
               ;;
-            Count*) state=busy ;;
-            /clear) note="cleared" ;;
+            Count*) [ "${STUB_BUSY:-}" = no ] || state=busy ;;
+            /clear)
+              note="cleared"
+              [ "${STUB_KEEP:-}" = yes ] && note=/clear
+              ;;
             *) note= ;;
           esac
           buf=

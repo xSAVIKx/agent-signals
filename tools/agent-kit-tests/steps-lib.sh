@@ -47,8 +47,12 @@ mkdir -m 0700 "$D"
 # fake home, the fake agents first on PATH, no stdin and short waits.
 kitx() {
   (cd "$D" && HOME=$H PATH="$B:$PATH" AGENT_SIGNALS_WATCH=${WATCH:-10} \
-    KITSH=$ROOT/probes/agent/kit.sh "$T/orch/claude" "$@" </dev/null)
+    KITSH=${KITSH:-$ROOT/probes/agent/kit.sh} "$T/orch/claude" "$@" </dev/null)
 }
+
+# The grep of a file section: section FILE FROM TO prints the lines after
+# the first line that matches FROM, up to the next line that matches TO.
+section() { awk -v a="$2" -v b="$3" '$0 ~ a { s = 1; next } s && $0 ~ b { exit } s' "$1"; }
 
 # stub_set LINES: the settings of the stub agent.
 stub_set() { printf '%s\n' "$@" >"$B/claude.env"; }
