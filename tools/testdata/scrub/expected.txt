@@ -42,3 +42,4 @@ more secrets: <secret> <secret> <secret> <secret> <secret>
 jwt: token=<secret>
 underscore: API_KEY_<secret> and A=<secret>
 words: sk-learn-something-long-name and AKIAshort stay
+extra key: ~/.claude/projects/-work-example/1.jsonl and -work-example, ~/.claude/projects/-work-example/t.jsonl, 13-x@none.txt. %KITAT%
