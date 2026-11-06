@@ -184,10 +184,11 @@ function Test-Alive {
     $a = (Read-KitText (Join-Path $sdir 'pid')).Trim()
     return ($a -match '^\d+$' -and (Test-KitPidOurs $run ([int]$a)))
 }
-# Update-Screen: read the screen into $sc. A failed read ends the step.
+# Update-Screen: read the screen into $sc. A failed read ends the step. A
+# blank screen is not a failure: an agent can start slowly.
 function Update-Screen {
     $r = Invoke-Session @('screen', $name) (Get-Clip 30)
-    if ($r.Code -ne 0 -or -not $r.Out.Trim()) {
+    if ($r.Code -ne 0) {
         if (-not (Test-Alive)) { Stop-Step 'agent-ended' }
         Add-Log "no screen: exit $($r.Code) $($r.Err.Trim())"
         Stop-Step 'screen-failed'
