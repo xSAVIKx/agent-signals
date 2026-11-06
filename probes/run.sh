@@ -22,8 +22,13 @@
 #       --files-of-pids  show only the files that the counted processes
 #                        hold open, and the files under a --scope folder.
 #                        It needs --pids. It leaves out the agy summaries.
+#                        It reads no other file of the agent folders.
 #       --scope DIR      a folder that exists, for --files-of-pids. Give
 #                        it again for more folders.
+#       --scope-new DIR  as --scope, for a folder that can start in the
+#                        watch. DIR is an absolute path.
+#       --stop-file FILE end the watch early: when FILE exists, the kit
+#                        takes the "after" snapshot within 2 s.
 #       --out FILE       write the file to FILE.
 #   Without --wait, the kit waits for Enter, and then watches for
 #   AGENT_SIGNALS_WATCH seconds (default 30). When stdin is not a
@@ -148,6 +153,8 @@ run_all() {
 pids_from=
 scoped=
 scope=
+# stop_file: the --stop-file file. Empty: the watch takes its full time.
+stop_file=
 
 # start_of PID: the start time of PID, in the form that kit_pid_start of
 # probes/agent/lib.sh writes in a pids/ file.
@@ -192,37 +199,6 @@ listed() {
   tr -d '\r' <"$pids_from" | awk '{ gsub(/^[ \t]+|[ \t]+$/, "") } /^[0-9]+$/'
 }
 
-# prog_of PID: the program of PID: the base name of the first word of its
-# command line, with no trailing ":".
-prog_of() {
-  ps -o args= -p "$1" 2>/dev/null | awk '{ n = $1; sub(/.*\//, "", n); sub(/:$/, "", n); print n; exit }'
-}
-
-# is_mux PID: true when PID is a tmux or psmux process. A tmux server keeps
-# the command line of its first client, so an agent pattern can match it.
-is_mux() {
-  _c=$(ps -o comm= -p "$1" 2>/dev/null)
-  _c=${_c##*/}
-  case "$(prog_of "$1") $_c" in
-    tmux\ * | psmux\ * | *\ tmux | *\ tmux:* | *\ psmux) return 0 ;;
-  esac
-  return 1
-}
-
-# shell_text PID: true when PID is a shell that runs command text, for
-# example "bash -c TEXT". The text can hold the name of an agent (the shell
-# of a different tool session does this), so the step does not count it.
-# A shell that runs a script file ("sh /path/agy") still counts.
-shell_text() {
-  ps -o args= -p "$1" 2>/dev/null | awk '
-    {
-      n = $1; sub(/.*\//, "", n); sub(/^-/, "", n)
-      if (n !~ /^(sh|bash|zsh|dash|fish|ksh)$/) exit 1
-      for (i = 2; i <= NF && $i ~ /^-/; i++) if ($i ~ /^-[a-z]*c[a-z]*$/) exit 0
-      exit 1
-    }'
-}
-
 # watched: the pids of the --pids file or folder, and their children. A
 # listed tmux or psmux process does not count itself, only its children.
 watched() {
@@ -250,10 +226,44 @@ agent_pids() {
   done
 }
 
-# roots AGENT: the folders that the step reads for AGENT: the state
-# folders of the agent and the --scope folders, one on each line.
+# phys DIR: the physical path of the absolute path DIR. Lower parts that do
+# not exist stay as they are.
+phys() {
+  _d=$1
+  _t=
+  until [ -d "$_d" ]; do
+    _t=/${_d##*/}$_t
+    _d=${_d%/*}
+    [ -n "$_d" ] || _d=/
+  done
+  _b=$(CDPATH='' cd -P -- "$_d" && pwd -P) || return 1
+  printf '%s%s\n' "${_b%/}" "$_t"
+}
+
+# add_scope PATH: add a physical path to the --scope folders, one time.
+add_scope() {
+  case "
+$scope
+" in
+    *"
+$1
+"*) ;;
+    *) scope="$scope
+$1" ;;
+  esac
+}
+
+# stopped: true when the --stop-file file exists.
+stopped() { [ -n "$stop_file" ] && [ -e "$stop_file" ]; }
+
+# roots AGENT: the folders that the step reads for AGENT, one on each line:
+# the state folders of the agent and the --scope folders. With
+# --files-of-pids, only the --scope folders: the step must not walk all of
+# a large folder such as ~/.claude/projects.
 roots() {
-  for _d in $(state_dirs "$1"); do echo "$_d"; done
+  if [ -z "$scoped" ]; then
+    for _d in $(state_dirs "$1"); do echo "$_d"; done
+  fi
   printf '%s\n' "$scope" | sed '/^$/d'
 }
 
@@ -273,8 +283,10 @@ in_scope() {
 }
 
 # snapshot NAME AGENTS: the open state files of each agent process, and the
-# line count of the JSONL files. The line counts include files out of the
-# scope, so that a file that opens during the step has a count before.
+# line count of the JSONL files. Without --files-of-pids, the line counts
+# include files out of the scope, so that a file that opens during the step
+# has a count before. With --files-of-pids, such a file has no count before,
+# and all its lines count as new.
 snapshot() {
   name=$1
   shift
@@ -369,15 +381,19 @@ guided() {
         # The physical path: lsof gives physical paths, for example
         # /private/var on macOS.
         _s=$(CDPATH='' cd -P -- "$2" && pwd -P) || { echo "kit: --scope: cannot read $2"; exit 2; }
-        case "
-$scope
-" in
-          *"
-$_s
-"*) ;;
-          *) scope="$scope
-$_s" ;;
-        esac
+        add_scope "$_s"
+        shift 2
+        ;;
+      --scope-new)
+        [ "$#" -ge 2 ] || { echo "kit: --scope-new needs a folder"; exit 2; }
+        case $2 in /*) ;; *) echo "kit: --scope-new needs an absolute path: $2"; exit 2 ;; esac
+        _s=$(phys "$2") || { echo "kit: --scope-new: cannot read $2"; exit 2; }
+        add_scope "$_s"
+        shift 2
+        ;;
+      --stop-file)
+        [ "$#" -ge 2 ] && [ -n "$2" ] || { echo "kit: --stop-file needs a file"; exit 2; }
+        stop_file=$2
         shift 2
         ;;
       --out)
@@ -419,7 +435,7 @@ $_s" ;;
     resume) action="Exit one session. Then start it again with its resume command: cursor-agent --resume, claude --continue, codex resume --last, agy --continue." ;;
     interrupt) action="In one session, send a prompt that takes some time, then push Esc while the agent works. Then push Ctrl+C one time." ;;
     front-tab)
-      [ -z "$wait_s$pids_from$scoped$scope" ] || { echo "kit: front-tab asks questions, so it takes no other option"; exit 2; }
+      [ -z "$wait_s$pids_from$scoped$scope$stop_file" ] || { echo "kit: front-tab asks questions, so it takes no other option"; exit 2; }
       front_tab
       return
       ;;
@@ -479,17 +495,18 @@ $_s" ;;
   # A sample every 2 s.
   i=0
   t=0
-  while [ $((t + 2)) -le "$watch_s" ]; do
+  while [ $((t + 2)) -le "$watch_s" ] && ! stopped; do
     sleep 2
     t=$((t + 2))
     i=$((i + 1))
     claude_status >"$raw.status.$i"
     agy_sample "$raw.agy.$i"
   done
-  [ "$t" -lt "$watch_s" ] && sleep $((watch_s - t))
+  [ "$t" -lt "$watch_s" ] && ! stopped && sleep $((watch_s - t))
   # shellcheck disable=SC2086
   snapshot after $which
   {
+    stopped && echo "watch: the stop file ended the watch at about $t s"
     echo "processes after the step:"
     for a in $which; do
       for x in $(agent_pids "$a"); do echo "$a $(ps_line "$x")"; done
