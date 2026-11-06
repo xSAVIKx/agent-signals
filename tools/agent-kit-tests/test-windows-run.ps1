@@ -63,13 +63,13 @@ Remove-Item Env:\AGENT_SIGNALS_RUN -ErrorAction SilentlyContinue
 # The step list of the test. It has the columns of probes/agent/steps.tsv.
 $steps = Join-Path $T 'steps.tsv'
 New-TextFile $steps ((@(
-            "name`tkind`tagent`tbackends`tneeds`tcost`tprompt`twait_regex`tanswer`tmeasures`tfacts"
+            "name`tkind`tagent`tbackends`tneeds`tcost`tprompt`twait_regex`tanswer`tmeasures`tfacts`tidle_regex"
             "probe`tprobe`t-`t-`tnone`tnone`t-`t-`t-`tthe full probe kit`t-"
             "first-run-claude`tfirst-run`tclaude`ttmux,conpty`tnone`tnone`t-`t-`t-`tthe first start with no login`t029"
             "first-run-codex`tfirst-run`tcodex`ttmux,conpty`tnone`tnone`t-`t-`t-`tthe first start with no login`t029"
             "first-run-tmux-claude`tfirst-run`tclaude`ttmux,pty`tnone`tnone`t-`t-`t-`ta line with no Windows backend`t-"
             "first-login-claude`tfirst-run`tclaude`tconpty`tlogin`tturns:1`t-`t-`t-`ta test line with a login`t-"
-            "permission-claude`tpermission`tclaude`ttmux,pty,conpty`tlogin`tturns:1`tCreate a file named agent-signals-test.txt that holds the word hello.`tDo you want`t1`tthe permission dialog`t023"
+            "permission-claude`tpermission`tclaude`ttmux,pty,conpty`tlogin`tturns:1`tCreate a file named agent-signals-test.txt that holds the word hello.`tDo you want`t1`tthe permission dialog`t023`tstub idle"
         ) -join "`n") + "`n")
 $env:KIT_STEPS = $steps
 
