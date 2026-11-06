@@ -41,3 +41,4 @@ more secrets: <secret> <secret> <secret> <secret> <secret>
 jwt: token=<secret>
 underscore: API_KEY_<secret> and A=<secret>
 words: sk-learn-something-long-name and AKIAshort stay
+sid: icacls x /grant "*<sid>:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F" and <sid> alone

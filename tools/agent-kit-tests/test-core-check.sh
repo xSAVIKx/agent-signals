@@ -121,6 +121,21 @@ expect_code "kit check fails the value of an API key variable" 1 $?
 expect_line "the failure names the variable, not the value" 'holds the value of TEST_KIT_API_KEY$' "$T/out"
 expect_no_line "the failure does not print the value" 'abcd1234efgh5678' "$T/out"
 
+# The value of a key must not be on a command line, where "ps" shows it. A
+# grep stub writes its arguments to a log, then runs the real grep.
+mkdir -p "$T/argv"
+realgrep=$(command -v grep)
+cat >"$T/argv/grep" <<EOF
+#!/bin/sh
+printf '%s\\n' "\$*" >>"$T/argv.log"
+exec "$realgrep" "\$@"
+EOF
+chmod +x "$T/argv/grep"
+(cd "$T/secret" && HOME=$H PATH=$T/argv:$PATH TEST_KIT_API_KEY=abcd1234efgh5678 kitc "$T/k" check) >"$T/out" 2>&1
+expect_code "kit check with a grep stub finds the value" 1 $?
+expect_line "the grep stub ran" '.' "$T/argv.log"
+expect_no_line "no grep gets the value as an argument" 'abcd1234efgh5678' "$T/argv.log"
+
 new_run pid
 sleep 60 &
 p=$!

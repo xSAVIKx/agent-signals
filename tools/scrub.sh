@@ -15,6 +15,9 @@
 #   3. a path below ~ that is not in an agent or system folder:
 #      the folders up to the first hidden folder     -> /work/example
 #      (~/code/app/.claude/x -> /work/example/.claude/x, ~/code/app/a.go -> /work/example)
+#   3a. a Windows account SID, S-1-5-21-...          -> <sid>
+#      It comes before 4: a project key also matches a bare SID. The
+#      well-known SIDs (S-1-5-18, S-1-5-32-544) name no machine, and stay.
 #   4. /srv/... and /work/<name>/...                 -> /work/example, the same way,
 #      and a Windows drive path such as D:\Projects\shop, also after a \\?\
 #      prefix. C:\Windows, C:\Program Files and C:\ProgramData stay.
@@ -202,6 +205,7 @@ count "project path"
 # "D--Projects-app", Cursor "C-Users-alice-app" or "D-Projects-app". The
 # token after the drive letter must hold one more dash, so that a word such
 # as "X-ray" stays.
+rule "sid" 's#S-1-5-21(-[0-9]+){3,4}#<sid>#g'
 rule "project key" 's#(^|[/\\ "])-?(srv|Users|home|var-lib|work)-[A-Za-z0-9._-]+#\1-work-example#g; s#(^|[/\\ "])[A-Z]--?[A-Za-z0-9._]+-[A-Za-z0-9._-]+#\1-work-example#g'
 
 [ -n "$user" ] && rule "account name" "s#(^|[^A-Za-z0-9_.-])$(q "$user")([^A-Za-z0-9_-]|\$)#\\1dev\\2#g"

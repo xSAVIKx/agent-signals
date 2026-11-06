@@ -39,6 +39,7 @@ function Stop-Place([string]$Dir, [string[]]$Why) {
     if (@($Why | Where-Object { $_ -match 'can write|belongs to' }).Count -gt 0) {
         [Console]::Error.WriteLine('start: to give only this account and SYSTEM access to the folder, run:')
         [Console]::Error.WriteLine('  ' + (Get-KitPrivateCommand $Dir))
+        [Console]::Error.WriteLine('start: "whoami /user" prints the SID of this account for <sid>.')
     }
     Stop-Kit 2 'the folder is not a safe place for a run'
 }

@@ -511,10 +511,11 @@ $script:KitTrustedSids = @(
 )
 
 # Get-KitPrivateCommand DIR: the icacls command that gives only this
-# account and SYSTEM access to DIR.
+# account and SYSTEM access to DIR. It holds the text <sid>, not the SID of
+# the account: the hint can go to a public log. "whoami /user" prints the
+# SID.
 function Get-KitPrivateCommand([string]$Dir) {
-    $me = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-    return ('icacls "{0}" /inheritance:r /grant:r "*{1}:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F"' -f $Dir.TrimEnd('\'), $me)
+    return ('icacls "{0}" /inheritance:r /grant:r "*<sid>:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F"' -f $Dir.TrimEnd('\'))
 }
 
 # Test-KitPlace DIR: the reasons why DIR must not hold a run folder: in a

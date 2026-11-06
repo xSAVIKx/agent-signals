@@ -97,6 +97,7 @@ for h in "$host" "$short"; do
   [ -n "$h" ] && [ "$h" != host ] &&
     printf 'the host name\t%s\n' "(^|[^A-Za-z0-9_-])$(q "$h")([^A-Za-z0-9_-]|\$)" >>"$tmp/pats"
 done
+(umask 077 && : >"$tmp/value")
 env | awk -F '=' '$1 ~ /^[A-Za-z0-9_]*_(API_KEY|TOKEN|SECRET|PASSWORD|PAT|KEY)$/ { print $1 }' | sort -u >"$tmp/vars"
 while read -r b; do
   # The joined text: no box border and no white space at the edge of a
@@ -110,9 +111,14 @@ while read -r b; do
   while read -r v; do
     val=$(printenv "$v")
     [ "${#val}" -ge 8 ] || continue
-    if grep -Fq -- "$val" "$run/$b" || grep -Fq -- "$val" "$tmp/joined"; then
+    # The value goes to grep in a file of mode 0600, because "ps" shows a
+    # command line. The file has no empty line: an empty pattern matches
+    # each line.
+    printf '%s\n' "$val" | sed '/^$/d' >"$tmp/value"
+    if grep -Fqf "$tmp/value" "$run/$b" || grep -Fqf "$tmp/value" "$tmp/joined"; then
       say "$b: the file holds the value of $v"
     fi
+    : >"$tmp/value"
   done <"$tmp/vars"
   # A key or a token: the "secret" rule of the scrub finds one.
   for t in "$run/$b" "$tmp/joined"; do

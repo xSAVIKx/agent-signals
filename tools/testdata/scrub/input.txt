@@ -41,3 +41,4 @@ more secrets: ghu_FAKEfakeFAKEfake0000 ghr_FAKEfakeFAKEfake0000 glpat-FAKEfakeFA
 jwt: token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.c2lnbmF0dXJl
 underscore: API_KEY_sk-ant-api03-FAKEfakeFAKEfake_0000 and A=sk-FAKEfakeFAKEfake00
 words: sk-learn-something-long-name and AKIAshort stay
+sid: icacls x /grant "*S-1-5-21-2059143792-918228121-4054068362-500:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F" and S-1-5-21-1111-2222-3333-1001 alone

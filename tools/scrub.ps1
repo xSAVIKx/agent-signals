@@ -23,6 +23,8 @@
 #   3. project    a project path below ~, /srv/ or /work/<name>, or a drive
 #                 path such as D:\Projects\shop -> /work/example. C:\Windows,
 #                 C:\Program Files and C:\ProgramData stay.
+#   3a. sid       a Windows account SID, S-1-5-21-... -> <sid>. The
+#                 well-known SIDs stay.
 #   4. key        a project key such as -Users-alice-code-shop,
 #                 D--Projects-shop or C-Users-alice-shop -> -work-example
 #   5. user       the account name as a whole word -> dev
@@ -52,7 +54,7 @@
 
 param([string]$Path)
 
-$script:ScrubKinds = @('extra', 'home', 'other-home', 'project', 'key', 'user', 'domain', 'host', 'secret', 'uuid', 'hex', 'email', 'ip')
+$script:ScrubKinds = @('extra', 'home', 'other-home', 'project', 'sid', 'key', 'user', 'domain', 'host', 'secret', 'uuid', 'hex', 'email', 'ip')
 
 # A path ends at white space, a quote, a colon, a comma, a semicolon or a
 # parenthesis.
@@ -174,6 +176,10 @@ function Invoke-Scrub([string]$Text, [string]$HomeDir, [string]$User, [string]$H
       if ($system -contains $first.ToLowerInvariant()) { $m.Value } else { Convert-ProjectPath $m.Groups[1].Value $m.Value @() }
     } $counts 'project'
   }
+
+  # 3a. Windows account SIDs. This rule comes before the project keys,
+  # because a project key also matches a bare SID.
+  $s = Invoke-ScrubReplace $s 'S-1-5-21(?:-[0-9]+){3,4}' { '<sid>' } $counts 'sid'
 
   # 4. Project keys. The Windows form starts with an upper-case drive
   # letter and one or two dashes: Claude D--Projects-shop, Cursor
