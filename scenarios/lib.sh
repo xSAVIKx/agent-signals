@@ -126,8 +126,11 @@ tmux_start() {
     conf=$SCN_DIR/tmux.conf
     echo 'set -g remain-on-exit on' >"$conf"
   fi
+  # CLAUDE_CONFIG_DIR: on macOS, Claude Code names its Keychain login by the
+  # config folder, so a folder of its own keeps the login of the operator
+  # out of the throwaway HOME (not measured on macOS).
   env -i HOME="$SCN_HOME" PATH="$PATH" TERM=xterm-256color \
-    LANG="${LANG:-C.UTF-8}" USER=dev \
+    LANG="${LANG:-C.UTF-8}" USER=dev CLAUDE_CONFIG_DIR="$SCN_HOME/.claude" \
     tmux -L "$SCN_SOCK" -f "$conf" new-session -d -s scn \
     -x "$SCN_COLS" -y "$SCN_ROWS" -c "$SCN_WORK" \
     sh -c '. "$0"; rm -f "$0"; exec "$@"' "$SCN_DIR/env" "$@"
