@@ -56,6 +56,15 @@ machine.
    All 24 steps gave `ok`, and `kit check` gave `ok`. The agy steps on pty
    ran in a second run, after the change of item 7.
 
+9. In CI (run 42373309510) the same steps ran on 13 images: Ubuntu 22.04,
+   24.04 and 26.04 (x64 and arm64), macOS 15 and 26 (arm64 and Intel), and
+   Windows 2022, 2025 and 11 arm64. The agent versions were the newest
+   from npm and the agy install script on that day; the logs do not record
+   them. Each of Codex, Claude Code and agy gave 89 `ok` steps, with no
+   fail. On the four macOS images the job listed the keychain item names
+   before and after the fixture run: 7 or 8 items before, and no new item
+   after.
+
 ## Mechanism
 
 The fake model serves the Messages API for Claude Code and the Chat
@@ -76,7 +85,7 @@ behaviour of a model.
 
 ## Not measured
 
-- macOS and Windows.
+- The keychain of a Mac that holds a real login of Claude Code or agy.
 - The `genai` wire protocol of agy.
 - Whether the `Terms and Privacy` page of agy shows with a real gateway
   after the file of item 6.
