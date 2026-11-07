@@ -472,7 +472,9 @@ function Start-Session([string[]]$A) {
         $psmux = Find-Psmux
         if (-not $psmux) { Stop-Kit 3 'needs psmux on PATH' }
     }
-    $argv = Get-AgentArgv $agent $cmd
+    # @() keeps a list of one item a list: PowerShell returns @($path) as
+    # one string, and $argv[0] would be its first character.
+    $argv = @(Get-AgentArgv $agent $cmd)
 
     if (Test-Path -LiteralPath $dir) {
         if (-not (Test-Path -LiteralPath (Join-Path $dir 'stopped'))) { Stop-Kit 2 "the session exists: $name" }
@@ -563,7 +565,6 @@ function Start-Session([string[]]$A) {
         $tail = $argv
         if ($argv.Count -eq 1) { $tail = @('cmd.exe', '/d', '/c', $argv[0]) }
         $list = @('-L', $tag, 'new-session', '-d', '-s', 'kit', '-x', "$Cols", '-y', "$Rows", '-c', $work, '--') + $tail
-        Write-State $dir 'psmux-line' (Join-KitArgs (@($psmux) + $list))
         $s = Start-KitDetached $psmux $list $work $envPsmux 30
         Write-State $dir 'breakaway' $(if ($s.Breakaway) { 'yes' } else { 'no' })
         if (-not $s.Breakaway) { Write-State $dir 'breakaway-error' "$($s.Error)" }
