@@ -177,13 +177,13 @@ foreach ($b in 'conpty', 'psmux') {
         # prints "stub exe idle" and waits for a line.
         $exeBin = Join-Path $T "exe-bin-$b"
         New-Item -ItemType Directory -Force -Path $exeBin | Out-Null
-        $exe = Join-Path $exeBin 'claude.exe'
+        $stubExe = Join-Path $exeBin 'claude.exe'
         $src = Join-Path $exeBin 'stub.cs'
         [IO.File]::WriteAllText($src, 'public static class StubExe { public static void Main() { System.Console.WriteLine("stub exe idle"); while (System.Console.ReadLine() != null) { } } }')
         $csc = Join-Path $env:SystemRoot 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
         if (-not (Test-Path -LiteralPath $csc)) { $csc = Join-Path $env:SystemRoot 'Microsoft.NET\Framework\v4.0.30319\csc.exe' }
-        $null = & $csc /nologo /target:exe "/out:$exe" $src 2>&1
-        if (-not (Test-Path -LiteralPath $exe)) { throw "csc did not build $exe" }
+        $null = & $csc /nologo /target:exe "/out:$stubExe" $src 2>&1
+        if (-not (Test-Path -LiteralPath $stubExe)) { throw "csc did not build $stubExe" }
         $savedPath = $env:PATH
         $env:PATH = $exeBin + ';' + $env:PATH
         try {
@@ -209,9 +209,9 @@ foreach ($b in 'conpty', 'psmux') {
                 $keep = @{}
                 foreach ($i in Get-ChildItem Env:) { $keep[$i.Name] = $i.Value }
                 $variants = @(
-                    @('k', @($env:ComSpec, '/d', '/k', $exe)),
-                    @('c', @($env:ComSpec, '/d', '/c', $exe)),
-                    @('one', @($exe))
+                    @('k', @($env:ComSpec, '/d', '/k', $stubExe)),
+                    @('c', @($env:ComSpec, '/d', '/c', $stubExe)),
+                    @('one', @($stubExe))
                 )
                 foreach ($mode in 'kitenv', 'fullenv') {
                     foreach ($v in $variants) {
