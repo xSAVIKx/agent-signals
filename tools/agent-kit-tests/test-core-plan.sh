@@ -23,7 +23,7 @@ awk -F '\t' '
     if ($c["cost"] !~ /^(none|turns:[0-9]+)$/) print $1 ": cost " $c["cost"]
     if (!words($c["backends"], "^(none|tmux|pty|conpty|psmux|operator)$")) print $1 ": backends " $c["backends"]
     if (!words($c["os"], "^(linux|macos|windows)$")) print $1 ": os " $c["os"]
-    if ($c["agent"] !~ /^(-|claude|codex|agy|cursor)$/) print $1 ": agent " $c["agent"]
+    if ($c["agent"] !~ /^(-|claude|codex|agy|cursor-agent)$/) print $1 ": agent " $c["agent"]
     want = $c["kind"] ($c["agent"] == "-" ? "" : "-" $c["agent"])
     if ($1 != want) print $1 ": the name is not " want
   }
@@ -31,7 +31,7 @@ awk -F '\t' '
 if [ -s "$T/shape" ]; then fail "each line of steps.tsv has a known shape" "$(head -n 3 "$T/shape" | tr '\n' ';')"; else pass "each line of steps.tsv has a known shape"; fi
 
 for k in probe terminals first-run permission new-chat resume interrupt real-session; do
-  for a in claude codex agy cursor; do
+  for a in claude codex agy cursor-agent; do
     case $k in probe | terminals) n=$k ;; *) n=$k-$a ;; esac
     grep -q "^$n	" "$steps" || echo "$n" >>"$T/missing"
   done

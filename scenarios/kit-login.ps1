@@ -107,7 +107,9 @@ function Invoke-Login {
   & $exe -NoProfile -ExecutionPolicy Bypass -File $kit plan --home real *> $raw
   $step = ''
   foreach ($l in @(Get-Content -LiteralPath $raw)) {
-    if ($l -match "^step: (permission-$Agent@\S+) ") { $step = $Matches[1]; break }
+    # The kit names the Cursor CLI "cursor-agent".
+    $kitAgent = if ($Agent -eq 'cursor') { 'cursor-agent' } else { $Agent }
+    if ($l -match "^step: (permission-$kitAgent@\S+) ") { $step = $Matches[1]; break }
   }
   if (-not $step) { $script:why = 'the plan has no permission step'; return }
   & $exe -NoProfile -ExecutionPolicy Bypass -File $kit step $step *> $raw

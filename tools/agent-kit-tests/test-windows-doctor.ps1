@@ -48,7 +48,7 @@ Expect-Line 'the shell' '^shell: powershell [0-9]' $out
 Expect-Line 'a tool line' '^tool: git ' $out
 Expect-Line 'the conpty tool line' '^tool: conpty ' $out
 Expect-Line 'claude from the size of a versions file' '^agent: claude ~[\\/]\.local[\\/]bin[\\/]claude\.exe 2\.1\.316$' $out
-Expect-Line 'cursor from the newest versions folder' '^agent: cursor ~[\\/]AppData[\\/]Local[\\/]cursor-agent[\\/]cursor-agent\.cmd 2026\.10\.22-27dcf5f$' $out
+Expect-Line 'cursor from the newest versions folder' '^agent: cursor-agent ~[\\/]AppData[\\/]Local[\\/]cursor-agent[\\/]cursor-agent\.cmd 2026\.10\.22-27dcf5f$' $out
 Expect-Line 'codex from package.json' '^agent: codex \S+codex\.cmd 0\.166\.0$' $out
 Expect-Line 'gemini with no version' '^agent: gemini \S+gemini\.cmd unknown$' $out
 Expect-Line 'a renamed agy is not an install' '^agent: agy missing$' $out

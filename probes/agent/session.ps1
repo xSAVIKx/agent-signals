@@ -363,7 +363,7 @@ function Get-AgentArgv([string]$Agent, [string]$Cmd) {
     $ps = (Get-Process -Id $PID).Path
     if ($Cmd) { return @($ps, '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $Cmd) }
     # The command names of the agent come from lib.ps1: the Cursor CLI is
-    # cursor-agent or agent, not "cursor".
+    # cursor-agent or agent.
     $names = if ($script:KitAgentCommands.Contains($Agent)) { @($script:KitAgentCommands[$Agent]) } else { @($Agent) }
     $g = $null
     foreach ($n in $names) {

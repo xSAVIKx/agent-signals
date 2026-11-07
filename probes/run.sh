@@ -6,9 +6,10 @@
 #   sh probes/run.sh --all      run every probe
 #   sh probes/run.sh --guided STEP [AGENT] [OPTION ...]
 #       STEP: permission | new-chat | resume | interrupt | front-tab
-#       AGENT: claude | codex | agy | cursor | opencode | copilot | gemini
-#       (default: all). "cursor" is the Cursor CLI. Its command is
-#       "agent" or "cursor-agent", and the kit accepts all three names.
+#       AGENT: claude | codex | agy | cursor-agent | opencode | copilot | gemini
+#       (default: all). "cursor-agent" is the Cursor CLI. Its command is
+#       "cursor-agent" or "agent". The kit also accepts "agent" and
+#       "cursor" for it.
 #   Options of a guided step:
 #       --wait N         read no key: start the watch now, and watch for
 #                        N seconds (1 to 600). The action occurs in the
@@ -61,10 +62,10 @@ trap 'exit 143' TERM
 trap 'exit 130' INT
 trap 'exit 129' HUP
 
-agents="claude codex agy cursor opencode copilot gemini"
+agents="claude codex agy cursor-agent opencode copilot gemini"
 command_of() {
   case $1 in
-    cursor) command -v cursor-agent >/dev/null 2>&1 && echo cursor-agent || echo agent ;;
+    cursor-agent) command -v cursor-agent >/dev/null 2>&1 && echo cursor-agent || echo agent ;;
     *) echo "$1" ;;
   esac
 }
@@ -75,7 +76,7 @@ state_dirs() {
     claude) echo "$HOME/.claude/sessions $HOME/.claude/projects" ;;
     codex) echo "${CODEX_HOME:-$HOME/.codex}/sessions ${CODEX_HOME:-$HOME/.codex}/thread-writer-locks" ;;
     agy) echo "$HOME/.gemini/antigravity-cli" ;;
-    cursor) echo "$HOME/.cursor/chats $HOME/.cursor/projects" ;;
+    cursor-agent) echo "$HOME/.cursor/chats $HOME/.cursor/projects" ;;
     opencode) echo "${XDG_DATA_HOME:-$HOME/.local/share}/opencode" ;;
     copilot) echo "$HOME/.copilot/session-state" ;;
     gemini) echo "$HOME/.gemini/tmp $HOME/.gemini/history" ;;
@@ -421,7 +422,7 @@ guided() {
   which=
   for a in ${pick:-$agents}; do
     case $a in
-      agent | cursor-agent) a=cursor ;;
+      agent | cursor) a=cursor-agent ;;
     esac
     case " $agents " in
       *" $a "*) which="$which $a" ;;

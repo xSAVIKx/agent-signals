@@ -33,7 +33,7 @@ expect_no_line "doctor prints no psmux on Unix" '^tool: psmux' "$T/out"
 
 # test_doctor_versions_from_paths
 expect_line "claude version from versions/" '^agent: claude ~/\.local/share/claude/versions/2\.1\.316 2\.1\.316$' "$T/out"
-expect_line "cursor version from versions/" '^agent: cursor ~/\.local/share/cursor-agent/versions/2026\.10\.22-27dcf5f/cursor-agent 2026\.10\.22-27dcf5f$' "$T/out"
+expect_line "cursor version from versions/" '^agent: cursor-agent ~/\.local/share/cursor-agent/versions/2026\.10\.22-27dcf5f/cursor-agent 2026\.10\.22-27dcf5f$' "$T/out"
 expect_line "codex version from package.json" '^agent: codex ~/\.npm-global/lib/node_modules/@openai/codex/bin/codex\.js 0\.166\.0$' "$T/out"
 expect_line "gemini version from package.json" '^agent: gemini ~/.npm-global/lib/node_modules/@google/gemini-cli/dist/index\.js 0\.66\.0$' "$T/out"
 expect_line "copilot version from package.json" '^agent: copilot ~/.npm-global/lib/node_modules/@github/copilot/npm-loader\.js 1\.0\.105$' "$T/out"

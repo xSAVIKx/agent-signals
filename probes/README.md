@@ -95,8 +95,8 @@ stub agent.
 
 ```sh
 sh probes/run.sh --guided permission agent    # a permission dialog waits
-sh probes/run.sh --guided new-chat cursor     # /new-chat
-sh probes/run.sh --guided resume cursor       # --resume
+sh probes/run.sh --guided new-chat cursor-agent  # /new-chat
+sh probes/run.sh --guided resume cursor-agent    # --resume
 sh probes/run.sh --guided interrupt codex     # Esc while the agent works
 sh probes/run.sh --guided front-tab           # macOS: select a tab by its tty
 ```
@@ -174,7 +174,7 @@ $env:AGENT_SIGNALS_GET = "$HOME\kits"; irm https://xsavikx.github.io/agent-signa
 | `claude/unix.sh` | Claude Code | Linux, macOS | 23, 25 |
 | `codex/unix.sh` | Codex CLI | Linux, macOS | 26 |
 | `agy/unix.sh` | Antigravity CLI | Linux, macOS | 28 |
-| `cursor/unix.sh` | Cursor CLI (`agent`, `cursor-agent`) | Linux, macOS | 21, 22 |
+| `cursor-agent/unix.sh` | Cursor CLI (`agent`, `cursor-agent`) | Linux, macOS | 21, 22 |
 | `opencode/unix.sh` | opencode | Linux, macOS | |
 | `copilot/unix.sh` | GitHub Copilot CLI | Linux, macOS | 30 |
 | `gemini/unix.sh` | Gemini CLI | Linux, macOS | 30 |
@@ -182,7 +182,7 @@ $env:AGENT_SIGNALS_GET = "$HOME\kits"; irm https://xsavikx.github.io/agent-signa
 | `claude/windows.ps1` | Claude Code | Windows | |
 | `codex/windows.ps1` | Codex CLI | Windows | |
 | `agy/windows.ps1` | Antigravity CLI | Windows | |
-| `cursor/windows.ps1` | Cursor CLI (`agent`, `cursor-agent`) | Windows | |
+| `cursor-agent/windows.ps1` | Cursor CLI (`agent`, `cursor-agent`) | Windows | |
 | `opencode/windows.ps1` | opencode | Windows | |
 
 CI (`.github/workflows/probes.yml`) runs each probe and the kit with no

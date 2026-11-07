@@ -7,7 +7,7 @@ with fixed answers. No model decides anything, so a fixture run measures the
 agent and its screens, not the behaviour of a model.
 
 Usage:
-  fake-model.py --agent codex|claude|agy|cursor --home HOME --env-file FILE
+  fake-model.py --agent codex|claude|agy|cursor-agent --home HOME --env-file FILE
                 --log FILE [--pid-file FILE]
   fake-model.py --codex-home DIR --log FILE [--pid-file FILE]
 
@@ -25,7 +25,8 @@ one line for each request, with no request text.
           gateway terms page on a new home. HOME/.gemini/antigravity-cli/
           cache/onboarding.json marks it as done. That page applies to a real
           gateway; this fake gateway has no account and no terms.
-  cursor  The Connect RPC API of the Cursor CLI, from CURSOR_API_ENDPOINT. It
+  cursor-agent
+          The Connect RPC API of the Cursor CLI, from CURSOR_API_ENDPOINT. It
           is not a public API: the field numbers come from the client of
           2026.11.05-86047df, and a new client can change them.
           HOME/.cursor/cli-config.json selects HTTP/1.1 for the agent
@@ -513,7 +514,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return out
 
     def do_POST(self):
-        if Handler.agent == "cursor":
+        if Handler.agent == "cursor-agent":
             self.cursor_post()
             return
         try:
@@ -753,7 +754,7 @@ def prepare(agent, home, port):
             ("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "1"),
             ("DISABLE_AUTOUPDATER", "1"),
         ]
-    if agent == "cursor":
+    if agent == "cursor-agent":
         # Without HTTP/1.1 the agent stream needs HTTP/2, and the client
         # shows "Reconnecting".
         write_file(os.path.join(home, ".cursor", "cli-config.json"),
@@ -775,7 +776,8 @@ def prepare(agent, home, port):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--agent", choices=["codex", "claude", "agy", "cursor"])
+    # "cursor" and "agent" are other names of cursor-agent.
+    parser.add_argument("--agent", choices=["codex", "claude", "agy", "cursor-agent", "cursor", "agent"])
     parser.add_argument("--home")
     parser.add_argument("--env-file")
     parser.add_argument("--codex-home")
@@ -786,6 +788,8 @@ def main():
         args.agent = "codex"
     elif not (args.agent and args.home and args.env_file):
         parser.error("give --agent, --home and --env-file, or --codex-home")
+    if args.agent in ("cursor", "agent"):
+        args.agent = "cursor-agent"
     Handler.agent = args.agent
     Handler.log_file = open(args.log, "a", encoding="utf-8")
     server = Server(("127.0.0.1", 0), Handler)
