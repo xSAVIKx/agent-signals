@@ -218,13 +218,14 @@ try {
 
         # The agent writes no file: the step is ok, and says so.
         Expect-Kit "${b}: a step with no records exits 0" 0 'step' "norecords-agy@$b"
-        # The stub in Windows PowerShell 5.1 writes a cache file in its work
-        # folder (the driver gives it no LOCALAPPDATA), and the watch sees
-        # that file. So this case holds only in PowerShell 7.
+        # In Windows PowerShell 5.1, the watch sees one file of about 1.5 MB
+        # below a scope folder. The stub does not write it. The path is
+        # masked, so the file is not identified. So this case holds only in
+        # PowerShell 7.
         if ($PSVersionTable.PSVersion.Major -ge 6) {
             Expect-Line "${b}: the reason is no-records" "^step: norecords-agy@$b ok no-records$" $out
         } else {
-            Expect-Line "${b}: the step with a cache file is ok" "^step: norecords-agy@$b ok$" $out
+            Expect-Line "${b}: the step with one changed file is ok" "^step: norecords-agy@$b ok$" $out
         }
 
         # The agent ends in the step.
