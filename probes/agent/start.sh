@@ -1,5 +1,5 @@
 #!/bin/sh
-# kit start [--home real|throwaway] [--out DIR]: make a new run folder
+# kit start [--home real|throwaway|fixture] [--out DIR]: make a new run folder
 # DIR/agent-signals-run-<os>-<time>/ with mode 0700, write its path to
 # DIR/.agent-signals-run and KIT_ROOT/.agent-signals-run, and print
 # "run: <path>" as the last line. With no --out, DIR is the current
@@ -29,10 +29,10 @@ while [ "$#" -gt 0 ]; do
       [ "$1" = --home ] && home=$2 || out=$2
       shift 2
       ;;
-    *) kit_die "$KIT_USAGE" "usage: kit start [--home real|throwaway] [--out DIR]" ;;
+    *) kit_die "$KIT_USAGE" "usage: kit start [--home real|throwaway|fixture] [--out DIR]" ;;
   esac
 done
-case $home in real | throwaway) ;; *) kit_die "$KIT_USAGE" "--home needs real or throwaway" ;; esac
+case $home in real | throwaway | fixture) ;; *) kit_die "$KIT_USAGE" "--home needs real, throwaway or fixture" ;; esac
 if [ -n "$out" ]; then
   why=$(kit_dir_problem "$out")
   [ -z "$why" ] || kit_die "$KIT_USAGE" "cannot use the folder $out: $why"

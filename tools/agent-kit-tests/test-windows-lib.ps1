@@ -115,4 +115,9 @@ Pop-Location
 $script:KitRoot = $keepRoot
 $env:AGENT_SIGNALS_RUN = $keepRun
 
+# The home modes of a login step.
+Expect-True 'a login step skips in a throwaway home' ((Get-KitLoginSkip 'throwaway' 'login' 'codex') -eq 'no-login') ''
+Expect-True 'a Codex login step runs in the fixture' (-not (Get-KitLoginSkip 'fixture' 'login' 'codex')) ''
+Expect-True 'a Claude login step has no fixture' ((Get-KitLoginSkip 'fixture' 'login' 'claude') -eq 'no-fixture') ''
+
 Complete-Tests

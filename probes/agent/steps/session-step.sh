@@ -195,7 +195,9 @@ wait_idle() {
     alive || { screen "$2"; return 2; }
     screen "$2" || return 3
     if ! pre_answer "$2" && is_idle "$2"; then
-      [ -n "${3:-}" ] && grep -Fq -- "$3" "$2" || return 0
+      # The text counts only at the end of a line: the path of the work
+      # folder of a new-chat step holds "/new" too.
+      [ -n "${3:-}" ] && grep -Eq -- "(^|[[:space:]])$3[[:space:]]*\$" "$2" || return 0
     fi
     [ "$(date +%s)" -lt "$_end" ] || return 1
     sleep 1
@@ -371,9 +373,27 @@ broken() {
   stop_now send-failed
 }
 
-# send TEXT: type TEXT and push Enter.
+# send TEXT: type TEXT and push Enter. An agent can redraw its box after the
+# first idle screen and lose the text: Codex 0.167.0 lost a prompt sent 0.3 to
+# 0.8 s after the idle screen in 18 of 18 tries, and one sent after 3 s in 1 of
+# 6 tries. So the step waits 2 s, looks for the text on the screen, and types
+# it again when it is not there. It presses Enter after the third try also.
 send() {
-  ses send "$sess" "$1" >/dev/null && ses key "$sess" Enter >/dev/null || broken
+  sleep "$(clip 2)"
+  _want=$(printf '%s' "$1" | cut -c1-24)
+  _try=0
+  while [ "$_try" -lt 3 ]; do
+    _try=$((_try + 1))
+    ses send "$sess" "$1" >/dev/null || broken
+    _n=0
+    while [ "$_n" -lt 6 ]; do
+      screen "$tmp/box" || broken
+      grep -Fq -- "$_want" "$tmp/box" && _try=3 && break
+      _n=$((_n + 1))
+      sleep 0.5
+    done
+  done
+  ses key "$sess" Enter >/dev/null || broken
 }
 
 # keys KEYS: send the keys of a space list, as tmux names them.
@@ -391,7 +411,7 @@ start_session
 work=$(cat "$KIT_RUN/sessions/$sess/work")
 mode=$(cat "$KIT_RUN/sessions/$sess/home-mode" 2>/dev/null)
 home_dir=$HOME
-[ "$mode" = throwaway ] && home_dir=$KIT_RUN/home/$sess
+[ "$mode" = real ] || home_dir=$KIT_RUN/home/$sess
 say "wait for the idle screen ($IDLE_S s)"
 wait_idle "$IDLE_S" "$tmp/s"
 rc=$?
@@ -407,7 +427,7 @@ save idle "$tmp/s"
 # the folder by the path with each character that is not a letter or a
 # digit changed to "-".
 set -- --scope "$work"
-[ "$mode" = throwaway ] && [ -d "$home_dir" ] && set -- "$@" --scope "$home_dir"
+[ "$mode" != real ] && [ -d "$home_dir" ] && set -- "$@" --scope "$home_dir"
 if [ "$KIT_AGENT" = claude ]; then
   for w in "$work" "$(cd "$work" && pwd -P)"; do
     set -- "$@" --scope-new "$home_dir/.claude/projects/$(printf '%s' "$w" | tr -c 'A-Za-z0-9' '-')"
@@ -509,8 +529,10 @@ case $KIT_KIND in
     fi
     save "before stop" "$tmp/s"
     say "stop the session, and start it again with: $KIT_PROMPT"
+    export KIT_KEEP_HOME=1
     ses stop "$sess" >>"$tmp/log" 2>&1
     start_session "${KIT_PROMPT:-}"
+    unset KIT_KEEP_HOME
     watching || why=${why:-restart-outside-watch}
     used=
     wait_idle "$IDLE_S" "$tmp/s"

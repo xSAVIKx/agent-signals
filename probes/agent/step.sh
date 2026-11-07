@@ -63,10 +63,11 @@ record() {
   kit_summary "$run"
 }
 
-if [ "$needs" = login ] && [ "$home" = throwaway ]; then
+why=$(kit_login_skip "$home" "$needs" "$(kit_step_field "$name" agent)")
+if [ -n "$why" ]; then
   now=$(kit_now)
-  record skip "$now" "$now" - - no-login
-  echo "step: $name@$backend skip no-login"
+  record skip "$now" "$now" - - "$why"
+  echo "step: $name@$backend skip $why"
   exit 0
 fi
 

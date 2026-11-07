@@ -255,6 +255,18 @@ kit_json() {
     }' "$1/manifest.tsv" >"$1/manifest.json"
 }
 
+# kit_login_skip HOME NEEDS AGENT: print the reason why a step does not run
+# in the home mode HOME, or nothing. The fixture mode has a fake model for
+# Codex only (fake-model.py).
+kit_login_skip() {
+  [ "$2" = login ] || return 0
+  case $1:$3 in
+    throwaway:*) echo no-login ;;
+    fixture:codex) ;;
+    fixture:*) echo no-fixture ;;
+  esac
+}
+
 # kit_summary RUN: write RUN/summary.txt: the fixed first line, then one
 # line for each step.
 kit_summary() {

@@ -206,9 +206,24 @@ function Send-Keys([string[]]$Keys) {
         if ($r.Code -ne 0) { Stop-Send "key $k" }
     }
 }
+# Send-Prompt: type the prompt and press the send key. An agent can redraw
+# its box after the first idle screen and lose the text, as send of
+# session-step.sh says. So the step waits 2 s, looks for the text on the
+# screen, and types it again when it is not there.
 function Send-Prompt {
-    $r = Invoke-Session @('send', $name, $prompt) (Get-Clip 30)
-    if ($r.Code -ne 0) { Stop-Send 'send' }
+    Start-Sleep -Seconds (Get-Clip 2)
+    $want = if ($prompt.Length -gt 24) { $prompt.Substring(0, 24) } else { $prompt }
+    for ($try = 0; $try -lt 3; $try++) {
+        $r = Invoke-Session @('send', $name, $prompt) (Get-Clip 30)
+        if ($r.Code -ne 0) { Stop-Send 'send' }
+        $seen = $false
+        for ($n = 0; $n -lt 3 -and -not $seen; $n++) {
+            Update-Screen
+            $seen = $sc.Contains($want)
+            if (-not $seen) { Start-Sleep -Milliseconds 500 }
+        }
+        if ($seen) { break }
+    }
     Send-Keys @($sendKey)
     Add-Log "prompt sent, then $sendKey"
 }
@@ -286,7 +301,7 @@ try {
 
     $work = (Read-KitText (Join-Path $sdir 'work')).Trim()
     $stateHome = $env:USERPROFILE
-    if ($env:KIT_HOME -eq 'throwaway') { $stateHome = Join-Path (Join-Path $run 'home') $name }
+    if ($env:KIT_HOME -ne 'real') { $stateHome = Join-Path (Join-Path $run 'home') $name }
     # The values of the login that a welcome box can show. They stay in
     # this process. The step never writes them.
     foreach ($f in (Join-Path $stateHome '.claude.json'), (Join-Path $stateHome '.claude\.claude.json')) {
@@ -306,7 +321,7 @@ try {
     # by the path with each character that is not a letter or a digit
     # changed to "-", and it can make the folder after the first prompt.
     $scope = @($work)
-    if ($env:KIT_HOME -eq 'throwaway') { $scope += $stateHome }
+    if ($env:KIT_HOME -ne 'real') { $scope += $stateHome }
     $scopeNew = @(
         (Join-Path $stateHome (".claude\projects\" + ($work -replace '[^A-Za-z0-9]', '-')))
         (Join-Path $stateHome (".cursor\projects\" + (($work -replace '[^A-Za-z0-9]+', '-').Trim('-'))))

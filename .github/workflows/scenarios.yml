@@ -18,7 +18,9 @@
 #
 # kit-no-login and kit-no-login-windows use no secret. They install the
 # agents of the kit, run "kit start --home throwaway", "kit doctor", each
-# first-run-* step that "kit plan" lists, and "kit check".
+# first-run-* step that "kit plan" lists, and "kit check". Then they run the
+# login steps of Codex in a second run with "--home fixture": a local fake
+# model (probes/agent/fake-model.py) answers, with no login and no cost.
 #
 # kit-login (Linux and macOS) and kit-login-windows use the API keys of
 # docs/ci-secrets.md. They run only on the main branch: on the schedule, or
@@ -584,6 +586,36 @@ jobs:
           path: ${{ runner.temp }}/kit/agent-signals-run-*.tar.gz
           retention-days: 7
           if-no-files-found: warn
+      # The login steps of Codex with the fake model: a real Codex, no login,
+      # no network, no cost. The run records the home mode "fixture".
+      - name: Run the kit with the fake model
+        id: fixture
+        if: always() && env.KIT_RUN == '1'
+        run: |
+          out=$RUNNER_TEMP/kit-fixture
+          mkdir -m 700 "$out"
+          raw=$(mktemp)
+          k() {
+            if sh probes/agent/kit.sh "$@" >"$raw" 2>&1; then rc=0; else rc=$?; fi
+            sh tools/scrub.sh "$raw" 2>/dev/null
+            return "$rc"
+          }
+          k start --home fixture --out "$out"
+          k plan --home fixture
+          sed -n 's/^step: \([^ ]*\) needs=login [^ ]* measures=.*/\1/p' "$raw" >"$RUNNER_TEMP/fixture-steps.txt"
+          echo "fixture steps in the plan: $(wc -l <"$RUNNER_TEMP/fixture-steps.txt" | tr -d ' ')"
+          while read -r s; do
+            if k step "$s" || [ "$rc" -eq 3 ]; then :; else echo "$s: exit $rc" >>"$RUNNER_TEMP/kit-failed.txt"; fi
+          done <"$RUNNER_TEMP/fixture-steps.txt"
+          k session stop --all || true
+          k check
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: steps.fixture.outcome == 'success'
+        with:
+          name: kit-fixture-${{ matrix.os }}
+          path: ${{ runner.temp }}/kit-fixture/agent-signals-run-*.tar.gz
+          retention-days: 7
+          if-no-files-found: warn
       - name: Fail on a failed step
         if: always()
         run: |
@@ -688,6 +720,46 @@ jobs:
         with:
           name: kit-no-login-${{ matrix.os }}
           path: ${{ runner.temp }}/kit/agent-signals-run-*.zip
+          retention-days: 7
+          if-no-files-found: warn
+      # The login steps of Codex with the fake model, as on Linux and macOS.
+      - name: Run the kit with the fake model
+        id: fixture
+        if: always() && env.KIT_RUN == '1'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $out = Join-Path $env:RUNNER_TEMP 'kit-fixture'
+          New-Item -ItemType Directory -Path $out | Out-Null
+          $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+          & icacls $out /inheritance:r /grant:r "*${sid}:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F" | Out-Null
+          & icacls $out /remove:g "*S-1-5-11" "*S-1-5-32-545" | Out-Null
+          $raw = Join-Path $env:RUNNER_TEMP 'kit-fixture-raw.txt'
+          $py = (Resolve-Path '.venv-driver\Scripts\python.exe').ProviderPath
+          function K {
+            & pwsh -NoProfile -File probes/agent/kit.ps1 @args *> $raw
+            $script:rc = $LASTEXITCODE
+            & pwsh -NoProfile -File tools/scrub.ps1 -Path $raw 2>$null
+          }
+          K start --home fixture --out $out --python $py
+          $env:AGENT_SIGNALS_RUN = (Get-Content (Join-Path $out '.agent-signals-run') | Select-Object -First 1)
+          K plan --home fixture --python $py
+          $steps = @(Get-Content $raw | ForEach-Object { if ($_ -match '^step: (\S+) needs=login ' -and $_ -notmatch ' skip=') { $Matches[1] } })
+          Write-Output "fixture steps in the plan: $($steps.Count)"
+          foreach ($s in $steps) {
+            K step $s
+            if ($script:rc -ne 0 -and $script:rc -ne 3) {
+              "${s}: exit $($script:rc)" | Out-File -FilePath (Join-Path $env:RUNNER_TEMP 'kit-failed.txt') -Append -Encoding utf8
+            }
+          }
+          K session stop --all
+          K check
+          exit $script:rc
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: steps.fixture.outcome == 'success'
+        with:
+          name: kit-fixture-${{ matrix.os }}
+          path: ${{ runner.temp }}/kit-fixture/agent-signals-run-*.zip
           retention-days: 7
           if-no-files-found: warn
       - name: Fail on a failed step
