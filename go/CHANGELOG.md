@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/xSAVIKx/agent-signals/compare/go/v0.11.0...go/v0.12.0) (2026-11-07)
+
+
+### Features
+
+* **probes:** run the Claude Code, agy and Cursor login steps on the fake model ([#98](https://github.com/xSAVIKx/agent-signals/issues/98)) ([836988e](https://github.com/xSAVIKx/agent-signals/commit/836988e1034051808ba2b06608627f8b9537c1cd))
+
 ## [0.11.0](https://github.com/xSAVIKx/agent-signals/compare/go/v0.10.0...go/v0.11.0) (2026-11-07)
 
 
