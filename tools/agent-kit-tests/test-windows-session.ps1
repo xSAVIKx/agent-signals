@@ -200,39 +200,43 @@ foreach ($b in 'conpty', 'psmux') {
                     if (Test-Path -LiteralPath $p) { Write-Output "--- $k"; Get-Content -LiteralPath $p | Write-Output }
                 }
             }
-            # DIAGNOSTIC, to be removed: psmux with the environment of the kit.
+            # DIAGNOSTIC, to be removed: psmux started with the flags of KitSpawn.
             $ej = Join-Path $run "sessions/$s4/env.json"
             if ($b -eq 'psmux' -and (Test-Path -LiteralPath $ej)) {
                 $px = (Get-Command psmux -CommandType Application).Source
                 $kenv = [IO.File]::ReadAllText($ej) | ConvertFrom-Json
-                Write-Output "DIAG env names: $(($kenv.PSObject.Properties | ForEach-Object { $_.Name }) -join ',')"
-                $keep = @{}
-                foreach ($i in Get-ChildItem Env:) { $keep[$i.Name] = $i.Value }
-                $variants = @(
-                    @('k', @($env:ComSpec, '/d', '/k', $stubExe)),
-                    @('c', @($env:ComSpec, '/d', '/c', $stubExe)),
-                    @('one', @($stubExe))
+                $src2 = (Get-Content -Raw -LiteralPath (Join-Path $env:ROOT 'probes/agent/session.ps1'))
+                $m = [regex]::Match($src2, "(?s)\`$SpawnCode = @'\r?\n(.*?)\r?\n'@")
+                $code = $m.Groups[1].Value -replace 'class KitSpawn', 'class KitSpawnDiag' -replace 'public static int Run\(string app', 'public static uint F; public static int Run(string app' -replace 'uint basef = 0x00000008 \| 0x00000200 \| 0x00000400;', 'uint basef = F;'
+                Add-Type -TypeDefinition $code
+                $flags = @(
+                    @('kit', [uint32]0x608),
+                    @('nogroup', [uint32]0x408),
+                    @('nowindow', [uint32]0x08000600),
+                    @('nowindow-nogroup', [uint32]0x08000400)
                 )
-                foreach ($mode in 'kitenv', 'fullenv') {
-                    foreach ($v in $variants) {
-                        $tag = "diag-$mode-$($v[0])"
+                foreach ($fl in $flags) {
+                    foreach ($v in @(@('c', @($env:ComSpec, '/d', '/c', $stubExe)), @('one', @($stubExe)))) {
+                        $tag = "dg-$($fl[0])-$($v[0])"
                         $dd = Join-Path $T "pd-$tag"
                         New-Item -ItemType Directory -Force -Path $dd | Out-Null
-                        if ($mode -eq 'kitenv') {
-                            foreach ($n in @($keep.Keys)) { if ($n -ne 'PATH') { Remove-Item -LiteralPath "Env:$n" -ErrorAction SilentlyContinue } }
-                            foreach ($q in $kenv.PSObject.Properties) { Set-Item -LiteralPath "Env:$($q.Name)" -Value ([string]$q.Value) }
-                        }
-                        $env:PSMUX_DATA_DIR = $dd
-                        $env:PSMUX_NO_WARM = '1'
-                        $o = & $px -L $tag new-session -d -s x -x 120 -y 30 -c $exeBin -- @($v[1]) 2>&1
-                        $rc = $LASTEXITCODE
+                        $envb = @{}
+                        foreach ($q in $kenv.PSObject.Properties) { $envb[$q.Name] = [string]$q.Value }
+                        $envb['PSMUX_DATA_DIR'] = $dd
+                        $envb['PSMUX_NO_WARM'] = '1'
+                        $block = (($envb.Keys | Sort-Object | ForEach-Object { "$_=$($envb[$_])" }) -join "`0") + "`0"
+                        $line = '"' + $px + '" -L ' + $tag + ' new-session -d -s x -x 120 -y 30 -c "' + $exeBin + '" -- ' + (($v[1] | ForEach-Object { '"' + $_ + '"' }) -join ' ')
+                        [KitSpawnDiag]::F = $fl[1]
+                        $aw = $false; $id = 0
+                        $rc = [KitSpawnDiag]::Run($px, $line, $exeBin, $block, 30000, [ref]$aw, [ref]$id)
                         Start-Sleep -Seconds 4
+                        $saveDD = $env:PSMUX_DATA_DIR
+                        $env:PSMUX_DATA_DIR = $dd
                         $cap = & $px -L $tag capture-pane -p -t x 2>&1
                         $null = & $px -L $tag kill-server 2>&1
-                        foreach ($n in @(Get-ChildItem Env: | ForEach-Object { $_.Name })) { if (-not $keep.ContainsKey($n)) { Remove-Item -LiteralPath "Env:$n" -ErrorAction SilentlyContinue } }
-                        foreach ($n in $keep.Keys) { Set-Item -LiteralPath "Env:$n" -Value $keep[$n] }
-                        Write-Output "DIAG $tag new-session exit $rc $o"
-                        $cap | Where-Object { $_ -match '\S' } | ForEach-Object { Write-Output "DIAG $tag | $_" }
+                        $env:PSMUX_DATA_DIR = $saveDD
+                        Write-Output "DIAG $tag spawn exit $rc"
+                        $cap | Where-Object { $_ -match '\S' } | Select-Object -First 3 | ForEach-Object { Write-Output "DIAG $tag | $_" }
                     }
                 }
             }
