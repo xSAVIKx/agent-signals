@@ -21,7 +21,7 @@ python3 "$ROOT/probes/agent/fake-model.py" --codex-home "$T/codex" --log "$T/log
 fake=$!
 bg_pid "$fake"
 n=0
-while [ ! -f "$T/codex/config.toml" ] && [ "$n" -lt 50 ]; do
+while [ ! -f "$T/codex/config.toml" ] && [ "$n" -lt 300 ]; do
   n=$((n + 1))
   sleep 0.1
 done

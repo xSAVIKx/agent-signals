@@ -398,7 +398,10 @@ function Get-SessionEnv([string]$Mode, [string]$HomeDir) {
         $e['TEMP'] = Join-Path $HomeDir 'AppData\Local\Temp'
         $e['TMP'] = $e['TEMP']
         $e['USERNAME'] = 'dev'
-        foreach ($d in $e['APPDATA'], $e['TEMP']) { New-Item -ItemType Directory -Force -Path $d | Out-Null }
+        # Codex on Windows does not find its home from USERPROFILE: with no
+        # CODEX_HOME, a fixture run read no config in this folder.
+        $e['CODEX_HOME'] = Join-Path $HomeDir '.codex'
+        foreach ($d in $e['APPDATA'], $e['TEMP'], $e['CODEX_HOME']) { New-Item -ItemType Directory -Force -Path $d | Out-Null }
     }
     return $e
 }
@@ -491,7 +494,7 @@ function Start-Session([string[]]$A) {
         $fakeArgs = '"{0}" --codex-home "{1}" --log "{2}"' -f (Join-Path $PSScriptRoot 'fake-model.py'), $codexHome, (Join-Path $dir 'fake-model.log')
         $fake = Start-Process -FilePath $fakePy -ArgumentList $fakeArgs -PassThru -WindowStyle Hidden
         Add-SessionPid $run $dir $fake.Id "session $name fake model"
-        $fakeEnd = (Get-Date).AddSeconds(10)
+        $fakeEnd = (Get-Date).AddSeconds(30)
         while (-not (Test-Path -LiteralPath (Join-Path $codexHome 'config.toml') -PathType Leaf)) {
             if ((Get-Date) -gt $fakeEnd) { Stop-Kit 1 'the fake model did not start' }
             Start-Sleep -Milliseconds 100

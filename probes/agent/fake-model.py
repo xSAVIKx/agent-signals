@@ -25,6 +25,7 @@ import http.server
 import json
 import os
 import select
+import socketserver
 import threading
 import time
 
@@ -129,6 +130,14 @@ def answer(body):
     return [text_item("The fixture has no more to say.")]
 
 
+class Server(http.server.ThreadingHTTPServer):
+    def server_bind(self):
+        # HTTPServer.server_bind calls socket.getfqdn(). That lookup took
+        # more than 5 s on the macOS images of CI.
+        socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address[:2]
+
+
 class Handler(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     count = 0
@@ -191,7 +200,7 @@ def main():
     parser.add_argument("--log", required=True)
     args = parser.parse_args()
     Handler.log_file = open(args.log, "a", encoding="utf-8")
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    server = Server(("127.0.0.1", 0), Handler)
     server.daemon_threads = True
     timer = threading.Timer(LIFETIME_S, os._exit, [0])
     timer.daemon = True

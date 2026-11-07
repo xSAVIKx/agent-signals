@@ -102,7 +102,7 @@ start_fake_model() {
   add_pid "$!" "session $name fake model"
   _n=0
   while [ ! -f "$1/.codex/config.toml" ]; do
-    [ "$_n" -lt 50 ] || kit_die 1 "the fake model did not start"
+    [ "$_n" -lt 300 ] || kit_die 1 "the fake model did not start"
     _n=$((_n + 1))
     sleep 0.1
   done
