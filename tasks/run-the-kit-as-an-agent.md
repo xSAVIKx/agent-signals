@@ -38,7 +38,8 @@ commands. Then their files are comparable.
 Obey each rule in each step.
 
 1. Measure only with `kit` commands. Do not write your own commands to
-   measure something. Then two runs are not comparable.
+   measure something. Then two runs are not comparable. This rule does not
+   stop you from reading and searching the run files in step 6.
 2. Ask the operator before each step that has `needs=operator`,
    `needs=login` or `needs=screen`. Ask one question at a time. Wait for
    the answer.
@@ -106,8 +107,9 @@ different source.
    kit: ready DIR/agent-signals-kit
    ```
 
-   From now on, `kit` means the full command below. Run this command to
-   see the kit version.
+   From now on, `kit` means the command below, without the last word
+   `version`, and `kit doctor` means that command with the word `doctor`.
+   Run the command to see the kit version.
    - Linux or macOS:
 
      ```sh
@@ -147,6 +149,11 @@ different source.
    Caution: `--home real` uses the real login and the real home folder of
    the operator. Tell the operator rule 3 before you ask for it.
 
+   Caution: the `probe` step reads the machine in each home mode, also in
+   `throwaway`. It lists the processes of the agents, and the names, sizes
+   and times of the files in the real agent folders. It reads no login
+   file and no transcript. Tell the operator this before you ask.
+
    ```sh
    kit start --home throwaway --out DIR
    ```
@@ -180,11 +187,17 @@ different source.
    - `real-session`: a session that the operator starts in a real
      terminal. The kit only watches it.
 
-   Show the list to the operator. Mark each step that needs the operator,
-   a login or the screen, and each step that costs model turns
-   (`cost=turns:N`) on the plan of the login. A step with `skip=no-login`
-   does not run in a throwaway home. Ask the operator which steps to run.
-   Run only the steps that the operator accepts.
+   The plan has steps only for the agents of `steps.tsv`. The `probe` step
+   also reads the other agents that the doctor found.
+
+   Show the list to the operator. The list can have more than 40 lines.
+   Group the lines by kind, and name the agents and the backends of each
+   kind. Mark each step that needs the operator, a login or the screen,
+   and each step that costs model turns (`cost=turns:N`) on the plan of
+   the login. A step with `skip=no-login` does not run in a throwaway
+   home. A `real-session` step needs the operator at a terminal, and it
+   runs only after a yes for that step. Ask the operator which steps to
+   run. Run only the steps that the operator accepts.
 
 5. Run each accepted step, one at a time, in the order of the plan.
 
@@ -197,8 +210,10 @@ different source.
    kit step NAME@BACKEND
    ```
 
-   The step prints one line: `step: <name>@<backend> ok`, `skip`, `fail`
-   or `operator`, then the reason.
+   The step can print `kit:` lines. They tell the progress and the count
+   of the scrub changes, and a time in them is an estimate. The last line
+   gives the result: `step: <name>@<backend> ok`, `skip`, `fail` or
+   `operator`, then the reason.
    - `ok` or `skip`: go to the next step. A skip is a result, not an
      error.
    - `operator` (exit code 4): the step prints `operator: <action>` lines.
@@ -234,6 +249,10 @@ different source.
    3. Read every file in the run folder, from the first line to the last
       line. Find each name of a project, a person, a company or a host
       that the scrub did not change. Replace each one with `example`.
+      A file list of a first-run step can have thousands of lines. For
+      such a list, search for names and read each distinct folder.
+      The scrub writes `~`, `/work/example`, `-work-example` and
+      `<sandbox>` in paths. These words are not a fault.
    4. Record each changed file. REASON is one of `project`, `person`,
       `company`, `host`, `path` or `other`.
 
