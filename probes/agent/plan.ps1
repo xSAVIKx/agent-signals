@@ -1,6 +1,6 @@
 # kit plan on Windows: print the steps that this machine can run.
 #
-#   kit plan [--home real|throwaway|fixture] [--python PATH]
+#   kit plan [--home real|throwaway|fixture] [--unattended] [--python PATH]
 #
 # One line for each step of probes\agent\steps.tsv, in file order:
 #   step: <name>@<backend> needs=<needs> cost=<cost> measures=<text>
@@ -23,17 +23,23 @@ $ErrorActionPreference = 'Stop'
 [string[]]$argv = @(Get-KitArgs $args)
 
 $homeMode = ''
+$unattended = ''
 $python = ''
 for ($i = 0; $i -lt $argv.Count; $i++) {
     $a = [string]$argv[$i]
     if ($a -eq '--home' -and $i + 1 -lt $argv.Count) { $homeMode = [string]$argv[++$i] }
+    elseif ($a -eq '--unattended') { $unattended = 'yes' }
     elseif ($a -eq '--python' -and $i + 1 -lt $argv.Count) { $python = [string]$argv[++$i] }
-    else { Stop-Kit 2 'usage: kit plan [--home real|throwaway|fixture] [--python PATH]' }
+    else { Stop-Kit 2 'usage: kit plan [--home real|throwaway|fixture] [--unattended] [--python PATH]' }
 }
 $run = Find-KitRunDir
 if (-not $homeMode) {
     if ($run) { $homeMode = Get-KitMeta $run 'home' }
     if (-not $homeMode) { $homeMode = 'real' }
+}
+if (-not $unattended) {
+    if ($run) { $unattended = Get-KitMeta $run 'unattended' }
+    if (-not $unattended) { $unattended = 'no' }
 }
 if ($homeMode -cnotin 'real', 'throwaway', 'fixture') { Stop-Kit 2 "unknown home mode: $homeMode" }
 
@@ -87,6 +93,7 @@ foreach ($s in @(Read-KitSteps)) {
         $cost = if ($homeMode -eq 'fixture') { 'none' } else { $s.cost }
         $line = 'step: {0}@{1} needs={2} cost={3} measures={4}' -f $s.name, $backend, $s.needs, $cost, $s.measures
         $why = Get-KitLoginSkip $homeMode $s.needs $s.agent
+        if (-not $why) { $why = Get-KitUnattendedSkip $unattended $s.needs $backend }
         if ($why) { $line += " skip=$why" }
         Write-Output $line
     }

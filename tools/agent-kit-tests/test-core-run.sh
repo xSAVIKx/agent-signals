@@ -154,4 +154,22 @@ expect_code "a login step in a throwaway home exits 0" 0 $?
 expect_line "a login step in a throwaway home skips" '^step: permission-claude@tmux skip no-login$' "$T/out"
 expect_line "the skip is in the manifest" '^step	permission-claude	tmux	skip	[^	]+	[^	]+	-	-	no-login$' "$(run_of "$T/t")/manifest.tsv"
 
+# An unattended run skips a step that needs the operator.
+mkdir -m 0700 "$T/u"
+(cd "$T/u" && HOME=$H kitc "$T/k" start --unattended --out "$T/u") >/dev/null 2>&1
+expect_line "the manifest records an unattended run" '^meta	unattended	yes$' "$(run_of "$T/u")/manifest.tsv"
+expect_line "manifest.json records an unattended run" '"unattended": true' "$(run_of "$T/u")/manifest.json"
+(cd "$T/u" && HOME=$H kitc "$T/k" step real-session-claude@operator) >"$T/out" 2>&1
+expect_code "an operator step in an unattended run exits 0" 0 $?
+expect_line "an operator step in an unattended run skips" '^step: real-session-claude@operator skip unattended$' "$T/out"
+# kit plan lists a step only when its agent is on PATH.
+mkdir -p "$T/ubin"
+printf '#!/bin/sh\nexit 0\n' >"$T/ubin/claude"
+chmod +x "$T/ubin/claude"
+(cd "$T/u" && HOME=$H PATH="$T/ubin:$PATH" kitc "$T/k" plan) >"$T/out" 2>&1
+expect_line "the plan of an unattended run marks an operator step" '^step: real-session-claude@operator needs=operator cost=[^ ]+ skip=unattended ' "$T/out"
+expect_line "the plan of an unattended run keeps the probe" '^step: probe@none needs=none cost=none measures=' "$T/out"
+(cd "$T/t" && HOME=$H AGENT_SIGNALS_RUN=$(run_of "$T/t") kitc "$T/k" plan) >"$T/out" 2>&1
+expect_no_line "a run with a person has no unattended skip" 'skip=unattended' "$T/out"
+
 done_tests

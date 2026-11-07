@@ -1,5 +1,5 @@
 #!/bin/sh
-# kit start [--home real|throwaway|fixture] [--out DIR]: make a new run folder
+# kit start [--home real|throwaway|fixture] [--unattended] [--out DIR]: make a new run folder
 # DIR/agent-signals-run-<os>-<time>/ with mode 0700, write its path to
 # DIR/.agent-signals-run and KIT_ROOT/.agent-signals-run, and print
 # "run: <path>" as the last line. With no --out, DIR is the current
@@ -14,7 +14,9 @@
 #
 # The run folder holds manifest.tsv. Its first lines are the facts of the
 # run, one "meta<tab>KEY<tab>VALUE" line each: kit, os, os_version, cpu,
-# home, orchestrator, start. "kit step" adds the step lines, and "kit edit" the
+# home, unattended, orchestrator, start. With --unattended, no person
+# watches the run: "kit plan" and "kit step" skip each step that needs the
+# operator or the screen of the operator, with the reason "unattended". "kit step" adds the step lines, and "kit edit" the
 # edit lines. The manifest never holds the host name, the account name or
 # the home folder.
 set -u
@@ -22,6 +24,7 @@ set -u
 
 home=real
 out=
+unattended=no
 while [ "$#" -gt 0 ]; do
   case $1 in
     --home | --out)
@@ -29,7 +32,11 @@ while [ "$#" -gt 0 ]; do
       [ "$1" = --home ] && home=$2 || out=$2
       shift 2
       ;;
-    *) kit_die "$KIT_USAGE" "usage: kit start [--home real|throwaway|fixture] [--out DIR]" ;;
+    --unattended)
+      unattended=yes
+      shift
+      ;;
+    *) kit_die "$KIT_USAGE" "usage: kit start [--home real|throwaway|fixture] [--unattended] [--out DIR]" ;;
   esac
 done
 case $home in real | throwaway | fixture) ;; *) kit_die "$KIT_USAGE" "--home needs real, throwaway or fixture" ;; esac
@@ -59,6 +66,7 @@ chmod 700 "$run"
   printf 'meta\tos_version\t%s\n' "$(kit_os_version | tr '\t' ' ')"
   printf 'meta\tcpu\t%s\n' "$(kit_cpu)"
   printf 'meta\thome\t%s\n' "$home"
+  printf 'meta\tunattended\t%s\n' "$unattended"
   printf 'meta\torchestrator\t%s\n' "$(kit_orchestrator)"
   printf 'meta\tstart\t%s\n' "$(kit_now)"
 } >"$run/manifest.tsv"

@@ -51,6 +51,16 @@ function Get-KitLoginSkip([string]$HomeMode, [string]$Needs, [string]$Agent) {
     return ''
 }
 
+# Get-KitUnattendedSkip UNATTENDED NEEDS BACKEND: 'unattended' when a run with
+# no person (UNATTENDED is 'yes') must skip the step: the step needs the
+# operator, can change the screen of the operator, or runs in a terminal
+# that the operator starts. Else ''.
+function Get-KitUnattendedSkip([string]$Unattended, [string]$Needs, [string]$Backend) {
+    if ($Unattended -ne 'yes') { return '' }
+    if ($Needs -in 'operator', 'screen' -or $Backend -eq 'operator') { return 'unattended' }
+    return ''
+}
+
 # Get-KitRunPointer: the run path that the environment or a
 # .agent-signals-run file names, or ''. The file is UTF-8, so that a path
 # with letters outside ASCII works also in Windows PowerShell 5.1.

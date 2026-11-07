@@ -123,4 +123,11 @@ Expect-True 'an agy login step runs in the fixture' ((Get-KitLoginSkip 'fixture'
 Expect-True 'a Cursor login step runs in the fixture' ((Get-KitLoginSkip 'fixture' 'login' 'cursor') -eq '') ''
 Expect-True 'an unknown agent has no fixture' ((Get-KitLoginSkip 'fixture' 'login' 'other') -eq 'no-fixture') ''
 
+# An unattended run skips a step that needs a person.
+Expect-True 'an operator step skips unattended' ((Get-KitUnattendedSkip 'yes' 'operator' 'psmux') -eq 'unattended') ''
+Expect-True 'a screen step skips unattended' ((Get-KitUnattendedSkip 'yes' 'screen' 'none') -eq 'unattended') ''
+Expect-True 'the operator backend skips unattended' ((Get-KitUnattendedSkip 'yes' 'login' 'operator') -eq 'unattended') ''
+Expect-True 'a login step runs unattended' ((Get-KitUnattendedSkip 'yes' 'login' 'conpty') -eq '') ''
+Expect-True 'a run with a person skips nothing' ((Get-KitUnattendedSkip 'no' 'operator' 'operator') -eq '') ''
+
 Complete-Tests

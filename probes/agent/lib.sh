@@ -250,6 +250,7 @@ kit_json() {
       printf "{\n"
       printf "  \"kit\": %s,\n  \"os\": %s,\n  \"os_version\": %s,\n  \"cpu\": %s,\n", s(run["kit"]), s(run["os"]), s(run["os_version"]), s(run["cpu"])
       printf "  \"home\": %s,\n  \"orchestrator\": %s,\n  \"start\": %s,\n  \"end\": %s,\n", s(run["home"]), s(run["orchestrator"]), s(run["start"]), s(end)
+      printf "  \"unattended\": %s,\n", (run["unattended"] == "yes" ? "true" : "false")
       printf "  \"steps\": [%s%s%s],\n", (ns ? "\n" : ""), steps, (ns ? "\n  " : "")
       printf "  \"edits\": [%s%s%s]\n}\n", (ne ? "\n" : ""), edits, (ne ? "\n  " : "")
     }' "$1/manifest.tsv" >"$1/manifest.json"
@@ -272,6 +273,15 @@ kit_login_skip() {
     fixture:cursor) [ "$(uname -s)" != Darwin ] || echo no-fixture ;;
     fixture:*) echo no-fixture ;;
   esac
+}
+
+# kit_unattended_skip UNATTENDED NEEDS BACKEND: print "unattended" when a
+# run with no person (UNATTENDED is "yes") must skip the step: the step needs
+# the operator, can change the screen of the operator, or runs in a terminal
+# that the operator starts. Else print nothing.
+kit_unattended_skip() {
+  [ "$1" = yes ] || return 0
+  case $2:$3 in operator:* | screen:* | *:operator) echo unattended ;; esac
 }
 
 # kit_summary RUN: write RUN/summary.txt: the fixed first line, then one

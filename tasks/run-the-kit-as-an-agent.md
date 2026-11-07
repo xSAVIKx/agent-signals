@@ -14,6 +14,16 @@ and you read the results. The kit scripts do all the measurements. When
 two agents do this task on the same machine, they must run the same
 commands. Then their files are comparable.
 
+The operator can also start you with no person present. Then the prompt
+holds the word "unattended" and a home mode:
+
+> Run this command: `curl -fsSL https://xsavikx.github.io/agent-signals/kit.sh | sh -s -- --get "$(mktemp -d)"`. It prints the kit folder. Read AGENTS.md in that folder and do its task unattended, with the home mode real. Do not ask me anything.
+
+The website gives this prompt for Linux and macOS, and a PowerShell
+prompt for Windows.
+
+Read the section "Unattended runs" before you start such a run.
+
 ## Words in this file
 
 - The operator: the person who gave you the prompt.
@@ -69,6 +79,34 @@ Obey each rule in each step.
 13. Do not post the run folder or the archive to a service. Give the
     operator the archive path.
 
+## Unattended runs
+
+A run is unattended when the prompt of the operator says "unattended". No
+person reads your messages until the run ends. The operator gave all the
+answers in the prompt. In an unattended run, these rules replace rules 2,
+3, 11 and 12, and the questions of the steps:
+
+1. Do not ask the operator a question, and do not wait for an answer.
+2. Use the home mode that the prompt names, `real` or `throwaway`. The
+   prompt is the yes of rule 3. When the prompt names no home mode, use
+   `throwaway`.
+3. Start the run with `kit start --unattended`. The kit then skips each
+   step that needs the operator or the screen of the operator, with the
+   reason `unattended`. Run every step of the plan in the order of the
+   plan, also the steps that skip. Do not select steps.
+4. Do not install a tool. Record the missing tool in your last message.
+5. When a step fails two times, go to the next step.
+6. When a step prints `operator` (exit code 4), do not run it again. Go to
+   the next step.
+7. When the kit cannot download or cannot start a run, stop. Write the
+   reason in your last message.
+8. Do steps 6 and 7 of the task as for a run with a person. Your last
+   message is the result: the archive path, the run path, and the summary.
+   The operator reads it when the operator comes back.
+
+All other rules stay. Rules 4 to 10 and 13 are as important in an
+unattended run as in a run with a person.
+
 The exit codes of each `kit` command:
 
 | Code | Meaning |
@@ -86,7 +124,12 @@ CLI in the `workspace-write` mode with the network off. If the download
 fails, tell the operator that your shell has no network. Do not try a
 different source.
 
-1. Get the kit. Make a new, empty folder outside each project folder and
+1. Get the kit. When the prompt of the operator gave you the download
+   command and you ran it, the kit is ready: `DIR` is the folder that
+   holds `agent-signals-kit`. Go to the command that shows the kit
+   version, below.
+
+   Else make a new, empty folder outside each project folder and
    outside each agent folder, for example with `mktemp -d`. In this file,
    that folder is `DIR`.
    - Linux or macOS:
@@ -142,8 +185,14 @@ different source.
    output shows no network, tell the operator. A test session in a sandbox
    can fail or give wrong signals.
 
-3. Start the run. Do not use the home mode `fixture`: it is for CI. First
-   ask the operator for the home mode: `throwaway`
+3. Start the run. Do not use the home mode `fixture`: it is for CI. In an
+   unattended run, use the home mode of the prompt and add `--unattended`:
+
+   ```sh
+   kit start --home real --unattended --out DIR
+   ```
+
+   Else first ask the operator for the home mode: `throwaway`
    (a new, empty home folder with no login) or `real`. Use `throwaway`
    when the operator gives no answer.
 
@@ -190,6 +239,9 @@ different source.
 
    The plan has steps only for the agents of `steps.tsv`. The `probe` step
    also reads the other agents that the doctor found.
+
+   In an unattended run, do not show the list, and run every step of
+   the plan (section "Unattended runs").
 
    Show the list to the operator. The list can have more than 40 lines.
    Group the lines by kind, and name the agents and the backends of each
