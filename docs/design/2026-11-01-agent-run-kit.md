@@ -158,12 +158,13 @@ and the manifest records it:
   step that uses an API key that the operator gives through a file).
 - `--home fixture`: for CI and for tests of the kit. A throwaway home, and
   a local fake model (`probes/agent/fake-model.py`) with fixed answers, for
-  Codex, Claude Code and agy (fact 77). The login steps of these agents run
+  Codex, Claude Code, agy (fact 77) and the Cursor CLI (fact 78). The login steps of these agents run
   with the real agent, no login and no cost. The fake model writes the
   settings files of the agent in the throwaway home, and a file of
   variables that the session start reads. The manifest and each step file
   name the mode. These runs show the screens and the files of the agent,
-  not model behaviour. The Cursor CLI skips with the reason `no-fixture`.
+  not model behaviour. An agent with no fake model skips with the reason
+  `no-fixture`.
 
 The kit never copies a login file. The kit does not include `copy_login`.
 The current scenarios keep it for CI and the server only.

@@ -260,12 +260,12 @@ function Send-Pre {
 # Wait-Idle SECONDS [TEXT]: answer the "pre" pairs and wait for the idle
 # screen. With TEXT, the screen must not show TEXT.
 # Test-InBox TEXT: TEXT is at the end of the box line, the last line of the
-# screen that starts with a prompt mark (U+276F, U+203A or >). With no such
+# screen that starts with a prompt mark (U+276F, U+203A, U+2192 or >). With no such
 # line, at the end of any line. Claude Code 2.1.318 shows a sent "/clear" on
 # a line above the box.
 function Test-InBox([string]$Text) {
     $lines = @($sc -split "`r?`n")
-    $box = @($lines | Where-Object { $_ -match ('^\s*(' + [char]0x276F + '|' + [char]0x203A + '|>)') })
+    $box = @($lines | Where-Object { $_ -match ('^\s*(' + [char]0x276F + '|' + [char]0x203A + '|' + [char]0x2192 + '|>)') })
     if ($box.Count -gt 0) { $lines = @($box[-1]) }
     $re = '(^|\s)' + [regex]::Escape($Text) + '\s*$'
     foreach ($l in $lines) { if ($l -match $re) { return $true } }

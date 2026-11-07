@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """A local fake model for the "fixture" home mode of the kit.
 
-It lets the real Codex CLI, Claude Code and agy run a test session with no
-login, no network and no cost. It serves the API of one agent on 127.0.0.1
+It lets the real Codex CLI, Claude Code, agy and the Cursor CLI run a test
+session with no login, no network and no cost. It serves the API of one agent on 127.0.0.1
 with fixed answers. No model decides anything, so a fixture run measures the
 agent and its screens, not the behaviour of a model.
 
 Usage:
-  fake-model.py --agent codex|claude|agy --home HOME --env-file FILE
+  fake-model.py --agent codex|claude|agy|cursor --home HOME --env-file FILE
                 --log FILE [--pid-file FILE]
   fake-model.py --codex-home DIR --log FILE [--pid-file FILE]
 
@@ -25,6 +25,11 @@ one line for each request, with no request text.
           gateway terms page on a new home. HOME/.gemini/antigravity-cli/
           cache/onboarding.json marks it as done. That page applies to a real
           gateway; this fake gateway has no account and no terms.
+  cursor  The Connect RPC API of the Cursor CLI, from CURSOR_API_ENDPOINT. It
+          is not a public API: the field numbers come from the client of
+          2026.11.05-86047df, and a new client can change them.
+          HOME/.cursor/cli-config.json selects HTTP/1.1 for the agent
+          stream. The log names each RPC.
 
 The old form --codex-home DIR writes DIR/config.toml and no FILE.
 
@@ -38,10 +43,14 @@ A request with no tools (a title or a summary) gets a text reply.
 The standard library only: this file runs on each OS of the kit.
 """
 import argparse
+import base64
+import gzip
 import http.server
 import json
 import os
+import queue
 import select
+import struct
 import socketserver
 import threading
 import time
@@ -293,6 +302,144 @@ def agy_message(rid, model, kind, text):
     }
 
 
+
+# --------------------------------------------------------------- cursor
+# A small protobuf writer and reader. A message is a list of (field, value):
+# an int is a varint, bytes or str is a length-delimited field.
+
+
+def varint(n):
+    out = b""
+    while True:
+        b = n & 0x7F
+        n >>= 7
+        if n:
+            out += bytes([b | 0x80])
+        else:
+            return out + bytes([b])
+
+
+def pb(*fields):
+    out = b""
+    for no, v in fields:
+        if isinstance(v, int):
+            out += varint(no << 3) + varint(v)
+        else:
+            if isinstance(v, str):
+                v = v.encode()
+            out += varint(no << 3 | 2) + varint(len(v)) + v
+    return out
+
+
+def read_varint(b, i):
+    n = shift = 0
+    while True:
+        c = b[i]
+        i += 1
+        n |= (c & 0x7F) << shift
+        shift += 7
+        if c < 0x80:
+            return n, i
+
+
+def pb_fields(b):
+    out = []
+    i = 0
+    while i < len(b):
+        key, i = read_varint(b, i)
+        no, wire = key >> 3, key & 7
+        if wire == 0:
+            v, i = read_varint(b, i)
+        elif wire == 2:
+            n, i = read_varint(b, i)
+            v = b[i:i + n]
+            i += n
+        elif wire == 1:
+            v, i = b[i:i + 8], i + 8
+        elif wire == 5:
+            v, i = b[i:i + 4], i + 4
+        else:
+            raise ValueError("wire type %d" % wire)
+        out.append((no, v))
+    return out
+
+
+def pb_get(b, *path):
+    """The bytes at the field path, or None."""
+    for no in path:
+        if not isinstance(b, bytes):
+            return None
+        try:
+            found = [v for n, v in pb_fields(b) if n == no]
+        except (ValueError, IndexError):
+            return None
+        b = found[0] if found else None
+    return b if isinstance(b, bytes) else None
+
+
+def b64(data):
+    return base64.urlsafe_b64encode(json.dumps(data).encode()).rstrip(b"=").decode()
+
+
+def fake_jwt():
+    now = int(time.time())
+    return "%s.%s.c2ln" % (b64({"alg": "HS256", "typ": "JWT"}),
+                           b64({"sub": "auth0|fixture", "iat": now, "exp": now + 86400}))
+
+
+CURSOR_MODEL = pb((1, "fixture"), (3, "fixture"), (4, "Fixture"), (5, "Fixture"))
+CURSOR_REPLY = {
+    "aiserver.v1.AiService/GetUsableModels": pb((1, CURSOR_MODEL)),
+    "aiserver.v1.AiService/GetDefaultModelForCli": pb((1, CURSOR_MODEL)),
+}
+# AgentServerMessage: 1 interaction_update {1 text_delta {1 text}, 13
+# heartbeat, 14 turn_ended}, 2 exec_server_message.
+CURSOR_HEARTBEAT = pb((1, pb((13, b""))))
+CURSOR_TURN_ENDED = pb((1, pb((14, b""))))
+# 3 conversation_checkpoint_update: the client keeps the chat only after it.
+CURSOR_CHECKPOINT = pb((3, b""))
+
+
+def cursor_text(text):
+    return pb((1, pb((1, pb((1, text))))))
+
+
+def cursor_shell(cwd):
+    """An exec_server_message with the shell command: the client shows the
+    "Run this command?" dialog. Field 8, the parsed command, is required."""
+    arg = pb((1, "word"), (2, "agent-signals-test.txt"))
+    parsed = pb((2, pb((1, "touch"), (2, arg), (3, COMMAND))))
+    shell = pb((1, COMMAND), (2, cwd), (3, 30000), (4, "fixture-call"), (5, "touch"), (8, parsed))
+    return pb((2, pb((1, 1), (15, "fixture-exec"), (2, shell))))
+
+
+def envelope(payload, flags=0):
+    return bytes([flags]) + struct.pack(">I", len(payload)) + payload
+
+
+def unenvelope(b):
+    out = []
+    i = 0
+    while i + 5 <= len(b):
+        flags = b[i]
+        n = struct.unpack(">I", b[i + 1:i + 5])[0]
+        p = b[i + 5:i + 5 + n]
+        i += 5 + n
+        if flags & 1:
+            p = gzip.decompress(p)
+        out.append(p)
+    return out
+
+
+# The client messages of each agent run: BidiAppend puts them, RunSSE reads.
+CURSOR_QUEUES = {}
+CURSOR_LOCK = threading.Lock()
+
+
+def cursor_queue(rid):
+    with CURSOR_LOCK:
+        return CURSOR_QUEUES.setdefault(rid, queue.Queue())
+
 # --------------------------------------------------------------- server
 
 
@@ -343,7 +490,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
         else:
             self.send_json(200, {"data": [], "models": []})
 
+    def read_body(self):
+        if self.headers.get("Transfer-Encoding") == "chunked":
+            out = b""
+            while True:
+                n = int(self.rfile.readline().split(b";")[0].strip() or b"0", 16)
+                if n == 0:
+                    self.rfile.readline()
+                    break
+                out += self.rfile.read(n)
+                self.rfile.readline()
+        else:
+            out = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+        if self.headers.get("Content-Encoding") == "gzip":
+            out = gzip.decompress(out)
+        return out
+
     def do_POST(self):
+        if Handler.agent == "cursor":
+            self.cursor_post()
+            return
         size = int(self.headers.get("Content-Length") or 0)
         try:
             body = json.loads(self.rfile.read(size))
@@ -395,6 +561,115 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if kind == "hold":
             self.hold()
 
+    def send_raw(self, ctype, data):
+        self.send_response(200)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def cursor_post(self):
+        rpc = self.path.split("?")[0].lstrip("/")
+        body = self.read_body()
+        ctype = self.headers.get("Content-Type") or "application/proto"
+        if rpc == "auth/exchange_user_api_key":
+            self.note("POST %s reply" % rpc)
+            self.send_json(200, {"accessToken": fake_jwt(), "refreshToken": fake_jwt()})
+        elif rpc == "aiserver.v1.BidiService/BidiAppend":
+            rid = (pb_get(body, 2, 1) or b"").decode(errors="replace")
+            # The client message is in field 4 (bytes) or in field 1 (hex).
+            data = pb_get(body, 4)
+            if not data:
+                try:
+                    data = bytes.fromhex((pb_get(body, 1) or b"").decode())
+                except ValueError:
+                    data = b""
+            cursor_queue(rid).put(data)
+            self.note("POST %s append" % rpc)
+            self.send_raw("application/proto", b"")
+        elif rpc == "agent.v1.AgentService/RunSSE":
+            self.cursor_run(rpc, body)
+        else:
+            self.note("POST %s %s" % (rpc, "reply" if rpc in CURSOR_REPLY else "empty"))
+            empty = b"{}" if "json" in ctype else b""
+            self.send_raw(ctype, CURSOR_REPLY.get(rpc, empty))
+
+    def cursor_run(self, rpc, body):
+        msgs = unenvelope(body)
+        rid = ((pb_get(msgs[0], 1) if msgs else None) or b"").decode(errors="replace")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/connect+proto")
+        self.send_header("Transfer-Encoding", "chunked")
+        self.end_headers()
+
+        def send(payload, flags=0):
+            e = envelope(payload, flags)
+            self.wfile.write(b"%x\r\n" % len(e) + e + b"\r\n")
+            self.wfile.flush()
+
+        self.note("POST %s start" % rpc)
+        q = cursor_queue(rid)
+        try:
+            while True:
+                try:
+                    data = q.get(timeout=HOLD_S)
+                except queue.Empty:
+                    break
+                # AgentClientMessage: 1 run_request, 2 action, 1
+                # user_message_action, 1 user_message, 1 text.
+                text = pb_get(data, 1, 2, 1, 1, 1)
+                if text is None:
+                    continue
+                kind = classify(text.decode(errors="replace"), True)
+                self.note("POST %s %s" % (rpc, kind))
+                if kind == "hold":
+                    self.cursor_hold(q, send)
+                elif kind == "tool":
+                    cwd = (pb_get(data, 1, 2, 1, 2, 4, 2) or b"").decode(errors="replace")
+                    send(cursor_shell(cwd))
+                    self.cursor_wait(q, send)
+                    send(cursor_text(TOOL_DONE))
+                else:
+                    send(cursor_text(TEXT))
+                send(CURSOR_CHECKPOINT)
+                send(CURSOR_TURN_ENDED)
+                break
+            send(b"{}", 2)
+            self.wfile.write(b"0\r\n\r\n")
+            self.wfile.flush()
+        except OSError:
+            self.note("POST %s closed" % rpc)
+        self.close_connection = True
+
+    def cursor_hold(self, q, send):
+        # The turn stays busy: a heartbeat every 2 s, until a client message
+        # with field 4 (a stop) or HOLD_S.
+        end = time.time() + HOLD_S
+        while time.time() < end:
+            try:
+                data = q.get(timeout=2)
+            except queue.Empty:
+                send(CURSOR_HEARTBEAT)
+                continue
+            if pb_get(data, 4) is not None:
+                break
+        self.note("hold ended")
+
+    def cursor_wait(self, q, send):
+        # Wait for the result of the shell command or a stop. The
+        # heartbeats keep the stream open while the dialog shows.
+        end = time.time() + HOLD_S
+        while time.time() < end:
+            try:
+                data = q.get(timeout=2)
+            except queue.Empty:
+                send(CURSOR_HEARTBEAT)
+                continue
+            self.note("POST agent.v1.AgentService/RunSSE client %s" % ",".join(
+                str(n) for n, _ in pb_fields(data)))
+            if pb_get(data, 2) is not None or pb_get(data, 4) is not None:
+                return
+
     def hold(self):
         # The turn stays busy until the client closes the connection.
         end = time.time() + HOLD_S
@@ -444,6 +719,12 @@ def prepare(agent, home, port):
             ("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "1"),
             ("DISABLE_AUTOUPDATER", "1"),
         ]
+    if agent == "cursor":
+        # Without HTTP/1.1 the agent stream needs HTTP/2, and the client
+        # shows "Reconnecting".
+        write_file(os.path.join(home, ".cursor", "cli-config.json"),
+                   json_text({"version": 1, "network": {"useHttp1ForAgent": True}}))
+        return [("CURSOR_API_ENDPOINT", base), ("CURSOR_API_KEY", "dummy")]
     write_file(os.path.join(home, ".gemini", "antigravity-cli", "cache", "onboarding.json"),
                json_text({
                    "consumerOnboardingComplete": False,
@@ -460,7 +741,7 @@ def prepare(agent, home, port):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--agent", choices=["codex", "claude", "agy"])
+    parser.add_argument("--agent", choices=["codex", "claude", "agy", "cursor"])
     parser.add_argument("--home")
     parser.add_argument("--env-file")
     parser.add_argument("--codex-home")

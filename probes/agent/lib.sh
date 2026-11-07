@@ -260,12 +260,12 @@ kit_text_re() { printf '%s' "$1" | sed 's/[][\.*^$+?(){}|]/\\&/g'; }
 
 # kit_login_skip HOME NEEDS AGENT: print the reason why a step does not run
 # in the home mode HOME, or nothing. The fixture mode has a fake model
-# (fake-model.py) for Codex, Claude Code and agy.
+# (fake-model.py) for Codex, Claude Code, agy and the Cursor CLI.
 kit_login_skip() {
   [ "$2" = login ] || return 0
   case $1:$3 in
     throwaway:*) echo no-login ;;
-    fixture:codex | fixture:claude | fixture:agy) ;;
+    fixture:codex | fixture:claude | fixture:agy | fixture:cursor) ;;
     fixture:*) echo no-fixture ;;
   esac
 }

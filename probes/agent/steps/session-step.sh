@@ -187,12 +187,12 @@ pre_answer() {
 }
 
 # in_box FILE TEXT: TEXT is at the end of the box line, the last line that
-# starts with a prompt mark (❯, › or >). With no such line, at the end of
+# starts with a prompt mark (❯, ›, → or >). With no such line, at the end of
 # any line. Claude Code 2.1.318 shows a sent "/clear" on a line above the
 # box, and the path of the work folder of a new-chat step holds "/new" too.
 in_box() {
   _re="(^|[[:space:]])$(kit_text_re "$2")[[:space:]]*\$"
-  _box=$(grep -E '^[[:space:]]*(❯|›|>)' "$1" | tail -n 1)
+  _box=$(grep -E '^[[:space:]]*(❯|›|→|>)' "$1" | tail -n 1)
   if [ -n "$_box" ]; then
     printf '%s\n' "$_box" | grep -Eq -- "$_re"
   else
