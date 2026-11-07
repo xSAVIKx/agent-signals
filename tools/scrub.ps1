@@ -175,14 +175,14 @@ function Invoke-Scrub([string]$Text, [string]$HomeDir, [string]$User, [string]$H
     } $counts 'project'
   }
 
-  # 4. Project keys. The Windows form starts with an upper-case drive
+  # 4. Project keys. The Windows form starts with a drive
   # letter and one or two dashes: Claude D--Projects-shop, Cursor
   # C-Users-alice-shop. The token after the drive letter must hold one more
   # dash, so that a word such as X-ray stays.
   $s = Invoke-ScrubReplace $s '(?m)(^|[/\\ "])-?(?:srv|Users|home|var-lib|work)-[A-Za-z0-9._-]+' {
     param($m) $m.Groups[1].Value + '-work-example'
   } $counts 'key'
-  $s = Invoke-ScrubReplace $s '(?m)(^|[/\\ "])(?-i:[A-Z])--?[A-Za-z0-9._]+-[A-Za-z0-9._-]+' {
+  $s = Invoke-ScrubReplace $s '(?m)(^|[/\\ "])[A-Za-z]--?[A-Za-z0-9._]+-[A-Za-z0-9._-]+' {
     param($m) $m.Groups[1].Value + '-work-example'
   } $counts 'key'
 
