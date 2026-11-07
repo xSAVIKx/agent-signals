@@ -75,7 +75,7 @@ The exit codes of each `kit` command:
 | 0 | ok |
 | 1 | The command failed. Read its output. |
 | 2 | Bad use: a wrong command or a wrong argument. |
-| 3 | A needed tool is missing. |
+| 3 | A needed tool is missing. A step then prints `skip`. |
 | 4 | The operator must act. The command prints `operator: <action>` lines. |
 
 ## Steps
@@ -124,6 +124,10 @@ different source.
    In Git Bash on Windows, the `sh` command also works: `kit.sh` gives the
    command to PowerShell by itself.
 
+   The file `DIR/agent-signals-kit/AGENTS.md` is this task, for the kit
+   that you downloaded. If it differs from the text that you read, obey
+   `AGENTS.md`.
+
 2. Run the doctor. It only collects facts. It starts no agent.
 
    ```sh
@@ -132,8 +136,9 @@ different source.
 
    Read each line. Tell the operator the OS, the tools and the agents that
    it found. If a tool is missing, ask the operator. Install it only after
-   a yes. If the output shows a sandbox or no network, tell the operator.
-   A test session in a sandbox can fail or give wrong signals.
+   a yes. If an `orchestrator_sandbox:` line shows a sandbox, or if the
+   output shows no network, tell the operator. A test session in a sandbox
+   can fail or give wrong signals.
 
 3. Start the run. First ask the operator for the home mode: `throwaway`
    (a new, empty home folder with no login) or `real`. Use `throwaway`
