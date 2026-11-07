@@ -43,13 +43,14 @@ kit_os() {
 }
 
 # kit_run_dir: print the path of the current run folder. It reads, in
-# this order: AGENT_SIGNALS_RUN, the file .agent-signals-run in the current
-# folder, the file .agent-signals-run in KIT_ROOT. kit start writes both
-# files, so a command in a new shell with a new current folder finds the
-# run. With no run, it exits 2.
+# this order: AGENT_SIGNALS_RUN, then the newer of the two files
+# .agent-signals-run in the current folder and in KIT_ROOT. kit start writes
+# both files, so a command in a new shell with a new current folder finds
+# the run. A file can stay from an earlier run, so the newer file wins. With
+# equal times, the file in the current folder wins. With no run, it exits 2.
 kit_run_dir() {
   _r=${AGENT_SIGNALS_RUN:-}
-  if [ -z "$_r" ] && [ -r .agent-signals-run ]; then
+  if [ -z "$_r" ] && [ -r .agent-signals-run ] && ! [ "$KIT_ROOT/.agent-signals-run" -nt .agent-signals-run ]; then
     _r=$(head -n 1 .agent-signals-run)
   fi
   if [ -z "$_r" ] && [ -r "$KIT_ROOT/.agent-signals-run" ]; then

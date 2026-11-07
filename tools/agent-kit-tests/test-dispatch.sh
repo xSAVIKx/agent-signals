@@ -46,6 +46,16 @@ echo "$T/run b" >"$T/kit/.agent-signals-run"
 got=$(cd "$T/elsewhere" && AGENT_SIGNALS_RUN='' KIT_DIR="$T/kit/probes/agent" sh -c ". '$T/kit/probes/agent/lib.sh'; kit_run_dir")
 if [ "$got" = "$T/run b" ]; then pass "kit_run_dir reads the pointer in KIT_ROOT"; else fail "kit_run_dir reads the pointer in KIT_ROOT" "got '$got'"; fi
 
+# A pointer that stays from an earlier run loses to the newer pointer.
+echo "$T/run a" >"$T/elsewhere/.agent-signals-run"
+touch -t 202001010000 "$T/elsewhere/.agent-signals-run"
+got=$(cd "$T/elsewhere" && AGENT_SIGNALS_RUN='' KIT_DIR="$T/kit/probes/agent" sh -c ". '$T/kit/probes/agent/lib.sh'; kit_run_dir")
+if [ "$got" = "$T/run b" ]; then pass "an old pointer in the current folder loses"; else fail "an old pointer in the current folder loses" "got '$got'"; fi
+touch -t 202001010000 "$T/kit/.agent-signals-run"
+touch -t 202101010000 "$T/elsewhere/.agent-signals-run"
+got=$(cd "$T/elsewhere" && AGENT_SIGNALS_RUN='' KIT_DIR="$T/kit/probes/agent" sh -c ". '$T/kit/probes/agent/lib.sh'; kit_run_dir")
+if [ "$got" = "$T/run a" ]; then pass "a newer pointer in the current folder wins"; else fail "a newer pointer in the current folder wins" "got '$got'"; fi
+
 # A pid is ours only with its start time.
 sleep 30 &
 p=$!
