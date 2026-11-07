@@ -184,7 +184,19 @@ foreach ($b in 'conpty', 'psmux') {
             $s4 = "exe-$b"
             Expect-Code "${b}: start a one-word .exe agent" 0 (Invoke-Kit 'session' 'start' $s4 'claude' '--via' $b)
             Get-Content -LiteralPath $out | Write-Output
-            Expect-Code "${b}: the .exe agent shows its prompt" 0 (Invoke-Kit 'session' 'wait' $s4 '>' '30')
+            $c = Invoke-Kit 'session' 'wait' $s4 '>' '30'
+            Expect-Code "${b}: the .exe agent shows its prompt" 0 $c
+            if ($c -ne 0) {
+                # Show what the pane holds, and the state of the session.
+                Get-Content -LiteralPath $out | Write-Output
+                foreach ($k in 'last.screen', 'pids', 'pid', 'breakaway-error') {
+                    $p = Join-Path $run "sessions/$s4/$k"
+                    if (Test-Path -LiteralPath $p) { Write-Output "--- $k"; Get-Content -LiteralPath $p | Write-Output }
+                }
+                $null = Invoke-Kit 'session' 'screen' $s4
+                Write-Output '--- screen'
+                Get-Content -LiteralPath $out | Write-Output
+            }
             Expect-Code "${b}: stop the .exe agent" 0 (Invoke-Kit 'session' 'stop' $s4)
             Expect-NoLivePids "${b}: no pid of the .exe agent runs after stop" $s4
         } finally {

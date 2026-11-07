@@ -74,7 +74,7 @@ New-Item -ItemType Directory -Path $run | Out-Null
 $env:AGENT_SIGNALS_RUN = $run
 Expect-Kit 'doctor with a run exits 0' 0 'doctor'
 if (Test-Path -LiteralPath (Join-Path $run '00-doctor.txt')) { Pass 'the doctor file' } else { Fail 'the doctor file' 'no 00-doctor.txt' }
-Expect-Line 'the doctor manifest line' '^step\tdoctor\tnone\tok\t[0-9]{8}T[0-9]{6}Z\t[0-9]{8}T[0-9]{6}Z\t00-doctor\.txt\t[0-9a-f]{64}$' (Join-Path $run 'manifest.tsv')
+Expect-Line 'the doctor manifest line' '^step\tdoctor\tnone\tok\t[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z\t[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z\t00-doctor\.txt\t[0-9a-f]{64}\t-$' (Join-Path $run 'manifest.tsv')
 Expect-Kit 'doctor with an argument is bad use' 2 'doctor' 'extra'
 
 Complete-Tests

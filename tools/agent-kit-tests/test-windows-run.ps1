@@ -153,7 +153,7 @@ Expect-Line 'step probe prints ok' '^step: probe@none ok$' $out
 $f1 = Join-Path $run '01-probe@none.txt'
 if (Test-Path -LiteralPath $f1) { Pass 'the probe file' } else { Fail 'the probe file' 'no 01-probe@none.txt' }
 Expect-Line 'the probe ran the claude probe' '^==== probe claude/windows\.ps1$' $f1
-Expect-Line 'the manifest line of the probe' ('^step\tprobe\tnone\tok\t[0-9]{8}T[0-9]{6}Z\t[0-9]{8}T[0-9]{6}Z\t01-probe@none\.txt\t' + (Get-Sha $f1) + '$') (Join-Path $run 'manifest.tsv')
+Expect-Line 'the manifest line of the probe' ('^step\tprobe\tnone\tok\t[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z\t[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z\t01-probe@none\.txt\t' + (Get-Sha $f1) + '\t-$') (Join-Path $run 'manifest.tsv')
 
 Expect-Kit 'step first-run exits 0' 0 'step' 'first-run-claude@conpty'
 Expect-Line 'step first-run prints ok' '^step: first-run-claude@conpty ok$' $out
@@ -182,7 +182,8 @@ Expect-Line 'the manifest has the reason column' "^step`tpermission-claude`tconp
 try {
     $j = Get-Content -Raw -LiteralPath (Join-Path $run 'manifest.json') | ConvertFrom-Json
     if (@($j.steps).Count -eq 4) { Pass 'manifest.json has the steps' } else { Fail 'manifest.json has the steps' "$(@($j.steps).Count) steps" }
-    if (@($j.steps | Where-Object { $_.reason -eq 'needs-conpty-python' }).Count -eq 1) { Pass 'manifest.json has the reason' } else { Fail 'manifest.json has the reason' 'no step with the reason needs-conpty-python' }
+    if (@($j.steps | Where-Object { $_.reason -eq 'needs-conpty-python' }).Count -eq 2) { Pass 'manifest.json has the reason' } else { Fail 'manifest.json has the reason' 'not 2 steps with the reason needs-conpty-python' }
+    if ($null -eq @($j.steps | Where-Object { $_.name -eq 'probe' })[0].reason) { Pass 'manifest.json has a null reason for a step with no reason' } else { Fail 'manifest.json has a null reason for a step with no reason' 'not null' }
 } catch { Fail 'manifest.json parses' $_.Exception.Message }
 $zip = "$run.zip"
 Add-Type -AssemblyName System.IO.Compression.FileSystem
