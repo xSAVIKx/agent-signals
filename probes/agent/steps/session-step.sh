@@ -165,11 +165,11 @@ watching() { [ -n "$watch" ] && kill -0 "$watch" 2>/dev/null; }
 # agent ended and 3 when no screen came. "bad" ends the step for 2 and 3.
 
 # pre_answer FILE: send the keys of the first KIT_PRE pair that matches a
-# line of FILE. A pair that still matches 2 s after its keys gets them again,
-# 3 times at most: a key that comes before the agent reads keys is lost
-# (Claude Code 2.1.318 on ubuntu-26.04 in CI). Each REGEX matches only the
-# selected line, so the match ends when the key works. It fails when no pair
-# can send keys.
+# line of FILE. A key that comes before the agent reads keys is lost (Claude
+# Code 2.1.318 on ubuntu-26.04 in CI). So a pair gets its keys again, 3 times
+# at most, when it still matches 3 s after its keys and the screen is the
+# same as at the last send. A key that worked changes the screen, so a slow
+# redraw does not get a second Down. It fails when no pair can send keys.
 used=
 pre_answer() {
   [ -n "${KIT_PRE:-}" ] || return 1
@@ -182,12 +182,16 @@ pre_answer() {
     _c=$(printf '%s\n' $used | grep -c "^$_n:")
     [ "$_c" -lt 3 ] || continue
     _now=$(date +%s)
-    _t=$(printf '%s\n' $used | sed -n "s/^$_n://p" | tail -n 1)
-    [ -z "$_t" ] || [ $((_now - _t)) -ge 2 ] || continue
+    _sum=$(cksum <"$1" | tr ' ' _)
+    _last=$(printf '%s\n' $used | grep "^$_n:" | tail -n 1)
+    if [ -n "$_last" ]; then
+      _t=${_last#*:}
+      [ $((_now - ${_t%%:*})) -ge 3 ] && [ "${_t#*:}" = "$_sum" ] || continue
+    fi
     _k=${_pair#*=>}
     if has "${_pair%%=>*}" "$1"; then
       say "pre answer $_n: $_k"
-      used="$used $_n:$_now"
+      used="$used $_n:$_now:$_sum"
       keys "$_k"
       return 0
     fi

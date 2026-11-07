@@ -30,8 +30,9 @@
 #                REGEX=>KEYS, separated by ";;". When a line of the screen
 #                matches REGEX, the step sends KEYS (tmux key names,
 #                separated by spaces). A pair is used again only while its
-#                REGEX still matches, 2 s after the last use, 3 times at
-#                most: a key that comes too early is lost.
+#                REGEX still matches and the screen did not change, 3 s
+#                after the last use, 3 times at most: a key that comes too
+#                early is lost.
 #                Each REGEX matches the line with the cursor, so that a key
 #                goes only to the option that the pair names. The step never
 #                answers a terms page or a data opt-in: it stops and asks the

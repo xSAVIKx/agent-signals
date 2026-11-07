@@ -126,14 +126,13 @@ def text_of(content):
 
 
 def codex_answer(body):
-    items = body.get("input") or []
-    if any(i.get("type") == "function_call_output" for i in items):
+    items = [i for i in body.get("input") or [] if isinstance(i, dict)]
+    # Only the items after the last user message count: a tool result of an
+    # earlier turn must not end a new turn.
+    last = max([n for n, i in enumerate(items) if i.get("role") == "user"] or [-1])
+    if any(i.get("type") == "function_call_output" for i in items[last + 1:]):
         return [codex_text(TOOL_DONE)]
-    text = ""
-    for item in reversed(items):
-        if item.get("role") == "user":
-            text = text_of(item.get("content"))
-            break
+    text = text_of(items[last].get("content")) if last >= 0 else ""
     kind = classify(text, True)
     if kind == "hold":
         return "hold"
@@ -433,7 +432,14 @@ def unenvelope(b):
 
 # The client messages of each agent run: BidiAppend puts them, RunSSE reads.
 CURSOR_QUEUES = {}
+# The newest RunSSE stream of each run. The client can open a second stream
+# for a run (fact 78), and the old stream must then stop taking messages.
+CURSOR_STREAMS = {}
 CURSOR_LOCK = threading.Lock()
+
+
+class StaleStream(Exception):
+    """A newer RunSSE stream has the run."""
 
 
 def cursor_queue(rid):
@@ -510,10 +516,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if Handler.agent == "cursor":
             self.cursor_post()
             return
-        size = int(self.headers.get("Content-Length") or 0)
         try:
-            body = json.loads(self.rfile.read(size))
-        except ValueError:
+            body = json.loads(self.read_body())
+        except (ValueError, OSError, EOFError):
             body = {}
         if not isinstance(body, dict):
             body = {}
@@ -609,11 +614,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         self.note("POST %s start" % rpc)
         q = cursor_queue(rid)
+        with CURSOR_LOCK:
+            stream = CURSOR_STREAMS.get(rid, 0) + 1
+            CURSOR_STREAMS[rid] = stream
+
+        def take(timeout):
+            """The next client message, or None after TIMEOUT seconds."""
+            try:
+                data = q.get(timeout=timeout)
+            except queue.Empty:
+                data = None
+            with CURSOR_LOCK:
+                current = CURSOR_STREAMS.get(rid) == stream
+            if not current:
+                if data is not None:
+                    q.put(data)
+                raise StaleStream()
+            return data
+
         try:
             while True:
-                try:
-                    data = q.get(timeout=HOLD_S)
-                except queue.Empty:
+                data = take(HOLD_S)
+                if data is None:
                     break
                 # AgentClientMessage: 1 run_request, 2 action, 1
                 # user_message_action, 1 user_message, 1 text.
@@ -623,11 +645,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 kind = classify(text.decode(errors="replace"), True)
                 self.note("POST %s %s" % (rpc, kind))
                 if kind == "hold":
-                    self.cursor_hold(q, send)
+                    self.cursor_hold(take, send)
                 elif kind == "tool":
                     cwd = (pb_get(data, 1, 2, 1, 2, 4, 2) or b"").decode(errors="replace")
                     send(cursor_shell(cwd))
-                    self.cursor_wait(q, send)
+                    self.cursor_wait(take, send)
                     send(cursor_text(TOOL_DONE))
                 else:
                     send(cursor_text(TEXT))
@@ -637,36 +659,48 @@ class Handler(http.server.BaseHTTPRequestHandler):
             send(b"{}", 2)
             self.wfile.write(b"0\r\n\r\n")
             self.wfile.flush()
+        except StaleStream:
+            self.note("POST %s replaced" % rpc)
         except OSError:
             self.note("POST %s closed" % rpc)
+        except Exception as e:  # A bad message must not leave the stream open.
+            self.note("POST %s error %s" % (rpc, type(e).__name__))
+            try:
+                send(CURSOR_TURN_ENDED)
+                send(b"{}", 2)
+                self.wfile.write(b"0\r\n\r\n")
+                self.wfile.flush()
+            except OSError:
+                pass
         self.close_connection = True
 
-    def cursor_hold(self, q, send):
+    def cursor_hold(self, take, send):
         # The turn stays busy: a heartbeat every 2 s, until a client message
         # with field 4 (a stop) or HOLD_S.
         end = time.time() + HOLD_S
         while time.time() < end:
-            try:
-                data = q.get(timeout=2)
-            except queue.Empty:
+            data = take(2)
+            if data is None:
                 send(CURSOR_HEARTBEAT)
                 continue
             if pb_get(data, 4) is not None:
                 break
         self.note("hold ended")
 
-    def cursor_wait(self, q, send):
+    def cursor_wait(self, take, send):
         # Wait for the result of the shell command or a stop. The
         # heartbeats keep the stream open while the dialog shows.
         end = time.time() + HOLD_S
         while time.time() < end:
-            try:
-                data = q.get(timeout=2)
-            except queue.Empty:
+            data = take(2)
+            if data is None:
                 send(CURSOR_HEARTBEAT)
                 continue
-            self.note("POST agent.v1.AgentService/RunSSE client %s" % ",".join(
-                str(n) for n, _ in pb_fields(data)))
+            try:
+                fields = ",".join(str(n) for n, _ in pb_fields(data))
+            except (ValueError, IndexError):
+                fields = "bad"
+            self.note("POST agent.v1.AgentService/RunSSE client %s" % fields)
             if pb_get(data, 2) is not None or pb_get(data, 4) is not None:
                 return
 

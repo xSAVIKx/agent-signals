@@ -218,7 +218,9 @@ if pyte is not None:
             super().erase_in_display(how, *args, **kwargs)
 
         def reset(self):
+            # A full reset (RIS) also leaves the alternate screen.
             self.wrapped = frozenset()
+            self._saved_main = None
             super().reset()
 
         # The alternate screen (private modes 47, 1047 and 1049), as in

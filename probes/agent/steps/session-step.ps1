@@ -91,7 +91,7 @@ if ($prompt.StartsWith('/')) { $sendKey = 'Enter' }
 $pre = @()
 foreach ($p in ((Get-Field 'pre') -split ';;')) {
     $i = $p.IndexOf('=>')
-    if ($i -gt 0) { $pre += New-Object PSObject -Property @{ Re = $p.Substring(0, $i); Keys = @($p.Substring($i + 2) -split ' ' | Where-Object { $_ }); Used = 0; At = [datetime]::MinValue } }
+    if ($i -gt 0) { $pre += New-Object PSObject -Property @{ Re = $p.Substring(0, $i); Keys = @($p.Substring($i + 2) -split ' ' | Where-Object { $_ }); Used = 0; At = [datetime]::MinValue; Screen = '' } }
 }
 # Get-Limit SECONDS: a time limit. AGENT_SIGNALS_WATCH makes it shorter.
 function Get-Limit([int]$Seconds) {
@@ -245,16 +245,18 @@ function Send-Prompt {
     }
     Add-Log "prompt sent, then $sendKey"
 }
-# Send-Pre: send the keys of the first "pre" pair that matches the screen
-# and has no use yet. It returns true when it sent keys.
 # Send-Pre: send the keys of the first "pre" pair that matches a line of the
-# screen. A pair that still matches 2 s after its keys gets them again, 3
-# times at most: a key that comes before the agent reads keys is lost.
+# screen. It returns true when it sent keys. A key that comes before the
+# agent reads keys is lost. So a pair gets its keys again, 3 times at most,
+# when it still matches 3 s after its keys and the screen is the same as at
+# the last send.
 function Send-Pre {
     foreach ($p in $pre) {
-        if ($p.Used -ge 3 -or ((Get-Date) - $p.At).TotalSeconds -lt 2 -or -not (Test-Line $sc $p.Re)) { continue }
+        if ($p.Used -ge 3 -or -not (Test-Line $sc $p.Re)) { continue }
+        if ($p.Used -gt 0 -and (((Get-Date) - $p.At).TotalSeconds -lt 3 -or $sc -cne $p.Screen)) { continue }
         $p.Used++
         $p.At = Get-Date
+        $p.Screen = $sc
         Add-Log "pre: $($p.Re) => $($p.Keys -join ' ')"
         Send-Keys $p.Keys
         return $true

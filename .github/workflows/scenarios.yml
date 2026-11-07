@@ -606,6 +606,11 @@ jobs:
             sh tools/scrub.sh "$raw" 2>/dev/null
             return "$rc"
           }
+          # macOS: a throwaway home does not isolate the keychain (fact 78).
+          # The item names before and after the run show if an agent saved
+          # a login there. "security" prints no secret without -d.
+          kc() { security dump-keychain 2>/dev/null | sed -n 's/^ *"svce"<blob>="\(.*\)"$/\1/p' | sort -u; }
+          if [ "$RUNNER_OS" = macOS ]; then kc >"$RUNNER_TEMP/keychain-before.txt"; fi
           k start --home fixture --out "$out"
           k plan --home fixture
           sed -n 's/^step: \([^ ]*\) needs=login [^ ]* measures=.*/\1/p' "$raw" >"$RUNNER_TEMP/fixture-steps.txt"
@@ -619,6 +624,15 @@ jobs:
           done <"$RUNNER_TEMP/fixture-steps.txt"
           k session stop --all || true
           k check
+          if [ "$RUNNER_OS" = macOS ]; then
+            kc >"$RUNNER_TEMP/keychain-after.txt"
+            new=$(comm -13 "$RUNNER_TEMP/keychain-before.txt" "$RUNNER_TEMP/keychain-after.txt")
+            echo "keychain items before: $(wc -l <"$RUNNER_TEMP/keychain-before.txt" | tr -d ' '), new: $(printf '%s' "$new" | grep -c . || true)"
+            if [ -n "$new" ]; then
+              printf '%s\n' "$new" | sed 's/^/new keychain item: /'
+              echo "a fixture run wrote to the keychain" >>"$RUNNER_TEMP/kit-failed.txt"
+            fi
+          fi
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: steps.fixture.outcome == 'success'
         with:
