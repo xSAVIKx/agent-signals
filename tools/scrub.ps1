@@ -54,7 +54,7 @@
 
 param([string]$Path)
 
-$script:ScrubKinds = @('extra', 'home', 'other-home', 'project', 'sid', 'key', 'user', 'domain', 'host', 'secret', 'uuid', 'hex', 'email', 'ip')
+$script:ScrubKinds = @('extra', 'home', 'other-home', 'project', 'temp', 'sid', 'key', 'user', 'domain', 'host', 'secret', 'uuid', 'hex', 'email', 'ip')
 
 # A path ends at white space, a quote, a colon, a comma, a semicolon or a
 # parenthesis.
@@ -109,7 +109,10 @@ function Invoke-Scrub([string]$Text, [string]$HomeDir, [string]$User, [string]$H
   foreach ($k in $script:ScrubKinds) { $counts[$k] = 0 }
   $pc = $script:PathChars
   $more = $script:PathMore
-  $s = $Text
+  # A path after <sandbox> is below a throwaway folder of a scenario. Its home
+  # is <sandbox>/home/, and no home rule may read the next word as an account
+  # name. So the / after <sandbox> is @S@ until all rules are done.
+  $s = $Text.Replace('<sandbox>/', '<sandbox>@S@')
   # A caller with four arguments gets the extra roots and the domain of the
   # environment.
   if (-not $PSBoundParameters.ContainsKey('Extra') -or -not $PSBoundParameters.ContainsKey('Domain')) {
@@ -177,6 +180,11 @@ function Invoke-Scrub([string]$Text, [string]$HomeDir, [string]$User, [string]$H
     } $counts 'project'
   }
 
+  # 3b. The temporary folders of Claude Code and Cursor hold the account
+  # number or a run name.
+  $s = Invoke-ScrubReplace $s '/tmp/claude-[A-Za-z0-9._-]+' { '/tmp/claude-example' } $counts 'temp'
+  $s = Invoke-ScrubReplace $s '/tmp/cursor-agent-logs-[0-9]+' { '/tmp/cursor-agent-logs-example' } $counts 'temp'
+
   # 3a. Windows account SIDs. This rule comes before the project keys,
   # because a project key also matches a bare SID.
   $s = Invoke-ScrubReplace $s 'S-1-5-21(?:-[0-9]+){3,4}' { '<sid>' } $counts 'sid'
@@ -188,7 +196,7 @@ function Invoke-Scrub([string]$Text, [string]$HomeDir, [string]$User, [string]$H
   $s = Invoke-ScrubReplace $s '(?m)(^|[/\\ "])-?(?:srv|Users|home|var-lib|work)-[A-Za-z0-9._-]+' {
     param($m) $m.Groups[1].Value + '-work-example'
   } $counts 'key'
-  $s = Invoke-ScrubReplace $s '(?m)(^|[/\\ "])[A-Za-z]--?[A-Za-z0-9._]+-[A-Za-z0-9._-]+' {
+  $s = Invoke-ScrubReplace $s '(?m)(^|[/\\ "])(?:[A-Z]-|[A-Za-z]--)[A-Za-z0-9._]+-[A-Za-z0-9._-]+' {
     param($m) $m.Groups[1].Value + '-work-example'
   } $counts 'key'
 
@@ -246,6 +254,7 @@ function Invoke-Scrub([string]$Text, [string]$HomeDir, [string]$User, [string]$H
     if ($m.Value -eq '127.0.0.1' -or $m.Value -eq '0.0.0.0') { $m.Value } else { '<ip>' }
   } $counts 'ip'
 
+  $s = $s.Replace('<sandbox>@S@', '<sandbox>/')
   return New-Object PSObject -Property @{ Text = $s; Counts = $counts }
 }
 
