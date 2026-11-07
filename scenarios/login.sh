@@ -21,7 +21,11 @@ sys.exit(0 if d.get("expiresAt", 0) / 1000 - time.time() > 1800 else 1)
 EOF
       mkdir -p "$SCN_HOME/.claude"
       cp "$f" "$SCN_HOME/.claude/.credentials.json"
+      # With CLAUDE_CONFIG_DIR (scenarios/lib.sh), Claude Code reads this
+      # file in the config folder. The copy in HOME is for a scenario that
+      # starts the agent with no such variable.
       printf '{"hasCompletedOnboarding":true,"theme":"dark"}\n' >"$SCN_HOME/.claude.json"
+      cp "$SCN_HOME/.claude.json" "$SCN_HOME/.claude/.claude.json"
       ;;
     codex)
       f=$REAL_HOME/.codex/auth.json

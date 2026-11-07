@@ -5,3 +5,11 @@
 probes
 tools/scrub.sh
 tools/scrub.ps1
+tools/check-probe-output.sh
+# The first-run step runs these scenario files. The kit has no
+# scenarios/login.sh: no file of the kit copies a login (copy_login).
+scenarios/lib.sh
+scenarios/first-run.sh
+scenarios/conpty.py
+scenarios/first-run-windows.py
+scenarios/first-run-windows.ps1

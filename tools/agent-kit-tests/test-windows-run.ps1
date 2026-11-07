@@ -43,6 +43,8 @@ $py = Join-Path $T 'py\python.cmd'
 New-TextFile $py (@(
         '@echo off'
         'if "%~1"=="-c" exit /b 0'
+        'rem The import check of kit session runs "python -I -c": the stub has no session packages.'
+        'if "%~1"=="-I" exit /b 1'
         'mkdir "%SCN_OUT%" 2>nul'
         'echo scenario: first-run-windows-%~2'
         '>"%SCN_OUT%\log.txt" echo 00:00:00 version: stub 1.0 (exit 0)'
@@ -61,13 +63,13 @@ Remove-Item Env:\AGENT_SIGNALS_RUN -ErrorAction SilentlyContinue
 # The step list of the test. It has the columns of probes/agent/steps.tsv.
 $steps = Join-Path $T 'steps.tsv'
 New-TextFile $steps ((@(
-            "name`tkind`tagent`tbackends`tneeds`tcost`tprompt`twait_regex`tanswer`tmeasures`tfacts"
+            "name`tkind`tagent`tbackends`tneeds`tcost`tprompt`twait_regex`tanswer`tmeasures`tfacts`tidle_regex"
             "probe`tprobe`t-`t-`tnone`tnone`t-`t-`t-`tthe full probe kit`t-"
             "first-run-claude`tfirst-run`tclaude`ttmux,conpty`tnone`tnone`t-`t-`t-`tthe first start with no login`t029"
             "first-run-codex`tfirst-run`tcodex`ttmux,conpty`tnone`tnone`t-`t-`t-`tthe first start with no login`t029"
             "first-run-tmux-claude`tfirst-run`tclaude`ttmux,pty`tnone`tnone`t-`t-`t-`ta line with no Windows backend`t-"
             "first-login-claude`tfirst-run`tclaude`tconpty`tlogin`tturns:1`t-`t-`t-`ta test line with a login`t-"
-            "permission-claude`tpermission`tclaude`ttmux,pty,conpty`tlogin`tturns:1`tCreate a file named agent-signals-test.txt that holds the word hello.`tDo you want`t1`tthe permission dialog`t023"
+            "permission-claude`tpermission`tclaude`ttmux,pty,conpty`tlogin`tturns:1`tCreate a file named agent-signals-test.txt that holds the word hello.`tDo you want`t1`tthe permission dialog`t023`tstub idle"
         ) -join "`n") + "`n")
 $env:KIT_STEPS = $steps
 
@@ -130,7 +132,7 @@ Pop-Location
 Expect-Line 'plan lists the probe' '^step: probe@none needs=none cost=none measures=the full probe kit$' $out
 Expect-Line 'plan lists the first run on conpty' '^step: first-run-claude@conpty needs=none cost=none measures=the first start with no login$' $out
 Expect-NoLine 'plan skips an agent that is not installed' 'first-run-codex' $out
-Expect-NoLine 'plan lists no session step yet' 'permission-claude' $out
+Expect-NoLine 'plan lists no conpty session step with no session Python' 'permission-claude@conpty' $out
 Expect-NoLine 'plan skips a line with no Windows backend' 'first-run-tmux-claude' $out
 Expect-NoLine 'plan with the real home has no skip' 'skip=' $out
 Expect-Kit 'plan --home throwaway exits 0' 0 'plan' '--home' 'throwaway'
@@ -164,7 +166,8 @@ $env:AGENT_SIGNALS_PYTHON = Join-Path $T 'no-such-python.exe'
 Expect-Kit 'step first-run with no Python skips' 3 'step' 'first-run-claude@conpty'
 Expect-Line 'the skip has a reason' '^step: first-run-claude@conpty skip needs-conpty-python$' $out
 $env:AGENT_SIGNALS_PYTHON = $py
-Expect-Kit 'a session step skips on Windows' 3 'step' 'permission-claude@conpty'
+Expect-Kit 'a session step with no session Python skips' 3 'step' 'permission-claude@conpty'
+Expect-Line 'the session skip has a reason' '^step: permission-claude@conpty skip needs-conpty-python$' $out
 
 # kit check passes a clean run, and writes the summary, the JSON and the zip.
 Expect-Kit 'check passes a clean run' 0 'check'
@@ -265,7 +268,8 @@ Remove-Item -LiteralPath (Join-Path $run 'extra.txt')
 # skips with needs-scenario.
 $mini = Join-Path $T 'kit'
 foreach ($f in @('probes\agent\kit.ps1', 'probes\agent\lib.ps1', 'probes\agent\start.ps1', 'probes\agent\plan.ps1', 'probes\agent\step.ps1',
-        'probes\agent\steps\first-run.ps1', 'probes\lib.ps1', 'probes\claude\windows.ps1', 'tools\scrub.ps1')) {
+        'probes\agent\steps\first-run.ps1', 'probes\agent\steps\permission.ps1', 'probes\agent\steps\session-step.ps1',
+        'probes\lib.ps1', 'probes\claude\windows.ps1', 'tools\scrub.ps1')) {
     $to = Join-Path $mini $f
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $to) | Out-Null
     Copy-Item -LiteralPath (Join-Path $env:ROOT $f) -Destination $to
@@ -283,6 +287,8 @@ Expect-Code 'plan in a kit with no scenario' 0 (Invoke-Mini 'plan')
 Expect-NoLine 'plan has no first run with no scenario' 'first-run-claude' $out
 Expect-Code 'the first run with no scenario skips' 3 (Invoke-Mini 'step' 'first-run-claude@conpty')
 Expect-Line 'the skip names the scenario' '^step: first-run-claude@conpty skip needs-scenario$' $out
+Expect-Code 'a session step with no scenarios\conpty.py skips' 3 (Invoke-Mini 'step' 'permission-claude@conpty')
+Expect-Line 'the session skip names the scenario' '^step: permission-claude@conpty skip needs-scenario$' $out
 
 Remove-Item Env:\AGENT_SIGNALS_RUN
 Complete-Tests

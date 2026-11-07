@@ -510,12 +510,20 @@ $script:KitTrustedSids = @(
     'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464'
 )
 
+# The wide groups that a folder can hold as explicit entries: Everyone,
+# Anonymous, Interactive, Authenticated Users, Users and Guests. On
+# windows-11-arm, a new folder in RUNNER_TEMP has such entries, and
+# "icacls /inheritance:r" does not remove them. So the kit removes them
+# with /remove:g.
+$script:KitWideSids = @('S-1-1-0', 'S-1-5-7', 'S-1-5-4', 'S-1-5-11', 'S-1-5-32-545', 'S-1-5-32-546')
+
 # Get-KitPrivateCommand DIR: the icacls command that gives only this
-# account and SYSTEM access to DIR. It holds the text <sid>, not the SID of
-# the account: the hint can go to a public log. "whoami /user" prints the
-# SID.
+# account and SYSTEM access to DIR. An explicit entry of Administrators
+# stays. It holds the text <sid>, not the SID of the account: the hint can
+# go to a public log. "whoami /user" prints the SID.
 function Get-KitPrivateCommand([string]$Dir) {
-    return ('icacls "{0}" /inheritance:r /grant:r "*<sid>:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F"' -f $Dir.TrimEnd('\'))
+    $wide = (@($script:KitWideSids | ForEach-Object { "*$_" }) -join ' ')
+    return ('icacls "{0}" /inheritance:r /remove:g {1} /grant:r "*<sid>:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F"' -f $Dir.TrimEnd('\'), $wide)
 }
 
 # Test-KitPlace DIR: the reasons why DIR must not hold a run folder: in a
@@ -642,9 +650,18 @@ function Get-KitOption([object[]]$ArgList, [string]$Name) {
 # The backends of the Windows kit. A step line lists its backends in the
 # column "backends"; "-" or an empty value means "none" (the probe).
 $script:KitWindowsBackends = @('none', 'conpty', 'psmux', 'operator')
-# The kinds and backends that this kit runs on Windows now. The session
-# steps come with Task 10 of the plan.
-$script:KitWindowsRuns = @{ 'probe' = @('none'); 'first-run' = @('conpty') }
+# The kinds and backends that this kit runs on Windows now. The kinds
+# permission, new-chat and interrupt run steps\session-step.ps1 in a test
+# session. "resume" does not run on Windows yet: a stop of a test session
+# deletes its work folder and its home, so a new start cannot resume it.
+$script:KitWindowsRuns = @{
+    'probe'        = @('none')
+    'first-run'    = @('conpty')
+    'permission'   = @('conpty', 'psmux')
+    'new-chat'     = @('conpty', 'psmux')
+    'interrupt'    = @('conpty', 'psmux')
+    'real-session' = @('operator')
+}
 
 # Get-KitStepBackends STEP: the backends of the step line that are Windows
 # backends, in the order of the line. The column "windows" (when the step
@@ -666,6 +683,28 @@ function Test-KitStepRuns($Step, [string]$Backend) {
     return ($script:KitWindowsRuns.ContainsKey($k) -and ($script:KitWindowsRuns[$k] -contains $Backend))
 }
 
+
+# Clear-KitWelcomeBox TEXT [VALUES]: TEXT with each line that can show a
+# display name or an organisation changed to <blanked by the kit>, as
+# blank() of session-step.sh does: "Welcome back", "Organisation", each
+# line that holds one of VALUES, and the end of a line after
+# " . Claude Max . " (the dots are U+00B7). Not measured on a real screen.
+function Clear-KitWelcomeBox([string]$Text, [string[]]$Values = @()) {
+    $x = '<blanked by the kit>'
+    $dot = [string][char]0x00B7
+    $plan = " $dot Claude [A-Z][A-Za-z]*( [A-Za-z]+)? $dot "
+    $lines = @($Text -split "`n")
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        $l = $lines[$i]
+        $hit = $l -match 'Welcome back|Organi[sz]ation'
+        foreach ($v in $Values) { if ($v.Length -gt 2 -and $l.Contains($v)) { $hit = $true } }
+        if ($hit) { $lines[$i] = $x; continue }
+        $m = [regex]::Match($l, $plan)
+        if ($m.Success) { $lines[$i] = $l.Substring(0, $m.Index + $m.Length) + $x }
+    }
+    return ($lines -join "`n")
+}
+
 # Test-KitScenario: true when the kit has the files of the conpty first
 # run. A release kit can lack them.
 function Test-KitScenario {
@@ -679,6 +718,7 @@ function Test-KitScenario {
 # mode 0700 does on Unix. It returns the exit code of icacls.
 function Set-KitPrivate([string]$Dir) {
     $me = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-    $r = Invoke-KitNative 'icacls.exe' @($Dir, '/inheritance:r', '/grant:r', "*${me}:(OI)(CI)F", '*S-1-5-18:(OI)(CI)F')
+    $wide = @($script:KitWideSids | ForEach-Object { "*$_" })
+    $r = Invoke-KitNative 'icacls.exe' (@($Dir, '/inheritance:r', '/remove:g') + $wide + @('/grant:r', "*${me}:(OI)(CI)F", '*S-1-5-18:(OI)(CI)F'))
     return $r.Code
 }

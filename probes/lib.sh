@@ -91,6 +91,37 @@ pids() {
     index(skip, " " pid " ") == 0 && $0 ~ re && $0 !~ /probes\// && $0 !~ /^(awk|grep|ps) / { print pid }' | sort -n
 }
 
+# prog_of PID: the program of PID: the base name of the first word of its
+# command line, with no trailing ":".
+prog_of() {
+  ps -o args= -p "$1" 2>/dev/null | awk '{ n = $1; sub(/.*\//, "", n); sub(/:$/, "", n); print n; exit }'
+}
+
+# is_mux PID: true when PID is a tmux or psmux process. A tmux server keeps
+# the command line of its first client, so an agent pattern can match it.
+is_mux() {
+  _c=$(ps -o comm= -p "$1" 2>/dev/null)
+  _c=${_c##*/}
+  case "$(prog_of "$1") $_c" in
+    tmux\ * | psmux\ * | *\ tmux | *\ tmux:* | *\ psmux) return 0 ;;
+  esac
+  return 1
+}
+
+# shell_text PID: true when PID is a shell that runs command text, for
+# example "bash -c TEXT". The text can hold the name of an agent (the shell
+# of a different tool session does this), so the step does not count it.
+# A shell that runs a script file ("sh /path/agy") still counts.
+shell_text() {
+  ps -o args= -p "$1" 2>/dev/null | awk '
+    {
+      n = $1; sub(/.*\//, "", n); sub(/^-/, "", n)
+      if (n !~ /^(sh|bash|zsh|dash|fish|ksh)$/) exit 1
+      for (i = 2; i <= NF && $i ~ /^-/; i++) if ($i ~ /^-[a-z]*c[a-z]*$/) exit 0
+      exit 1
+    }'
+}
+
 # ps_line PID: pid, ppid, tty, start time, and the command. The command
 # keeps the program, the flags (words that start with -) and the words that
 # hold a /. Other words become <arg>, because they can be names or prompt

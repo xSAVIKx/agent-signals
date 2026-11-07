@@ -199,14 +199,29 @@ function span(line, s, l, bs,    q) {
 }' "$tmp/a" >"$tmp/b"
 count "project path"
 
+# Windows account SIDs. This rule comes before the project keys, because a
+# project key also matches a bare SID.
+rule "sid" 's#S-1-5-21(-[0-9]+){3,4}#<sid>#g'
+
 # Agents name a project folder by its path with dashes: Claude
 # "-srv-work-app" or "-Users-alice-code-app", Cursor "Users-alice-code-app".
-# On Windows the key starts with an upper-case drive letter: Claude
+# On Windows the key starts with a drive letter: Claude
 # "D--Projects-app", Cursor "C-Users-alice-app" or "D-Projects-app". The
 # token after the drive letter must hold one more dash, so that a word such
 # as "X-ray" stays.
-rule "sid" 's#S-1-5-21(-[0-9]+){3,4}#<sid>#g'
-rule "project key" 's#(^|[/\\ "])-?(srv|Users|home|var-lib|work)-[A-Za-z0-9._-]+#\1-work-example#g; s#(^|[/\\ "])[A-Z]--?[A-Za-z0-9._]+-[A-Za-z0-9._-]+#\1-work-example#g'
+rule "project key" 's#(^|[/\\ "])-?(srv|Users|home|var-lib|work)-[A-Za-z0-9._-]+#\1-work-example#g; s#(^|[/\\ "])[A-Za-z]--?[A-Za-z0-9._]+-[A-Za-z0-9._-]+#\1-work-example#g'
+# A key on another root: the key form of each extra root and of $PWD (one
+# or more dashes for each run of other characters), and each key in a
+# "projects" folder. A key with one word needs its dash.
+{ cat "$tmp/extra"; printf '%s\n' "$PWD"; } | while IFS= read -r r; do
+  k=$(printf '%s' "$r" | tr -cs 'A-Za-z0-9' '-' | sed 's/^-*//; s/-*$//')
+  [ "${#k}" -gt 3 ] || continue
+  case $k in *-*) d='-?' ;; *) d=- ;; esac
+  k=$(printf '%s' "$k" | sed 's/-/-+/g')
+  printf 's#(^|[/\\\\ "])%s%s[A-Za-z0-9._-]*#\\1-work-example#g\n' "$d" "$k"
+done >"$tmp/keys"
+printf '%s\n' 's#([/\\]projects[/\\])[A-Za-z0-9._]*-[A-Za-z0-9._-]*([/\\"]|$)#\1-work-example\2#g' >>"$tmp/keys"
+rule "project key" "$(cat "$tmp/keys")"
 
 [ -n "$user" ] && rule "account name" "s#(^|[^A-Za-z0-9_.-])$(q "$user")([^A-Za-z0-9_-]|\$)#\\1dev\\2#g"
 [ -n "${SCRUB_DOMAIN:-}" ] && rule "domain" "s#(^|[^A-Za-z0-9_-])$(q "$SCRUB_DOMAIN")([^A-Za-z0-9_-]|\$)#\\1domain\\2#g"
@@ -241,7 +256,12 @@ function secret(w,    r) {
 count "secret"
 rule "uuid" 's#[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}#<uuid>#g'
 rule "hex" 's#[0-9a-fA-F]{16,}#<hex>#g'
-rule "email" 's#[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}#<email>#g'
+# The file name of a kit step, NN-NAME@BACKEND.txt (probes/agent/step.sh),
+# is not an e-mail address. The rule hides its "@" while it runs.
+kb='none|tmux|pty|conpty|psmux|operator'
+at=$(printf '\001')
+keep="s#(^|[^A-Za-z0-9._%+-])([0-9]+-[a-z0-9-]+)@($kb)\\.txt(\\.?([^A-Za-z0-9.-]|\$))#\\1\\2$at\\3.txt\\4#g"
+rule "email" "$keep; $keep; s#[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}#<email>#g; s#$at#@#g"
 # A dotted quad after "v" or "version", or before a letter, "-" or "+", is a
 # version number. Its dots become @D@ until the IP rule is done.
 q4='([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})'

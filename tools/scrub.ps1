@@ -181,15 +181,30 @@ function Invoke-Scrub([string]$Text, [string]$HomeDir, [string]$User, [string]$H
   # because a project key also matches a bare SID.
   $s = Invoke-ScrubReplace $s 'S-1-5-21(?:-[0-9]+){3,4}' { '<sid>' } $counts 'sid'
 
-  # 4. Project keys. The Windows form starts with an upper-case drive
+  # 4. Project keys. The Windows form starts with a drive
   # letter and one or two dashes: Claude D--Projects-shop, Cursor
   # C-Users-alice-shop. The token after the drive letter must hold one more
   # dash, so that a word such as X-ray stays.
   $s = Invoke-ScrubReplace $s '(?m)(^|[/\\ "])-?(?:srv|Users|home|var-lib|work)-[A-Za-z0-9._-]+' {
     param($m) $m.Groups[1].Value + '-work-example'
   } $counts 'key'
-  $s = Invoke-ScrubReplace $s '(?m)(^|[/\\ "])(?-i:[A-Z])--?[A-Za-z0-9._]+-[A-Za-z0-9._-]+' {
+  $s = Invoke-ScrubReplace $s '(?m)(^|[/\\ "])[A-Za-z]--?[A-Za-z0-9._]+-[A-Za-z0-9._-]+' {
     param($m) $m.Groups[1].Value + '-work-example'
+  } $counts 'key'
+
+  # A key on another root: the key form of each extra root and of the
+  # current folder (one or more dashes for each run of other characters),
+  # and each key in a "projects" folder. A key with one word needs its dash.
+  foreach ($r in @($roots) + @((Get-Location).Path)) {
+    $k = ([regex]::Replace($r, '[^A-Za-z0-9]+', '-')).Trim('-')
+    if ($k.Length -le 3) { continue }
+    $d = if ($k.Contains('-')) { '-?' } else { '-' }
+    $s = Invoke-ScrubReplace $s ('(?m)(^|[/\\ "])' + $d + $k.Replace('-', '-+') + '[A-Za-z0-9._-]*') {
+      param($m) $m.Groups[1].Value + '-work-example'
+    } $counts 'key'
+  }
+  $s = Invoke-ScrubReplace $s '(?m)([/\\]projects[/\\])[A-Za-z0-9._]*-[A-Za-z0-9._-]*([/\\"]|$)' {
+    param($m) $m.Groups[1].Value + '-work-example' + $m.Groups[2].Value
   } $counts 'key'
 
   # 5. The account name.
@@ -220,8 +235,9 @@ function Invoke-Scrub([string]$Text, [string]$HomeDir, [string]$User, [string]$H
   # 9. Long hex runs.
   $s = Invoke-ScrubReplace $s '(?i)(?<![0-9a-z])[0-9a-f]{16,}(?![0-9a-z])' { '<hex>' } $counts 'hex'
 
-  # 10. E-mail addresses.
-  $s = Invoke-ScrubReplace $s '[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}' { '<email>' } $counts 'email'
+  # 10. E-mail addresses. The file name of a kit step,
+  # NN-NAME@BACKEND.txt (probes/agent/step.ps1), is not an e-mail address.
+  $s = Invoke-ScrubReplace $s '(?<![A-Za-z0-9._%+-])(?![0-9]+-[a-z0-9-]+@(?:none|tmux|pty|conpty|psmux|operator)\.txt(?!\.?[A-Za-z0-9-]))[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}' { '<email>' } $counts 'email'
 
   # 11. IPv4 addresses. A dotted quad after "v" or "version", or before a
   # letter, "-" or "+", is a version number and stays.
