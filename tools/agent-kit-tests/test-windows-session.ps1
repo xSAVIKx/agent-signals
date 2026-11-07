@@ -178,14 +178,12 @@ foreach ($b in 'conpty', 'psmux') {
         $exeBin = Join-Path $T "exe-bin-$b"
         New-Item -ItemType Directory -Force -Path $exeBin | Out-Null
         $exe = Join-Path $exeBin 'claude.exe'
-        Add-Type -OutputType ConsoleApplication -OutputAssembly $exe -TypeDefinition @'
-public static class StubExe {
-    public static void Main() {
-        System.Console.WriteLine("stub exe idle");
-        while (System.Console.ReadLine() != null) { }
-    }
-}
-'@
+        $src = Join-Path $exeBin 'stub.cs'
+        [IO.File]::WriteAllText($src, 'public static class StubExe { public static void Main() { System.Console.WriteLine("stub exe idle"); while (System.Console.ReadLine() != null) { } } }')
+        $csc = Join-Path $env:SystemRoot 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
+        if (-not (Test-Path -LiteralPath $csc)) { $csc = Join-Path $env:SystemRoot 'Microsoft.NET\Framework\v4.0.30319\csc.exe' }
+        $null = & $csc /nologo /target:exe "/out:$exe" $src 2>&1
+        if (-not (Test-Path -LiteralPath $exe)) { throw "csc did not build $exe" }
         $savedPath = $env:PATH
         $env:PATH = $exeBin + ';' + $env:PATH
         try {
