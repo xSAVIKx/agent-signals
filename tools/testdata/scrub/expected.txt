@@ -13,7 +13,7 @@ ip: <ip> and <ip> and 127.0.0.1 and 0.0.0.0
 version: 2026.10.22-27dcf5f stays
 login /bin/zsh as alicex stays
 system: ~/Library/Application Support/Cursor
-claude key: ~/.claude/projects/-work-example/1.jsonl and /tmp/claude-501/-work-example/x/tasks
+claude key: ~/.claude/projects/-work-example/1.jsonl and /tmp/claude-example/-work-example/x/tasks
 cursor key: ~/.cursor/projects/-work-example/agent-transcripts
 versions: os: linux 6.8.0.1017-azure, FileVersion 1.4.4.0, v1.2.3.4 and <ip> stays an ip
 claude key windows: ~\.claude\projects\-work-example\1.jsonl and -work-example
@@ -45,3 +45,5 @@ underscore: API_KEY_<secret> and A=<secret>
 words: sk-learn-something-long-name and AKIAshort stay
 extra key: ~/.claude/projects/-work-example/1.jsonl and -work-example, ~/.claude/projects/-work-example/t.jsonl, 13-x@none.txt. %KITAT%
 sid: icacls x /grant "*<sid>:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F" and <sid> alone
+temp: /tmp/claude-example/-opt-x/tasks and /tmp/claude-example, x-api-key: stays
+sandbox: 53 1 <sandbox>/home/.cursor/cli-config.json and <sandbox>/work/app.txt and /tmp/cursor-agent-logs-example/s.log

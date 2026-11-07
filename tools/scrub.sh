@@ -62,7 +62,10 @@ tmp=$(mktemp -d)
 # dash runs no EXIT trap on a signal, so a signal exits first.
 trap 'exit 130' INT TERM
 trap 'rm -rf "$tmp"' EXIT
-cat "${1:--}" >"$tmp/a"
+# A path after <sandbox> is below a throwaway folder of a scenario. Its home
+# is <sandbox>/home/, and no home rule may read the next word as an account
+# name. So the "/" after <sandbox> is @S@ until all rules are done.
+sed 's#<sandbox>/#<sandbox>@S@#g' "${1:--}" >"$tmp/a"
 
 count() {
   # $1: kind. Count the changed lines between a and b, then keep b.
@@ -199,6 +202,10 @@ function span(line, s, l, bs,    q) {
 }' "$tmp/a" >"$tmp/b"
 count "project path"
 
+# The temporary folders of Claude Code and Cursor hold the account number or
+# a run name.
+rule "agent temp folder" 's#/tmp/claude-[A-Za-z0-9._-]+#/tmp/claude-example#g; s#/tmp/cursor-agent-logs-[0-9]+#/tmp/cursor-agent-logs-example#g'
+
 # Windows account SIDs. This rule comes before the project keys, because a
 # project key also matches a bare SID.
 rule "sid" 's#S-1-5-21(-[0-9]+){3,4}#<sid>#g'
@@ -208,8 +215,9 @@ rule "sid" 's#S-1-5-21(-[0-9]+){3,4}#<sid>#g'
 # On Windows the key starts with a drive letter: Claude
 # "D--Projects-app", Cursor "C-Users-alice-app" or "D-Projects-app". The
 # token after the drive letter must hold one more dash, so that a word such
-# as "X-ray" stays.
-rule "project key" 's#(^|[/\\ "])-?(srv|Users|home|var-lib|work)-[A-Za-z0-9._-]+#\1-work-example#g; s#(^|[/\\ "])[A-Za-z]--?[A-Za-z0-9._]+-[A-Za-z0-9._-]+#\1-work-example#g'
+# as "X-ray" stays. A lower-case drive letter needs two dashes, so that
+# "x-api-key" stays.
+rule "project key" 's#(^|[/\\ "])-?(srv|Users|home|var-lib|work)-[A-Za-z0-9._-]+#\1-work-example#g; s#(^|[/\\ "])([A-Z]-|[A-Za-z]--)[A-Za-z0-9._]+-[A-Za-z0-9._-]+#\1-work-example#g'
 # A key on another root: the key form of each extra root and of $PWD (one
 # or more dashes for each run of other characters), and each key in a
 # "projects" folder. A key with one word needs its dash.
@@ -271,4 +279,4 @@ sed -E "s#([vV]|[Vv]ersion[^0-9]{0,4})$q4#\1\2@D@\3@D@\4@D@\5#g; s#$q4([-+A-Za-z
   sed 's#@LOOPBACK@#127.0.0.1#g; s#@ANY@#0.0.0.0#g; s#@D@#.#g' >"$tmp/b"
 count "ip"
 
-cat "$tmp/a"
+sed 's#<sandbox>@S@#<sandbox>/#g' "$tmp/a"
