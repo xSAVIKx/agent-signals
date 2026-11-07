@@ -51,6 +51,16 @@ Measured on: real machine.
    and `kit check` gave `ok`. The permission step answers the dialog with
    Esc, then Enter on the empty line of item 5.
 
+10. On macOS 15 and 26 in CI (run 42363878556), each Cursor step failed
+   with `no-idle`. The screen showed `Error: Cursor couldn't save your login
+   to the macOS keychain.` The client saves the token from the key exchange
+   in the keychain item `cursor-access-token`, and the throwaway `HOME`
+   does not isolate the keychain. `CURSOR_AUTH_TOKEN` also saves the token.
+   So on a real Mac a fixture run would write a fake token over the real
+   login. The kit skips the Cursor fixture on macOS with `no-fixture`. On
+   Linux the client saves `~/.config/cursor/auth.json` in the throwaway
+   home, and on Windows `%APPDATA%\cursor\auth.json` (fact 72).
+
 ## Mechanism
 
 The API is private. The field numbers come from the message descriptors in
@@ -70,7 +80,10 @@ Cursor fail first: read the RPC names in `fake-model.log`.
 
 ## Not measured
 
-- macOS and Windows.
+- macOS: the steps skip there.
+- Windows: in run 42363878556 the steps skipped with `not-installed`,
+  because the Windows session looked for a command named `cursor`. The kit
+  now uses the names `cursor-agent` and `agent`.
 - A real Cursor server with this fake state: the real checkpoint is not
   empty.
 - Other Cursor CLI versions.

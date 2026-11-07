@@ -15,7 +15,11 @@ expect_skip "a login step skips in a throwaway home" throwaway login codex no-lo
 expect_skip "a Codex login step runs in the fixture" fixture login codex ''
 expect_skip "a Claude login step runs in the fixture" fixture login claude ''
 expect_skip "an agy login step runs in the fixture" fixture login agy ''
-expect_skip "a Cursor login step runs in the fixture" fixture login cursor ''
+if [ "$(uname -s)" = Darwin ]; then
+  expect_skip "a Cursor login step has no fixture on macOS" fixture login cursor no-fixture
+else
+  expect_skip "a Cursor login step runs in the fixture" fixture login cursor ''
+fi
 expect_skip "an unknown agent has no fixture" fixture login other no-fixture
 expect_skip "a step with no login runs in the fixture" fixture none claude ''
 expect_skip "a login step runs in a real home" real login claude ''

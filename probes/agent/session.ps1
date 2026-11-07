@@ -362,7 +362,16 @@ function Find-Psmux {
 function Get-AgentArgv([string]$Agent, [string]$Cmd) {
     $ps = (Get-Process -Id $PID).Path
     if ($Cmd) { return @($ps, '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $Cmd) }
-    $g = Get-Command $Agent -ErrorAction SilentlyContinue | Where-Object { $_.CommandType -in 'Application', 'ExternalScript' } | Select-Object -First 1
+    # The command names of the agent come from lib.ps1: the Cursor CLI is
+    # cursor-agent or agent, not "cursor".
+    $names = if ($script:KitAgentCommands.Contains($Agent)) { @($script:KitAgentCommands[$Agent]) } else { @($Agent) }
+    $g = $null
+    foreach ($n in $names) {
+        $g = Get-Command $n -ErrorAction SilentlyContinue | Where-Object { $_.CommandType -in 'Application', 'ExternalScript' } | Select-Object -First 1
+        # "agent" is the Cursor CLI only in a cursor-agent folder.
+        if ($g -and $n -eq 'agent' -and $g.Source -notmatch '(?i)cursor-agent') { $g = $null }
+        if ($g) { break }
+    }
     if (-not $g) { Stop-Kit 3 "not installed: $Agent" }
     $path = $g.Source
     $ext = [IO.Path]::GetExtension($path).ToLowerInvariant()
