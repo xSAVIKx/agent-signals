@@ -85,8 +85,9 @@ Expect-True 'Set-KitPrivate keeps Administrators' ($sids -contains 'S-1-5-32-544
 $d = New-WideFolder 'wide-hint'
 $hint = Get-KitPrivateCommand $d
 Expect-True 'the hint removes the wide groups' ($hint -match '/remove:g \*S-1-1-0 ') $hint
-# The operator pastes the hint into PowerShell.
-$null = Invoke-Expression $hint
+Expect-True 'the hint holds no SID of the account' ($hint -notmatch 'S-1-5-21-') $hint
+# The operator puts the SID in the hint and pastes it into PowerShell.
+$null = Invoke-Expression $hint.Replace('<sid>', $me)
 $sids = @(Get-AclSids $d)
 Expect-True 'the hint works' ($sids -notcontains 'S-1-5-11' -and $sids -notcontains 'S-1-5-32-545' -and $sids -contains $me) ($sids -join ' ')
 

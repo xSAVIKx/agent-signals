@@ -15,6 +15,9 @@
 #   3. a path below ~ that is not in an agent or system folder:
 #      the folders up to the first hidden folder     -> /work/example
 #      (~/code/app/.claude/x -> /work/example/.claude/x, ~/code/app/a.go -> /work/example)
+#   3a. a Windows account SID, S-1-5-21-...          -> <sid>
+#      It comes before 4: a project key also matches a bare SID. The
+#      well-known SIDs (S-1-5-18, S-1-5-32-544) name no machine, and stay.
 #   4. /srv/... and /work/<name>/...                 -> /work/example, the same way,
 #      and a Windows drive path such as D:\Projects\shop, also after a \\?\
 #      prefix. C:\Windows, C:\Program Files and C:\ProgramData stay.
@@ -195,6 +198,10 @@ function span(line, s, l, bs,    q) {
   print res line
 }' "$tmp/a" >"$tmp/b"
 count "project path"
+
+# Windows account SIDs. This rule comes before the project keys, because a
+# project key also matches a bare SID.
+rule "sid" 's#S-1-5-21(-[0-9]+){3,4}#<sid>#g'
 
 # Agents name a project folder by its path with dashes: Claude
 # "-srv-work-app" or "-Users-alice-code-app", Cursor "Users-alice-code-app".

@@ -13,9 +13,39 @@
 # with no login in a pseudo console (scenarios/conpty.py), and prints a
 # scrubbed summary, as the first-run job does on Linux and macOS.
 #
-# The jobs use no secret and make no model turn. The workflow runs only when
-# started by hand and once a week, because it installs software from the
-# network. A start by hand can select one job with the input "job".
+# The kit jobs run the agent kit (probes/agent) against real agents. Read
+# docs/design/2026-11-01-agent-run-kit.md.
+#
+# kit-no-login and kit-no-login-windows use no secret. They install the
+# agents of the kit, run "kit start --home throwaway", "kit doctor", each
+# first-run-* step that "kit plan" lists, and "kit check".
+#
+# kit-login (Linux and macOS) and kit-login-windows use the API keys of
+# docs/ci-secrets.md. They run only on the main branch: on the schedule, or
+# by hand with the input "job" set to kit-login (not with "all"). Each job
+# installs only the agents that have a key. Then, one agent at a time,
+# scenarios/kit-login.sh or kit-login.ps1 writes the key of that agent,
+# runs the first permission-* step of that agent in the plan (one model
+# turn, the "cost" column of steps.tsv), and deletes the key. The step gets
+# only the key of that agent. The "kit check" step gets all keys, so that
+# it can find a key in the run files, and it starts no agent. The runner is
+# a new machine for each job, so the job uses "--home real": the kit skips
+# each step that needs a login with "--home throwaway". The login jobs
+# upload the archive only when the input "upload_login" is on.
+#
+# The kit jobs run the steps that "kit plan" lists. A step kind with no
+# script yet is not in the plan, so the jobs work before and after the
+# scripts come. The raw output of each kit command goes to a file. The log
+# gets it only through tools/scrub.sh or tools/scrub.ps1. Each kit job
+# uploads the archive of "kit check" (it holds only checked, scrubbed
+# files) and prints the file names in it, not their content. A kit job
+# fails when "kit check" fails. After the check, it also fails when a step
+# failed, or when an agent with a key has no step.
+#
+# Only kit-login and kit-login-windows use a secret and make model turns.
+# The workflow runs only when started by hand and once a week, because it
+# installs software from the network. A start by hand can select one job
+# with the input "job".
 #
 # Each action is pinned to a commit SHA. The comment gives the tag.
 name: Scenarios
@@ -27,7 +57,11 @@ on:
         description: The job to run
         type: choice
         default: all
-        options: [all, first-run, windows-installs, first-run-windows]
+        options: [all, first-run, windows-installs, first-run-windows, kit-no-login, kit-login]
+      upload_login:
+        description: Upload the archives of the login jobs. Keep it off until the operator read one archive.
+        type: boolean
+        default: false
   schedule:
     - cron: "17 5 * * 1"
 
@@ -443,3 +477,500 @@ jobs:
         if: always()
         shell: pwsh
         run: ./scenarios/first-run-windows.ps1 -Summary
+
+  kit-no-login:
+    name: Kit no login (${{ matrix.os }})
+    if: github.event_name == 'schedule' || inputs.job == 'all' || inputs.job == 'kit-no-login'
+    strategy:
+      fail-fast: false
+      matrix:
+        # The Linux and macOS images of scenarios.yml.
+        os:
+          - ubuntu-22.04
+          - ubuntu-24.04
+          - ubuntu-26.04
+          - ubuntu-22.04-arm
+          - ubuntu-24.04-arm
+          - ubuntu-26.04-arm
+          - macos-15
+          - macos-26
+          - macos-15-intel
+          - macos-26-intel
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+      # uv gives the pty backend its Python packages.
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: false
+      - name: Install tmux
+        run: |
+          if command -v tmux >/dev/null; then exit 0; fi
+          if [ "$RUNNER_OS" = macOS ]; then
+            brew install tmux
+          else
+            sudo apt-get update -q && sudo apt-get install -y -q tmux
+          fi
+      - name: Add the user folders to PATH
+        run: echo "$HOME/.local/bin" >>"$GITHUB_PATH"
+      # The agents of steps.tsv, with the install commands of
+      # scenarios.yml. The kit has no install of agy. A failed install
+      # skips that agent: the plan then has no step for it.
+      - name: Install Claude Code
+        continue-on-error: true
+        run: npm install -g @anthropic-ai/claude-code >"$RUNNER_TEMP/install-claude.txt" 2>&1
+      - name: Install Codex CLI
+        continue-on-error: true
+        run: npm install -g @openai/codex >"$RUNNER_TEMP/install-codex.txt" 2>&1
+      - name: Install Cursor CLI
+        continue-on-error: true
+        run: curl -fsS https://cursor.com/install | bash >"$RUNNER_TEMP/install-cursor.txt" 2>&1
+      - name: Install output (scrubbed)
+        if: always()
+        run: |
+          for f in "$RUNNER_TEMP"/install-*.txt; do
+            [ -f "$f" ] || continue
+            echo "== $(basename "$f" .txt)"
+            sh tools/scrub.sh "$f" 2>/dev/null | tail -n 5
+          done
+      # Each kit command writes to a file. The log gets the scrubbed file.
+      - name: Run the kit
+        run: |
+          out=$RUNNER_TEMP/kit
+          mkdir -m 700 "$out"
+          raw=$(mktemp)
+          k() {
+            if sh probes/agent/kit.sh "$@" >"$raw" 2>&1; then rc=0; else rc=$?; fi
+            sh tools/scrub.sh "$raw" 2>/dev/null
+            return "$rc"
+          }
+          k start --home throwaway --out "$out"
+          # Only a flag goes to GITHUB_ENV: the log shows its values. The
+          # later commands find the run from .agent-signals-run.
+          echo "KIT_RUN=1" >>"$GITHUB_ENV"
+          k doctor
+          k plan --home throwaway
+          sed -n 's/^step: \(first-run-[^ ]*\) .*/\1/p' "$raw" >"$RUNNER_TEMP/steps.txt"
+          echo "first-run steps in the plan: $(wc -l <"$RUNNER_TEMP/steps.txt" | tr -d ' ')"
+          # Exit 3 is a skip: a needed tool is missing.
+          : >"$RUNNER_TEMP/kit-failed.txt"
+          while read -r s; do
+            if k step "$s" || [ "$rc" -eq 3 ]; then :; else echo "$s: exit $rc" >>"$RUNNER_TEMP/kit-failed.txt"; fi
+          done <"$RUNNER_TEMP/steps.txt"
+          k session stop --all || true
+      - name: Kit check
+        id: check
+        if: always() && env.KIT_RUN == '1'
+        run: |
+          raw=$(mktemp)
+          if sh probes/agent/kit.sh check >"$raw" 2>&1; then rc=0; else rc=$?; fi
+          sh tools/scrub.sh "$raw" 2>/dev/null
+          a=$(sed -n 's/^archive: //p' "$raw")
+          if [ -n "$a" ] && [ -f "$a" ]; then
+            echo "--- the files in the archive"
+            tar -tzf "$a"
+          fi
+          exit "$rc"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: steps.check.outcome == 'success'
+        with:
+          name: kit-no-login-${{ matrix.os }}
+          path: ${{ runner.temp }}/kit/agent-signals-run-*.tar.gz
+          retention-days: 7
+          if-no-files-found: warn
+      - name: Fail on a failed step
+        if: always()
+        run: |
+          f=$RUNNER_TEMP/kit-failed.txt
+          [ -s "$f" ] || exit 0
+          sh tools/scrub.sh "$f" 2>/dev/null
+          exit 1
+
+  kit-no-login-windows:
+    name: Kit no login (${{ matrix.os }})
+    if: github.event_name == 'schedule' || inputs.job == 'all' || inputs.job == 'kit-no-login'
+    strategy:
+      fail-fast: false
+      matrix:
+        # The Windows images of scenarios.yml.
+        os: [windows-2022, windows-2025, windows-11-arm]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: false
+      # The driver packages of the conpty backend, as in scenarios.yml.
+      - name: Install the driver packages
+        shell: pwsh
+        run: |
+          uv venv --managed-python --python 3.12 .venv-driver
+          uv pip install --python .venv-driver pywinpty==3.1.2 pyte==0.8.2 wcwidth==0.9.4 psutil==7.2.2
+      # Group a of scenarios.yml holds claude, codex and the Cursor CLI. The
+      # script scrubs its output. A failed install skips that agent.
+      - name: Install the agents
+        shell: pwsh
+        run: ./scenarios/install-windows-agents.ps1 -Group a
+      - name: Run the kit
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          # A private folder in the profile: kit start refuses a folder
+          # that other accounts can write to.
+          $out = Join-Path $env:RUNNER_TEMP 'kit'
+          New-Item -ItemType Directory -Path $out | Out-Null
+          # On windows-11-arm a new folder in RUNNER_TEMP gets explicit
+          # entries for Authenticated Users (S-1-5-11) and Users
+          # (S-1-5-32-545). "/inheritance:r" does not remove them.
+          $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+          & icacls $out /inheritance:r /grant:r "*${sid}:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F" | Out-Null
+          & icacls $out /remove:g "*S-1-5-11" "*S-1-5-32-545" | Out-Null
+          $raw = Join-Path $env:RUNNER_TEMP 'kit-raw.txt'
+          $py = (Resolve-Path '.venv-driver\Scripts\python.exe').ProviderPath
+          function K {
+            & pwsh -NoProfile -File probes/agent/kit.ps1 @args *> $raw
+            $script:rc = $LASTEXITCODE
+            & pwsh -NoProfile -File tools/scrub.ps1 -Path $raw 2>$null
+          }
+          K start --home throwaway --out $out --python $py
+          if ($script:rc -ne 0) { Write-Output "kit start: exit $($script:rc)"; exit 1 }
+          # Only a flag goes to GITHUB_ENV: the log shows its values.
+          $env:AGENT_SIGNALS_RUN = (Get-Content (Join-Path $out '.agent-signals-run') | Select-Object -First 1)
+          if ($env:AGENT_SIGNALS_RUN) { 'KIT_RUN=1' | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8 }
+          K doctor --python $py
+          K plan --home throwaway --python $py
+          $steps = @(Get-Content $raw | ForEach-Object { if ($_ -match '^step: (first-run-\S+) ') { $Matches[1] } })
+          Write-Output "first-run steps in the plan: $($steps.Count)"
+          # Exit 3 is a skip: a needed tool is missing.
+          foreach ($s in $steps) {
+            K step $s
+            if ($script:rc -ne 0 -and $script:rc -ne 3) {
+              "${s}: exit $($script:rc)" | Out-File -FilePath (Join-Path $env:RUNNER_TEMP 'kit-failed.txt') -Append -Encoding utf8
+            }
+          }
+          K session stop --all
+          exit 0
+      - name: Kit check
+        id: check
+        if: always() && env.KIT_RUN == '1'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $raw = Join-Path $env:RUNNER_TEMP 'kit-raw.txt'
+          $env:AGENT_SIGNALS_RUN = (Get-Content (Join-Path $env:RUNNER_TEMP 'kit\.agent-signals-run') | Select-Object -First 1)
+          & pwsh -NoProfile -File probes/agent/kit.ps1 check *> $raw
+          $rc = $LASTEXITCODE
+          & pwsh -NoProfile -File tools/scrub.ps1 -Path $raw 2>$null
+          $a = (Get-Content $raw | Where-Object { $_ -like 'archive: *' } | Select-Object -First 1)
+          if ($a) {
+            $a = $a.Substring(9)
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            $z = [IO.Compression.ZipFile]::OpenRead($a)
+            Write-Output '--- the files in the archive'
+            $z.Entries | ForEach-Object { $_.FullName }
+            $z.Dispose()
+          }
+          exit $rc
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: steps.check.outcome == 'success'
+        with:
+          name: kit-no-login-${{ matrix.os }}
+          path: ${{ runner.temp }}/kit/agent-signals-run-*.zip
+          retention-days: 7
+          if-no-files-found: warn
+      - name: Fail on a failed step
+        if: always()
+        shell: pwsh
+        run: |
+          $f = Join-Path $env:RUNNER_TEMP 'kit-failed.txt'
+          if (-not (Test-Path -LiteralPath $f)) { exit 0 }
+          & pwsh -NoProfile -File tools/scrub.ps1 -Path $f 2>$null
+          exit 1
+
+  kit-login:
+    name: Kit login (${{ matrix.os }})
+    # Only the main branch, on a schedule or by hand: a pull request or
+    # another branch never gets a key.
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.job == 'kit-login'))
+    # One group for each job: a second run waits, so that it adds no turns
+    # at the same time. A group holds one waiting job, so the jobs do not
+    # share a group.
+    concurrency:
+      group: kit-login-${{ matrix.os }}
+      cancel-in-progress: false
+    strategy:
+      fail-fast: false
+      matrix:
+        # kit-login-windows is the Windows runner.
+        os: [ubuntu-24.04, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # This step gets only "true" or "false", not a key.
+      - name: Find the agents with a key
+        env:
+          HAS_CLAUDE: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+          HAS_CODEX: ${{ secrets.OPENAI_API_KEY != '' }}
+          HAS_CURSOR: ${{ secrets.CURSOR_API_KEY != '' }}
+        run: |
+          n=0
+          for p in "claude $HAS_CLAUDE" "codex $HAS_CODEX" "cursor $HAS_CURSOR"; do
+            a=${p% *}
+            if [ "${p#* }" = true ]; then
+              echo "KIT_KEY_$(echo "$a" | tr '[:lower:]' '[:upper:]')=1" >>"$GITHUB_ENV"
+              n=$((n + 1))
+            else
+              echo "skip: no secret ($a)"
+            fi
+          done
+          if [ "$n" -gt 0 ]; then
+            echo "KIT_LOGIN=1" >>"$GITHUB_ENV"
+          else
+            echo "skip: no secret"
+          fi
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: env.KIT_LOGIN == '1'
+        with:
+          node-version: "22"
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        if: env.KIT_LOGIN == '1'
+        with:
+          enable-cache: false
+      - name: Install tmux and the agents with a key
+        if: env.KIT_LOGIN == '1'
+        run: |
+          if ! command -v tmux >/dev/null; then
+            if [ "$RUNNER_OS" = macOS ]; then
+              brew install tmux >/dev/null
+            else
+              sudo apt-get update -q >/dev/null && sudo apt-get install -y -q tmux >/dev/null
+            fi
+          fi
+          echo "$HOME/.local/bin" >>"$GITHUB_PATH"
+          [ "${KIT_KEY_CLAUDE:-}" != 1 ] || sh scenarios/kit-login.sh install claude
+          [ "${KIT_KEY_CODEX:-}" != 1 ] || sh scenarios/kit-login.sh install codex
+          [ "${KIT_KEY_CURSOR:-}" != 1 ] || sh scenarios/kit-login.sh install cursor
+      - name: Start the kit
+        if: env.KIT_LOGIN == '1'
+        run: |
+          out=$RUNNER_TEMP/kit
+          mkdir -m 700 "$out"
+          raw=$(mktemp)
+          k() {
+            if sh probes/agent/kit.sh "$@" >"$raw" 2>&1; then rc=0; else rc=$?; fi
+            sh tools/scrub.sh "$raw" 2>/dev/null
+            return "$rc"
+          }
+          k start --home real --out "$out"
+          # Only a flag goes to GITHUB_ENV: the log shows its values.
+          echo "KIT_RUN=1" >>"$GITHUB_ENV"
+          k doctor
+          k plan --home real
+      # Each step gets only the key of its agent. The script deletes it.
+      - name: Claude Code permission step
+        if: env.KIT_KEY_CLAUDE == '1' && env.KIT_RUN == '1'
+        env:
+          KIT_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: sh scenarios/kit-login.sh run claude
+      - name: Codex CLI permission step
+        if: env.KIT_KEY_CODEX == '1' && env.KIT_RUN == '1'
+        env:
+          KIT_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: sh scenarios/kit-login.sh run codex
+      - name: Cursor CLI permission step
+        if: env.KIT_KEY_CURSOR == '1' && env.KIT_RUN == '1'
+        env:
+          KIT_KEY: ${{ secrets.CURSOR_API_KEY }}
+        run: sh scenarios/kit-login.sh run cursor
+      # The keys are in the environment of this step, so that the check
+      # searches the run files for them. This step starts no agent.
+      - name: Kit check
+        id: check
+        if: always() && env.KIT_RUN == '1'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+        run: |
+          raw=$(mktemp)
+          if sh probes/agent/kit.sh check >"$raw" 2>&1; then rc=0; else rc=$?; fi
+          sh tools/scrub.sh "$raw" 2>/dev/null
+          a=$(sed -n 's/^archive: //p' "$raw")
+          if [ -n "$a" ] && [ -f "$a" ]; then
+            echo "--- the files in the archive"
+            tar -tzf "$a"
+          fi
+          exit "$rc"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: steps.check.outcome == 'success' && inputs.upload_login
+        with:
+          name: kit-login-${{ matrix.os }}
+          path: ${{ runner.temp }}/kit/agent-signals-run-*.tar.gz
+          retention-days: 7
+          if-no-files-found: warn
+      - name: Fail on a failed step
+        if: always() && env.KIT_LOGIN == '1'
+        run: |
+          f=$RUNNER_TEMP/kit-failed.txt
+          [ -s "$f" ] || exit 0
+          sh tools/scrub.sh "$f" 2>/dev/null
+          exit 1
+
+  kit-login-windows:
+    name: Kit login (windows-2025)
+    # Only the main branch, on a schedule or by hand: a pull request or
+    # another branch never gets a key.
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.job == 'kit-login'))
+    concurrency:
+      group: kit-login-windows-2025
+      cancel-in-progress: false
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # This step gets only "true" or "false", not a key.
+      - name: Find the agents with a key
+        shell: pwsh
+        env:
+          HAS_CLAUDE: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+          HAS_CODEX: ${{ secrets.OPENAI_API_KEY != '' }}
+          HAS_CURSOR: ${{ secrets.CURSOR_API_KEY != '' }}
+        run: |
+          $n = 0
+          foreach ($a in 'claude', 'codex', 'cursor') {
+            if ([Environment]::GetEnvironmentVariable("HAS_$($a.ToUpper())") -eq 'true') {
+              "KIT_KEY_$($a.ToUpper())=1" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+              $n++
+            } else {
+              Write-Output "skip: no secret ($a)"
+            }
+          }
+          if ($n -gt 0) { 'KIT_LOGIN=1' | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8 }
+          else { Write-Output 'skip: no secret' }
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: env.KIT_LOGIN == '1'
+        with:
+          node-version: "22"
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        if: env.KIT_LOGIN == '1'
+        with:
+          enable-cache: false
+      - name: Install the driver packages
+        if: env.KIT_LOGIN == '1'
+        shell: pwsh
+        run: |
+          uv venv --managed-python --python 3.12 .venv-driver
+          uv pip install --python .venv-driver pywinpty==3.1.2 pyte==0.8.2 wcwidth==0.9.4 psutil==7.2.2
+      - name: Install the agents with a key
+        if: env.KIT_LOGIN == '1'
+        shell: pwsh
+        run: |
+          if ($env:KIT_KEY_CLAUDE -eq '1') { ./scenarios/kit-login.ps1 install claude }
+          if ($env:KIT_KEY_CODEX -eq '1') { ./scenarios/kit-login.ps1 install codex }
+          if ($env:KIT_KEY_CURSOR -eq '1') { ./scenarios/kit-login.ps1 install cursor }
+      - name: Start the kit
+        if: env.KIT_LOGIN == '1'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $out = Join-Path $env:RUNNER_TEMP 'kit'
+          New-Item -ItemType Directory -Path $out | Out-Null
+          # On windows-11-arm a new folder in RUNNER_TEMP gets explicit
+          # entries for Authenticated Users (S-1-5-11) and Users
+          # (S-1-5-32-545). "/inheritance:r" does not remove them.
+          $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+          & icacls $out /inheritance:r /grant:r "*${sid}:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F" | Out-Null
+          & icacls $out /remove:g "*S-1-5-11" "*S-1-5-32-545" | Out-Null
+          $raw = Join-Path $env:RUNNER_TEMP 'kit-raw.txt'
+          $py = (Resolve-Path '.venv-driver\Scripts\python.exe').ProviderPath
+          function K {
+            & pwsh -NoProfile -File probes/agent/kit.ps1 @args *> $raw
+            $script:rc = $LASTEXITCODE
+            & pwsh -NoProfile -File tools/scrub.ps1 -Path $raw 2>$null
+          }
+          K start --home real --out $out --python $py
+          if ($script:rc -ne 0) { Write-Output "kit start: exit $($script:rc)"; exit 1 }
+          $env:AGENT_SIGNALS_RUN = (Get-Content (Join-Path $out '.agent-signals-run') | Select-Object -First 1)
+          # Only a flag goes to GITHUB_ENV: the log shows its values.
+          if ($env:AGENT_SIGNALS_RUN) { 'KIT_RUN=1' | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8 }
+          K doctor --python $py
+          K plan --home real --python $py
+          exit 0
+      # Each step gets only the key of its agent. The script deletes it.
+      - name: Claude Code permission step
+        if: env.KIT_KEY_CLAUDE == '1' && env.KIT_RUN == '1'
+        shell: pwsh
+        env:
+          KIT_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: ./scenarios/kit-login.ps1 run claude
+      - name: Codex CLI permission step
+        if: env.KIT_KEY_CODEX == '1' && env.KIT_RUN == '1'
+        shell: pwsh
+        env:
+          KIT_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: ./scenarios/kit-login.ps1 run codex
+      - name: Cursor CLI permission step
+        if: env.KIT_KEY_CURSOR == '1' && env.KIT_RUN == '1'
+        shell: pwsh
+        env:
+          KIT_KEY: ${{ secrets.CURSOR_API_KEY }}
+        run: ./scenarios/kit-login.ps1 run cursor
+      # The keys are in the environment of this step, so that the check
+      # searches the run files for them. This step starts no agent.
+      - name: Kit check
+        id: check
+        if: always() && env.KIT_RUN == '1'
+        shell: pwsh
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $raw = Join-Path $env:RUNNER_TEMP 'kit-raw.txt'
+          $env:AGENT_SIGNALS_RUN = (Get-Content (Join-Path $env:RUNNER_TEMP 'kit\.agent-signals-run') | Select-Object -First 1)
+          & pwsh -NoProfile -File probes/agent/kit.ps1 check *> $raw
+          $rc = $LASTEXITCODE
+          & pwsh -NoProfile -File tools/scrub.ps1 -Path $raw 2>$null
+          $a = (Get-Content $raw | Where-Object { $_ -like 'archive: *' } | Select-Object -First 1)
+          if ($a) {
+            $a = $a.Substring(9)
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            $z = [IO.Compression.ZipFile]::OpenRead($a)
+            Write-Output '--- the files in the archive'
+            $z.Entries | ForEach-Object { $_.FullName }
+            $z.Dispose()
+          }
+          exit $rc
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: steps.check.outcome == 'success' && inputs.upload_login
+        with:
+          name: kit-login-windows-2025
+          path: ${{ runner.temp }}/kit/agent-signals-run-*.zip
+          retention-days: 7
+          if-no-files-found: warn
+      - name: Fail on a failed step
+        if: always() && env.KIT_LOGIN == '1'
+        shell: pwsh
+        run: |
+          $f = Join-Path $env:RUNNER_TEMP 'kit-failed.txt'
+          if (-not (Test-Path -LiteralPath $f)) { exit 0 }
+          & pwsh -NoProfile -File tools/scrub.ps1 -Path $f 2>$null
+          exit 1
