@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.12.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.11.0...corpus-v0.12.0) (2026-11-07)
+
+
+### Features
+
+* add the agent prompt and the task file for the agent kit ([#87](https://github.com/xSAVIKx/agent-signals/issues/87)) ([481b2b9](https://github.com/xSAVIKx/agent-signals/commit/481b2b9b5edbee893fcdf0f6850975839d7e57cd))
+* **facts:** measure early keys and the fast clear on Claude Code 2.1.316 and 2.1.318 ([#90](https://github.com/xSAVIKx/agent-signals/issues/90)) ([c7a4301](https://github.com/xSAVIKx/agent-signals/commit/c7a4301930f0fbdb4caed377ca0c1c130d3b84c8))
+* **probes:** add kit doctor ([#77](https://github.com/xSAVIKx/agent-signals/issues/77)) ([b6dc86c](https://github.com/xSAVIKx/agent-signals/commit/b6dc86c19fd6b0775563f12862d391dc420063ba))
+* **probes:** add kit session on tmux and a plain pty ([#83](https://github.com/xSAVIKx/agent-signals/issues/83)) ([af03596](https://github.com/xSAVIKx/agent-signals/commit/af03596bfc9698eba32d4adf59175718067d707b))
+* **probes:** add test sessions on ConPTY and psmux ([#79](https://github.com/xSAVIKx/agent-signals/issues/79)) ([c86f779](https://github.com/xSAVIKx/agent-signals/commit/c86f7793b926d3ec52d9a8382fdf7b3c3adcf631))
+* **probes:** add the agent kit commands on Windows ([#80](https://github.com/xSAVIKx/agent-signals/issues/80)) ([04677b4](https://github.com/xSAVIKx/agent-signals/commit/04677b4500b6ae6a1225a74cad428b68253dab07))
+* **probes:** add the dispatcher and the test runner of the agent kit ([#76](https://github.com/xSAVIKx/agent-signals/issues/76)) ([b356fe8](https://github.com/xSAVIKx/agent-signals/commit/b356fe82b6c6c178b30f8db26cfdfbcb05bb50a0))
+* **probes:** add the session steps on Windows ([#91](https://github.com/xSAVIKx/agent-signals/issues/91)) ([9cf1705](https://github.com/xSAVIKx/agent-signals/commit/9cf170502a98228a8741f625c888bcad26be6bcc))
+* **probes:** add the step list, kit plan, kit start, kit step, kit check and kit edit ([#84](https://github.com/xSAVIKx/agent-signals/issues/84)) ([9e672a8](https://github.com/xSAVIKx/agent-signals/commit/9e672a8366acac728a4178bfb6c5c1c763c29e20))
+* **probes:** add the test-session, first-run and operator steps ([#92](https://github.com/xSAVIKx/agent-signals/issues/92)) ([3b16ab8](https://github.com/xSAVIKx/agent-signals/commit/3b16ab815b2f6622604f5f312c9f5325b05247a7))
+* **probes:** keep the kit with --get, and run a guided step with no key press ([#86](https://github.com/xSAVIKx/agent-signals/issues/86)) ([4518f6b](https://github.com/xSAVIKx/agent-signals/commit/4518f6b8062d5392dd5402a311b7d987a81544f7))
+* **probes:** print the link type of each agent command on Windows ([#72](https://github.com/xSAVIKx/agent-signals/issues/72)) ([a928b86](https://github.com/xSAVIKx/agent-signals/commit/a928b86fd89a76a25c7459ce670ae50b9675d123))
+
+
+### Bug Fixes
+
+* **probes:** give each Windows kit command its arguments as an array ([#85](https://github.com/xSAVIKx/agent-signals/issues/85)) ([7097e19](https://github.com/xSAVIKx/agent-signals/commit/7097e194d7f71ecae026b0a396d6854c9df36959))
+* **probes:** give the step scripts the kit folders, and keep the start time of each kit pid ([#78](https://github.com/xSAVIKx/agent-signals/issues/78)) ([c752b6d](https://github.com/xSAVIKx/agent-signals/commit/c752b6d49c50bb2b8082ce96d9606afcb7aa60aa))
+* **scrub:** keep the paths below &lt;sandbox&gt;, and hide the agent temp folders ([#93](https://github.com/xSAVIKx/agent-signals/issues/93)) ([5bc1a38](https://github.com/xSAVIKx/agent-signals/commit/5bc1a389bad5f67cded97194818e4dbd66e6f540))
+
 ## [0.11.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.10.0...corpus-v0.11.0) (2026-11-01)
 
 

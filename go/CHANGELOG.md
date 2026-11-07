@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/xSAVIKx/agent-signals/compare/go/v0.9.0...go/v0.10.0) (2026-11-07)
+
+
+### Features
+
+* **facts:** measure early keys and the fast clear on Claude Code 2.1.316 and 2.1.318 ([#90](https://github.com/xSAVIKx/agent-signals/issues/90)) ([c7a4301](https://github.com/xSAVIKx/agent-signals/commit/c7a4301930f0fbdb4caed377ca0c1c130d3b84c8))
+
 ## [0.9.0](https://github.com/xSAVIKx/agent-signals/compare/go/v0.8.0...go/v0.9.0) (2026-11-01)
 
 
