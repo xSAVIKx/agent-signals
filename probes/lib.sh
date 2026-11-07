@@ -127,7 +127,7 @@ shell_text() {
 # hold a /. Other words become <arg>, because they can be names or prompt
 # text.
 ps_line() {
-  _s=$(ps -o pid=,ppid=,tty=,lstart= -p "$1" 2>/dev/null) || return 0
+  _s=$(LC_ALL=C ps -o pid=,ppid=,tty=,lstart= -p "$1" 2>/dev/null) || return 0
   _a=$(ps -o args= -p "$1" 2>/dev/null | awk '{
     out = $1
     for (i = 2; i <= NF; i++) out = out " " (($i ~ /^-/ || $i ~ /\//) ? $i : "<arg>")
