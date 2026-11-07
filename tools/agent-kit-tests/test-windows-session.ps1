@@ -215,6 +215,33 @@ foreach ($b in 'conpty', 'psmux') {
                     @('nowindow', [uint32]0x08000600),
                     @('nowindow-nogroup', [uint32]0x08000400)
                 )
+                $kline = (Get-Content -Raw -LiteralPath (Join-Path $run "sessions/$s4/psmux-line")).Trim()
+                $kwork = (Get-Content -Raw -LiteralPath (Join-Path $run "sessions/$s4/work")).Trim()
+                Write-Output "DIAG kit line: $kline"
+                Write-Output "DIAG kit work exists: $(Test-Path -LiteralPath $kwork)"
+                foreach ($rep in 'same', 'work-made') {
+                    if ($rep -eq 'work-made') { New-Item -ItemType Directory -Force -Path $kwork | Out-Null }
+                    $tag2 = [regex]::Match($kline, '-L (\S+)').Groups[1].Value
+                    $dd = Join-Path $T "pd-rep-$rep"
+                    New-Item -ItemType Directory -Force -Path $dd | Out-Null
+                    $envb = @{}
+                    foreach ($q in $kenv.PSObject.Properties) { $envb[$q.Name] = [string]$q.Value }
+                    $envb['PSMUX_DATA_DIR'] = $dd
+                    $envb['PSMUX_NO_WARM'] = '1'
+                    $block = (($envb.Keys | Sort-Object | ForEach-Object { "$_=$($envb[$_])" }) -join "`0") + "`0"
+                    [KitSpawnDiag]::F = [uint32]0x608
+                    $aw = $false; $id = 0
+                    $cwd = if (Test-Path -LiteralPath $kwork) { $kwork } else { $exeBin }
+                    $rc = [KitSpawnDiag]::Run($px, $kline, $cwd, $block, 30000, [ref]$aw, [ref]$id)
+                    Start-Sleep -Seconds 4
+                    $saveDD = $env:PSMUX_DATA_DIR
+                    $env:PSMUX_DATA_DIR = $dd
+                    $cap = & $px -L $tag2 capture-pane -p -t kit 2>&1
+                    $null = & $px -L $tag2 kill-server 2>&1
+                    $env:PSMUX_DATA_DIR = $saveDD
+                    Write-Output "DIAG replay-$rep spawn exit $rc"
+                    $cap | Where-Object { $_ -match '\S' } | Select-Object -First 3 | ForEach-Object { Write-Output "DIAG replay-$rep | $_" }
+                }
                 foreach ($fl in $flags) {
                     foreach ($v in @(@('c', @($env:ComSpec, '/d', '/c', $stubExe)), @('one', @($stubExe)))) {
                         $tag = "dg-$($fl[0])-$($v[0])"

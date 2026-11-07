@@ -563,6 +563,7 @@ function Start-Session([string[]]$A) {
         $tail = $argv
         if ($argv.Count -eq 1) { $tail = @('cmd.exe', '/d', '/c', $argv[0]) }
         $list = @('-L', $tag, 'new-session', '-d', '-s', 'kit', '-x', "$Cols", '-y', "$Rows", '-c', $work, '--') + $tail
+        Write-State $dir 'psmux-line' (Join-KitArgs (@($psmux) + $list))
         $s = Start-KitDetached $psmux $list $work $envPsmux 30
         Write-State $dir 'breakaway' $(if ($s.Breakaway) { 'yes' } else { 'no' })
         if (-not $s.Breakaway) { Write-State $dir 'breakaway-error' "$($s.Error)" }
