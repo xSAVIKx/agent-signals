@@ -38,7 +38,10 @@ kitx step real-session-agy@operator --ready >"$T/step" 2>&1
 expect_code "real-session: an old session does not count: exit 4" 4 $?
 expect_line "real-session: an old session does not count: the reason" '^step: real-session-agy@operator operator no-session$' "$T/step"
 
-# Two new sessions: the kit does not guess.
+# Two new sessions: the kit does not guess. "ps -o etime=" gives whole
+# seconds, and procps of Ubuntu 22.04 can round the age up. So the sessions
+# start 2 s after the ask.
+sleep 2
 two1=$(detached "$T/other/agy")
 bg_pid "$two1"
 two2=$(detached "$T/other/agy")
