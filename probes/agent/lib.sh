@@ -120,13 +120,13 @@ kit_os_version() {
 }
 
 # The agents that the kit knows, as probes/run.sh names them.
-KIT_ALL_AGENTS="claude codex agy cursor opencode copilot gemini"
+KIT_ALL_AGENTS="claude codex agy cursor-agent opencode copilot gemini"
 
 # kit_agent_command AGENT: the command of AGENT on PATH, or nothing. The
-# Cursor CLI is "cursor-agent" or "agent".
+# Cursor CLI (cursor-agent) is the command "cursor-agent" or "agent".
 kit_agent_command() {
   case $1 in
-    cursor)
+    cursor-agent)
       for _c in cursor-agent agent; do
         command -v "$_c" >/dev/null 2>&1 && { echo "$_c"; return 0; }
       done
@@ -270,7 +270,7 @@ kit_login_skip() {
     # The Cursor CLI on macOS saves its login in the keychain, which a
     # throwaway home does not isolate: a fixture run would write a fake
     # token over the real login (fact 78).
-    fixture:cursor) [ "$(uname -s)" != Darwin ] || echo no-fixture ;;
+    fixture:cursor-agent) [ "$(uname -s)" != Darwin ] || echo no-fixture ;;
     fixture:*) echo no-fixture ;;
   esac
 }

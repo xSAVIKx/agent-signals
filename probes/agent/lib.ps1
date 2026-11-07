@@ -47,7 +47,7 @@ function Get-KitRunDir {
 function Get-KitLoginSkip([string]$HomeMode, [string]$Needs, [string]$Agent) {
     if ($Needs -ne 'login') { return '' }
     if ($HomeMode -eq 'throwaway') { return 'no-login' }
-    if ($HomeMode -eq 'fixture' -and $Agent -notin 'codex', 'claude', 'agy', 'cursor') { return 'no-fixture' }
+    if ($HomeMode -eq 'fixture' -and $Agent -notin 'codex', 'claude', 'agy', 'cursor-agent') { return 'no-fixture' }
     return ''
 }
 
@@ -127,7 +127,7 @@ $script:KitAgentCommands = [ordered]@{
     'claude'   = @('claude')
     'codex'    = @('codex')
     'agy'      = @('agy')
-    'cursor'   = @('cursor-agent', 'agent')
+    'cursor-agent' = @('cursor-agent', 'agent')
     'gemini'   = @('gemini')
     'copilot'  = @('copilot')
     'opencode' = @('opencode')
@@ -453,7 +453,7 @@ function Get-KitAgentVersion([string]$Agent, [string]$File) {
             $m = [regex]::Match($res, '(?i)[\\/]packages[\\/][^\\/]+[\\/]releases[\\/]([0-9][^\\/-]*)')
             if ($m.Success) { return $m.Groups[1].Value }
         }
-        'cursor' {
+        'cursor-agent' {
             $m = [regex]::Match($res, '(?i)[\\/]cursor-agent[\\/]versions[\\/]([0-9][^\\/]*)')
             if ($m.Success) { return $m.Groups[1].Value }
             $vd = Join-Path (Split-Path -Parent $res) 'versions'
@@ -476,7 +476,7 @@ function Get-KitInstallFiles([string]$Agent) {
     switch ($Agent) {
         'claude' { $list += (Join-Path $up '.local\bin\claude.exe') }
         'agy' { if ($la) { $list += (Join-Path $la 'agy\bin\agy.exe') } }
-        'cursor' {
+        'cursor-agent' {
             if ($la) {
                 $list += (Join-Path $la 'cursor-agent\cursor-agent.cmd')
                 $list += (Join-Path $la 'cursor-agent\agent.cmd')

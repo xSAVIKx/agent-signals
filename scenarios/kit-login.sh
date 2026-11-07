@@ -104,7 +104,10 @@ esac
 key=
 
 sh probes/agent/kit.sh plan --home real >"$raw" 2>&1
-step=$(sed -n "s/^step: \(permission-$agent@[^ ]*\) .*/\1/p" "$raw" | head -n 1)
+# The kit names the Cursor CLI "cursor-agent".
+kit_agent=$agent
+[ "$agent" != cursor ] || kit_agent=cursor-agent
+step=$(sed -n "s/^step: \(permission-$kit_agent@[^ ]*\) .*/\1/p" "$raw" | head -n 1)
 [ -n "$step" ] || fail "the plan has no permission step"
 if sh probes/agent/kit.sh step "$step" >"$raw" 2>&1; then rc=0; else rc=$?; fi
 scrubbed 20

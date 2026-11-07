@@ -14,7 +14,7 @@ $script:Procs = @()
 $script:State = $null
 $candidates = Get-StateCandidates @('.cursor', 'cursor')
 
-Header 'cursor/windows' '1' @('agent', 'cursor-agent')
+Header 'cursor-agent/windows' '1' @('agent', 'cursor-agent')
 
 Invoke-Section 'Processes: pid ppid start name command' {
   $script:Procs = @(Get-AgentProcesses $script:Pattern)

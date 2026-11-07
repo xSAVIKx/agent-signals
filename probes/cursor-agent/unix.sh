@@ -5,7 +5,7 @@
 # of the newest chat folder, the keys of meta.json, the record types of the
 # newest transcript, the hooks file, and the login state. It reads no chat
 # text and opens no chat database.
-# Run: sh probes/cursor/unix.sh > cursor-probe.txt 2>&1
+# Run: sh probes/cursor-agent/unix.sh > cursor-agent-probe.txt 2>&1
 # The output holds real paths. Send it through tools/scrub.sh first.
 # On macOS, also run probes/terminals/macos.sh for the terminal tabs.
 set -u
@@ -13,7 +13,7 @@ here=$(cd "$(dirname "$0")/.." && pwd)
 # shellcheck source=probes/lib.sh
 . "$here/lib.sh"
 
-header cursor/unix.sh 2 cursor-agent agent
+header cursor-agent/unix.sh 2 cursor-agent agent
 c=$HOME/.cursor
 p=$(pids 'cursor-agent|(^|[ /])agent .*index\.js|/\.local/bin/agent( |$)')
 

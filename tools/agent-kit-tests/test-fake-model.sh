@@ -16,9 +16,9 @@ expect_skip "a Codex login step runs in the fixture" fixture login codex ''
 expect_skip "a Claude login step runs in the fixture" fixture login claude ''
 expect_skip "an agy login step runs in the fixture" fixture login agy ''
 if [ "$(uname -s)" = Darwin ]; then
-  expect_skip "a Cursor login step has no fixture on macOS" fixture login cursor no-fixture
+  expect_skip "a Cursor login step has no fixture on macOS" fixture login cursor-agent no-fixture
 else
-  expect_skip "a Cursor login step runs in the fixture" fixture login cursor ''
+  expect_skip "a Cursor login step runs in the fixture" fixture login cursor-agent ''
 fi
 expect_skip "an unknown agent has no fixture" fixture login other no-fixture
 expect_skip "a step with no login runs in the fixture" fixture none claude ''
@@ -145,14 +145,14 @@ expect_line "agy: a long prompt holds the turn" ' hold$' "$T/agy.log"
 expect_no_line "agy: the log holds no prompt text" 'Create a file|Count from' "$T/agy.log"
 kill "$fake" 2>/dev/null
 
-start_fake cursor
-expect_line "cursor: the endpoint is local" '^CURSOR_API_ENDPOINT=http://127\.0\.0\.1:[0-9]+$' "$T/cursor.env"
-expect_line "cursor: the agent stream uses HTTP/1.1" '"useHttp1ForAgent": true' "$T/cursor/.cursor/cli-config.json"
-port=$(sed -n 's#^CURSOR_API_ENDPOINT=http://127\.0\.0\.1:##p' "$T/cursor.env")
+start_fake cursor-agent
+expect_line "cursor: the endpoint is local" '^CURSOR_API_ENDPOINT=http://127\.0\.0\.1:[0-9]+$' "$T/cursor-agent.env"
+expect_line "cursor: the agent stream uses HTTP/1.1" '"useHttp1ForAgent": true' "$T/cursor-agent/.cursor/cli-config.json"
+port=$(sed -n 's#^CURSOR_API_ENDPOINT=http://127\.0\.0\.1:##p' "$T/cursor-agent.env")
 post2 /auth/exchange_user_api_key '{}'
 expect_line "cursor: the key exchange gives a token" '"accessToken": "[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.' "$T/reply"
 python3 -c "import http.client,sys; c=http.client.HTTPConnection('127.0.0.1',int(sys.argv[1]),timeout=3); c.request('POST','/aiserver.v1.AiService/GetUsableModels',b'',{'Content-Type':'application/proto'}); print(c.getresponse().read())" "$port" >"$T/reply" 2>&1
 expect_line "cursor: the model list names the fixture model" 'Fixture' "$T/reply"
-expect_line "cursor: the log names each RPC" 'GetUsableModels reply$' "$T/cursor.log"
+expect_line "cursor: the log names each RPC" 'GetUsableModels reply$' "$T/cursor-agent.log"
 kill "$fake" 2>/dev/null
 done_tests

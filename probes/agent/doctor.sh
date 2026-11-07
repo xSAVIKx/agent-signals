@@ -25,8 +25,8 @@
 #       tool, so it has no line here.
 #   agent: <name> missing
 #   agent: <name> <resolved path> <version|unknown>
-#       for claude, codex, agy, cursor, gemini, copilot and opencode.
-#       "cursor" is the command cursor-agent, else agent when the resolved
+#       for claude, codex, agy, cursor-agent, gemini, copilot and opencode.
+#       "cursor-agent" is the command cursor-agent, else agent when the resolved
 #       path holds cursor-agent. The version rules, in this order:
 #         1. .../versions/<version>[/...]: Claude Code native and Cursor CLI
 #            (facts 029, 047, 069).
@@ -72,7 +72,7 @@ set -u
 # doctor.ps1 appends the same line on Windows, and kit check accepts it.
 doctor_add_to_manifest=yes
 
-doctor_agents="claude codex agy cursor gemini copilot opencode"
+doctor_agents="claude codex agy cursor-agent gemini copilot opencode"
 
 # doctor_sha256 FILE: the SHA-256 of FILE, in hex.
 doctor_sha256() {
@@ -142,7 +142,7 @@ doctor_version() {
 # doctor_command AGENT: the path of the command of AGENT on PATH.
 doctor_command() {
   case $1 in
-    cursor)
+    cursor-agent)
       _c=$(command -v cursor-agent 2>/dev/null) && { echo "$_c"; return 0; }
       _c=$(command -v agent 2>/dev/null) || return 1
       case $(resolve "$_c") in *cursor-agent*) echo "$_c" ;; *) return 1 ;; esac

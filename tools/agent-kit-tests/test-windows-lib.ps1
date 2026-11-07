@@ -120,7 +120,7 @@ Expect-True 'a login step skips in a throwaway home' ((Get-KitLoginSkip 'throwaw
 Expect-True 'a Codex login step runs in the fixture' (-not (Get-KitLoginSkip 'fixture' 'login' 'codex')) ''
 Expect-True 'a Claude login step runs in the fixture' ((Get-KitLoginSkip 'fixture' 'login' 'claude') -eq '') ''
 Expect-True 'an agy login step runs in the fixture' ((Get-KitLoginSkip 'fixture' 'login' 'agy') -eq '') ''
-Expect-True 'a Cursor login step runs in the fixture' ((Get-KitLoginSkip 'fixture' 'login' 'cursor') -eq '') ''
+Expect-True 'a Cursor login step runs in the fixture' ((Get-KitLoginSkip 'fixture' 'login' 'cursor-agent') -eq '') ''
 Expect-True 'an unknown agent has no fixture' ((Get-KitLoginSkip 'fixture' 'login' 'other') -eq 'no-fixture') ''
 
 # An unattended run skips a step that needs a person.

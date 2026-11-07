@@ -19,7 +19,7 @@
 # watch starts at once. The line "kit: watch starts, N s" tells a caller
 # in the background that the first snapshot is done.
 #   KIND           permission | new-chat | resume | interrupt
-#   AGENT          claude | codex | agy | cursor | opencode (default: all)
+#   AGENT          claude | codex | agy | cursor-agent | opencode (default: all)
 #   -Wait N        watch for N seconds (1 to 600). The default is
 #                  AGENT_SIGNALS_WATCH, else 30.
 #   -PidsFile F    count only the pids in F and the processes below them.
@@ -104,7 +104,7 @@ if ($Guided) {
     if ($m.Success) { $patterns[(Split-Path -Leaf $f.DirectoryName)] = $m.Groups[1].Value.Replace("''", "'") }
   }
   $pick = $Agent
-  if ($pick -in 'agent', 'cursor-agent') { $pick = 'cursor' }
+  if ($pick -in 'agent', 'cursor') { $pick = 'cursor-agent' }
   if ($pick -and -not $patterns.Contains($pick)) { Stop-Guided "unknown agent: $Agent. Use one of: $(@($patterns.Keys) -join ', ')" }
   $which = @(if ($pick) { $pick } else { $patterns.Keys })
 
@@ -136,7 +136,7 @@ if ($Guided) {
         @((Join-Path $c 'sessions'), (Join-Path $c 'thread-writer-locks'))
       }
       'agy' { @((Join-Path $h '.gemini\antigravity-cli')) }
-      'cursor' { @((Join-Path $h '.cursor\chats'), (Join-Path $h '.cursor\projects')) }
+      'cursor-agent' { @((Join-Path $h '.cursor\chats'), (Join-Path $h '.cursor\projects')) }
       'opencode' { @((Join-Path $h '.local\share\opencode')) }
     }
   }
@@ -631,7 +631,7 @@ $commands = @{
   'claude'   = @('claude')
   'codex'    = @('codex')
   'agy'      = @('agy')
-  'cursor'   = @('agent', 'cursor-agent')
+  'cursor-agent' = @('agent', 'cursor-agent')
   'opencode' = @('opencode')
 }
 
