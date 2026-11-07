@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.13.0...corpus-v0.14.0) (2026-11-07)
+
+
+### Features
+
+* **probes:** run the Claude Code, agy and Cursor login steps on the fake model ([#98](https://github.com/xSAVIKx/agent-signals/issues/98)) ([836988e](https://github.com/xSAVIKx/agent-signals/commit/836988e1034051808ba2b06608627f8b9537c1cd))
+
 ## [0.13.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.12.1...corpus-v0.13.0) (2026-11-07)
 
 

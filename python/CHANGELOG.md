@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/xSAVIKx/agent-signals/compare/python-v0.6.0...python-v0.7.0) (2026-11-07)
+
+
+### Features
+
+* **probes:** run the Claude Code, agy and Cursor login steps on the fake model ([#98](https://github.com/xSAVIKx/agent-signals/issues/98)) ([836988e](https://github.com/xSAVIKx/agent-signals/commit/836988e1034051808ba2b06608627f8b9537c1cd))
+
 ## [0.6.0](https://github.com/xSAVIKx/agent-signals/compare/python-v0.5.0...python-v0.6.0) (2026-11-07)
 
 
