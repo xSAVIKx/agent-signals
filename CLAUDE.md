@@ -42,6 +42,18 @@ active voice, one word for one meaning, no contractions, numbered steps, and
 a caution before the step it applies to. Code, commands, paths, and quoted
 output stay exact.
 
+## Processes and temporary files
+
+- Each test, scenario and kit command stops every process that it started.
+  This includes a daemon that leaves its process group, for example the
+  Codex app-server (fact 067). Stop a process by its pid, never by its
+  name.
+- Each test deletes its temporary folders and its throwaway homes when it
+  ends, also when it fails.
+- A test that leaves a process fails. `tools/agent-kit-tests/lib.sh` checks
+  this when a test file ends. Use it for each new kit test.
+- After a manual run of a real agent, check that no process of it stays.
+
 ## CI
 
 All workflows run on GitHub-hosted runners. Do not add a self-hosted
