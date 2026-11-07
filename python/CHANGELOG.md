@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/xSAVIKx/agent-signals/compare/python-v0.4.0...python-v0.5.0) (2026-11-07)
+
+
+### Features
+
+* **facts:** measure early keys and the fast clear on Claude Code 2.1.316 and 2.1.318 ([#90](https://github.com/xSAVIKx/agent-signals/issues/90)) ([c7a4301](https://github.com/xSAVIKx/agent-signals/commit/c7a4301930f0fbdb4caed377ca0c1c130d3b84c8))
+
 ## [0.4.0](https://github.com/xSAVIKx/agent-signals/compare/python-v0.3.0...python-v0.4.0) (2026-11-01)
 
 
