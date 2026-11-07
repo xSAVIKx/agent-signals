@@ -219,6 +219,10 @@ try {
         # The agent writes no file: the step is ok, and says so.
         Expect-Kit "${b}: a step with no records exits 0" 0 'step' "norecords-agy@$b"
         Expect-Line "${b}: the reason is no-records" "^step: norecords-agy@$b ok no-records$" $out
+        if (-not (Select-String -LiteralPath $out -Pattern 'ok no-records$' -Quiet)) {
+            Show-Out
+            Get-Content -LiteralPath (Get-StepFile "*-norecords-agy@$b.txt") | Select-String -Pattern '^(claude|agy) \d|^### |^t=|^== ' | ForEach-Object { "  | $_" }
+        }
 
         # The agent ends in the step.
         $killPs1 = Join-Path $T 'kill.ps1'
