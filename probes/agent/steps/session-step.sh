@@ -186,9 +186,6 @@ pre_answer() {
   return 1
 }
 
-# wait_idle SECONDS FILE [TEXT]: answer the KIT_PRE pairs and wait for the
-# idle screen. With TEXT, the screen must not show TEXT. FILE gets the last
-# screen.
 # in_box FILE TEXT: TEXT is at the end of the box line, the last line that
 # starts with a prompt mark (❯, › or >). With no such line, at the end of
 # any line. Claude Code 2.1.318 shows a sent "/clear" on a line above the
@@ -203,6 +200,9 @@ in_box() {
   fi
 }
 
+# wait_idle SECONDS FILE [TEXT]: answer the KIT_PRE pairs and wait for the
+# idle screen. With TEXT, the box line must not show TEXT (in_box). FILE
+# gets the last screen.
 wait_idle() {
   _end=$(($(date +%s) + $(clip "$1")))
   while :; do
