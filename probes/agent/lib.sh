@@ -259,13 +259,13 @@ kit_json() {
 kit_text_re() { printf '%s' "$1" | sed 's/[][\.*^$+?(){}|]/\\&/g'; }
 
 # kit_login_skip HOME NEEDS AGENT: print the reason why a step does not run
-# in the home mode HOME, or nothing. The fixture mode has a fake model for
-# Codex only (fake-model.py).
+# in the home mode HOME, or nothing. The fixture mode has a fake model
+# (fake-model.py) for Codex, Claude Code and agy.
 kit_login_skip() {
   [ "$2" = login ] || return 0
   case $1:$3 in
     throwaway:*) echo no-login ;;
-    fixture:codex) ;;
+    fixture:codex | fixture:claude | fixture:agy) ;;
     fixture:*) echo no-fixture ;;
   esac
 }

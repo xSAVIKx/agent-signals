@@ -20,8 +20,9 @@
 #   os           A comma list of linux, macos and windows.
 #   needs        none, operator, login or screen. "login": the step needs
 #                the login of the operator, so it skips with "--home
-#                throwaway". With "--home fixture" a login step of Codex
-#                runs with a fake model. "screen": the step can change the screen of
+#                throwaway". With "--home fixture" a login step of Codex,
+#                Claude Code or agy runs with a fake model.
+#                "screen": the step can change the screen of
 #                the operator, for example with a macOS dialog.
 #   cost         none, or turns:N (N model turns on the plan of the login).
 #   pre          The fixed answers to the screens that can come before the

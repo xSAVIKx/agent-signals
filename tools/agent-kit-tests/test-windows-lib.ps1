@@ -118,6 +118,8 @@ $env:AGENT_SIGNALS_RUN = $keepRun
 # The home modes of a login step.
 Expect-True 'a login step skips in a throwaway home' ((Get-KitLoginSkip 'throwaway' 'login' 'codex') -eq 'no-login') ''
 Expect-True 'a Codex login step runs in the fixture' (-not (Get-KitLoginSkip 'fixture' 'login' 'codex')) ''
-Expect-True 'a Claude login step has no fixture' ((Get-KitLoginSkip 'fixture' 'login' 'claude') -eq 'no-fixture') ''
+Expect-True 'a Claude login step runs in the fixture' ((Get-KitLoginSkip 'fixture' 'login' 'claude') -eq '') ''
+Expect-True 'an agy login step runs in the fixture' ((Get-KitLoginSkip 'fixture' 'login' 'agy') -eq '') ''
+Expect-True 'a Cursor login step has no fixture' ((Get-KitLoginSkip 'fixture' 'login' 'cursor') -eq 'no-fixture') ''
 
 Complete-Tests

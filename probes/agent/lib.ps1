@@ -42,12 +42,12 @@ function Get-KitRunDir {
 }
 
 # Get-KitLoginSkip HOME NEEDS AGENT: the reason why a step does not run in the
-# home mode HOME, or ''. The fixture mode has a fake model for Codex only
-# (fake-model.py).
+# home mode HOME, or ''. The fixture mode has a fake model (fake-model.py)
+# for Codex, Claude Code and agy.
 function Get-KitLoginSkip([string]$HomeMode, [string]$Needs, [string]$Agent) {
     if ($Needs -ne 'login') { return '' }
     if ($HomeMode -eq 'throwaway') { return 'no-login' }
-    if ($HomeMode -eq 'fixture' -and $Agent -ne 'codex') { return 'no-fixture' }
+    if ($HomeMode -eq 'fixture' -and $Agent -notin 'codex', 'claude', 'agy') { return 'no-fixture' }
     return ''
 }
 

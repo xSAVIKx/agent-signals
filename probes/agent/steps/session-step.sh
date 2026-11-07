@@ -189,15 +189,27 @@ pre_answer() {
 # wait_idle SECONDS FILE [TEXT]: answer the KIT_PRE pairs and wait for the
 # idle screen. With TEXT, the screen must not show TEXT. FILE gets the last
 # screen.
+# in_box FILE TEXT: TEXT is at the end of the box line, the last line that
+# starts with a prompt mark (❯, › or >). With no such line, at the end of
+# any line. Claude Code 2.1.318 shows a sent "/clear" on a line above the
+# box, and the path of the work folder of a new-chat step holds "/new" too.
+in_box() {
+  _re="(^|[[:space:]])$(kit_text_re "$2")[[:space:]]*\$"
+  _box=$(grep -E '^[[:space:]]*(❯|›|>)' "$1" | tail -n 1)
+  if [ -n "$_box" ]; then
+    printf '%s\n' "$_box" | grep -Eq -- "$_re"
+  else
+    grep -Eq -- "$_re" "$1"
+  fi
+}
+
 wait_idle() {
   _end=$(($(date +%s) + $(clip "$1")))
   while :; do
     alive || { screen "$2"; return 2; }
     screen "$2" || return 3
     if ! pre_answer "$2" && is_idle "$2"; then
-      # The text counts only at the end of a line: the path of the work
-      # folder of a new-chat step holds "/new" too.
-      [ -n "${3:-}" ] && grep -Eq -- "(^|[[:space:]])$(kit_text_re "$3")[[:space:]]*\$" "$2" || return 0
+      [ -n "${3:-}" ] && in_box "$2" "$3" || return 0
     fi
     [ "$(date +%s)" -lt "$_end" ] || return 1
     sleep 1

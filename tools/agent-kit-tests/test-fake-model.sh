@@ -13,7 +13,9 @@ expect_skip() {
 }
 expect_skip "a login step skips in a throwaway home" throwaway login codex no-login
 expect_skip "a Codex login step runs in the fixture" fixture login codex ''
-expect_skip "a Claude login step has no fixture" fixture login claude no-fixture
+expect_skip "a Claude login step runs in the fixture" fixture login claude ''
+expect_skip "an agy login step runs in the fixture" fixture login agy ''
+expect_skip "a Cursor login step has no fixture" fixture login cursor no-fixture
 expect_skip "a step with no login runs in the fixture" fixture none claude ''
 expect_skip "a login step runs in a real home" real login claude ''
 
@@ -60,5 +62,81 @@ post text "Count from 1 to 300."
 expect_no_line "a long prompt gets no completed event" 'response\.completed' "$T/reply"
 expect_line "the log has the hold" ' hold$' "$T/log"
 expect_no_line "the log holds no prompt text" 'Create a file|Count from' "$T/log"
+kill "$fake" 2>/dev/null
+
+# start_fake AGENT: start the fake model for AGENT with the home $T/AGENT, and
+# wait for its file of variables.
+start_fake() {
+  python3 "$ROOT/probes/agent/fake-model.py" --agent "$1" --home "$T/$1" --env-file "$T/$1.env" \
+    --log "$T/$1.log" </dev/null >/dev/null 2>&1 &
+  fake=$!
+  bg_pid "$fake"
+  n=0
+  while [ ! -f "$T/$1.env" ] && [ "$n" -lt 300 ]; do
+    n=$((n + 1))
+    sleep 0.1
+  done
+  if [ -f "$T/$1.env" ]; then pass "$1: the fake model writes the variables"; else fail "$1: the fake model writes the variables" "no file"; fi
+}
+
+cat >"$T/client2.py" <<'X'
+import http.client, json, sys
+port, path, body = int(sys.argv[1]), sys.argv[2], json.loads(sys.argv[3])
+c = http.client.HTTPConnection("127.0.0.1", port, timeout=3)
+c.request("POST", path, json.dumps(body))
+r = c.getresponse()
+try:
+    print(r.read().decode())
+except OSError:
+    print("timeout")
+X
+post2() { python3 "$T/client2.py" "$port" "$1" "$2" >"$T/reply" 2>&1 || true; }
+
+start_fake claude
+expect_line "claude: the base URL is local" '^ANTHROPIC_BASE_URL=http://127\.0\.0\.1:[0-9]+$' "$T/claude.env"
+expect_line "claude: the config folder is in the home" "^CLAUDE_CONFIG_DIR=$T/claude/.claude\$" "$T/claude.env"
+expect_line "claude: the first-start screens are done" '"hasCompletedOnboarding": true' "$T/claude/.claude/.claude.json"
+expect_line "claude: the permission mode is default" '"defaultMode": "default"' "$T/claude/.claude/settings.json"
+key=$(sed -n 's/^ANTHROPIC_API_KEY=//p' "$T/claude.env")
+expect_line "claude: the fake key is approved" "\"$(printf '%s' "$key" | tail -c 20)\"" "$T/claude/.claude/.claude.json"
+port=$(sed -n 's#^ANTHROPIC_BASE_URL=http://127\.0\.0\.1:##p' "$T/claude.env")
+tools='"tools": [{"name": "Bash"}]'
+sys_last='{"role": "system", "content": [{"type": "text", "text": "env"}]}'
+post2 /v1/messages "{\"stream\": true, $tools, \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"Create a file named x.\"}]}, $sys_last]}"
+expect_line "claude: a file prompt gets a Bash call" '"name": "Bash"' "$T/reply"
+expect_line "claude: the call stops the turn for the tool" '"stop_reason": "tool_use"' "$T/reply"
+post2 /v1/messages "{\"stream\": true, $tools, \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"tool_result\", \"tool_use_id\": \"x\", \"content\": \"ok\"}]}]}"
+expect_line "claude: a tool result ends the turn" 'finished the tool call' "$T/reply"
+post2 /v1/messages '{"messages": [{"role": "user", "content": "Create a file named x."}]}'
+expect_line "claude: a request with no tools gets text" '"type": "text"' "$T/reply"
+expect_no_line "claude: a request with no tools gets no call" 'tool_use' "$T/reply"
+post2 /v1/messages "{\"stream\": true, $tools, \"messages\": [{\"role\": \"user\", \"content\": \"Count from 1 to 300.\"}]}"
+expect_line "claude: a long prompt holds the turn" ' hold$' "$T/claude.log"
+expect_no_line "claude: a long prompt gets no end" 'message_stop' "$T/reply"
+post2 /v1/messages/count_tokens '{}'
+expect_line "claude: count_tokens gets a count" 'input_tokens' "$T/reply"
+expect_no_line "claude: the log holds no prompt text" 'Create a file|Count from' "$T/claude.log"
+kill "$fake" 2>/dev/null
+
+start_fake agy
+expect_line "agy: the gateway URL is local" '^AGY_LLM_GATEWAY_URL=http://127\.0\.0\.1:[0-9]+/v1$' "$T/agy.env"
+expect_line "agy: the wire protocol is openai" '^AGY_LLM_GATEWAY_WIRE_PROTOCOL=openai$' "$T/agy.env"
+expect_line "agy: the gateway page is done" '"enterpriseOnboardingComplete": true' "$T/agy/.gemini/antigravity-cli/cache/onboarding.json"
+port=$(sed -n 's#^AGY_LLM_GATEWAY_URL=http://127\.0\.0\.1:\([0-9]*\)/v1$#\1#p' "$T/agy.env")
+python3 -c "import http.client,sys; c=http.client.HTTPConnection('127.0.0.1',int(sys.argv[1]),timeout=3); c.request('GET','/v1/models'); print(c.getresponse().read().decode())" "$port" >"$T/reply" 2>&1
+expect_line "agy: the model list has the fixture model" '"id": "fixture-model"' "$T/reply"
+tools='"tools": [{"type": "function", "function": {"name": "run_command"}}]'
+post2 /v1/chat/completions "{\"stream\": true, $tools, \"messages\": [{\"role\": \"user\", \"content\": \"<USER_REQUEST>Create a file named x.</USER_REQUEST>\"}]}"
+expect_line "agy: a file prompt gets a command call" '"name": "run_command"' "$T/reply"
+expect_line "agy: the call ends with tool_calls" '"finish_reason": "tool_calls"' "$T/reply"
+expect_line "agy: the stream ends with DONE" '^data: \[DONE\]$' "$T/reply"
+post2 /v1/chat/completions "{\"stream\": true, $tools, \"messages\": [{\"role\": \"tool\", \"tool_call_id\": \"x\", \"content\": \"ok\"}]}"
+expect_line "agy: a tool result ends the turn" 'finished the tool call' "$T/reply"
+post2 /v1/chat/completions '{"stream": true, "messages": [{"role": "user", "content": "Create a file named x."}]}'
+expect_no_line "agy: a request with no tools gets no call" 'run_command' "$T/reply"
+post2 /v1/chat/completions "{\"stream\": true, $tools, \"messages\": [{\"role\": \"user\", \"content\": \"Count from 1 to 300.\"}]}"
+expect_no_line "agy: a long prompt gets no reply" 'DONE' "$T/reply"
+expect_line "agy: a long prompt holds the turn" ' hold$' "$T/agy.log"
+expect_no_line "agy: the log holds no prompt text" 'Create a file|Count from' "$T/agy.log"
 kill "$fake" 2>/dev/null
 done_tests

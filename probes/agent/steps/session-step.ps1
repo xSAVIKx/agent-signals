@@ -259,12 +259,24 @@ function Send-Pre {
 }
 # Wait-Idle SECONDS [TEXT]: answer the "pre" pairs and wait for the idle
 # screen. With TEXT, the screen must not show TEXT.
+# Test-InBox TEXT: TEXT is at the end of the box line, the last line of the
+# screen that starts with a prompt mark (U+276F, U+203A or >). With no such
+# line, at the end of any line. Claude Code 2.1.318 shows a sent "/clear" on
+# a line above the box.
+function Test-InBox([string]$Text) {
+    $lines = @($sc -split "`r?`n")
+    $box = @($lines | Where-Object { $_ -match ('^\s*(' + [char]0x276F + '|' + [char]0x203A + '|>)') })
+    if ($box.Count -gt 0) { $lines = @($box[-1]) }
+    $re = '(^|\s)' + [regex]::Escape($Text) + '\s*$'
+    foreach ($l in $lines) { if ($l -match $re) { return $true } }
+    return $false
+}
 function Wait-Idle([int]$Seconds, [string]$Text) {
     $end = (Get-Date).AddSeconds((Get-Clip $Seconds))
     while ($true) {
         if (-not (Test-Alive)) { Stop-Step 'agent-ended' }
         Update-Screen
-        if (-not (Send-Pre) -and (Test-Idle $sc) -and -not ($Text -and $sc.Contains($Text))) { return $true }
+        if (-not (Send-Pre) -and (Test-Idle $sc) -and -not ($Text -and (Test-InBox $Text))) { return $true }
         if ((Get-Date) -ge $end) { return $false }
         Start-Sleep -Milliseconds 500
     }
