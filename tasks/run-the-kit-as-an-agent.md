@@ -142,7 +142,8 @@ different source.
    output shows no network, tell the operator. A test session in a sandbox
    can fail or give wrong signals.
 
-3. Start the run. First ask the operator for the home mode: `throwaway`
+3. Start the run. Do not use the home mode `fixture`: it is for CI. First
+   ask the operator for the home mode: `throwaway`
    (a new, empty home folder with no login) or `real`. Use `throwaway`
    when the operator gives no answer.
 

@@ -2,7 +2,7 @@
 # (scenarios/conpty.py in its serve mode) or psmux (a private psmux
 # server). It is the twin of probes/agent/session.sh.
 #
-#   kit session start NAME AGENT --via conpty|psmux [--cmd CMD] [--home real|throwaway]
+#   kit session start NAME AGENT --via conpty|psmux [--cmd CMD] [--home real|throwaway|fixture]
 #   kit session send NAME TEXT
 #   kit session key NAME KEY...       (tmux names: Enter, Escape, C-c, Tab, 1)
 #   kit session screen NAME           (the format of tmux capture-pane -p -J)
@@ -21,7 +21,7 @@
 # shell. Only the user can read the folder.
 #   backend    conpty or psmux
 #   agent      the agent name
-#   home-mode  real or throwaway
+#   home-mode  real, throwaway or fixture
 #   work       the path of the work folder of the agent, RUN\work\NAME
 #   pipe       conpty: the name of the pipe of the driver; pipe.key its key
 #   socket     psmux: the name of the private server (psmux -L)
@@ -67,7 +67,7 @@ $ProfileVars = @(
 )
 
 function Show-Usage {
-    [Console]::Error.WriteLine('usage: kit session start NAME AGENT --via conpty|psmux [--cmd CMD] [--home real|throwaway]')
+    [Console]::Error.WriteLine('usage: kit session start NAME AGENT --via conpty|psmux [--cmd CMD] [--home real|throwaway|fixture]')
     [Console]::Error.WriteLine('       kit session send NAME TEXT | key NAME KEY... | screen NAME')
     [Console]::Error.WriteLine('       kit session wait NAME REGEX SECONDS | stop NAME | stop --all')
     exit 2
@@ -398,7 +398,10 @@ function Get-SessionEnv([string]$Mode, [string]$HomeDir) {
         $e['TEMP'] = Join-Path $HomeDir 'AppData\Local\Temp'
         $e['TMP'] = $e['TEMP']
         $e['USERNAME'] = 'dev'
-        foreach ($d in $e['APPDATA'], $e['TEMP']) { New-Item -ItemType Directory -Force -Path $d | Out-Null }
+        # Codex on Windows does not find its home from USERPROFILE: with no
+        # CODEX_HOME, a fixture run read no config in this folder.
+        $e['CODEX_HOME'] = Join-Path $HomeDir '.codex'
+        foreach ($d in $e['APPDATA'], $e['TEMP'], $e['CODEX_HOME']) { New-Item -ItemType Directory -Force -Path $d | Out-Null }
     }
     return $e
 }
@@ -448,7 +451,7 @@ function Start-Session([string[]]$A) {
     }
     if (-not $via) { Stop-Kit 2 'give --via conpty or --via psmux' }
     if ($via -notin 'conpty', 'psmux') { Stop-Kit 2 "unknown backend: $via" }
-    if ($mode -notin 'real', 'throwaway') { Stop-Kit 2 "--home is real or throwaway: $mode" }
+    if ($mode -notin 'real', 'throwaway', 'fixture') { Stop-Kit 2 "--home is real, throwaway or fixture: $mode" }
     $run = Get-KitRunDir
     $dir = Join-Path (Join-Path $run 'sessions') $name
 
@@ -472,7 +475,7 @@ function Start-Session([string[]]$A) {
     Protect-KitDir $dir
     New-Item -ItemType Directory -Force -Path $work | Out-Null
     $homeDir = Join-Path (Join-Path $run 'home') $name
-    if ($mode -eq 'throwaway') {
+    if ($mode -ne 'real') {
         if (Test-Path -LiteralPath $homeDir) { Remove-Item -Recurse -Force -LiteralPath $homeDir }
         New-Item -ItemType Directory -Force -Path $homeDir | Out-Null
     }
@@ -482,6 +485,26 @@ function Start-Session([string[]]$A) {
     Write-State $dir 'work' $work
     [IO.File]::WriteAllText((Join-Path $dir 'pids'), '', $Utf8)
     $envAgent = Get-SessionEnv $mode $homeDir
+    if ($mode -eq 'fixture' -and $agent -eq 'codex') {
+        # fake-model.py needs only the standard library of Python.
+        $fakePy = if ($py) { $py } else { Find-KitPython $run }
+        if (-not $fakePy) { $fakePy = (Get-Command python -ErrorAction SilentlyContinue).Source }
+        if (-not $fakePy) { Stop-Kit 3 'needs python' }
+        $codexHome = Join-Path $homeDir '.codex'
+        $fakePid = Join-Path $dir 'fake-model.pid'
+        $fakeArgs = '"{0}" --codex-home "{1}" --log "{2}" --pid-file "{3}"' -f (Join-Path $PSScriptRoot 'fake-model.py'), $codexHome, (Join-Path $dir 'fake-model.log'), $fakePid
+        $fake = Start-Process -FilePath $fakePy -ArgumentList $fakeArgs -PassThru -WindowStyle Hidden
+        Add-SessionPid $run $dir $fake.Id "session $name fake model"
+        $fakeEnd = (Get-Date).AddSeconds(30)
+        while (-not (Test-Path -LiteralPath (Join-Path $codexHome 'config.toml') -PathType Leaf)) {
+            if ((Get-Date) -gt $fakeEnd) { Stop-Kit 1 'the fake model did not start' }
+            Start-Sleep -Milliseconds 100
+        }
+        # The Python of a venv is a launcher: the server is its child.
+        $serverPid = [int](Get-Content -LiteralPath $fakePid -TotalCount 1)
+        if ($serverPid -ne $fake.Id) { Add-SessionPid $run $dir $serverPid "session $name fake model" }
+        $envAgent['AGENT_SIGNALS_FAKE_KEY'] = 'dummy'
+    }
     $tag = 'kit-' + $name + '-' + [guid]::NewGuid().ToString('N').Substring(0, 8)
 
     if ($via -eq 'conpty') {
@@ -627,6 +650,8 @@ function Stop-SessionDir([string]$Run, [string]$Dir) {
         for ($n = 0; $n -lt 10; $n++) {
             try { Remove-Item -Recurse -Force -LiteralPath $d -ErrorAction Stop; break } catch { Start-Sleep -Milliseconds 300 }
         }
+        # "kit check" fails on each file that stays.
+        if (Test-Path -LiteralPath $d) { Write-Output "session: $name left files in a folder" }
     }
     Write-State $Dir 'stopped' (Get-Date).ToUniversalTime().ToString('o')
     Write-Output "session: $name stopped"
@@ -659,7 +684,7 @@ switch ($sub) {
         if ($rest.Count -lt 2) { Show-Usage }
         $keys = @($rest | Select-Object -Skip 1)
         foreach ($k in $keys) {
-            if ($k -cnotmatch '^(Enter|Escape|Tab|BSpace|Up|Down|Left|Right|C-c|C-d|.)$') { Stop-Kit 2 "unknown key: $k" }
+            if ($k -cnotmatch '^(Enter|Escape|Tab|BSpace|Up|Down|Left|Right|C-c|C-d|C-u|.)$') { Stop-Kit 2 "unknown key: $k" }
         }
         $d = Get-Session $rest 2 -Running
         foreach ($k in $keys) { Send-ToSession $d 'key' $k }

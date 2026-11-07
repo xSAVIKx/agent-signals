@@ -1,12 +1,13 @@
 #!/bin/sh
 # kit session: start and drive a test session of one agent.
 #
-#   kit session start NAME AGENT --via tmux|pty [--cmd CMD] [--home real|throwaway]
+#   kit session start NAME AGENT --via tmux|pty [--cmd CMD] [--home real|throwaway|fixture]
 #   kit session send NAME TEXT
 #   kit session key NAME KEY...
 #   kit session screen NAME
 #   kit session wait NAME REGEX SECONDS
 #   kit session stop NAME
+#   kit session stop NAME --keep   the work folder and the home stay
 #   kit session stop --all
 #
 # CMD is one simple command, for example "env NAME=VALUE prog arg". The
@@ -24,7 +25,7 @@
 # shell:
 #   backend    tmux or pty
 #   agent      the agent name
-#   home-mode  real or throwaway
+#   home-mode  real, throwaway or fixture
 #   work       the path of the work folder of the agent, RUN/work/NAME
 #   socket     the path of the socket of the server
 #   pid        the pid of the agent
@@ -90,6 +91,22 @@ tm() { tmux -S "$sock" "$@"; }
 add_pid() {
   kit_add_pid "$run" "$1" "$2"
   printf '%s %s\n' "$1" "$(cat "$run/pids/$1")" >>"$sdir/pids"
+}
+
+# start_fake_model HOME: start fake-model.py for Codex, and wait for the
+# config file that it writes in the throwaway home.
+start_fake_model() {
+  command -v python3 >/dev/null 2>&1 || kit_die 3 "needs python3"
+  rm -f "$1/.codex/config.toml"
+  python3 "$KIT_DIR/fake-model.py" --codex-home "$1/.codex" --log "$sdir/fake-model.log" \
+    </dev/null >/dev/null 2>&1 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- &
+  add_pid "$!" "session $name fake model"
+  _n=0
+  while [ ! -f "$1/.codex/config.toml" ]; do
+    [ "$_n" -lt 300 ] || kit_die 1 "the fake model did not start"
+    _n=$((_n + 1))
+    sleep 0.1
+  done
 }
 
 # label PIDFILE: the label of a pid file.
@@ -198,7 +215,7 @@ do_start() {
   esac
   # The home mode: --home, else KIT_HOME, else the line "meta home MODE"
   # that kit start writes to the manifest, else throwaway.
-  via='' cmd='' mode=${KIT_HOME:-}
+  via='' cmd='' keep='' mode=${KIT_HOME:-}
   if [ -z "$mode" ] && [ -r "$run/manifest.tsv" ]; then
     mode=$(awk -F '\t' '$1 == "meta" && $2 == "home" { m = $3 } END { print m }' "$run/manifest.tsv")
   fi
@@ -208,6 +225,7 @@ do_start() {
       --via) [ "$#" -ge 2 ] || usage; via=$2; shift 2 ;;
       --cmd) [ "$#" -ge 2 ] || usage; cmd=$2; shift 2 ;;
       --home) [ "$#" -ge 2 ] || usage; mode=$2; shift 2 ;;
+      --keep) keep=yes; shift ;;
       *) usage ;;
     esac
   done
@@ -217,8 +235,8 @@ do_start() {
     *) kit_die 2 "unknown backend: $via" ;;
   esac
   case $mode in
-    real | throwaway) ;;
-    *) kit_die 2 "--home is real or throwaway: $mode" ;;
+    real | throwaway | fixture) ;;
+    *) kit_die 2 "--home is real, throwaway or fixture: $mode" ;;
   esac
   if [ -z "$cmd" ]; then
     command -v "$agent" >/dev/null 2>&1 || kit_die 3 "not installed: $agent"
@@ -234,7 +252,9 @@ do_start() {
     rm -rf "$sdir"
   fi
   work=$run/work/$name
-  rm -rf "$work"
+  # --keep: the resume step starts a session again. The new start needs the
+  # work folder and the home of the old session.
+  [ -n "$keep" ] || rm -rf "$work"
   mkdir -p "$sdir" "$work" || kit_die 1 "cannot make $sdir"
   chmod 700 "$sdir"
   backend=$via
@@ -249,7 +269,7 @@ do_start() {
   else
     h=$run/home/$name
     u=dev
-    rm -rf "$h"
+    [ -n "$keep" ] || rm -rf "$h"
     mkdir -p "$h"
   fi
   # The environment of the agent. LC_ALL and LC_CTYPE pass only when they
@@ -271,7 +291,11 @@ do_start() {
   set -- "$@" LANG="${lang:-C.UTF-8}"
   # Claude Code keeps its settings in CLAUDE_CONFIG_DIR. On macOS its login
   # is in the Keychain, which a throwaway home does not isolate.
-  [ "$mode" = throwaway ] && set -- "$@" CLAUDE_CONFIG_DIR="$h/.claude"
+  [ "$mode" = real ] || set -- "$@" CLAUDE_CONFIG_DIR="$h/.claude"
+  if [ "$mode" = fixture ] && [ "$agent" = codex ]; then
+    start_fake_model "$h"
+    set -- "$@" AGENT_SIGNALS_FAKE_KEY=dummy
+  fi
   sockdir=$(mktemp -d /tmp/as.XXXXXX) || kit_die 1 "mktemp failed"
   chmod 700 "$sockdir"
   # The agent starts with "exec", so that its pid is the pid of the pane
@@ -428,18 +452,8 @@ session_pids() {
   done
 }
 
-# stop_session: stop the session in sdir.
-stop_session() {
-  [ -f "$sdir/stopped" ] && return 0
-  track
-  # The server hangs up the agent first, so that it can end in its own way.
-  case $backend in
-    tmux) [ -n "$sock" ] && tm kill-server >/dev/null 2>&1 ;;
-    pty) [ -n "$sock" ] && client stop >/dev/null 2>&1 ;;
-  esac
-  # shellcheck disable=SC2046
-  end_pids $(session_pids)
-  [ -n "$sock" ] && rm -rf "$(dirname "$sock")"
+# remove_folders: delete the work folder and the home of the session in sdir.
+remove_folders() {
   # Claude Code keeps task output outside HOME, in
   # /tmp/claude-<uid>/<key>/. The key is the work folder path with each
   # character that is not a letter or a digit changed to "-". On macOS the
@@ -458,12 +472,39 @@ stop_session() {
     rm -rf "$work"
   fi
   rm -rf "${run:?}/home/$name"
+}
+
+# stop_session [--keep]: stop the session in sdir. With --keep, the work
+# folder and the home stay, and the file "kept" says so. A later stop without
+# --keep deletes them.
+stop_session() {
+  if [ -f "$sdir/stopped" ]; then
+    if [ -f "$sdir/kept" ] && [ "${1:-}" != --keep ]; then
+      remove_folders
+      rm -f "$sdir/kept"
+    fi
+    return 0
+  fi
+  track
+  # The server hangs up the agent first, so that it can end in its own way.
+  case $backend in
+    tmux) [ -n "$sock" ] && tm kill-server >/dev/null 2>&1 ;;
+    pty) [ -n "$sock" ] && client stop >/dev/null 2>&1 ;;
+  esac
+  # shellcheck disable=SC2046
+  end_pids $(session_pids)
+  [ -n "$sock" ] && rm -rf "$(dirname "$sock")"
+  if [ "${1:-}" = --keep ]; then
+    : >"$sdir/kept"
+  else
+    remove_folders
+  fi
   : >"$sdir/stopped"
   echo "session: $name stopped"
 }
 
 do_stop() {
-  [ "$#" -eq 1 ] || usage
+  case $#:${2:-} in 1: | 2:--keep) ;; *) usage ;; esac
   if [ "$1" = --all ]; then
     for d in "$run"/sessions/*/; do
       [ -f "$d/backend" ] || continue
@@ -478,7 +519,7 @@ do_stop() {
     return 0
   fi
   open_session "$1"
-  stop_session
+  stop_session ${2:+"$2"}
 }
 
 [ "$#" -ge 1 ] || usage

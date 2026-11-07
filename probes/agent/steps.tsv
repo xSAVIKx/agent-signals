@@ -20,7 +20,8 @@
 #   os           A comma list of linux, macos and windows.
 #   needs        none, operator, login or screen. "login": the step needs
 #                the login of the operator, so it skips with "--home
-#                throwaway". "screen": the step can change the screen of
+#                throwaway". With "--home fixture" a login step of Codex
+#                runs with a fake model. "screen": the step can change the screen of
 #                the operator, for example with a macOS dialog.
 #   cost         none, or turns:N (N model turns on the plan of the login).
 #   pre          The fixed answers to the screens that can come before the
@@ -74,7 +75,7 @@ real-session-claude	real-session	claude	operator	linux,macos,windows	operator	no
 first-run-codex	first-run	codex	tmux,conpty	linux,macos,windows	none	none	-	-	-	-	-	-	-	-	A start of codex with a throwaway HOME and no login: its first screens and the files that it writes.	-
 permission-codex	permission	codex	tmux,pty,conpty,psmux	linux,macos,windows	login	turns:1	› 1\. Trust and continue=>Enter	Ask Codex to do anything	esc to interrupt\)	Press enter to confirm|enter select · esc back|enter continue · esc quit	Create a file named agent-signals-test.txt that holds the word hello.	Would you like to (run the following command|make the following edits)	Escape	send=Tab	A test session of codex with a file write prompt: the permission dialog, the guided watch for 30 s, then Esc.	20,36
 new-chat-codex	new-chat	codex	tmux,pty,conpty,psmux	linux,macos,windows	login	turns:1	› 1\. Trust and continue=>Enter	Ask Codex to do anything	esc to interrupt\)	Press enter to confirm|enter select · esc back|enter continue · esc quit	/new	Ask Codex to do anything	-	send=Tab	A test session of codex that starts a new chat: the files and the pid file state before and after.	-
-resume-codex	resume	codex	tmux,pty,conpty,psmux	linux,macos,windows	login	turns:1	› 1\. Trust and continue=>Enter	Ask Codex to do anything	esc to interrupt\)	Press enter to confirm|enter select · esc back|enter continue · esc quit	resume --last	Ask Codex to do anything	-	send=Tab	A test session of codex that stops and starts again with its resume command: the files that it keeps.	-
+resume-codex	resume	codex	tmux,pty,conpty,psmux	linux,macos,windows	login	turns:1	› 1\. Trust and continue=>Enter	Ask Codex to do anything	esc to interrupt\)|Resuming session	Press enter to confirm|enter select · esc back|enter continue · esc quit	resume --last	Ask Codex to do anything	-	send=Tab	A test session of codex that stops and starts again with its resume command: the files that it keeps.	-
 interrupt-codex	interrupt	codex	tmux,pty,conpty,psmux	linux,macos,windows	login	turns:1	› 1\. Trust and continue=>Enter	Ask Codex to do anything	esc to interrupt\)	Press enter to confirm|enter select · esc back|enter continue · esc quit	Count from 1 to 300, with one number on each line.	esc to interrupt\)	Escape C-c	send=Tab	A test session of codex with a long prompt, then Esc while it works, then Ctrl+C: the busy and idle signals.	-
 real-session-codex	real-session	codex	operator	linux,macos,windows	operator	none	-	-	-	-	-	-	-	-	The guided step for a session of codex that the operator starts in a real terminal. The kit only watches.	-
 first-run-agy	first-run	agy	tmux,conpty	linux,macos,windows	none	none	-	-	-	-	-	-	-	-	A start of agy with a throwaway HOME and no login: its first screens and the files that it writes.	-

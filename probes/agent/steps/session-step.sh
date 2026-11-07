@@ -195,7 +195,9 @@ wait_idle() {
     alive || { screen "$2"; return 2; }
     screen "$2" || return 3
     if ! pre_answer "$2" && is_idle "$2"; then
-      [ -n "${3:-}" ] && grep -Fq -- "$3" "$2" || return 0
+      # The text counts only at the end of a line: the path of the work
+      # folder of a new-chat step holds "/new" too.
+      [ -n "${3:-}" ] && grep -Eq -- "(^|[[:space:]])$(kit_text_re "$3")[[:space:]]*\$" "$2" || return 0
     fi
     [ "$(date +%s)" -lt "$_end" ] || return 1
     sleep 1
@@ -215,8 +217,10 @@ wait_re() {
 }
 
 # start_session [ARGS]: start the session with the agent command and ARGS.
+keep=
 start_session() {
-  ses start "$sess" "$KIT_AGENT" --via "$KIT_BACKEND" --cmd "$cmd${1:+ $1}" >"$tmp/start" 2>&1
+  # shellcheck disable=SC2086
+  ses start "$sess" "$KIT_AGENT" --via "$KIT_BACKEND" --cmd "$cmd${1:+ $1}" $keep >"$tmp/start" 2>&1
   _c=$?
   if [ "$_c" -ne 0 ]; then
     say "the session did not start: $(tail -n 1 "$tmp/start")"
@@ -320,6 +324,10 @@ finish() {
     echo "agent-signals session step: $KIT_STEP@$KIT_BACKEND, $(date -u +%Y%m%dT%H%M%SZ)"
     echo "kind: $KIT_KIND"
     echo "agent: $KIT_AGENT"
+    echo "home: ${KIT_HOME:-}"
+    if [ "${KIT_HOME:-}" = fixture ]; then
+      echo "model: fake-model.py with fixed answers. No real model ran."
+    fi
     echo "result: $_r${why:+ $why}"
     if [ "$KIT_AGENT" = claude ]; then
       echo "screens: the kit blanks each welcome box line that can show a display name or an organisation. No real screen was measured."
@@ -371,9 +379,52 @@ broken() {
   stop_now send-failed
 }
 
-# send TEXT: type TEXT and push Enter.
+# send TEXT: type TEXT and push Enter. Codex can keep the text in its box and
+# drop an Enter just after the first idle screen (fact 76). So the step waits
+# 2 s, and looks for the text at the start of a word on the screen. A plain
+# search finds "/new" in the path of the work folder. When the text is not
+# there, the step clears the box with C-u and types the text again, so that a
+# slow agent does not get it twice. It tries three times, then it presses
+# Enter. Then, when the screen shows the text and is not idle, busy or a
+# dialog, the box still holds the text: the step presses Enter again. The idle
+# text of Codex shows only when its box is empty. The idle regex of Claude Code
+# matches with text in the box, so this rule never fires there.
 send() {
-  ses send "$sess" "$1" >/dev/null && ses key "$sess" Enter >/dev/null || broken
+  sleep "$(clip 2)"
+  _want="(^|[[:space:]])$(kit_text_re "$(printf '%s' "$1" | cut -c1-24)")"
+  _try=0
+  _seen=
+  while [ "$_try" -lt 3 ] && [ -z "$_seen" ]; do
+    if [ "$_try" -gt 0 ]; then
+      say "the prompt is not on the screen. Clear the box and type it again"
+      ses key "$sess" C-u >/dev/null || broken
+      sleep 0.3
+    fi
+    _try=$((_try + 1))
+    ses send "$sess" "$1" >/dev/null || broken
+    _n=0
+    while [ "$_n" -lt 6 ] && [ -z "$_seen" ]; do
+      screen "$tmp/box" || broken
+      grep -Eq -- "$_want" "$tmp/box" && _seen=yes
+      [ -n "$_seen" ] || sleep 0.5
+      _n=$((_n + 1))
+    done
+  done
+  [ -n "$_seen" ] || say "the prompt did not show on the screen in $_try tries"
+  ses key "$sess" Enter >/dev/null || broken
+  _n=0
+  while [ "$_n" -lt 3 ]; do
+    _n=$((_n + 1))
+    sleep 1
+    screen "$tmp/box" || broken
+    grep -Eq -- "$_want" "$tmp/box" || break
+    has "$KIT_IDLE_REGEX" "$tmp/box" && break
+    has "${KIT_BUSY_REGEX:-}" "$tmp/box" && break
+    has "${KIT_DIALOG_REGEX:-}" "$tmp/box" && break
+    has "${KIT_WAIT_REGEX:-}" "$tmp/box" && break
+    say "the box still holds the prompt. Press Enter again"
+    ses key "$sess" Enter >/dev/null || broken
+  done
 }
 
 # keys KEYS: send the keys of a space list, as tmux names them.
@@ -391,7 +442,7 @@ start_session
 work=$(cat "$KIT_RUN/sessions/$sess/work")
 mode=$(cat "$KIT_RUN/sessions/$sess/home-mode" 2>/dev/null)
 home_dir=$HOME
-[ "$mode" = throwaway ] && home_dir=$KIT_RUN/home/$sess
+[ "$mode" = real ] || home_dir=$KIT_RUN/home/$sess
 say "wait for the idle screen ($IDLE_S s)"
 wait_idle "$IDLE_S" "$tmp/s"
 rc=$?
@@ -407,7 +458,7 @@ save idle "$tmp/s"
 # the folder by the path with each character that is not a letter or a
 # digit changed to "-".
 set -- --scope "$work"
-[ "$mode" = throwaway ] && [ -d "$home_dir" ] && set -- "$@" --scope "$home_dir"
+[ "$mode" != real ] && [ -d "$home_dir" ] && set -- "$@" --scope "$home_dir"
 if [ "$KIT_AGENT" = claude ]; then
   for w in "$work" "$(cd "$work" && pwd -P)"; do
     set -- "$@" --scope-new "$home_dir/.claude/projects/$(printf '%s' "$w" | tr -c 'A-Za-z0-9' '-')"
@@ -509,8 +560,10 @@ case $KIT_KIND in
     fi
     save "before stop" "$tmp/s"
     say "stop the session, and start it again with: $KIT_PROMPT"
-    ses stop "$sess" >>"$tmp/log" 2>&1
+    ses stop "$sess" --keep >>"$tmp/log" 2>&1
+    keep=--keep
     start_session "${KIT_PROMPT:-}"
+    keep=
     watching || why=${why:-restart-outside-watch}
     used=
     wait_idle "$IDLE_S" "$tmp/s"

@@ -1,5 +1,5 @@
 #!/bin/sh
-# kit plan [--home real|throwaway]: print the steps that this machine can
+# kit plan [--home real|throwaway|fixture]: print the steps that this machine can
 # run, in the order of probes/agent/steps.tsv, one line for each step and
 # backend:
 #   step: <name>@<backend> needs=<needs> cost=<cost> [skip=no-login] measures=<text>
@@ -15,18 +15,18 @@ home=
 while [ "$#" -gt 0 ]; do
   case $1 in
     --home)
-      [ "$#" -ge 2 ] || kit_die "$KIT_USAGE" "--home needs real or throwaway"
+      [ "$#" -ge 2 ] || kit_die "$KIT_USAGE" "--home needs real, throwaway or fixture"
       home=$2
       shift 2
       ;;
-    *) kit_die "$KIT_USAGE" "usage: kit plan [--home real|throwaway]" ;;
+    *) kit_die "$KIT_USAGE" "usage: kit plan [--home real|throwaway|fixture]" ;;
   esac
 done
 if [ -z "$home" ]; then
   run=$(kit_run_dir 2>/dev/null) && home=$(kit_manifest_value "$run" home 2>/dev/null)
   home=${home:-real}
 fi
-case $home in real | throwaway) ;; *) kit_die "$KIT_USAGE" "--home needs real or throwaway" ;; esac
+case $home in real | throwaway | fixture) ;; *) kit_die "$KIT_USAGE" "--home needs real, throwaway or fixture" ;; esac
 
 os=$(kit_os)
 agents=" $(kit_agents | tr '\n' ' ') "
@@ -45,10 +45,13 @@ awk -F '\t' '
       case $agents in *" $agent "*) ;; *) continue ;; esac
     fi
     skip=
-    [ "$needs" = login ] && [ "$home" = throwaway ] && skip=" skip=no-login"
+    why=$(kit_login_skip "$home" "$needs" "$agent")
+    [ -z "$why" ] || skip=" skip=$why"
     for b in $(echo "$blist" | tr ',' ' '); do
       case $backends in *" $b "*) ;; *) continue ;; esac
-      echo "step: $name@$b needs=$needs cost=$cost$skip measures=$measures"
+      c=$cost
+      [ "$home" != fixture ] || c=none
+      echo "step: $name@$b needs=$needs cost=$c$skip measures=$measures"
     done
   done
 exit 0

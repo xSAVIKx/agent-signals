@@ -64,8 +64,8 @@ $console = ''
 try {
     if (-not (Test-KitStepRuns $step $backend)) {
         $reason = 'not-on-windows'
-    } elseif ($homeMode -eq 'throwaway' -and $step.needs -eq 'login') {
-        $reason = 'no-login'
+    } elseif (Get-KitLoginSkip $homeMode $step.needs $step.agent) {
+        $reason = Get-KitLoginSkip $homeMode $step.needs $step.agent
     } else {
         $scriptFile = Join-Path $PSScriptRoot ("steps\{0}.ps1" -f $step.kind)
         if (-not (Test-Path -LiteralPath $scriptFile -PathType Leaf)) { Stop-Kit 1 "no script for the kind $($step.kind)" }

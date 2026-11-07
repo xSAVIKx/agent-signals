@@ -1,6 +1,6 @@
 # kit plan on Windows: print the steps that this machine can run.
 #
-#   kit plan [--home real|throwaway] [--python PATH]
+#   kit plan [--home real|throwaway|fixture] [--python PATH]
 #
 # One line for each step of probes\agent\steps.tsv, in file order:
 #   step: <name>@<backend> needs=<needs> cost=<cost> measures=<text>
@@ -28,14 +28,14 @@ for ($i = 0; $i -lt $argv.Count; $i++) {
     $a = [string]$argv[$i]
     if ($a -eq '--home' -and $i + 1 -lt $argv.Count) { $homeMode = [string]$argv[++$i] }
     elseif ($a -eq '--python' -and $i + 1 -lt $argv.Count) { $python = [string]$argv[++$i] }
-    else { Stop-Kit 2 'usage: kit plan [--home real|throwaway] [--python PATH]' }
+    else { Stop-Kit 2 'usage: kit plan [--home real|throwaway|fixture] [--python PATH]' }
 }
 $run = Find-KitRunDir
 if (-not $homeMode) {
     if ($run) { $homeMode = Get-KitMeta $run 'home' }
     if (-not $homeMode) { $homeMode = 'real' }
 }
-if ($homeMode -cnotin 'real', 'throwaway') { Stop-Kit 2 "unknown home mode: $homeMode" }
+if ($homeMode -cnotin 'real', 'throwaway', 'fixture') { Stop-Kit 2 "unknown home mode: $homeMode" }
 
 $agents = @{}
 foreach ($a in @(Find-KitAgents)) { $agents[$a.Name] = $a }
@@ -84,8 +84,10 @@ foreach ($s in @(Read-KitSteps)) {
             } elseif (-not $conptyDriver -or -not (Test-SessionPython)) { continue }
         }
         if ($backend -eq 'psmux' -and -not $psmux) { continue }
-        $line = 'step: {0}@{1} needs={2} cost={3} measures={4}' -f $s.name, $backend, $s.needs, $s.cost, $s.measures
-        if ($homeMode -eq 'throwaway' -and $s.needs -eq 'login') { $line += ' skip=no-login' }
+        $cost = if ($homeMode -eq 'fixture') { 'none' } else { $s.cost }
+        $line = 'step: {0}@{1} needs={2} cost={3} measures={4}' -f $s.name, $backend, $s.needs, $cost, $s.measures
+        $why = Get-KitLoginSkip $homeMode $s.needs $s.agent
+        if ($why) { $line += " skip=$why" }
         Write-Output $line
     }
 }

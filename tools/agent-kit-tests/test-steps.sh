@@ -139,6 +139,15 @@ EOF
   expect_code "prompt stays: the step exits 1" 1 $?
   expect_line "prompt stays: the step is fail prompt-on-screen" "^step: new-chat-claude@$ran fail prompt-on-screen$" "$T/step"
 
+  # A box that loses the text: the step clears it and types again, one time.
+  stub_set STUB_LOSE=30 "STUB_LOG=$T/lose.log"
+  rm -f "$T/lose.log"
+  WATCH=8 kitx step "permission-claude@$ran" >"$T/step" 2>&1
+  expect_code "a lost prompt: the step exits 0" 0 $?
+  f=$(ls -t "$(run_of "$D")"/*permission-claude* | head -n 1)
+  expect_line "a lost prompt: the log says so" 'the prompt is not on the screen' "$f"
+  expect_no_line "a lost prompt: no step ends with no dialog" 'no-dialog' "$T/step"
+
   # The other kinds run with the same script.
   stub_set
   kitx step "new-chat-claude@$ran" >"$T/step" 2>&1

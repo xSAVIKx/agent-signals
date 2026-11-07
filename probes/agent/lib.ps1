@@ -41,6 +41,16 @@ function Get-KitRunDir {
     return (Resolve-Path -LiteralPath $r).ProviderPath
 }
 
+# Get-KitLoginSkip HOME NEEDS AGENT: the reason why a step does not run in the
+# home mode HOME, or ''. The fixture mode has a fake model for Codex only
+# (fake-model.py).
+function Get-KitLoginSkip([string]$HomeMode, [string]$Needs, [string]$Agent) {
+    if ($Needs -ne 'login') { return '' }
+    if ($HomeMode -eq 'throwaway') { return 'no-login' }
+    if ($HomeMode -eq 'fixture' -and $Agent -ne 'codex') { return 'no-fixture' }
+    return ''
+}
+
 # Get-KitRunPointer: the run path that the environment or a
 # .agent-signals-run file names, or ''. The file is UTF-8, so that a path
 # with letters outside ASCII works also in Windows PowerShell 5.1.

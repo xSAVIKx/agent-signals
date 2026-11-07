@@ -1,6 +1,6 @@
 # kit start on Windows: make a new run folder.
 #
-#   kit start [--home real|throwaway] [--out DIR] [--python PATH]
+#   kit start [--home real|throwaway|fixture] [--out DIR] [--python PATH]
 #
 # --python names the Python with pywinpty, pyte and psutil for the conpty
 # backend (for example the venv of the scenarios). The run keeps it in
@@ -26,9 +26,9 @@ for ($i = 0; $i -lt $argv.Count; $i++) {
     if ($a -eq '--home' -and $i + 1 -lt $argv.Count) { $homeMode = [string]$argv[++$i] }
     elseif ($a -eq '--out' -and $i + 1 -lt $argv.Count) { $out = [string]$argv[++$i] }
     elseif ($a -eq '--python' -and $i + 1 -lt $argv.Count) { $python = [string]$argv[++$i] }
-    else { Stop-Kit 2 'usage: kit start [--home real|throwaway] [--out DIR] [--python PATH]' }
+    else { Stop-Kit 2 'usage: kit start [--home real|throwaway|fixture] [--out DIR] [--python PATH]' }
 }
-if ($homeMode -cnotin 'real', 'throwaway') { Stop-Kit 2 "unknown home mode: $homeMode" }
+if ($homeMode -cnotin 'real', 'throwaway', 'fixture') { Stop-Kit 2 "unknown home mode: $homeMode" }
 if ($python) {
     if (-not (Test-Path -LiteralPath $python -PathType Leaf)) { Stop-Kit 2 "no such Python: $python" }
     $python = (Resolve-Path -LiteralPath $python).ProviderPath

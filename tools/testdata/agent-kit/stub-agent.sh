@@ -13,6 +13,7 @@
 #   2 or Escape in the dialog goes back to idle.
 #   Escape when busy   goes back to idle.
 #   C-c or C-d         stops the stub.
+#   C-u                clears the box.
 #
 # The idle screen has the line "? for shortcuts", the dialog screen the
 # line "Do you want to create agent-signals-test.txt?" and the busy screen
@@ -31,6 +32,8 @@
 #   STUB_EXIT=yes      the stub stops at a prompt.
 #   STUB_BUSY=no       "Count ..." does not make the stub busy.
 #   STUB_KEEP=yes      "/clear" stays on the screen.
+#   STUB_LOSE=N        the stub drops the first N characters of input, as an
+#                      agent that redraws its box after the idle screen.
 #   STUB_TRUST=yes     start with a trust question, with the selection on
 #                      "No, exit". Down moves the selection to "Yes, I
 #                      trust this folder". Enter on Yes goes to idle, Enter
@@ -52,6 +55,8 @@ esc=$(printf '\033')
 eot=$(printf '\004')
 etx=$(printf '\003')
 cr=$(printf '\r')
+nak=$(printf '\025')
+lose=${STUB_LOSE:-0}
 kf=$(mktemp) || exit 1
 saved=$(stty -g 2>/dev/null || true)
 restore() { [ -n "$saved" ] && stty "$saved" 2>/dev/null; rm -f "$kf"; }
@@ -198,7 +203,14 @@ while :; do
           buf=
           ;;
         "$esc") buf='' note='' ;;
-        *) buf=$buf$c ;;
+        "$nak") buf= ;;
+        *)
+          if [ "$lose" -gt 0 ]; then
+            lose=$((lose - 1))
+          else
+            buf=$buf$c
+          fi
+          ;;
       esac
       ;;
   esac

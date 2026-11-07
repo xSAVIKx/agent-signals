@@ -81,6 +81,13 @@ for f in "$run"/* "$run"/.[!.]*; do
   echo "$b" >>"$tmp/files"
 done
 
+# A session that stopped leaves no work folder and no home.
+for d in home work; do
+  [ -d "$run/$d" ] || continue
+  [ -z "$(find "$run/$d" -type f 2>/dev/null | head -n 1)" ] ||
+    say "$d: files of a test session stay. Run kit session stop --all"
+done
+
 # 4. The raw values of this machine.
 q() { printf '%s' "$1" | sed 's/[][\.*^$+?(){}|#]/\\&/g'; }
 user=$(id -un 2>/dev/null)
