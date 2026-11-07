@@ -66,4 +66,15 @@ check_output "toml_tables hides paths and names" "$data/toml-tables.txt" "$(toml
 if command -v python3 >/dev/null 2>&1; then
   check_output "json_keys hides names" "$data/json-keys.txt" "$(json_keys "$data/settings.json")"
 fi
+# layout must report a link to a deleted file, and print no shell error.
+_d=$(mktemp -d)
+: >"$_d/real.log"
+ln -s "$_d/gone.log" "$_d/cli.log"
+_out=$(layout "$_d" 1 2>&1 | sed "s|$_d|D|; s/ [0-9][0-9]* D/ T D/")
+rm -rf "$_d"
+check_output "layout reports a broken link" /dev/stdin "$_out" <<'EXP'
+d 3 D
+l broken T D/cli.log
+f 0 T D/real.log
+EXP
 exit "$fail"

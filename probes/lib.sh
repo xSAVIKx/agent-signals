@@ -178,6 +178,11 @@ layout() {
   find "$1" -maxdepth "$2" 2>/dev/null | sort | head -n 200 | while read -r _f; do
     if [ -d "$_f" ]; then
       echo "d $(find "$_f" -maxdepth 1 | wc -l | tr -d ' ') $_f"
+    elif [ -L "$_f" ] && [ ! -e "$_f" ]; then
+      # A link to a file that was deleted, as agy cli.log (fact 082).
+      echo "l broken $(mtime "$_f") $_f"
+    elif [ ! -e "$_f" ]; then
+      continue
     else
       echo "f $(wc -c <"$_f" 2>/dev/null | tr -d ' ') $(mtime "$_f") $_f"
     fi
