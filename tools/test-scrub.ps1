@@ -20,6 +20,12 @@ $info.RedirectStandardError = $true
 $info.EnvironmentVariables['SCRUB_HOME'] = '/Users/alice'
 $info.EnvironmentVariables['SCRUB_USER'] = 'alice'
 $info.EnvironmentVariables['SCRUB_HOST'] = 'alice-mbp.local'
+$info.EnvironmentVariables['SCRUB_EXTRA'] = '/opt/kit runs'
+$info.EnvironmentVariables['SCRUB_DOMAIN'] = 'CONTOSO'
+$info.EnvironmentVariables['OneDrive'] = 'C:\Users\alice\OneDrive - Contoso'
+foreach ($k in @('OneDriveCommercial', 'OneDriveConsumer')) {
+  if ($info.EnvironmentVariables.ContainsKey($k)) { $info.EnvironmentVariables.Remove($k) }
+}
 
 $p = [System.Diagnostics.Process]::Start($info)
 $err = $p.StandardError.ReadToEndAsync()

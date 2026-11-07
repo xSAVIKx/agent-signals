@@ -61,7 +61,7 @@ jobs:
           - macos-26-intel
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.os == 'ubuntu-slim' }}
-    timeout-minutes: 12
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -98,6 +98,21 @@ jobs:
           rm -f agent-signals-probe-*.txt
       - name: Guided step test
         run: sh tools/test-guided-step.sh
+      # The tests of kit session need tmux and, for the pty backend, uv.
+      # macOS images and ubuntu-slim have no tmux (fact 049). uv gives
+      # pyte with "uv run --with": no pip install changes the system
+      # Python.
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: false
+      - name: Install tmux
+        run: |
+          if command -v tmux >/dev/null; then exit 0; fi
+          if [ "$RUNNER_OS" = macOS ]; then
+            brew install tmux
+          else
+            sudo apt-get update -q && sudo apt-get install -y -q tmux
+          fi
       - name: Agent kit test
         run: sh tools/test-agent-kit.sh
       - name: Kit through the one-liner
@@ -118,7 +133,7 @@ jobs:
       matrix:
         os: [windows-2022, windows-2025, windows-11-arm]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -135,6 +150,33 @@ jobs:
       - name: Probe library test (Windows PowerShell 5.1)
         shell: powershell
         run: ./tools/test-probe-lib.ps1
+      # The tools of the test sessions (kit session). uv installs its own
+      # Python 3.12 for the CPU of the image, also on arm64. The Python
+      # packages have the versions of scenarios.yml.
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: false
+      - name: Install the session tools
+        shell: pwsh
+        run: |
+          uv venv --managed-python --python 3.12 .venv-driver
+          uv pip install --python .venv-driver pywinpty==3.1.2 pyte==0.8.2 wcwidth==0.9.4 psutil==7.2.2
+          if ($LASTEXITCODE -ne 0) { throw "uv pip install: exit $LASTEXITCODE" }
+          "AGENT_SIGNALS_PYTHON=$((Resolve-Path .venv-driver\Scripts\python.exe).Path)" >> $env:GITHUB_ENV
+          choco install psmux --version 3.4.0 -y --no-progress
+          if ($LASTEXITCODE -ne 0) { throw "choco install psmux: exit $LASTEXITCODE" }
+          "KIT_TEST_SESSIONS=required" >> $env:GITHUB_ENV
+      - name: Session tools
+        shell: pwsh
+        run: |
+          & $env:AGENT_SIGNALS_PYTHON -c "import platform, winpty, pyte; print(platform.machine())"
+          Get-Command psmux | Format-List Source
+          psmux -V
+      - name: Scenario driver tests
+        shell: pwsh
+        run: |
+          & $env:AGENT_SIGNALS_PYTHON -I -m unittest discover -s scenarios/tests -v
+          if ($LASTEXITCODE -ne 0) { throw "exit $LASTEXITCODE" }
       - name: Agent kit test (PowerShell 7)
         shell: pwsh
         run: ./tools/test-agent-kit.ps1

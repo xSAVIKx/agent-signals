@@ -12,9 +12,10 @@ Path: `scenarios/<agent>/<name>.sh`. Shared functions: `scenarios/lib.sh`.
 1. It runs the agent in a throwaway `HOME` and a private tmux server
    (`tmux -L`). The cleanup trap kills the server and deletes the
    throwaway folder.
-2. It copies a login into the throwaway `HOME` only with `copy_login`.
-   `copy_login` refuses a login that is near its expiry, because a token
-   refresh in the copy could make the original login fail.
+2. It copies a login into the throwaway `HOME` only with `copy_login`
+   from `scenarios/login.sh`. `copy_login` refuses a login that is near
+   its expiry, because a token refresh in the copy could make the
+   original login fail. The agent kit does not include `login.sh`.
 3. An API key goes to the agent through a file that only the owner can
    read, never through the command line.
 4. Its prompts are neutral text that can be public. A prompt that must
@@ -41,6 +42,7 @@ input `job`.
 | `claude/permission-dialog.sh` | Claude Code | 23, 24 |
 | `claude/dialog-states.sh` | Claude Code | 31, 32, 33, 34 |
 | `claude/plan-and-resume.sh` | Claude Code | 31, 32, 35 |
+| `claude/early-keys.sh digit` / `clear` | Claude Code | 74, 75 |
 | `codex/approval.sh` | Codex CLI | 26, 27 |
 | `codex/two-sessions.sh` | Codex CLI | 26 |
 | `codex/screens.sh` | Codex CLI | 20 (screens of 0.164.0) |

@@ -1,0 +1,91 @@
+# The step list of the agent kit: the one data file. "kit plan", "kit step"
+# and the tests read it, on Linux, macOS and Windows. Read
+# docs/design/2026-11-01-agent-run-kit.md.
+#
+# Each line that does not start with "#" has 17 fields, separated by tabs.
+# The first such line holds the names of the columns. A reader finds a
+# column by its name, not by its place. "-" means no value.
+#
+#   name         The name of the step. "kit step NAME@BACKEND" runs it.
+#   kind         probe, terminals, first-run, permission, new-chat, resume,
+#                interrupt or real-session. "kit step" runs the script
+#                probes/agent/steps/<kind>.sh (or .ps1). "kit plan" lists a
+#                step only when its script exists.
+#   agent        claude, codex, agy or cursor, or "-" for no agent. "kit
+#                plan" lists the step only when the agent is installed.
+#   backends     A comma list of none, tmux, pty, conpty, psmux and operator.
+#                "none": the step starts no session. "operator": the
+#                operator starts the agent in a real terminal, and the kit
+#                only watches.
+#   os           A comma list of linux, macos and windows.
+#   needs        none, operator, login or screen. "login": the step needs
+#                the login of the operator, so it skips with "--home
+#                throwaway". "screen": the step can change the screen of
+#                the operator, for example with a macOS dialog.
+#   cost         none, or turns:N (N model turns on the plan of the login).
+#   pre          The fixed answers to the screens that can come before the
+#                idle screen, for example a trust question. Pairs
+#                REGEX=>KEYS, separated by ";;". When a line of the screen
+#                matches REGEX, the step sends KEYS (tmux key names,
+#                separated by spaces). Each pair is used one time at most.
+#                Each REGEX matches the line with the cursor, so that a key
+#                goes only to the option that the pair names. The step never
+#                answers a terms page or a data opt-in: it stops and asks the
+#                operator. From scenarios/claude/permission-dialog.sh,
+#                scenarios/codex/approval.sh and scenarios/agy/agy.sh.
+#   idle_regex   An ERE that matches a line of the idle screen.
+#   busy_regex   An ERE that matches a line of the busy screen.
+#   dialog_regex An ERE that matches a line of a dialog screen.
+#                The screen is idle when a line matches idle_regex, and no
+#                line matches busy_regex or dialog_regex. One ERE alone
+#                cannot do this: the idle box of Codex also shows while it
+#                works, and the box of Claude can show under a dialog.
+#   prompt       The fixed text that the step sends. For "resume", the
+#                arguments of the new start of the agent.
+#   wait_regex   An ERE for the screen that the step waits for after the
+#                prompt: the file write dialog for "permission", the busy
+#                screen for "interrupt". For "new-chat" and "resume" it is
+#                idle_regex, with the idle rule above.
+#   answer       The keys that the step sends after the wait, as tmux names
+#                them, separated by spaces: Escape, Enter, C-c, 1.
+#   windows      The changes on Windows, as KEY=VALUE pairs separated by
+#                ";". "send=Tab": the key that sends the prompt is Tab, not
+#                Enter. Codex 0.164.0 on Windows sends a message with Tab
+#                (aw, reported; not measured here). "no", "false" or "0":
+#                the line is not for Windows, and the Windows kit hides it.
+#                "-": no change.
+#   measures     What the step measures, for a person.
+#   facts        A comma list of the numbers of the facts that the step
+#                checks.
+#
+# The regexes of claude, codex and agy agree with the states of the screens
+# in corpus/; tools/agent-kit-tests/test-core-plan.sh checks this. The
+# corpus has no idle, dialog or busy screen of the Cursor CLI. Its regexes
+# are not measured.
+name	kind	agent	backends	os	needs	cost	pre	idle_regex	busy_regex	dialog_regex	prompt	wait_regex	answer	windows	measures	facts
+probe	probe	-	none	linux,macos,windows	none	none	-	-	-	-	-	-	-	-	The full probe kit: each probe of probes/, with no key press, scrubbed.	-
+terminals	terminals	-	none	macos	screen	none	-	-	-	-	-	-	-	-	The terminal probe of macOS: the terminal programs, their tabs and the tty of each agent. It can open an Automation dialog.	22
+first-run-claude	first-run	claude	tmux,conpty	linux,macos,windows	none	none	-	-	-	-	-	-	-	-	A start of claude with a throwaway HOME and no login: its first screens and the files that it writes.	-
+permission-claude	permission	claude	tmux,pty,conpty,psmux	linux,macos,windows	login	turns:1	❯ No, exit=>Down;;❯ Yes, I trust this folder=>Enter	\? for shortcuts|auto mode on|manual mode on|paste again to expand	esc to interrupt	^ *(Esc to cancel|Enter to confirm|Enter to select)|Do you want to|Ready to submit your answers	Create a file named agent-signals-test.txt that holds the word hello.	Do you want to (create|make|proceed|edit)	Escape	-	A test session of claude with a file write prompt: the permission dialog, the guided watch for 30 s, then Esc.	1,4
+new-chat-claude	new-chat	claude	tmux,pty,conpty,psmux	linux,macos,windows	login	turns:1	❯ No, exit=>Down;;❯ Yes, I trust this folder=>Enter	\? for shortcuts|auto mode on|manual mode on|paste again to expand	esc to interrupt	^ *(Esc to cancel|Enter to confirm|Enter to select)|Do you want to|Ready to submit your answers	/clear	\? for shortcuts|auto mode on|manual mode on|paste again to expand	-	-	A test session of claude that starts a new chat: the files and the pid file state before and after.	-
+resume-claude	resume	claude	tmux,pty,conpty,psmux	linux,macos,windows	login	turns:1	❯ No, exit=>Down;;❯ Yes, I trust this folder=>Enter	\? for shortcuts|auto mode on|manual mode on|paste again to expand	esc to interrupt	^ *(Esc to cancel|Enter to confirm|Enter to select)|Do you want to|Ready to submit your answers	--continue	\? for shortcuts|auto mode on|manual mode on|paste again to expand	-	-	A test session of claude that stops and starts again with its resume command: the files that it keeps.	35
+interrupt-claude	interrupt	claude	tmux,pty,conpty,psmux	linux,macos,windows	login	turns:1	❯ No, exit=>Down;;❯ Yes, I trust this folder=>Enter	\? for shortcuts|auto mode on|manual mode on|paste again to expand	esc to interrupt	^ *(Esc to cancel|Enter to confirm|Enter to select)|Do you want to|Ready to submit your answers	Count from 1 to 300, with one number on each line.	esc to interrupt	Escape C-c	-	A test session of claude with a long prompt, then Esc while it works, then Ctrl+C: the busy and idle signals.	-
+real-session-claude	real-session	claude	operator	linux,macos,windows	operator	none	-	-	-	-	-	-	-	-	The guided step for a session of claude that the operator starts in a real terminal. The kit only watches.	-
+first-run-codex	first-run	codex	tmux,conpty	linux,macos,windows	none	none	-	-	-	-	-	-	-	-	A start of codex with a throwaway HOME and no login: its first screens and the files that it writes.	-
+permission-codex	permission	codex	tmux,pty,conpty,psmux	linux,macos,windows	login	turns:1	› 1\. Trust and continue=>Enter	Ask Codex to do anything	esc to interrupt\)	Press enter to confirm|enter select · esc back|enter continue · esc quit	Create a file named agent-signals-test.txt that holds the word hello.	Would you like to (run the following command|make the following edits)	Escape	send=Tab	A test session of codex with a file write prompt: the permission dialog, the guided watch for 30 s, then Esc.	20,36
+new-chat-codex	new-chat	codex	tmux,pty,conpty,psmux	linux,macos,windows	login	turns:1	› 1\. Trust and continue=>Enter	Ask Codex to do anything	esc to interrupt\)	Press enter to confirm|enter select · esc back|enter continue · esc quit	/new	Ask Codex to do anything	-	send=Tab	A test session of codex that starts a new chat: the files and the pid file state before and after.	-
+resume-codex	resume	codex	tmux,pty,conpty,psmux	linux,macos,windows	login	turns:1	› 1\. Trust and continue=>Enter	Ask Codex to do anything	esc to interrupt\)	Press enter to confirm|enter select · esc back|enter continue · esc quit	resume --last	Ask Codex to do anything	-	send=Tab	A test session of codex that stops and starts again with its resume command: the files that it keeps.	-
+interrupt-codex	interrupt	codex	tmux,pty,conpty,psmux	linux,macos,windows	login	turns:1	› 1\. Trust and continue=>Enter	Ask Codex to do anything	esc to interrupt\)	Press enter to confirm|enter select · esc back|enter continue · esc quit	Count from 1 to 300, with one number on each line.	esc to interrupt\)	Escape C-c	send=Tab	A test session of codex with a long prompt, then Esc while it works, then Ctrl+C: the busy and idle signals.	-
+real-session-codex	real-session	codex	operator	linux,macos,windows	operator	none	-	-	-	-	-	-	-	-	The guided step for a session of codex that the operator starts in a real terminal. The kit only watches.	-
+first-run-agy	first-run	agy	tmux,conpty	linux,macos,windows	none	none	-	-	-	-	-	-	-	-	A start of agy with a throwaway HOME and no login: its first screens and the files that it writes.	-
+permission-agy	permission	agy	tmux,pty,conpty,psmux	linux,macos,windows	login	turns:1	\[Next\]=>Enter;;> Yes, I trust this folder=>Enter	\? for shortcuts	(Generating|Running command|Thinking)\.\.\.	↑/↓ Navigate	Create a file named agent-signals-test.txt that holds the word hello.	Allow (creation|edits?) of this file\?|Run this command\?	Escape	-	A test session of agy with a file write prompt: the permission dialog, the guided watch for 30 s, then Esc.	4,18
+new-chat-agy	new-chat	agy	tmux,pty,conpty,psmux	linux,macos,windows	login	turns:1	\[Next\]=>Enter;;> Yes, I trust this folder=>Enter	\? for shortcuts	(Generating|Running command|Thinking)\.\.\.	↑/↓ Navigate	/clear	\? for shortcuts	-	-	A test session of agy that starts a new chat: the files and the pid file state before and after.	-
+resume-agy	resume	agy	tmux,pty,conpty,psmux	linux,macos,windows	login	turns:1	\[Next\]=>Enter;;> Yes, I trust this folder=>Enter	\? for shortcuts	(Generating|Running command|Thinking)\.\.\.	↑/↓ Navigate	--continue	\? for shortcuts	-	-	A test session of agy that stops and starts again with its resume command: the files that it keeps.	43
+interrupt-agy	interrupt	agy	tmux,pty,conpty,psmux	linux,macos,windows	login	turns:1	\[Next\]=>Enter;;> Yes, I trust this folder=>Enter	\? for shortcuts	(Generating|Running command|Thinking)\.\.\.	↑/↓ Navigate	Count from 1 to 300, with one number on each line.	(Generating|Running command|Thinking)\.\.\.	Escape C-c	-	A test session of agy with a long prompt, then Esc while it works, then Ctrl+C: the busy and idle signals.	-
+real-session-agy	real-session	agy	operator	linux,macos,windows	operator	none	-	-	-	-	-	-	-	-	The guided step for a session of agy that the operator starts in a real terminal. The kit only watches.	-
+first-run-cursor	first-run	cursor	tmux,conpty	linux,macos,windows	none	none	-	-	-	-	-	-	-	-	A start of cursor with a throwaway HOME and no login: its first screens and the files that it writes.	-
+permission-cursor	permission	cursor	tmux,pty,conpty,psmux	linux,macos,windows	login	turns:1	-	-	-	Run this command\?|\(y\)|Reject	Create a file named agent-signals-test.txt that holds the word hello.	Run this command\?|\(y\)|Reject	Escape	-	A test session of cursor with a file write prompt: the permission dialog, the guided watch for 30 s, then Esc.	-
+new-chat-cursor	new-chat	cursor	tmux,pty,conpty,psmux	linux,macos,windows	login	turns:1	-	-	-	Run this command\?|\(y\)|Reject	/new-chat	-	-	-	A test session of cursor that starts a new chat: the files and the pid file state before and after.	-
+resume-cursor	resume	cursor	tmux,pty,conpty,psmux	linux,macos,windows	login	turns:1	-	-	-	Run this command\?|\(y\)|Reject	--resume	-	-	-	A test session of cursor that stops and starts again with its resume command: the files that it keeps.	-
+interrupt-cursor	interrupt	cursor	tmux,pty,conpty,psmux	linux,macos,windows	login	turns:1	-	-	-	Run this command\?|\(y\)|Reject	Count from 1 to 300, with one number on each line.	-	Escape C-c	-	A test session of cursor with a long prompt, then Esc while it works, then Ctrl+C: the busy and idle signals.	-
+real-session-cursor	real-session	cursor	operator	linux,macos,windows	operator	none	-	-	-	-	-	-	-	-	The guided step for a session of cursor that the operator starts in a real terminal. The kit only watches.	-

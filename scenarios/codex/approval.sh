@@ -15,6 +15,8 @@ set -eu
 here=$(cd "$(dirname "$0")/.." && pwd)
 # shellcheck source=scenarios/lib.sh
 . "$here/lib.sh"
+# shellcheck source=scenarios/login.sh
+. "$here/login.sh"
 
 # CODEX_DAEMON=0 adds --no-daemon.
 daemon_flag=

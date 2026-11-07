@@ -553,26 +553,29 @@ function Get-SafeType($Value) {
 function Get-JsonlTypes([string]$File, [int]$Count = 5) {
   if (-not $File -or -not (Test-Path -LiteralPath $File -PathType Leaf)) { "not found: $File"; return }
   $lines = @(Get-Content -LiteralPath $File -Tail $Count -Encoding UTF8)
-  foreach ($l in $lines) {
-    if (-not $l.Trim()) { 'empty line'; continue }
-    try { $d = $l | ConvertFrom-Json } catch { 'bad line'; continue }
-    if ($d -isnot [System.Management.Automation.PSCustomObject]) { "line: $(Get-JsonType $d)"; continue }
-    $type = Get-SafeType $d.type
-    $ptype = '-'
-    if ($d.payload -is [System.Management.Automation.PSCustomObject]) { $ptype = Get-SafeType $d.payload.type }
-    $ctypes = '-'
-    if ($d.message -is [System.Management.Automation.PSCustomObject]) {
-      $c = $d.message.content
-      if ($c -is [array]) {
-        $ctypes = '[' + ((@($c | ForEach-Object {
-          if ($_ -is [System.Management.Automation.PSCustomObject]) { Get-SafeType $_.type } else { Get-JsonType $_ }
-        })) -join ',') + ']'
-      } elseif ($null -ne $c) {
-        $ctypes = Get-JsonType $c
-      }
+  foreach ($l in $lines) { Format-JsonlLine $l }
+}
+
+# The record types of one JSONL line. It prints no text.
+function Format-JsonlLine([string]$Line) {
+  if (-not $Line.Trim()) { return 'empty line' }
+  try { $d = $Line | ConvertFrom-Json } catch { return 'bad line' }
+  if ($d -isnot [System.Management.Automation.PSCustomObject]) { return "line: $(Get-JsonType $d)" }
+  $type = Get-SafeType $d.type
+  $ptype = '-'
+  if ($d.payload -is [System.Management.Automation.PSCustomObject]) { $ptype = Get-SafeType $d.payload.type }
+  $ctypes = '-'
+  if ($d.message -is [System.Management.Automation.PSCustomObject]) {
+    $c = $d.message.content
+    if ($c -is [array]) {
+      $ctypes = '[' + ((@($c | ForEach-Object {
+        if ($_ -is [System.Management.Automation.PSCustomObject]) { Get-SafeType $_.type } else { Get-JsonType $_ }
+      })) -join ',') + ']'
+    } elseif ($null -ne $c) {
+      $ctypes = Get-JsonType $c
     }
-    "type=$type payload.type=$ptype message.content=$ctypes"
   }
+  return "type=$type payload.type=$ptype message.content=$ctypes"
 }
 
 # Returns the form of a TOML table name that a probe can print. Some table

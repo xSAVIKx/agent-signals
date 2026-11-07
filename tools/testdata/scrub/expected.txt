@@ -8,6 +8,7 @@ already clean: /work/example/.claude
 windows: ~\AppData\Roaming\Cursor
 user dev ran on host and host
 mail: <email>
+kit files: 01-probe@none.txt, 12-permission-claude@pty.txt and <email>
 ip: <ip> and <ip> and 127.0.0.1 and 0.0.0.0
 version: 2026.10.22-27dcf5f stays
 login /bin/zsh as alicex stays
@@ -16,6 +17,7 @@ claude key: ~/.claude/projects/-work-example/1.jsonl and /tmp/claude-501/-work-e
 cursor key: ~/.cursor/projects/-work-example/agent-transcripts
 versions: os: linux 6.8.0.1017-azure, FileVersion 1.4.4.0, v1.2.3.4 and <ip> stays an ip
 claude key windows: ~\.claude\projects\-work-example\1.jsonl and -work-example
+claude key lower case: ~\.claude\projects\-work-example\1.jsonl
 cursor key windows: ~\.cursor\projects\-work-example\agent-transcripts and "-work-example"
 drive path: /work/example and /work/example and /work/example
 drive path with hidden folder: /work/example\.codex\hooks.json
@@ -25,3 +27,20 @@ already clean: \\?\~\.codex\config.toml
 system: C:\Windows\System32\cmd.exe and C:\ProgramData\chocolatey\bin and c:\windows\system32
 system: "C:\Program Files\nodejs\node.exe" and C:\Program Files (x86)\Common Files
 words: an X-ray, a T-shirt and v1.2.3 stay, and so does the word abcD:\x
+secrets: ANTHROPIC_API_KEY=<secret> and "<secret>", <secret>
+secrets: <secret> <secret> <secret> <secret>
+words: a task-list, sk-short, key_count and the risk-free-mode flag stay
+spaces: /work/example and more
+support: ~/Library/Application Support/Code/User/settings.json
+two paths: /work/example /work/example
+drive: /work/example and more
+run: /work/example/agent-signals-run-linux-1/01-probe.txt
+onedrive: "/work/example" is the OneDrive folder
+domain: domain\dev logged in
+quoted: {"cwd":"/work/example","a":1} and "/work/example"
+spaces 2: /work/example
+more secrets: <secret> <secret> <secret> <secret> <secret>
+jwt: token=<secret>
+underscore: API_KEY_<secret> and A=<secret>
+words: sk-learn-something-long-name and AKIAshort stay
+extra key: ~/.claude/projects/-work-example/1.jsonl and -work-example, ~/.claude/projects/-work-example/t.jsonl, 13-x@none.txt. %KITAT%

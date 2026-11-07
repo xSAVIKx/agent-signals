@@ -7,6 +7,9 @@
 # with the number of lines that changed.
 #
 # Changes, in this order:
+#   0. each extra root: a line of SCRUB_EXTRA (for example the run folder of
+#      the agent kit), and the values of OneDrive, OneDriveCommercial and
+#      OneDriveConsumer                              -> /work/example
 #   1. the home folder of this account               -> ~
 #   2. other home folders (/Users/<name>, /home/<name>, C:\Users\<name>) -> ~
 #   3. a path below ~ that is not in an agent or system folder:
@@ -16,18 +19,31 @@
 #      and a Windows drive path such as D:\Projects\shop, also after a \\?\
 #      prefix. C:\Windows, C:\Program Files and C:\ProgramData stay.
 #   5. the account name                              -> dev
-#   6. the host name                                 -> host
-#   7. UUIDs                                         -> <uuid>
-#   8. hex runs of 16 characters or more             -> <hex>
-#   9. e-mail addresses                              -> <email>
-#  10. IPv4 addresses, except 127.0.0.1 and 0.0.0.0  -> <ip>
+#   6. the host name                                 -> host,
+#      and SCRUB_DOMAIN as a whole word              -> domain
+#   7. API keys and tokens                           -> <secret>
+#      sk-ant-, sk-proj-, AIza, ghp_, gho_, ghu_, ghs_, ghr_, github_pat_,
+#      glpat- and xoxa-, xoxb-, xoxp-, xoxr-, xoxs-, each with 16 or more
+#      key characters after it; sk- with 16 or more and one digit or more;
+#      AKIA with 16 upper-case letters or digits; key_ with 32 or more hex
+#      characters; a JWT (eyJ..., a dot, eyJ...). A letter, a digit or a
+#      "-" must not come just before it. A "_" or a "=" can.
+#   8. UUIDs                                         -> <uuid>
+#   9. hex runs of 16 characters or more             -> <hex>
+#  10. e-mail addresses                              -> <email>
+#  11. IPv4 addresses, except 127.0.0.1 and 0.0.0.0  -> <ip>
 #      (not a version number: after v or version, or before a letter, - or +)
+#  A path can hold spaces. After a space, a word that holds a / (or a \ in
+#  a drive path) and does not start a new path continues the path. So
+#  ~/My Projects/Client Acme/a.go is one path. A last folder with a space
+#  and no / after it ends the path at the space, except in quotes: a path
+#  just after a " goes to the next ".
 #  A project key (a path with dashes, see below) becomes -work-example. A
 #  Windows key starts with a drive letter: D--Projects-shop, C-Users-alice-shop.
 #
 # The scrub is a help, not a proof. Read the output before you send it.
 # SCRUB_HOME, SCRUB_USER and SCRUB_HOST replace the values of this machine.
-# The tests use them.
+# The tests use them. SCRUB_EXTRA holds more roots, one on each line.
 set -eu
 
 home=${SCRUB_HOME:-$HOME}
@@ -40,6 +56,8 @@ short=${host%%.*}
 q() { printf '%s' "$1" | sed 's/[][\.*^$+?(){}|#]/\\&/g'; }
 
 tmp=$(mktemp -d)
+# dash runs no EXIT trap on a signal, so a signal exits first.
+trap 'exit 130' INT TERM
 trap 'rm -rf "$tmp"' EXIT
 cat "${1:--}" >"$tmp/a"
 
@@ -55,6 +73,22 @@ rule() {
   sed -E "$2" "$tmp/a" >"$tmp/b"
   count "$1"
 }
+
+# 0. The extra roots, the longest first.
+{
+  [ -n "${SCRUB_EXTRA:-}" ] && printf '%s\n' "$SCRUB_EXTRA"
+  for _v in "${OneDrive:-}" "${OneDriveCommercial:-}" "${OneDriveConsumer:-}"; do
+    [ -n "$_v" ] && printf '%s\n' "$_v"
+  done
+} | awk 'length($0) > 1 { print length($0) "\t" $0 }' | sort -rn | cut -f 2- >"$tmp/extra"
+: >"$tmp/extra.sed"
+while IFS= read -r _x; do
+  printf 's#%s#/work/example#g\n' "$(q "$_x")" >>"$tmp/extra.sed"
+done <"$tmp/extra"
+if [ -s "$tmp/extra.sed" ]; then
+  sed -E -f "$tmp/extra.sed" "$tmp/a" >"$tmp/b"
+  count "extra root"
+fi
 
 rule "home folder" "s#$(q "$home")([/\\\\\"' :]|\$)#~\\1#g"
 rule "other home folder" 's#/Users/[A-Za-z0-9._-]+#~#g; s#/home/[A-Za-z0-9._-]+#~#g; s#[A-Za-z]:\\+Users\\+[A-Za-z0-9._-]+#~#g'
@@ -84,7 +118,7 @@ function wfix(path,    rest, first, r, r2, sep) {
   sub(/^(\\|\/)+/, "", rest)
   first = rest
   if (match(rest, /(\\|\/)/)) first = substr(rest, 1, RSTART - 1)
-  if (tolower(first) ~ /^(windows|program|programdata|progra~1|progra~2)$/ || first ~ /^\./) return path
+  if (tolower(first) ~ /^(windows|program|program files|programdata|progra~1|progra~2)$/ || first ~ /^\./) return path
   r = substr(rest, length(first) + 1)
   while (match(r, /^(\\|\/)+/)) {
     sep = substr(r, 1, RLENGTH)
@@ -95,13 +129,36 @@ function wfix(path,    rest, first, r, r2, sep) {
   }
   return "/work/example"
 }
+# more(rest, bs): the length of the words at the start of rest that
+# continue a path. Each word starts with one space, does not start a new
+# path, and holds a / (or a \ when bs is 1).
+function more(rest, bs,    n, w) {
+  n = 0
+  while (1) {
+    w = substr(rest, n + 1)
+    if (bs) {
+      if (!match(w, /^ [^ \t"'\'',:;()\/\\~][^ \t"'\'',:;()\/\\]*[\/\\][^ \t"'\'',:;()]*/)) break
+    } else if (!match(w, /^ [^ \t"'\'',:;()\/~][^ \t"'\'',:;()\/]*\/[^ \t"'\'',:;()]*/)) break
+    n += RLENGTH
+  }
+  return n
+}
+# span(line, s, l, bs): the length of the path that starts at s and whose
+# first word has the length l. A path just after a " goes to the next ".
+function span(line, s, l, bs,    q) {
+  if (s > 1 && substr(line, s - 1, 1) == "\"") {
+    q = index(substr(line, s), "\"")
+    if (q - 1 > l) return q - 1
+  }
+  return l + more(substr(line, s + l), bs)
+}
 {
   line = $0
   res = ""
   while (1) {
     s1 = 0; s2 = 0
-    if (match(line, /(~|\/srv|\/work)\/[^ \t"'\'',:;()]+/)) { s1 = RSTART; l1 = RLENGTH }
-    if (match(line, /[A-Za-z]:(\\|\/)+[^ \t"'\'',:;()]+/)) { s2 = RSTART; l2 = RLENGTH }
+    if (match(line, /(~|\/srv|\/work)\/[^ \t"'\'',:;()]+/)) { s1 = RSTART; l1 = span(line, RSTART, RLENGTH, 0) }
+    if (match(line, /[A-Za-z]:(\\|\/)+[^ \t"'\'',:;()]+/)) { s2 = RSTART; l2 = span(line, RSTART, RLENGTH, 1) }
     if (s1 == 0 && s2 == 0) break
     # A \\?\ or \\? prefix goes with the drive path. Some awks do not
     # match an optional group before the drive letter, so look back here.
@@ -141,17 +198,63 @@ count "project path"
 
 # Agents name a project folder by its path with dashes: Claude
 # "-srv-work-app" or "-Users-alice-code-app", Cursor "Users-alice-code-app".
-# On Windows the key starts with an upper-case drive letter: Claude
+# On Windows the key starts with a drive letter: Claude
 # "D--Projects-app", Cursor "C-Users-alice-app" or "D-Projects-app". The
 # token after the drive letter must hold one more dash, so that a word such
 # as "X-ray" stays.
-rule "project key" 's#(^|[/\\ "])-?(srv|Users|home|var-lib|work)-[A-Za-z0-9._-]+#\1-work-example#g; s#(^|[/\\ "])[A-Z]--?[A-Za-z0-9._]+-[A-Za-z0-9._-]+#\1-work-example#g'
+rule "project key" 's#(^|[/\\ "])-?(srv|Users|home|var-lib|work)-[A-Za-z0-9._-]+#\1-work-example#g; s#(^|[/\\ "])[A-Za-z]--?[A-Za-z0-9._]+-[A-Za-z0-9._-]+#\1-work-example#g'
+# A key on another root: the key form of each extra root and of $PWD (one
+# or more dashes for each run of other characters), and each key in a
+# "projects" folder. A key with one word needs its dash.
+{ cat "$tmp/extra"; printf '%s\n' "$PWD"; } | while IFS= read -r r; do
+  k=$(printf '%s' "$r" | tr -cs 'A-Za-z0-9' '-' | sed 's/^-*//; s/-*$//')
+  [ "${#k}" -gt 3 ] || continue
+  case $k in *-*) d='-?' ;; *) d=- ;; esac
+  k=$(printf '%s' "$k" | sed 's/-/-+/g')
+  printf 's#(^|[/\\\\ "])%s%s[A-Za-z0-9._-]*#\\1-work-example#g\n' "$d" "$k"
+done >"$tmp/keys"
+printf '%s\n' 's#([/\\]projects[/\\])[A-Za-z0-9._]*-[A-Za-z0-9._-]*([/\\"]|$)#\1-work-example\2#g' >>"$tmp/keys"
+rule "project key" "$(cat "$tmp/keys")"
 
 [ -n "$user" ] && rule "account name" "s#(^|[^A-Za-z0-9_.-])$(q "$user")([^A-Za-z0-9_-]|\$)#\\1dev\\2#g"
+[ -n "${SCRUB_DOMAIN:-}" ] && rule "domain" "s#(^|[^A-Za-z0-9_-])$(q "$SCRUB_DOMAIN")([^A-Za-z0-9_-]|\$)#\\1domain\\2#g"
 [ -n "$host" ] && rule "host name" "s#(^|[^A-Za-z0-9_-])($(q "$host")|$(q "$short"))([^A-Za-z0-9_-]|\$)#\\1host\\3#g"
+# 7. API keys and tokens. awk finds each word that can be a key, and
+# secret() checks its length and its form, because the ERE of some awks
+# has no {n,} and no look-ahead.
+awk '
+function secret(w,    r) {
+  if (w ~ /^eyJ/) return w ~ /^eyJ[A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-]*\.eyJ/
+  if (w ~ /^AKIA/) return length(w) >= 20
+  if (w ~ /^key_/) return length(w) >= 36
+  if (w ~ /^(sk-ant-|sk-proj-|github_pat_)/) { r = w; sub(/^(sk-ant-|sk-proj-|github_pat_)/, "", r); return length(r) >= 16 }
+  if (w ~ /^sk-/) { r = substr(w, 4); return length(r) >= 16 && r ~ /[0-9]/ }
+  r = w
+  sub(/^(AIza|gh[pousr]_|glpat-|xox[abprs]-)/, "", r)
+  return length(r) >= 16
+}
+{
+  line = $0
+  out = ""
+  while (match(line, /(sk-|AIza|gh[pousr]_|github_pat_|glpat-|xox[abprs]-)[A-Za-z0-9_-]+|AKIA[0-9A-Z]+|key_[0-9a-fA-F]+|eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]*(\.[A-Za-z0-9_-]+)?/)) {
+    s = RSTART
+    w = substr(line, s, RLENGTH)
+    pre = (s > 1) ? substr(line, s - 1, 1) : ""
+    if (pre !~ /[A-Za-z0-9-]/ && secret(w)) w = "<secret>"
+    out = out substr(line, 1, s - 1) w
+    line = substr(line, s + RLENGTH)
+  }
+  print out line
+}' "$tmp/a" >"$tmp/b"
+count "secret"
 rule "uuid" 's#[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}#<uuid>#g'
 rule "hex" 's#[0-9a-fA-F]{16,}#<hex>#g'
-rule "email" 's#[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}#<email>#g'
+# The file name of a kit step, NN-NAME@BACKEND.txt (probes/agent/step.sh),
+# is not an e-mail address. The rule hides its "@" while it runs.
+kb='none|tmux|pty|conpty|psmux|operator'
+at=$(printf '\001')
+keep="s#(^|[^A-Za-z0-9._%+-])([0-9]+-[a-z0-9-]+)@($kb)\\.txt(\\.?([^A-Za-z0-9.-]|\$))#\\1\\2$at\\3.txt\\4#g"
+rule "email" "$keep; $keep; s#[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}#<email>#g; s#$at#@#g"
 # A dotted quad after "v" or "version", or before a letter, "-" or "+", is a
 # version number. Its dots become @D@ until the IP rule is done.
 q4='([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})'

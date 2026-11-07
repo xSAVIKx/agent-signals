@@ -8,6 +8,7 @@ already clean: /work/example/.claude
 windows: C:\Users\alice\AppData\Roaming\Cursor
 user alice ran on alice-mbp.local and alice-mbp
 mail: alice@example.org
+kit files: 01-probe@none.txt, 12-permission-claude@pty.txt and dev@tmux.example.org
 ip: 10.1.2.3 and 192.168.1.20 and 127.0.0.1 and 0.0.0.0
 version: 2026.10.22-27dcf5f stays
 login /bin/zsh as alicex stays
@@ -16,6 +17,7 @@ claude key: ~/.claude/projects/-srv-work-shop/1.jsonl and /tmp/claude-501/-Users
 cursor key: ~/.cursor/projects/Users-alice-code-shop/agent-transcripts
 versions: os: linux 6.8.0.1017-azure, FileVersion 1.4.4.0, v1.2.3.4 and 10.0.0.5 stays an ip
 claude key windows: ~\.claude\projects\D--Projects-shop\1.jsonl and C--Users-alice-code-shop
+claude key lower case: ~\.claude\projects\d--Projects-shop\1.jsonl
 cursor key windows: ~\.cursor\projects\C-Users-alice-shop\agent-transcripts and "D-Projects-shop"
 drive path: D:\Projects\shop\src and d:\projects\shop and E:/acme/shop/main.go
 drive path with hidden folder: D:\Projects\shop\.codex\hooks.json
@@ -25,3 +27,20 @@ already clean: \\?\~\.codex\config.toml
 system: C:\Windows\System32\cmd.exe and C:\ProgramData\chocolatey\bin and c:\windows\system32
 system: "C:\Program Files\nodejs\node.exe" and C:\Program Files (x86)\Common Files
 words: an X-ray, a T-shirt and v1.2.3 stay, and so does the word abcD:\x
+secrets: ANTHROPIC_API_KEY=sk-ant-api03-FAKEfakeFAKEfake_0000 and "sk-proj-FAKEfakeFAKEfake0000", sk-FAKEfakeFAKEfake00
+secrets: AIzaFAKEfakeFAKEfake0000 ghp_FAKEfakeFAKEfake0000 github_pat_FAKE_fakeFAKEfake0000 key_0123456789abcdef0123456789abcdef
+words: a task-list, sk-short, key_count and the risk-free-mode flag stay
+spaces: /Users/alice/My Projects/Client Acme/app/main.go and more
+support: /Users/alice/Library/Application Support/Code/User/settings.json
+two paths: /Users/alice/a/x.go /Users/alice/b/y.go
+drive: D:\My Projects\Client Acme\app\main.go and more
+run: /opt/kit runs/agent-signals-run-linux-1/01-probe.txt
+onedrive: "C:\Users\alice\OneDrive - Contoso" is the OneDrive folder
+domain: CONTOSO\alice logged in
+quoted: {"cwd":"/Users/alice/Client Work","a":1} and "/Users/alice/Client Work/acme-app"
+spaces 2: /Users/alice/My Projects/acme-secret/src
+more secrets: ghu_FAKEfakeFAKEfake0000 ghr_FAKEfakeFAKEfake0000 glpat-FAKEfakeFAKEfake00 xoxb-FAKEfakeFAKEfake00 AKIAFAKEFAKEFAKEFAKE
+jwt: token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.c2lnbmF0dXJl
+underscore: API_KEY_sk-ant-api03-FAKEfakeFAKEfake_0000 and A=sk-FAKEfakeFAKEfake00
+words: sk-learn-something-long-name and AKIAshort stay
+extra key: ~/.claude/projects/-opt-kit-runs-work-x/1.jsonl and -opt-kit-runs-y, ~/.claude/projects/-Volumes-Acme-run/t.jsonl, 13-x@none.txt. %KITAT%

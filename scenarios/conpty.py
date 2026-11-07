@@ -1,4 +1,4 @@
-"""A terminal driver for Windows: one program in a pseudo console (ConPTY).
+r"""A terminal driver for Windows: one program in a pseudo console (ConPTY).
 
 The driver starts a command in a pseudo console of a fixed size, reads its
 output into a pyte screen, and gives the visible screen as plain text, in
@@ -8,13 +8,33 @@ device attribute queries of the program, as tmux does. It can send keys.
 It also gives the helpers of the Windows scenarios: the process tree, the
 open files, the file list of a folder, and a throwaway environment.
 
+The serve mode keeps one program in a pseudo console for `kit session`
+(probes/agent/session.ps1). Other processes send it commands through a
+named pipe, as probes/agent/ptydrive.py does with a socket:
+
+    python conpty.py serve PIPE COLS ROWS [--cwd DIR] [--ready FILE] [--key FILE] -- CMD...
+    python conpty.py detach PIPE COLS ROWS --ready FILE [--cwd DIR] [--key FILE] -- CMD...
+    python conpty.py [--key FILE] PIPE send TEXT | key KEY | screen | stop
+
+detach starts serve as a detached process: no console, no handle of the
+caller, a new process group, and out of the job object of the caller when
+the job lets it. It waits for the ready file, prints "pid N", "breakaway
+yes|no", "server N" and "agent N", and exits. The key FILE holds the key
+of the pipe: the server and the client must give the same key.
+
+PIPE is a pipe name such as \\.\pipe\kit-NAME. The serve mode writes
+FILE when the pipe is open: one JSON object with the pids "server" and
+"agent", or "error".
+
 Needs, on Windows: pywinpty, pyte and psutil, at the versions that the
 scenarios workflow pins. The screen functions need only pyte, so the tests
 in scenarios/tests/ run on Linux too.
 """
 
+import json
 import ntpath
 import os
+import sys
 import threading
 import time
 
@@ -196,6 +216,257 @@ KEYS = {
 }
 
 
+def key_text(name):
+    """Return the text for a tmux key name. One character stays itself."""
+    if name in KEYS:
+        return KEYS[name]
+    if len(name) == 1:
+        return name
+    raise ValueError("unknown key: %s" % name)
+
+
+def parse_serve(argv):
+    """Parse the arguments of the serve mode: PIPE COLS ROWS [--cwd DIR]
+    [--ready FILE] [--key FILE] -- CMD... Returns a dict."""
+    if "--" not in argv:
+        raise ValueError("no -- before the command")
+    i = argv.index("--")
+    head, cmd = argv[:i], argv[i + 1:]
+    if len(head) < 3 or not cmd:
+        raise ValueError("usage: serve PIPE COLS ROWS [--cwd DIR] [--ready FILE] [--key FILE] -- CMD...")
+    out = {"pipe": head[0], "cols": int(head[1]), "rows": int(head[2]),
+           "cwd": None, "ready": None, "key": None, "argv": cmd}
+    rest = head[3:]
+    while rest:
+        if rest[0] in ("--cwd", "--ready", "--key") and len(rest) > 1:
+            out[rest[0][2:]] = rest[1]
+            rest = rest[2:]
+        else:
+            raise ValueError("unknown option: %s" % rest[0])
+    return out
+
+
+def read_key(path):
+    """Return the key of the pipe from a key file, or None with no file."""
+    if not path:
+        return None
+    with open(path, encoding="ascii") as f:
+        return f.read().strip().encode("ascii")
+
+
+def _write_json(path, obj):
+    if not path:
+        return
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(obj, f)
+    os.replace(tmp, path)
+
+
+def _kill_tree(proc):
+    """Stop proc (a psutil.Process) and each process below it. psutil
+    checks the start time, so a pid that Windows gave again to a new
+    process is not stopped."""
+    import psutil
+
+    try:
+        if not proc.is_running():
+            return
+        kids = proc.children(recursive=True)
+    except psutil.Error:
+        return
+    for k in kids + [proc]:
+        try:
+            if k.is_running():
+                k.kill()
+        except psutil.Error:
+            pass
+
+
+def serve(argv, max_seconds=4 * 3600):
+    """Run the serve mode. It ends on "stop", or after max_seconds."""
+    from multiprocessing.connection import Listener
+
+    o = parse_serve(argv)
+    import psutil
+
+    try:
+        listener = Listener(address=o["pipe"], family="AF_PIPE", authkey=read_key(o["key"]))
+        con = ConPTY(o["argv"], cwd=o["cwd"], cols=o["cols"], rows=o["rows"])
+        agent = psutil.Process(con.pid)
+    except Exception as e:
+        _write_json(o["ready"], {"error": "%s: %s" % (type(e).__name__, e)})
+        return 1
+    _write_json(o["ready"], {"server": os.getpid(), "agent": con.pid})
+
+    def end():
+        _kill_tree(agent)
+        con.close()
+
+    def limit():
+        time.sleep(max_seconds)
+        end()
+        os._exit(0)
+
+    threading.Thread(target=limit, daemon=True).start()
+    while True:
+        try:
+            # With a key, accept() also checks the key of the client.
+            conn = listener.accept()
+        except Exception:
+            time.sleep(0.05)
+            continue
+        op = None
+        try:
+            # A client that sends nothing must not stop the server.
+            if not conn.poll(5):
+                conn.close()
+                continue
+            req = json.loads(conn.recv_bytes(1 << 20).decode("utf-8"))
+            op = req.get("op")
+            if op == "send":
+                con.write(req["text"])
+                resp = {"ok": True}
+            elif op == "key":
+                con.write(key_text(req["key"]))
+                resp = {"ok": True}
+            elif op == "screen":
+                resp = {"ok": True, "screen": con.screen()}
+            elif op == "stop":
+                end()
+                resp = {"ok": True}
+            else:
+                resp = {"ok": False, "error": "unknown command: %s" % op}
+        except Exception as e:
+            resp = {"ok": False, "error": "%s: %s" % (type(e).__name__, e)}
+        try:
+            conn.send_bytes(json.dumps(resp).encode("utf-8"))
+            conn.close()
+        except Exception:
+            pass
+        if op == "stop":
+            listener.close()
+            return 0
+
+
+def _in_job(proc):
+    """Return True when the process (a subprocess.Popen) is in a job object.
+    When Windows cannot tell, return True."""
+    try:
+        import ctypes
+
+        result = ctypes.c_int(0)
+        ok = ctypes.windll.kernel32.IsProcessInJob(ctypes.c_void_p(int(proc._handle)), None, ctypes.byref(result))
+        return (not ok) or bool(result.value)
+    except Exception:
+        return True
+
+
+def detach(argv, wait_seconds=30):
+    """Start the serve mode as a detached process. Wait for its ready file,
+    then print "pid N" (the started process), "server N", "agent N" and
+    "breakaway yes|no". At the time limit, stop the started process tree
+    and exit 1."""
+    import subprocess
+
+    o = parse_serve(argv)
+    if not o["ready"]:
+        raise ValueError("detach needs --ready FILE")
+    import psutil
+
+    cmd = [sys.executable, "-I", os.path.abspath(__file__), "serve"] + list(argv)
+    base = 0x00000008 | 0x00000200  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+    breakaway = 0x01000000  # CREATE_BREAKAWAY_FROM_JOB
+    kw = dict(stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+              stderr=subprocess.DEVNULL, close_fds=True)
+    try:
+        p = subprocess.Popen(cmd, creationflags=base | breakaway, **kw)
+        away = "yes"
+    except OSError:
+        # The job of the caller does not let a child break away.
+        p = subprocess.Popen(cmd, creationflags=base, **kw)
+        away = "no"
+    # The Python launcher of a virtual environment puts Python in a job of
+    # its own that lets a child break away. So a breakaway can leave only
+    # that job. "yes" means that the new process is in no job at all.
+    if away == "yes" and _in_job(p):
+        away = "no"
+    try:
+        started = psutil.Process(p.pid)
+    except psutil.Error:
+        started = None
+    sys.stdout.write("pid %d\nbreakaway %s\n" % (p.pid, away))
+    end = time.monotonic() + wait_seconds
+    while not os.path.exists(o["ready"]):
+        if time.monotonic() > end:
+            if started is not None:
+                _kill_tree(started)
+            sys.stderr.write("conpty: the server did not start in %d s\n" % wait_seconds)
+            return 1
+        time.sleep(0.05)
+    with open(o["ready"], encoding="utf-8") as f:
+        r = json.load(f)
+    if r.get("error"):
+        sys.stderr.write("conpty: %s\n" % r["error"])
+        return 1
+    sys.stdout.write("server %d\nagent %d\n" % (r["server"], r["agent"]))
+    return 0
+
+
+def client(argv):
+    """Send one command to a serve process: [--key FILE] PIPE send TEXT |
+    key KEY | screen | stop. Prints the screen for "screen"."""
+    from multiprocessing.connection import Client
+
+    key = None
+    if argv[:1] == ["--key"]:
+        if len(argv) < 2:
+            raise ValueError("--key needs a FILE")
+        key = read_key(argv[1])
+        argv = argv[2:]
+    if len(argv) < 2:
+        raise ValueError("usage: [--key FILE] PIPE send TEXT | key KEY | screen | stop")
+    pipe, op = argv[0], argv[1]
+    req = {"op": op}
+    if op == "send":
+        req["text"] = argv[2]
+    elif op == "key":
+        key_text(argv[2])
+        req["key"] = argv[2]
+    elif op not in ("screen", "stop"):
+        raise ValueError("unknown command: %s" % op)
+    c = Client(pipe, family="AF_PIPE", authkey=key)
+    c.send_bytes(json.dumps(req).encode("utf-8"))
+    if not c.poll(10):
+        c.close()
+        sys.stderr.write("conpty: no answer in 10 s\n")
+        return 1
+    resp = json.loads(c.recv_bytes().decode("utf-8"))
+    c.close()
+    if not resp.get("ok"):
+        sys.stderr.write("conpty: %s\n" % resp.get("error"))
+        return 1
+    if op == "screen":
+        sys.stdout.buffer.write(resp["screen"].encode("utf-8"))
+        sys.stdout.flush()
+    return 0
+
+
+def main(argv):
+    try:
+        if argv and argv[0] == "serve":
+            return serve(argv[1:])
+        if argv and argv[0] == "detach":
+            return detach(argv[1:])
+        return client(argv)
+    except (ValueError, IndexError) as e:
+        sys.stderr.write("conpty: %s\n" % e)
+        return 2
+    except OSError as e:
+        sys.stderr.write("conpty: %s\n" % e)
+        return 1
+
+
 # The helpers below need psutil (Windows) or only the standard library.
 
 
@@ -324,3 +595,7 @@ def descendants(table, root):
 
     walk(root)
     return out
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
