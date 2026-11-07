@@ -206,14 +206,20 @@ function Send-Keys([string[]]$Keys) {
         if ($r.Code -ne 0) { Stop-Send "key $k" }
     }
 }
-# Send-Prompt: type the prompt and press the send key. An agent can redraw
-# its box after the first idle screen and lose the text, as send of
-# session-step.sh says. So the step waits 2 s, looks for the text on the
-# screen, and types it again when it is not there.
+# Send-Prompt: type the prompt and press the send key, as send of
+# session-step.sh does. Codex can keep the text in its box and drop an early
+# key (fact 76). So the step waits 2 s, looks for the text on the
+# screen. When it is not there, the step clears the box with C-u and types
+# it again, so that a slow agent does not get it twice.
 function Send-Prompt {
     Start-Sleep -Seconds (Get-Clip 2)
     $want = if ($prompt.Length -gt 24) { $prompt.Substring(0, 24) } else { $prompt }
     for ($try = 0; $try -lt 3; $try++) {
+        if ($try -gt 0) {
+            Add-Log 'the prompt is not on the screen. Clear the box and type it again'
+            Send-Keys @('C-u')
+            Start-Sleep -Milliseconds 300
+        }
         $r = Invoke-Session @('send', $name, $prompt) (Get-Clip 30)
         if ($r.Code -ne 0) { Stop-Send 'send' }
         $seen = $false
@@ -224,7 +230,19 @@ function Send-Prompt {
         }
         if ($seen) { break }
     }
+    if (-not $seen) { Add-Log 'the prompt did not show on the screen in 3 tries' }
     Send-Keys @($sendKey)
+    # The box still holds the text when the screen shows it and is not idle,
+    # busy or a dialog.
+    for ($n = 0; $n -lt 3; $n++) {
+        Start-Sleep -Seconds 1
+        Update-Screen
+        if (-not $sc.Contains($want)) { break }
+        if ((Test-Line $sc $idleRe) -or (Test-Line $sc $busyRe) -or (Test-Line $sc $dialogRe)) { break }
+        if (Test-Line $sc $waitRe) { break }
+        Add-Log 'the box still holds the prompt. Press the send key again'
+        Send-Keys @($sendKey)
+    }
     Add-Log "prompt sent, then $sendKey"
 }
 # Send-Pre: send the keys of the first "pre" pair that matches the screen
@@ -436,7 +454,7 @@ try {
     if ($code -eq 1) { $result = 'fail' } elseif ($code -eq 3) { $result = 'skip' }
     $sb = New-Object System.Text.StringBuilder
     [void]$sb.Append("# agent-signals session step: $env:KIT_STEP@$backend`n")
-    [void]$sb.Append("kind: $kind`nagent: $agent`nbackend: $backend`nhome: $env:KIT_HOME`nsend key: $sendKey`n")
+    [void]$sb.Append("kind: $kind`nagent: $agent`nbackend: $backend`nhome: $env:KIT_HOME`n$(if ($env:KIT_HOME -eq 'fixture') { "model: fake-model.py with fixed answers. No real model ran.`n" })send key: $sendKey`n")
     [void]$sb.Append(("result: $result $reason").TrimEnd() + "`n")
     if ($agent -eq 'claude') { [void]$sb.Append("screens: the kit blanks each welcome box line that can show a display name or an organisation. No real screen was measured.`n") }
     [void]$sb.Append("### log`n" + $log.ToString())

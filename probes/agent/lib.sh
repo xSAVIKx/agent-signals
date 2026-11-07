@@ -255,6 +255,9 @@ kit_json() {
     }' "$1/manifest.tsv" >"$1/manifest.json"
 }
 
+# kit_text_re TEXT: TEXT as an extended regular expression.
+kit_text_re() { printf '%s' "$1" | sed 's/[][\.*^$+?(){}|]/\\&/g'; }
+
 # kit_login_skip HOME NEEDS AGENT: print the reason why a step does not run
 # in the home mode HOME, or nothing. The fixture mode has a fake model for
 # Codex only (fake-model.py).

@@ -212,7 +212,7 @@ class ConPTY:
 KEYS = {
     "Enter": "\r", "Escape": "\x1b", "Tab": "\t", "BSpace": "\x7f",
     "Up": "\x1b[A", "Down": "\x1b[B", "Right": "\x1b[C", "Left": "\x1b[D",
-    "C-c": "\x03", "C-d": "\x04",
+    "C-c": "\x03", "C-d": "\x04", "C-u": "\x15",
 }
 
 

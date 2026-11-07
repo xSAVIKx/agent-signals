@@ -84,7 +84,8 @@ foreach ($s in @(Read-KitSteps)) {
             } elseif (-not $conptyDriver -or -not (Test-SessionPython)) { continue }
         }
         if ($backend -eq 'psmux' -and -not $psmux) { continue }
-        $line = 'step: {0}@{1} needs={2} cost={3} measures={4}' -f $s.name, $backend, $s.needs, $s.cost, $s.measures
+        $cost = if ($homeMode -eq 'fixture') { 'none' } else { $s.cost }
+        $line = 'step: {0}@{1} needs={2} cost={3} measures={4}' -f $s.name, $backend, $s.needs, $cost, $s.measures
         $why = Get-KitLoginSkip $homeMode $s.needs $s.agent
         if ($why) { $line += " skip=$why" }
         Write-Output $line

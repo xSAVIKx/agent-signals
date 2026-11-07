@@ -7,6 +7,7 @@
 #   kit session screen NAME
 #   kit session wait NAME REGEX SECONDS
 #   kit session stop NAME
+#   kit session stop NAME --keep   the work folder and the home stay
 #   kit session stop --all
 #
 # CMD is one simple command, for example "env NAME=VALUE prog arg". The
@@ -214,7 +215,7 @@ do_start() {
   esac
   # The home mode: --home, else KIT_HOME, else the line "meta home MODE"
   # that kit start writes to the manifest, else throwaway.
-  via='' cmd='' mode=${KIT_HOME:-}
+  via='' cmd='' keep='' mode=${KIT_HOME:-}
   if [ -z "$mode" ] && [ -r "$run/manifest.tsv" ]; then
     mode=$(awk -F '\t' '$1 == "meta" && $2 == "home" { m = $3 } END { print m }' "$run/manifest.tsv")
   fi
@@ -224,6 +225,7 @@ do_start() {
       --via) [ "$#" -ge 2 ] || usage; via=$2; shift 2 ;;
       --cmd) [ "$#" -ge 2 ] || usage; cmd=$2; shift 2 ;;
       --home) [ "$#" -ge 2 ] || usage; mode=$2; shift 2 ;;
+      --keep) keep=yes; shift ;;
       *) usage ;;
     esac
   done
@@ -250,9 +252,9 @@ do_start() {
     rm -rf "$sdir"
   fi
   work=$run/work/$name
-  # KIT_KEEP_HOME: the resume step starts a session again. The new start
-  # needs the work folder and the home of the old session.
-  [ -n "${KIT_KEEP_HOME:-}" ] || rm -rf "$work"
+  # --keep: the resume step starts a session again. The new start needs the
+  # work folder and the home of the old session.
+  [ -n "$keep" ] || rm -rf "$work"
   mkdir -p "$sdir" "$work" || kit_die 1 "cannot make $sdir"
   chmod 700 "$sdir"
   backend=$via
@@ -267,7 +269,7 @@ do_start() {
   else
     h=$run/home/$name
     u=dev
-    [ -n "${KIT_KEEP_HOME:-}" ] || rm -rf "$h"
+    [ -n "$keep" ] || rm -rf "$h"
     mkdir -p "$h"
   fi
   # The environment of the agent. LC_ALL and LC_CTYPE pass only when they
@@ -450,29 +452,14 @@ session_pids() {
   done
 }
 
-# stop_session: stop the session in sdir.
-stop_session() {
-  [ -f "$sdir/stopped" ] && return 0
-  track
-  # The server hangs up the agent first, so that it can end in its own way.
-  case $backend in
-    tmux) [ -n "$sock" ] && tm kill-server >/dev/null 2>&1 ;;
-    pty) [ -n "$sock" ] && client stop >/dev/null 2>&1 ;;
-  esac
-  # shellcheck disable=SC2046
-  end_pids $(session_pids)
-  [ -n "$sock" ] && rm -rf "$(dirname "$sock")"
+# remove_folders: delete the work folder and the home of the session in sdir.
+remove_folders() {
   # Claude Code keeps task output outside HOME, in
   # /tmp/claude-<uid>/<key>/. The key is the work folder path with each
   # character that is not a letter or a digit changed to "-". On macOS the
   # real path (/private/var/...) can differ from the given path, so both
   # forms are removed.
   work=$(cat "$sdir/work" 2>/dev/null || true)
-  if [ -n "${KIT_KEEP_HOME:-}" ]; then
-    : >"$sdir/stopped"
-    echo "session: $name stopped"
-    return 0
-  fi
   if [ -n "$work" ]; then
     real=$(cd "$work" 2>/dev/null && pwd -P)
     for w in "$work" ${real:+"$real"}; do
@@ -485,12 +472,39 @@ stop_session() {
     rm -rf "$work"
   fi
   rm -rf "${run:?}/home/$name"
+}
+
+# stop_session [--keep]: stop the session in sdir. With --keep, the work
+# folder and the home stay, and the file "kept" says so. A later stop without
+# --keep deletes them.
+stop_session() {
+  if [ -f "$sdir/stopped" ]; then
+    if [ -f "$sdir/kept" ] && [ "${1:-}" != --keep ]; then
+      remove_folders
+      rm -f "$sdir/kept"
+    fi
+    return 0
+  fi
+  track
+  # The server hangs up the agent first, so that it can end in its own way.
+  case $backend in
+    tmux) [ -n "$sock" ] && tm kill-server >/dev/null 2>&1 ;;
+    pty) [ -n "$sock" ] && client stop >/dev/null 2>&1 ;;
+  esac
+  # shellcheck disable=SC2046
+  end_pids $(session_pids)
+  [ -n "$sock" ] && rm -rf "$(dirname "$sock")"
+  if [ "${1:-}" = --keep ]; then
+    : >"$sdir/kept"
+  else
+    remove_folders
+  fi
   : >"$sdir/stopped"
   echo "session: $name stopped"
 }
 
 do_stop() {
-  [ "$#" -eq 1 ] || usage
+  case $#:${2:-} in 1: | 2:--keep) ;; *) usage ;; esac
   if [ "$1" = --all ]; then
     for d in "$run"/sessions/*/; do
       [ -f "$d/backend" ] || continue
@@ -505,7 +519,7 @@ do_stop() {
     return 0
   fi
   open_session "$1"
-  stop_session
+  stop_session ${2:+"$2"}
 }
 
 [ "$#" -ge 1 ] || usage

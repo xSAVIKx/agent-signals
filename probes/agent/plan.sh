@@ -49,7 +49,9 @@ awk -F '\t' '
     [ -z "$why" ] || skip=" skip=$why"
     for b in $(echo "$blist" | tr ',' ' '); do
       case $backends in *" $b "*) ;; *) continue ;; esac
-      echo "step: $name@$b needs=$needs cost=$cost$skip measures=$measures"
+      c=$cost
+      [ "$home" != fixture ] || c=none
+      echo "step: $name@$b needs=$needs cost=$c$skip measures=$measures"
     done
   done
 exit 0

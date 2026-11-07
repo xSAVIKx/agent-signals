@@ -604,6 +604,10 @@ jobs:
           k plan --home fixture
           sed -n 's/^step: \([^ ]*\) needs=login [^ ]* measures=.*/\1/p' "$raw" >"$RUNNER_TEMP/fixture-steps.txt"
           echo "fixture steps in the plan: $(wc -l <"$RUNNER_TEMP/fixture-steps.txt" | tr -d ' ')"
+          # A green job must not hide a plan with no step.
+          if command -v codex >/dev/null && [ ! -s "$RUNNER_TEMP/fixture-steps.txt" ]; then
+            echo "no fixture step in the plan" >>"$RUNNER_TEMP/kit-failed.txt"
+          fi
           while read -r s; do
             if k step "$s" || [ "$rc" -eq 3 ]; then :; else echo "$s: exit $rc" >>"$RUNNER_TEMP/kit-failed.txt"; fi
           done <"$RUNNER_TEMP/fixture-steps.txt"
@@ -746,6 +750,10 @@ jobs:
           K plan --home fixture --python $py
           $steps = @(Get-Content $raw | ForEach-Object { if ($_ -match '^step: (\S+) needs=login ' -and $_ -notmatch ' skip=') { $Matches[1] } })
           Write-Output "fixture steps in the plan: $($steps.Count)"
+          # A green job must not hide a plan with no step.
+          if ($steps.Count -eq 0 -and (Get-Command codex -ErrorAction SilentlyContinue)) {
+            'no fixture step in the plan' | Out-File -FilePath (Join-Path $env:RUNNER_TEMP 'kit-failed.txt') -Append -Encoding utf8
+          }
           foreach ($s in $steps) {
             K step $s
             if ($script:rc -ne 0 -and $script:rc -ne 3) {

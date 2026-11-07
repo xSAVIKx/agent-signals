@@ -118,6 +118,22 @@ for via in tmux pty; do
   left=$(pids_run "$run")
   if [ -z "$left" ]; then pass "$via: no pid of pids/ runs after stop"; else fail "$via: no pid of pids/ runs after stop" "$left"; fi
 
+  # test_stop_keep: the folders stay for a new start, and a plain stop
+  # deletes them. A plain stop after --keep also works with no new start.
+  kit session start k1 stub --via "$via" --cmd "sh '$stub'" >"$T/out" 2>&1
+  kit session wait k1 'stub idle' 30 >>"$T/out" 2>&1
+  echo kept >"$run/work/k1/mark"
+  kit session stop k1 --keep >>"$T/out" 2>&1
+  expect_code "$via: stop --keep" 0 $?
+  if [ -f "$run/work/k1/mark" ]; then pass "$via: stop --keep keeps the work folder"; else fail "$via: stop --keep keeps the work folder" "gone"; fi
+  kit session start k1 stub --via "$via" --cmd "sh '$stub'" --keep >"$T/out" 2>&1
+  expect_code "$via: start --keep" 0 $?
+  if [ -f "$run/work/k1/mark" ]; then pass "$via: start --keep keeps the work folder"; else fail "$via: start --keep keeps the work folder" "gone"; fi
+  kit session stop k1 --keep >>"$T/out" 2>&1
+  kit session stop k1 >>"$T/out" 2>&1
+  expect_code "$via: a stop after --keep" 0 $?
+  if [ -e "$run/work/k1" ]; then fail "$via: a stop after --keep deletes the work folder" "it stays"; else pass "$via: a stop after --keep deletes the work folder"; fi
+
   # test_session_across_shells: each command in a new shell, with the run
   # found only from the file .agent-signals-run.
   mkdir "$T/cwd-$via"

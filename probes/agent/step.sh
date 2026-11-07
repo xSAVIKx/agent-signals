@@ -7,7 +7,7 @@
 #   KIT_RUN KIT_ROOT KIT_DIR KIT_STEP KIT_KIND KIT_AGENT KIT_BACKEND
 #   KIT_PROMPT KIT_WAIT_REGEX KIT_ANSWER KIT_PRE KIT_IDLE_REGEX
 #   KIT_BUSY_REGEX KIT_DIALOG_REGEX KIT_WINDOWS
-#   KIT_HOME (real or throwaway) and KIT_OUT (the raw output file).
+#   KIT_HOME (real, throwaway or fixture) and KIT_OUT (the raw output file).
 # ARGS go to the script. The script writes its output to KIT_OUT, and can
 # write one line of reason to KIT_OUT.reason. The reason keeps only the
 # characters a-z, 0-9, "." and "-"; each other character becomes "-". Its exit code: 0 ok, 1 fail,

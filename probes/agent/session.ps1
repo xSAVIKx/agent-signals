@@ -487,11 +487,12 @@ function Start-Session([string[]]$A) {
     $envAgent = Get-SessionEnv $mode $homeDir
     if ($mode -eq 'fixture' -and $agent -eq 'codex') {
         # fake-model.py needs only the standard library of Python.
-        $fakePy = $py
+        $fakePy = if ($py) { $py } else { Find-KitPython $run }
         if (-not $fakePy) { $fakePy = (Get-Command python -ErrorAction SilentlyContinue).Source }
         if (-not $fakePy) { Stop-Kit 3 'needs python' }
         $codexHome = Join-Path $homeDir '.codex'
-        $fakeArgs = '"{0}" --codex-home "{1}" --log "{2}"' -f (Join-Path $PSScriptRoot 'fake-model.py'), $codexHome, (Join-Path $dir 'fake-model.log')
+        $fakePid = Join-Path $dir 'fake-model.pid'
+        $fakeArgs = '"{0}" --codex-home "{1}" --log "{2}" --pid-file "{3}"' -f (Join-Path $PSScriptRoot 'fake-model.py'), $codexHome, (Join-Path $dir 'fake-model.log'), $fakePid
         $fake = Start-Process -FilePath $fakePy -ArgumentList $fakeArgs -PassThru -WindowStyle Hidden
         Add-SessionPid $run $dir $fake.Id "session $name fake model"
         $fakeEnd = (Get-Date).AddSeconds(30)
@@ -499,6 +500,9 @@ function Start-Session([string[]]$A) {
             if ((Get-Date) -gt $fakeEnd) { Stop-Kit 1 'the fake model did not start' }
             Start-Sleep -Milliseconds 100
         }
+        # The Python of a venv is a launcher: the server is its child.
+        $serverPid = [int](Get-Content -LiteralPath $fakePid -TotalCount 1)
+        if ($serverPid -ne $fake.Id) { Add-SessionPid $run $dir $serverPid "session $name fake model" }
         $envAgent['AGENT_SIGNALS_FAKE_KEY'] = 'dummy'
     }
     $tag = 'kit-' + $name + '-' + [guid]::NewGuid().ToString('N').Substring(0, 8)
@@ -646,6 +650,8 @@ function Stop-SessionDir([string]$Run, [string]$Dir) {
         for ($n = 0; $n -lt 10; $n++) {
             try { Remove-Item -Recurse -Force -LiteralPath $d -ErrorAction Stop; break } catch { Start-Sleep -Milliseconds 300 }
         }
+        # "kit check" fails on each file that stays.
+        if (Test-Path -LiteralPath $d) { Write-Output "session: $name left files in a folder" }
     }
     Write-State $Dir 'stopped' (Get-Date).ToUniversalTime().ToString('o')
     Write-Output "session: $name stopped"
@@ -678,7 +684,7 @@ switch ($sub) {
         if ($rest.Count -lt 2) { Show-Usage }
         $keys = @($rest | Select-Object -Skip 1)
         foreach ($k in $keys) {
-            if ($k -cnotmatch '^(Enter|Escape|Tab|BSpace|Up|Down|Left|Right|C-c|C-d|.)$') { Stop-Kit 2 "unknown key: $k" }
+            if ($k -cnotmatch '^(Enter|Escape|Tab|BSpace|Up|Down|Left|Right|C-c|C-d|C-u|.)$') { Stop-Kit 2 "unknown key: $k" }
         }
         $d = Get-Session $rest 2 -Running
         foreach ($k in $keys) { Send-ToSession $d 'key' $k }

@@ -156,6 +156,12 @@ and the manifest records it:
 - `--home throwaway`: a new, empty home folder. The kit copies no login
   into it. So only the steps with no login run there (`first-run`, and a
   step that uses an API key that the operator gives through a file).
+- `--home fixture`: for CI and for tests of the kit. A throwaway home, and
+  for Codex a local fake model (`probes/agent/fake-model.py`) with fixed
+  answers. The login steps of Codex run with the real Codex CLI, no login
+  and no cost. The manifest and each step file name the mode. These runs
+  show the screens and the files of the agent, not model behaviour. Claude
+  Code and the other agents skip with the reason `no-fixture`.
 
 The kit never copies a login file. The kit does not include `copy_login`.
 The current scenarios keep it for CI and the server only.

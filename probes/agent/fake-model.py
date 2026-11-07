@@ -6,7 +6,7 @@ no cost. It serves the Responses API on 127.0.0.1 with fixed answers. No model
 decides anything, so a fixture run measures the agent and its screens, not the
 behaviour of a model.
 
-Usage: fake-model.py --codex-home DIR --log FILE
+Usage: fake-model.py --codex-home DIR --log FILE [--pid-file FILE]
 
 It binds a free port, writes DIR/config.toml with that port, and serves until
 the kit stops it, or for 30 minutes at most. The file LOG gets one line for
@@ -198,6 +198,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--codex-home", required=True)
     parser.add_argument("--log", required=True)
+    parser.add_argument("--pid-file")
     args = parser.parse_args()
     Handler.log_file = open(args.log, "a", encoding="utf-8")
     server = Server(("127.0.0.1", 0), Handler)
@@ -205,6 +206,11 @@ def main():
     timer = threading.Timer(LIFETIME_S, os._exit, [0])
     timer.daemon = True
     timer.start()
+    if args.pid_file:
+        # A Python of a venv on Windows is a launcher with this process as a
+        # child. The kit must record this pid too.
+        with open(args.pid_file, "w", encoding="utf-8") as f:
+            f.write(str(os.getpid()))
     os.makedirs(args.codex_home, exist_ok=True)
     path = os.path.join(args.codex_home, "config.toml")
     with open(path + ".new", "w", encoding="utf-8", newline="\n") as f:
