@@ -14,7 +14,9 @@ _fail=0
 # this shell and the ps pipeline. A daemon of an agent (the Codex app-server,
 # fact 067) can outlive its session and keep its test home.
 _left() {
-  ps -A -o pid= -o args= 2>/dev/null | awk -v t="$T/" -v me="$$" 'index($0, t) && $1 != me && !/ps -A -o pid=/ { print $1 }'
+  # The folder goes through the environment: an argument of awk would put
+  # $T into the command line of awk, and ps can see awk (macOS).
+  ps -A -o pid= -o args= 2>/dev/null | LEFT_DIR="$T/" awk -v me="$$" 'index($0, ENVIRON["LEFT_DIR"]) && $1 != me { print $1 }'
 }
 # _cleanup: stop the background pids of the test and each process that still
 # names $T, delete $T, and fail the test when a process stayed.
