@@ -199,6 +199,30 @@ foreach ($b in 'conpty', 'psmux') {
             }
             Expect-Code "${b}: stop the .exe agent" 0 (Invoke-Kit 'session' 'stop' $s4)
             Expect-NoLivePids "${b}: no pid of the .exe agent runs after stop" $s4
+            # DIAGNOSTIC, to be removed: direct psmux variants.
+            if ($b -eq 'psmux') {
+                $px = (Get-Command psmux -CommandType Application).Source
+                $exe = Join-Path $exeBin 'claude.exe'
+                $cs = $env:ComSpec
+                $variants = @(
+                    @('k', @($cs, '/d', '/k', $exe)),
+                    @('c', @($cs, '/d', '/c', $exe)),
+                    @('one', @($exe)),
+                    @('sys', @($cs, '/d', '/c', (Join-Path $env:SystemRoot 'System32\cmd.exe'))),
+                    @('ping', @($cs, '/d', '/c', 'ping -n 30 127.0.0.1'))
+                )
+                foreach ($v in $variants) {
+                    $tag = "diag-$($v[0])"
+                    $a = @('-L', $tag, 'new-session', '-d', '-s', 'x', '-x', '120', '-y', '30', '--') + $v[1]
+                    $o = & $px @a 2>&1
+                    Write-Output "DIAG $($v[0]) new-session exit $LASTEXITCODE $o"
+                    Start-Sleep -Seconds 4
+                    $o = & $px -L $tag capture-pane -p -t x 2>&1
+                    Write-Output "DIAG $($v[0]) capture exit $LASTEXITCODE"
+                    $o | Where-Object { $_ -match '\S' } | ForEach-Object { Write-Output "DIAG $($v[0]) | $_" }
+                    $null = & $px -L $tag kill-server 2>&1
+                }
+            }
         } finally {
             $env:PATH = $savedPath
         }
