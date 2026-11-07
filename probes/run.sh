@@ -160,7 +160,7 @@ stop_file=
 # start_of PID: the start time of PID, in the form that kit_pid_start of
 # probes/agent/lib.sh writes in a pids/ file.
 start_of() {
-  ps -o lstart= -p "$1" 2>/dev/null | tr -s ' ' | sed 's/^ //; s/ $//'
+  LC_ALL=C ps -o lstart= -p "$1" 2>/dev/null | tr -s ' ' | sed 's/^ //; s/ $//'
 }
 
 # ours FILE PID: true when PID runs and has the start time in field 2 of

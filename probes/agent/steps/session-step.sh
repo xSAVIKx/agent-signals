@@ -204,7 +204,7 @@ pre_answer() {
 # of any line. Claude Code 2.1.318 shows a sent "/clear" on a line above the
 # box, and the path of the work folder of a new-chat step holds "/new" too.
 in_box() {
-  _re="(^|[[:space:]])$(kit_text_re "$2")[[:space:]]*\$"
+  _re="(^|[[:space:]]|$(printf '\302\240'))$(kit_text_re "$2")[[:space:]]*\$"
   _box=$(grep -E '^[[:space:]]*(❯|›|→|>)' "$1" | tail -n 1)
   if [ -n "$_box" ]; then
     printf '%s\n' "$_box" | grep -Eq -- "$_re"
@@ -407,7 +407,9 @@ broken() {
 # send TEXT: type TEXT and push Enter. Codex can keep the text in its box and
 # drop an Enter just after the first idle screen (fact 76). So the step waits
 # 2 s, and looks for the text at the start of a word on the screen. A plain
-# search finds "/new" in the path of the work folder. When the text is not
+# search finds "/new" in the path of the work folder. Claude Code puts a
+# no-break space (C2 A0) after its box mark while the box holds text, and
+# [[:space:]] does not match it in all locales. When the text is not
 # there, the step clears the box with C-u and types the text again, so that a
 # slow agent does not get it twice. It tries three times, then it presses
 # Enter. Then, when the screen shows the text and is not idle, busy or a
@@ -416,7 +418,7 @@ broken() {
 # matches with text in the box, so this rule never fires there.
 send() {
   sleep "$(clip 2)"
-  _want="(^|[[:space:]])$(kit_text_re "$(printf '%s' "$1" | cut -c1-24)")"
+  _want="(^|[[:space:]]|$(printf '\302\240'))$(kit_text_re "$(printf '%s' "$1" | cut -c1-24)")"
   _try=0
   _seen=
   while [ "$_try" -lt 3 ] && [ -z "$_seen" ]; do

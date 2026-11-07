@@ -65,7 +65,7 @@ kit_run_dir() {
 # kit_pid_start PID: the start time of the process, as ps prints it, with
 # the spaces squeezed. Empty when the process does not run.
 kit_pid_start() {
-  ps -o lstart= -p "$1" 2>/dev/null | tr -s ' ' | sed 's/^ //; s/ $//'
+  LC_ALL=C ps -o lstart= -p "$1" 2>/dev/null | tr -s ' ' | sed 's/^ //; s/ $//'
 }
 
 # kit_add_pid RUN PID LABEL: record a pid that the kit started, as the file

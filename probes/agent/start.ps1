@@ -74,7 +74,7 @@ Add-KitManifest $run @('meta', 'kit', (Get-KitVersion))
 Add-KitManifest $run @('meta', 'os', 'windows')
 Add-KitManifest $run @('meta', 'home', $homeMode)
 Add-KitManifest $run @('meta', 'unattended', $unattended)
-Add-KitManifest $run @('meta', 'start', $time)
+Add-KitManifest $run @('meta', 'start', (Get-KitIsoTime))
 # The path of the Python can hold the home folder, so it goes to
 # .kit\python, which the archive does not hold.
 if ($python) {

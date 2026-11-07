@@ -157,6 +157,13 @@ EOF
   expect_code "interrupt: the step exits 0" 0 $?
   expect_line "interrupt: the file has the busy screen" '^################ screen: busy$' "$run/$(last_file)"
   expect_line "interrupt: Escape stopped the work" '^interrupted$' "$run/$(last_file)"
+  # test_prompt_after_a_no_break_space: Claude Code puts a no-break space
+  # after its box mark. In the C locale, [[:space:]] does not match it.
+  stub_set STUB_NBSP=yes
+  (LC_ALL=C && export LC_ALL && kitx step "interrupt-claude@$ran") >"$T/step" 2>&1
+  expect_code "no-break space: the step exits 0" 0 $?
+  expect_no_line "no-break space: the step sees the prompt" 'the prompt is not on the screen' "$run/$(last_file)"
+  stub_set
   kitx step "resume-claude@$ran" >"$T/step" 2>&1
   expect_code "resume: the step exits 0" 0 $?
   expect_line "resume: the new start has the resume argument" '^continued$' "$run/$(last_file)"

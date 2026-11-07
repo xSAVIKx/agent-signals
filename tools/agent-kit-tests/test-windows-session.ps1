@@ -172,6 +172,40 @@ foreach ($b in 'conpty', 'psmux') {
         Expect-Code "${b}: a start reuses the name of a stopped session" 0 (Invoke-Kit 'session' 'start' $s 'claude' '--via' $b)
         Expect-Code "${b}: stop the reused session" 0 (Invoke-Kit 'session' 'stop' $s)
 
+        # test_one_word_exe_agent: claude, codex and agy install one .exe
+        # file. The test builds a small console program as claude.exe: it
+        # prints "stub exe idle" and waits for a line.
+        $exeBin = Join-Path $T "exe-bin-$b"
+        New-Item -ItemType Directory -Force -Path $exeBin | Out-Null
+        $stubExe = Join-Path $exeBin 'claude.exe'
+        $src = Join-Path $exeBin 'stub.cs'
+        [IO.File]::WriteAllText($src, 'public static class StubExe { public static void Main() { System.Console.WriteLine("stub exe idle"); while (System.Console.ReadLine() != null) { } } }')
+        $csc = Join-Path $env:SystemRoot 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
+        if (-not (Test-Path -LiteralPath $csc)) { $csc = Join-Path $env:SystemRoot 'Microsoft.NET\Framework\v4.0.30319\csc.exe' }
+        $null = & $csc /nologo /target:exe "/out:$stubExe" $src 2>&1
+        if (-not (Test-Path -LiteralPath $stubExe)) { throw "csc did not build $stubExe" }
+        $savedPath = $env:PATH
+        $env:PATH = $exeBin + ';' + $env:PATH
+        try {
+            $s4 = "exe-$b"
+            Expect-Code "${b}: start a one-word .exe agent" 0 (Invoke-Kit 'session' 'start' $s4 'claude' '--via' $b)
+            Get-Content -LiteralPath $out | Write-Output
+            $c = Invoke-Kit 'session' 'wait' $s4 'stub exe idle' '30'
+            Expect-Code "${b}: the .exe agent shows its text" 0 $c
+            if ($c -ne 0) {
+                # Show what the pane holds, and the state of the session.
+                Get-Content -LiteralPath $out | Write-Output
+                foreach ($k in 'last.screen', 'pids', 'pid', 'breakaway-error') {
+                    $p = Join-Path $run "sessions/$s4/$k"
+                    if (Test-Path -LiteralPath $p) { Write-Output "--- $k"; Get-Content -LiteralPath $p | Write-Output }
+                }
+            }
+            Expect-Code "${b}: stop the .exe agent" 0 (Invoke-Kit 'session' 'stop' $s4)
+            Expect-NoLivePids "${b}: no pid of the .exe agent runs after stop" $s4
+        } finally {
+            $env:PATH = $savedPath
+        }
+
         # The start returns when the caller reads the output through a pipe.
         $s2 = "piped-$b"
         $sec = Start-KitPiped 'session' 'start' $s2 'claude' '--via' $b

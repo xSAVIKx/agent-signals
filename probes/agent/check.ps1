@@ -149,7 +149,7 @@ $os = Get-KitOsInfo
 $homeMode = Get-KitMeta $run 'home'
 if (-not $homeMode) { $homeMode = 'real' }
 $start = Get-KitMeta $run 'start'
-$end = Get-KitTime
+$end = Get-KitIsoTime
 $orch = 'unknown'
 $dm = [regex]::Match((Read-KitText (Join-Path $run '00-doctor.txt')), '(?m)^orchestrator: (\S+)')
 if ($dm.Success) { $orch = $dm.Groups[1].Value }
@@ -158,7 +158,8 @@ if (-not $version) { $version = Get-KitVersion }
 
 $sl = @()
 foreach ($s in $steps) {
-    $sl += New-Object PSObject -Property ([ordered]@{ name = $s[1]; backend = $s[2]; result = $s[3]; start = $s[4]; end = $s[5]; file = $s[6]; sha256 = $s[7] })
+    $why = if ($s.Count -ge 9 -and $s[8] -ne '-') { $s[8] } else { $null }
+    $sl += New-Object PSObject -Property ([ordered]@{ name = $s[1]; backend = $s[2]; result = $s[3]; reason = $why; start = $s[4]; end = $s[5]; file = $s[6]; sha256 = $s[7] })
 }
 $el = @()
 foreach ($e in $edits) {
@@ -173,7 +174,13 @@ Write-KitText (Join-Path $run 'manifest.json') ((ConvertTo-Json -InputObject $j 
 
 $sum = New-Object System.Text.StringBuilder
 [void]$sum.AppendLine("kit $version on $($os.Os) ($($os.Cpu)), $($os.Version). Run from $start to $end ($homeMode).")
-foreach ($s in $steps) { [void]$sum.AppendLine("step: $($s[1])@$($s[2]) $($s[3])") }
+# The same lines as kit_summary in lib.sh: "NAME@BACKEND: RESULT REASON, FILE".
+foreach ($s in $steps) {
+    $l = "$($s[1])@$($s[2]): $($s[3])"
+    if ($s.Count -ge 9 -and $s[8] -and $s[8] -ne '-') { $l += " $($s[8])" }
+    if ($s[6] -ne '-') { $l += ", $($s[6])" }
+    [void]$sum.AppendLine($l)
+}
 foreach ($e in $edits) { [void]$sum.AppendLine("edit: $($e[1]) $($e[2])") }
 Write-KitText (Join-Path $run 'summary.txt') ($sum.ToString() -replace "`r`n", "`n")
 

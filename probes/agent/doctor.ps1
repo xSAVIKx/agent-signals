@@ -111,12 +111,12 @@ foreach ($v in 'WT_SESSION', 'WT_PROFILE_ID', 'TERM_PROGRAM', 'TERM_PROGRAM_VERS
 }
 if ($term -eq 0) { Add-Fact 'orchestrator_terminal: none' }
 
-$start = Get-KitTime
+$start = Get-KitIsoTime
 $text = ConvertTo-KitScrubbed (($lines -join "`n") + "`n")
 [Console]::Out.Write($text)
 if ($run) {
     $file = Join-Path $run '00-doctor.txt'
     Write-KitText $file $text
-    Add-KitManifest $run @('step', 'doctor', 'none', 'ok', $start, (Get-KitTime), '00-doctor.txt', (Get-KitSha256 $file))
+    Add-KitManifest $run @('step', 'doctor', 'none', 'ok', $start, (Get-KitIsoTime), '00-doctor.txt', (Get-KitSha256 $file), '-')
 }
 exit 0

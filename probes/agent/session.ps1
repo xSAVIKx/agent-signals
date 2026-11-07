@@ -472,7 +472,9 @@ function Start-Session([string[]]$A) {
         $psmux = Find-Psmux
         if (-not $psmux) { Stop-Kit 3 'needs psmux on PATH' }
     }
-    $argv = Get-AgentArgv $agent $cmd
+    # @() keeps a list of one item a list: PowerShell returns @($path) as
+    # one string, and $argv[0] would be its first character.
+    $argv = @(Get-AgentArgv $agent $cmd)
 
     if (Test-Path -LiteralPath $dir) {
         if (-not (Test-Path -LiteralPath (Join-Path $dir 'stopped'))) { Stop-Kit 2 "the session exists: $name" }
