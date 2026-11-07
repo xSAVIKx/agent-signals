@@ -455,6 +455,27 @@ session_pids() {
   done
 }
 
+# end_home_daemons: stop each process that runs a program from the
+# throwaway home of the session, $run/home/$name. Codex starts its
+# app-server daemon from HOME/.codex/packages/ in its own process group
+# (fact 067), so the group of the agent does not hold it. Each such process
+# was started by this session: the home is new and only the session uses
+# it. A real home is not in $run/home, so this never stops a daemon of the
+# operator.
+end_home_daemons() {
+  hd=${run:?}/home/$name/
+  [ -d "$hd" ] || return 0
+  hp=$(ps -A -o pid= -o args= 2>/dev/null | awk -v h="$hd" 'index($0, h) { print $1 }')
+  [ -n "$hp" ] || return 0
+  for p in $hp; do
+    echo "stop: $p daemon"
+    kill "$p" 2>/dev/null
+  done
+  sleep 1
+  for p in $hp; do kill -9 "$p" 2>/dev/null; done
+  return 0
+}
+
 # remove_folders: delete the work folder and the home of the session in sdir.
 remove_folders() {
   # Claude Code keeps task output outside HOME, in
@@ -496,6 +517,7 @@ stop_session() {
   esac
   # shellcheck disable=SC2046
   end_pids $(session_pids)
+  end_home_daemons
   [ -n "$sock" ] && rm -rf "$(dirname "$sock")"
   if [ "${1:-}" = --keep ]; then
     : >"$sdir/kept"

@@ -154,8 +154,25 @@ for via in tmux pty; do
   expect_line "$via: a throwaway home has its CLAUDE_CONFIG_DIR" "^CLAUDE_CONFIG_DIR=$run/home/s2/.claude\$" "$envf"
   expect_line "$via: TERM is xterm-256color" '^TERM=xterm-256color$' "$envf"
   expect_line "$via: the state has TERM" '^xterm-256color$' "$run/sessions/s2/term"
+  # A daemon that runs from the throwaway home outside the process group of
+  # the session, as the Codex app-server does (fact 067).
+  mkdir -p "$run/home/s2/.codex/packages"
+  printf 'sleep 300\n' >"$run/home/s2/.codex/packages/fake-daemon.sh"
+  sh "$run/home/s2/.codex/packages/fake-daemon.sh" </dev/null >/dev/null 2>&1 &
+  daemon=$!
   in_new_shell stop s2 >"$T/out" 2>&1
   expect_code "$via: stop across shells" 0 $?
+  sleep 1
+  # A stopped child of this shell stays a zombie until "wait", so look at
+  # its command line.
+  if ps -o args= -p "$daemon" 2>/dev/null | grep -q fake-daemon; then
+    fail "$via: stop ends a daemon of the throwaway home" "pid $daemon runs"
+    kill "$daemon" 2>/dev/null
+  else
+    pass "$via: stop ends a daemon of the throwaway home"
+  fi
+  wait "$daemon" 2>/dev/null
+  expect_line "$via: stop names the daemon" "^stop: $daemon daemon\$" "$T/out"
 
   # test_pty_has_no_tmux_env, and its control on tmux. The manifest line
   # "meta home real" keeps HOME at the real home.

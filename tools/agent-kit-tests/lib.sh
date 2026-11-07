@@ -10,11 +10,39 @@ T=$(mktemp -d)
 # A folder under $T is not in a git work tree, so a run folder there passes
 # the checks of kit start.
 _fail=0
-_cleanup() {
-  [ -f "$T/.pids" ] && while read -r p; do kill "$p" 2>/dev/null; done <"$T/.pids"
-  rm -rf "$T"
+# _left: the pids of the processes whose command line names $T, other than
+# this shell and the ps pipeline. A daemon of an agent (the Codex app-server,
+# fact 067) can outlive its session and keep its test home.
+_left() {
+  ps -A -o pid= -o args= 2>/dev/null | awk -v t="$T/" -v me="$$" 'index($0, t) && $1 != me && !/ps -A -o pid=/ { print $1 }'
 }
-trap _cleanup EXIT INT TERM
+# _cleanup: stop the background pids of the test and each process that still
+# names $T, delete $T, and fail the test when a process stayed.
+_cleanup() {
+  _rc=$?
+  [ -f "$T/.pids" ] && while read -r p; do kill "$p" 2>/dev/null; done <"$T/.pids"
+  # A stopped background pid can take a moment to end.
+  _n=0
+  _stay=$(_left)
+  while [ -n "$_stay" ] && [ "$_n" -lt 30 ]; do
+    sleep 0.1
+    _n=$((_n + 1))
+    _stay=$(_left)
+  done
+  if [ -n "$_stay" ]; then
+    echo "fail: a process of the test stayed after the test: $(echo $_stay | wc -w | tr -d ' ')"
+    ps -o pid= -o args= -p "$(echo $_stay | tr ' ' ',')" 2>/dev/null | cut -c1-160 | sed 's/^/  left: /'
+    for p in $_stay; do kill "$p" 2>/dev/null; done
+    sleep 1
+    for p in $_stay; do kill -9 "$p" 2>/dev/null; done
+    _rc=1
+  fi
+  rm -rf "$T"
+  exit "$_rc"
+}
+trap _cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # bg_pid PID: kill PID when the test file ends.
 bg_pid() { echo "$1" >>"$T/.pids"; }
