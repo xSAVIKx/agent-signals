@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.16.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.15.0...corpus-v0.16.0) (2026-11-07)
+
+
+### Features
+
+* **go:** add the fakemodel package and the agent-signals-fake-model command ([#106](https://github.com/xSAVIKx/agent-signals/issues/106)) ([ff12c2f](https://github.com/xSAVIKx/agent-signals/commit/ff12c2f6beee09c28d1fbd15eb06dd6b8fe08056))
+
+
+### Bug Fixes
+
+* **probes:** name the Cursor CLI cursor-agent in the kit ([#107](https://github.com/xSAVIKx/agent-signals/issues/107)) ([1e3a28e](https://github.com/xSAVIKx/agent-signals/commit/1e3a28e4ce49cf9bcf0531822dc8e074e2f8cea1))
+* **probes:** stop the daemons of a test home and fail a test that leaves a process ([#108](https://github.com/xSAVIKx/agent-signals/issues/108)) ([2cae610](https://github.com/xSAVIKx/agent-signals/commit/2cae610c28788028cb92730bf5bb88ffffdad0dc))
+
 ## [0.15.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.14.1...corpus-v0.15.0) (2026-11-07)
 
 

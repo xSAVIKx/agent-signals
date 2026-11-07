@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0](https://github.com/xSAVIKx/agent-signals/compare/go/v0.12.1...go/v0.13.0) (2026-11-07)
+
+
+### Features
+
+* **go:** add the fakemodel package and the agent-signals-fake-model command ([#106](https://github.com/xSAVIKx/agent-signals/issues/106)) ([ff12c2f](https://github.com/xSAVIKx/agent-signals/commit/ff12c2f6beee09c28d1fbd15eb06dd6b8fe08056))
+
 ## [0.12.1](https://github.com/xSAVIKx/agent-signals/compare/go/v0.12.0...go/v0.12.1) (2026-11-07)
 
 
