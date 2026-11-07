@@ -82,7 +82,7 @@ file in the current folder, and deletes the temporary folder.
 A guided step watches the agent folders while you do one action in an
 agent, for example a permission dialog. The step names are `permission`,
 `new-chat`, `resume`, `interrupt` and `front-tab`. The agent names are
-`claude`, `codex`, `agy`, `agent` (the Cursor CLI, also `cursor-agent`),
+`claude`, `codex`, `agy`, `cursor-agent` (the Cursor CLI, also `agent`),
 `opencode`, `copilot` and `gemini`.
 
 Read the scripts first if you want: [`probes/kit.sh`](probes/kit.sh) and
