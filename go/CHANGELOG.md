@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.1](https://github.com/xSAVIKx/agent-signals/compare/go/v0.12.0...go/v0.12.1) (2026-11-07)
+
+
+### Bug Fixes
+
+* **probes:** report a broken link in the layout instead of a shell error ([#102](https://github.com/xSAVIKx/agent-signals/issues/102)) ([e0b1671](https://github.com/xSAVIKx/agent-signals/commit/e0b1671056874a4782e607a6f2976dad90cae3d6))
+
 ## [0.12.0](https://github.com/xSAVIKx/agent-signals/compare/go/v0.11.0...go/v0.12.0) (2026-11-07)
 
 
