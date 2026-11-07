@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.12.1...corpus-v0.13.0) (2026-11-07)
+
+
+### Features
+
+* **probes:** add the fixture home mode with a fake model for Codex ([#96](https://github.com/xSAVIKx/agent-signals/issues/96)) ([72b89ae](https://github.com/xSAVIKx/agent-signals/commit/72b89aeca4c11109edf5accdd9864ea398c9be75))
+
 ## [0.12.1](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.12.0...corpus-v0.12.1) (2026-11-07)
 
 
