@@ -77,13 +77,13 @@ file in the current folder, and deletes the temporary folder.
 |---|---|
 | macOS, Linux | `curl -fsSL https://xsavikx.github.io/agent-signals/kit.sh \| sh` |
 | Windows (PowerShell) | `irm https://xsavikx.github.io/agent-signals/kit.ps1 \| iex` |
-| A guided step (macOS, Linux) | `curl -fsSL https://xsavikx.github.io/agent-signals/kit.sh \| sh -s -- --guided permission cursor` |
+| A guided step (macOS, Linux) | `curl -fsSL https://xsavikx.github.io/agent-signals/kit.sh \| sh -s -- --guided permission agent` |
 
 A guided step watches the agent folders while you do one action in an
 agent, for example a permission dialog. The step names are `permission`,
 `new-chat`, `resume`, `interrupt` and `front-tab`. The agent names are
-`claude`, `codex`, `agy`, `cursor` (the Cursor CLI, `agent` or
-`cursor-agent`), `opencode`, `copilot` and `gemini`.
+`claude`, `codex`, `agy`, `agent` (the Cursor CLI, also `cursor-agent`),
+`opencode`, `copilot` and `gemini`.
 
 Read the scripts first if you want: [`probes/kit.sh`](probes/kit.sh) and
 [`probes/kit.ps1`](probes/kit.ps1). Read the file that the kit writes
