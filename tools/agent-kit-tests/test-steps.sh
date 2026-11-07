@@ -189,12 +189,16 @@ EOF
   done
 fi
 
-# An agent with no measured screens skips before it starts a session.
+# An agent with no measured screens skips before it starts a session. The
+# copy of the kit gives the Cursor permission step no idle regex.
 printf '#!/bin/sh\nexit 0\n' >"$B/cursor-agent"
 chmod +x "$B/cursor-agent"
-kitx step permission-cursor@tmux >"$T/step" 2>&1
-expect_code "cursor skips" 3 $?
-expect_line "cursor skips as unmeasured" '^step: permission-cursor@tmux skip unmeasured$' "$T/step"
+kit_copy "$T/ku"
+awk -F '\t' 'BEGIN { OFS = "\t" } /^name\t/ { for (i = 1; i <= NF; i++) if ($i == "idle_regex") c = i }
+  c && $1 == "permission-cursor" { $c = "-" } { print }' "$ROOT/probes/agent/steps.tsv" >"$T/ku/probes/agent/steps.tsv"
+KITSH=$T/ku/probes/agent/kit.sh kitx step permission-cursor@tmux >"$T/step" 2>&1
+expect_code "unmeasured: the step skips" 3 $?
+expect_line "unmeasured: the reason is unmeasured" '^step: permission-cursor@tmux skip unmeasured$' "$T/step"
 
 # The new options of the guided step.
 sh "$ROOT/probes/run.sh" --guided permission claude --scope-new relative/path >"$T/o" 2>&1 </dev/null

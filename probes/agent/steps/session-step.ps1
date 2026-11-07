@@ -91,7 +91,7 @@ if ($prompt.StartsWith('/')) { $sendKey = 'Enter' }
 $pre = @()
 foreach ($p in ((Get-Field 'pre') -split ';;')) {
     $i = $p.IndexOf('=>')
-    if ($i -gt 0) { $pre += New-Object PSObject -Property @{ Re = $p.Substring(0, $i); Keys = @($p.Substring($i + 2) -split ' ' | Where-Object { $_ }); Used = $false } }
+    if ($i -gt 0) { $pre += New-Object PSObject -Property @{ Re = $p.Substring(0, $i); Keys = @($p.Substring($i + 2) -split ' ' | Where-Object { $_ }); Used = 0; At = [datetime]::MinValue } }
 }
 # Get-Limit SECONDS: a time limit. AGENT_SIGNALS_WATCH makes it shorter.
 function Get-Limit([int]$Seconds) {
@@ -247,24 +247,40 @@ function Send-Prompt {
 }
 # Send-Pre: send the keys of the first "pre" pair that matches the screen
 # and has no use yet. It returns true when it sent keys.
+# Send-Pre: send the keys of the first "pre" pair that matches a line of the
+# screen. A pair that still matches 2 s after its keys gets them again, 3
+# times at most: a key that comes before the agent reads keys is lost.
 function Send-Pre {
     foreach ($p in $pre) {
-        if ($p.Used -or -not (Test-Line $sc $p.Re)) { continue }
-        $p.Used = $true
+        if ($p.Used -ge 3 -or ((Get-Date) - $p.At).TotalSeconds -lt 2 -or -not (Test-Line $sc $p.Re)) { continue }
+        $p.Used++
+        $p.At = Get-Date
         Add-Log "pre: $($p.Re) => $($p.Keys -join ' ')"
         Send-Keys $p.Keys
         return $true
     }
     return $false
 }
+# Test-InBox TEXT: TEXT is at the end of the box line, the last line of the
+# screen that starts with a prompt mark (U+276F, U+203A, U+2192 or >). With
+# no such line, at the end of any line. Claude Code 2.1.318 shows a sent
+# "/clear" on a line above the box.
+function Test-InBox([string]$Text) {
+    $lines = @($sc -split "`r?`n")
+    $box = @($lines | Where-Object { $_ -match ('^\s*(' + [char]0x276F + '|' + [char]0x203A + '|' + [char]0x2192 + '|>)') })
+    if ($box.Count -gt 0) { $lines = @($box[-1]) }
+    $re = '(^|\s)' + [regex]::Escape($Text) + '\s*$'
+    foreach ($l in $lines) { if ($l -match $re) { return $true } }
+    return $false
+}
 # Wait-Idle SECONDS [TEXT]: answer the "pre" pairs and wait for the idle
-# screen. With TEXT, the screen must not show TEXT.
+# screen. With TEXT, the box line must not show TEXT (Test-InBox).
 function Wait-Idle([int]$Seconds, [string]$Text) {
     $end = (Get-Date).AddSeconds((Get-Clip $Seconds))
     while ($true) {
         if (-not (Test-Alive)) { Stop-Step 'agent-ended' }
         Update-Screen
-        if (-not (Send-Pre) -and (Test-Idle $sc) -and -not ($Text -and $sc.Contains($Text))) { return $true }
+        if (-not (Send-Pre) -and (Test-Idle $sc) -and -not ($Text -and (Test-InBox $Text))) { return $true }
         if ((Get-Date) -ge $end) { return $false }
         Start-Sleep -Milliseconds 500
     }

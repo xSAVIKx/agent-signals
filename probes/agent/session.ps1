@@ -362,7 +362,16 @@ function Find-Psmux {
 function Get-AgentArgv([string]$Agent, [string]$Cmd) {
     $ps = (Get-Process -Id $PID).Path
     if ($Cmd) { return @($ps, '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $Cmd) }
-    $g = Get-Command $Agent -ErrorAction SilentlyContinue | Where-Object { $_.CommandType -in 'Application', 'ExternalScript' } | Select-Object -First 1
+    # The command names of the agent come from lib.ps1: the Cursor CLI is
+    # cursor-agent or agent, not "cursor".
+    $names = if ($script:KitAgentCommands.Contains($Agent)) { @($script:KitAgentCommands[$Agent]) } else { @($Agent) }
+    $g = $null
+    foreach ($n in $names) {
+        $g = Get-Command $n -ErrorAction SilentlyContinue | Where-Object { $_.CommandType -in 'Application', 'ExternalScript' } | Select-Object -First 1
+        # "agent" is the Cursor CLI only in a cursor-agent folder.
+        if ($g -and $n -eq 'agent' -and $g.Source -notmatch '(?i)cursor-agent') { $g = $null }
+        if ($g) { break }
+    }
     if (-not $g) { Stop-Kit 3 "not installed: $Agent" }
     $path = $g.Source
     $ext = [IO.Path]::GetExtension($path).ToLowerInvariant()
@@ -485,25 +494,29 @@ function Start-Session([string[]]$A) {
     Write-State $dir 'work' $work
     [IO.File]::WriteAllText((Join-Path $dir 'pids'), '', $Utf8)
     $envAgent = Get-SessionEnv $mode $homeDir
-    if ($mode -eq 'fixture' -and $agent -eq 'codex') {
+    if ($mode -eq 'fixture' -and -not (Get-KitLoginSkip 'fixture' 'login' $agent)) {
         # fake-model.py needs only the standard library of Python.
         $fakePy = if ($py) { $py } else { Find-KitPython $run }
         if (-not $fakePy) { $fakePy = (Get-Command python -ErrorAction SilentlyContinue).Source }
         if (-not $fakePy) { Stop-Kit 3 'needs python' }
-        $codexHome = Join-Path $homeDir '.codex'
         $fakePid = Join-Path $dir 'fake-model.pid'
-        $fakeArgs = '"{0}" --codex-home "{1}" --log "{2}" --pid-file "{3}"' -f (Join-Path $PSScriptRoot 'fake-model.py'), $codexHome, (Join-Path $dir 'fake-model.log'), $fakePid
+        $fakeEnv = Join-Path $dir 'fake-model.env'
+        $fakeArgs = '"{0}" --agent {1} --home "{2}" --env-file "{3}" --log "{4}" --pid-file "{5}"' -f (Join-Path $PSScriptRoot 'fake-model.py'), $agent, $homeDir, $fakeEnv, (Join-Path $dir 'fake-model.log'), $fakePid
         $fake = Start-Process -FilePath $fakePy -ArgumentList $fakeArgs -PassThru -WindowStyle Hidden
         Add-SessionPid $run $dir $fake.Id "session $name fake model"
         $fakeEnd = (Get-Date).AddSeconds(30)
-        while (-not (Test-Path -LiteralPath (Join-Path $codexHome 'config.toml') -PathType Leaf)) {
+        # fake-model.py writes the file of variables after the settings files.
+        while (-not (Test-Path -LiteralPath $fakeEnv -PathType Leaf)) {
             if ((Get-Date) -gt $fakeEnd) { Stop-Kit 1 'the fake model did not start' }
             Start-Sleep -Milliseconds 100
         }
         # The Python of a venv is a launcher: the server is its child.
         $serverPid = [int](Get-Content -LiteralPath $fakePid -TotalCount 1)
         if ($serverPid -ne $fake.Id) { Add-SessionPid $run $dir $serverPid "session $name fake model" }
-        $envAgent['AGENT_SIGNALS_FAKE_KEY'] = 'dummy'
+        foreach ($line in [IO.File]::ReadAllLines($fakeEnv)) {
+            $i = $line.IndexOf('=')
+            if ($i -gt 0) { $envAgent[$line.Substring(0, $i)] = $line.Substring($i + 1) }
+        }
     }
     $tag = 'kit-' + $name + '-' + [guid]::NewGuid().ToString('N').Substring(0, 8)
 

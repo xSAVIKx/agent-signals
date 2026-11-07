@@ -259,13 +259,17 @@ kit_json() {
 kit_text_re() { printf '%s' "$1" | sed 's/[][\.*^$+?(){}|]/\\&/g'; }
 
 # kit_login_skip HOME NEEDS AGENT: print the reason why a step does not run
-# in the home mode HOME, or nothing. The fixture mode has a fake model for
-# Codex only (fake-model.py).
+# in the home mode HOME, or nothing. The fixture mode has a fake model
+# (fake-model.py) for Codex, Claude Code, agy and the Cursor CLI.
 kit_login_skip() {
   [ "$2" = login ] || return 0
   case $1:$3 in
     throwaway:*) echo no-login ;;
-    fixture:codex) ;;
+    fixture:codex | fixture:claude | fixture:agy) ;;
+    # The Cursor CLI on macOS saves its login in the keychain, which a
+    # throwaway home does not isolate: a fixture run would write a fake
+    # token over the real login (fact 78).
+    fixture:cursor) [ "$(uname -s)" != Darwin ] || echo no-fixture ;;
     fixture:*) echo no-fixture ;;
   esac
 }

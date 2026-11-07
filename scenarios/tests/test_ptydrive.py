@@ -66,6 +66,21 @@ class SameRenderAsConpty(unittest.TestCase):
         self.assertEqual(got, ["\x1b[3;4R", "\x1b[?6c", "\x1b[0n"])
 
 
+class AlternateScreen(unittest.TestCase):
+    # agy 1.5.1 shows its trust question on the alternate screen (fact 77).
+    def test_exit_restores_the_main_screen(self):
+        data = "main\r\n\x1b[?1049h\x1b[Hdialog\x1b[?1049lbox"
+        self.assertEqual(pty_screen_of(data, 20, 3).splitlines()[:2], ["main", "box"])
+
+    def test_alternate_screen_starts_empty(self):
+        data = "main\x1b[?1049h\x1b[Hdialog"
+        self.assertEqual(pty_screen_of(data, 20, 3).splitlines()[0], "dialog")
+
+    def test_mode_47_keeps_the_cursor(self):
+        data = "ab\x1b[?47h\x1b[2;1Hx\x1b[?47lc"
+        self.assertEqual(pty_screen_of(data, 20, 3).splitlines()[:2], ["ab", " c"])
+
+
 class Keys(unittest.TestCase):
     def test_tmux_names(self):
         self.assertEqual(ptydrive.key_bytes("Enter"), b"\r")

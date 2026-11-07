@@ -33,6 +33,7 @@ go into the folder of the socket and use its short name.
 """
 
 import codecs
+import copy
 import fcntl
 import json
 import os
@@ -219,6 +220,35 @@ if pyte is not None:
         def reset(self):
             self.wrapped = frozenset()
             super().reset()
+
+        # The alternate screen (private modes 47, 1047 and 1049), as in
+        # tmux: the program draws on an empty screen, and at the exit the
+        # main screen comes back. pyte 0.8.2 has no alternate screen, so the
+        # rows of the alternate screen stayed on the main screen. agy 1.5.1
+        # shows its trust question on the alternate screen (fact 77).
+        _saved_main = None
+
+        def set_mode(self, *modes, **kwargs):
+            super().set_mode(*modes, **kwargs)
+            if kwargs.get("private") and self._saved_main is None and \
+                    any(m in (47, 1047, 1049) for m in modes):
+                self._saved_main = (copy.deepcopy(self.buffer), copy.copy(self.cursor), self.wrapped)
+                self.wrapped = frozenset()
+                self.buffer.clear()
+                self.dirty.update(range(self.lines))
+
+        def reset_mode(self, *modes, **kwargs):
+            super().reset_mode(*modes, **kwargs)
+            if kwargs.get("private") and self._saved_main is not None and \
+                    any(m in (47, 1047, 1049) for m in modes):
+                buf, cursor, wrapped = self._saved_main
+                self._saved_main = None
+                self.buffer.clear()
+                self.buffer.update(buf)
+                if 1049 in modes:
+                    self.cursor = cursor
+                self.wrapped = wrapped
+                self.dirty.update(range(self.lines))
 
         def write_process_input(self, data):
             if self.reply is not None:

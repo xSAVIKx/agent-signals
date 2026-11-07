@@ -93,16 +93,17 @@ add_pid() {
   printf '%s %s\n' "$1" "$(cat "$run/pids/$1")" >>"$sdir/pids"
 }
 
-# start_fake_model HOME: start fake-model.py for Codex, and wait for the
-# config file that it writes in the throwaway home.
+# start_fake_model AGENT HOME: start fake-model.py for AGENT, and wait for
+# the file of variables that it writes after the settings files in HOME.
 start_fake_model() {
   command -v python3 >/dev/null 2>&1 || kit_die 3 "needs python3"
-  rm -f "$1/.codex/config.toml"
-  python3 "$KIT_DIR/fake-model.py" --codex-home "$1/.codex" --log "$sdir/fake-model.log" \
+  rm -f "$sdir/fake-model.env"
+  python3 "$KIT_DIR/fake-model.py" --agent "$1" --home "$2" --env-file "$sdir/fake-model.env" \
+    --log "$sdir/fake-model.log" \
     </dev/null >/dev/null 2>&1 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- &
   add_pid "$!" "session $name fake model"
   _n=0
-  while [ ! -f "$1/.codex/config.toml" ]; do
+  while [ ! -f "$sdir/fake-model.env" ]; do
     [ "$_n" -lt 300 ] || kit_die 1 "the fake model did not start"
     _n=$((_n + 1))
     sleep 0.1
@@ -292,9 +293,11 @@ do_start() {
   # Claude Code keeps its settings in CLAUDE_CONFIG_DIR. On macOS its login
   # is in the Keychain, which a throwaway home does not isolate.
   [ "$mode" = real ] || set -- "$@" CLAUDE_CONFIG_DIR="$h/.claude"
-  if [ "$mode" = fixture ] && [ "$agent" = codex ]; then
-    start_fake_model "$h"
-    set -- "$@" AGENT_SIGNALS_FAKE_KEY=dummy
+  if [ "$mode" = fixture ] && [ -z "$(kit_login_skip fixture login "$agent")" ]; then
+    start_fake_model "$agent" "$h"
+    while IFS= read -r kv; do
+      set -- "$@" "$kv"
+    done <"$sdir/fake-model.env"
   fi
   sockdir=$(mktemp -d /tmp/as.XXXXXX) || kit_die 1 "mktemp failed"
   chmod 700 "$sockdir"

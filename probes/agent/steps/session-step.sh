@@ -9,7 +9,8 @@
 #   1. Start a session of the agent with "kit session start" in a new work
 #      folder.
 #   2. Answer the screens before the idle screen with the KIT_PRE pairs
-#      (REGEX=>KEYS;;...). Each pair is used one time at most. Wait for the
+#      (REGEX=>KEYS;;...). A pair is used again only while its REGEX still
+#      matches, 2 s after the last use, 3 times at most. Wait for the
 #      idle screen (60 s). The screen is idle when a line matches
 #      KIT_IDLE_REGEX, and no line matches KIT_BUSY_REGEX or
 #      KIT_DIALOG_REGEX.
@@ -164,7 +165,11 @@ watching() { [ -n "$watch" ] && kill -0 "$watch" 2>/dev/null; }
 # agent ended and 3 when no screen came. "bad" ends the step for 2 and 3.
 
 # pre_answer FILE: send the keys of the first KIT_PRE pair that matches a
-# line of FILE and has no use yet. It fails when no pair matches.
+# line of FILE. A pair that still matches 2 s after its keys gets them again,
+# 3 times at most: a key that comes before the agent reads keys is lost
+# (Claude Code 2.1.318 on ubuntu-26.04 in CI). Each REGEX matches only the
+# selected line, so the match ends when the key works. It fails when no pair
+# can send keys.
 used=
 pre_answer() {
   [ -n "${KIT_PRE:-}" ] || return 1
@@ -174,11 +179,15 @@ pre_answer() {
     _pair=${_rest%%;;*}
     case $_rest in *';;'*) _rest=${_rest#*;;} ;; *) _rest= ;; esac
     _n=$((_n + 1))
-    case " $used " in *" $_n "*) continue ;; esac
+    _c=$(printf '%s\n' $used | grep -c "^$_n:")
+    [ "$_c" -lt 3 ] || continue
+    _now=$(date +%s)
+    _t=$(printf '%s\n' $used | sed -n "s/^$_n://p" | tail -n 1)
+    [ -z "$_t" ] || [ $((_now - _t)) -ge 2 ] || continue
     _k=${_pair#*=>}
     if has "${_pair%%=>*}" "$1"; then
       say "pre answer $_n: $_k"
-      used="$used $_n"
+      used="$used $_n:$_now"
       keys "$_k"
       return 0
     fi
@@ -186,18 +195,30 @@ pre_answer() {
   return 1
 }
 
+# in_box FILE TEXT: TEXT is at the end of the box line, the last line that
+# starts with a prompt mark (❯, ›, → or >). With no such line, at the end
+# of any line. Claude Code 2.1.318 shows a sent "/clear" on a line above the
+# box, and the path of the work folder of a new-chat step holds "/new" too.
+in_box() {
+  _re="(^|[[:space:]])$(kit_text_re "$2")[[:space:]]*\$"
+  _box=$(grep -E '^[[:space:]]*(❯|›|→|>)' "$1" | tail -n 1)
+  if [ -n "$_box" ]; then
+    printf '%s\n' "$_box" | grep -Eq -- "$_re"
+  else
+    grep -Eq -- "$_re" "$1"
+  fi
+}
+
 # wait_idle SECONDS FILE [TEXT]: answer the KIT_PRE pairs and wait for the
-# idle screen. With TEXT, the screen must not show TEXT. FILE gets the last
-# screen.
+# idle screen. With TEXT, the box line must not show TEXT (in_box). FILE
+# gets the last screen.
 wait_idle() {
   _end=$(($(date +%s) + $(clip "$1")))
   while :; do
     alive || { screen "$2"; return 2; }
     screen "$2" || return 3
     if ! pre_answer "$2" && is_idle "$2"; then
-      # The text counts only at the end of a line: the path of the work
-      # folder of a new-chat step holds "/new" too.
-      [ -n "${3:-}" ] && grep -Eq -- "(^|[[:space:]])$(kit_text_re "$3")[[:space:]]*\$" "$2" || return 0
+      [ -n "${3:-}" ] && in_box "$2" "$3" || return 0
     fi
     [ "$(date +%s)" -lt "$_end" ] || return 1
     sleep 1

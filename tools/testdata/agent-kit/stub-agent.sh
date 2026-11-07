@@ -31,7 +31,7 @@
 #   STUB_WELCOME=TEXT  the idle screen shows TEXT, as a welcome box does.
 #   STUB_EXIT=yes      the stub stops at a prompt.
 #   STUB_BUSY=no       "Count ..." does not make the stub busy.
-#   STUB_KEEP=yes      "/clear" stays on the screen.
+#   STUB_KEEP=yes      "/clear" stays in the box after Enter.
 #   STUB_LOSE=N        the stub drops the first N characters of input, as an
 #                      agent that redraws its box after the idle screen.
 #   STUB_TRUST=yes     start with a trust question, with the selection on
@@ -196,11 +196,14 @@ while :; do
             Count*) [ "${STUB_BUSY:-}" = no ] || state=busy ;;
             /clear)
               note="cleared"
-              [ "${STUB_KEEP:-}" = yes ] && note=/clear
               ;;
             *) note= ;;
           esac
-          buf=
+          if [ "${STUB_KEEP:-}" = yes ] && [ "$buf" = /clear ]; then
+            note=
+          else
+            buf=
+          fi
           ;;
         "$esc") buf='' note='' ;;
         "$nak") buf= ;;
