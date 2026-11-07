@@ -172,6 +172,25 @@ foreach ($b in 'conpty', 'psmux') {
         Expect-Code "${b}: a start reuses the name of a stopped session" 0 (Invoke-Kit 'session' 'start' $s 'claude' '--via' $b)
         Expect-Code "${b}: stop the reused session" 0 (Invoke-Kit 'session' 'stop' $s)
 
+        # test_one_word_exe_agent: claude, codex and agy install one .exe
+        # file. A copy of cmd.exe as claude.exe is such an agent: with no
+        # argument it shows a prompt and waits.
+        $exeBin = Join-Path $T "exe-bin-$b"
+        New-Item -ItemType Directory -Force -Path $exeBin | Out-Null
+        Copy-Item -LiteralPath (Join-Path $env:SystemRoot 'System32\cmd.exe') -Destination (Join-Path $exeBin 'claude.exe')
+        $savedPath = $env:PATH
+        $env:PATH = $exeBin + ';' + $env:PATH
+        try {
+            $s4 = "exe-$b"
+            Expect-Code "${b}: start a one-word .exe agent" 0 (Invoke-Kit 'session' 'start' $s4 'claude' '--via' $b)
+            Get-Content -LiteralPath $out | Write-Output
+            Expect-Code "${b}: the .exe agent shows its prompt" 0 (Invoke-Kit 'session' 'wait' $s4 '>' '30')
+            Expect-Code "${b}: stop the .exe agent" 0 (Invoke-Kit 'session' 'stop' $s4)
+            Expect-NoLivePids "${b}: no pid of the .exe agent runs after stop" $s4
+        } finally {
+            $env:PATH = $savedPath
+        }
+
         # The start returns when the caller reads the output through a pipe.
         $s2 = "piped-$b"
         $sec = Start-KitPiped 'session' 'start' $s2 'claude' '--via' $b
