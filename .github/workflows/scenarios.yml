@@ -19,8 +19,9 @@
 # kit-no-login and kit-no-login-windows use no secret. They install the
 # agents of the kit, run "kit start --home throwaway", "kit doctor", each
 # first-run-* step that "kit plan" lists, and "kit check". Then they run the
-# login steps of Codex in a second run with "--home fixture": a local fake
-# model (probes/agent/fake-model.py) answers, with no login and no cost.
+# login steps of Codex, Claude Code and agy in a second run with "--home
+# fixture": a local fake model (probes/agent/fake-model.py) answers, with no
+# login and no cost.
 #
 # kit-login (Linux and macOS) and kit-login-windows use the API keys of
 # docs/ci-secrets.md. They run only on the main branch: on the schedule, or
@@ -499,7 +500,8 @@ jobs:
           - macos-15-intel
           - macos-26-intel
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    # The fixture steps take about 35 min on macOS Intel.
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -522,8 +524,10 @@ jobs:
       - name: Add the user folders to PATH
         run: echo "$HOME/.local/bin" >>"$GITHUB_PATH"
       # The agents of steps.tsv, with the install commands of
-      # scenarios.yml. The kit has no install of agy. A failed install
-      # skips that agent: the plan then has no step for it.
+      # scenarios.yml. agy has the install command of
+      # https://antigravity.google/docs/getting-started?tab=cli: it puts agy
+      # in ~/.local/bin and takes no version. A failed install skips that
+      # agent: the plan then has no step for it.
       - name: Install Claude Code
         continue-on-error: true
         run: npm install -g @anthropic-ai/claude-code >"$RUNNER_TEMP/install-claude.txt" 2>&1
@@ -533,6 +537,9 @@ jobs:
       - name: Install Cursor CLI
         continue-on-error: true
         run: curl -fsS https://cursor.com/install | bash >"$RUNNER_TEMP/install-cursor.txt" 2>&1
+      - name: Install agy
+        continue-on-error: true
+        run: curl -fsSL https://antigravity.google/cli/install.sh | bash >"$RUNNER_TEMP/install-agy.txt" 2>&1
       - name: Install output (scrubbed)
         if: always()
         run: |
@@ -586,8 +593,8 @@ jobs:
           path: ${{ runner.temp }}/kit/agent-signals-run-*.tar.gz
           retention-days: 7
           if-no-files-found: warn
-      # The login steps of Codex with the fake model: a real Codex, no login,
-      # no network, no cost. The run records the home mode "fixture".
+      # The login steps of Codex, Claude Code and agy with the fake model:
+      # the real agent, no login, no model on the network, no cost. The run records the home mode "fixture".
       - name: Run the kit with the fake model
         id: fixture
         if: always() && env.KIT_RUN == '1'
@@ -600,12 +607,17 @@ jobs:
             sh tools/scrub.sh "$raw" 2>/dev/null
             return "$rc"
           }
+          # macOS: a throwaway home does not isolate the keychain (fact 78).
+          # The item names before and after the run show if an agent saved
+          # a login there. "security" prints no secret without -d.
+          kc() { security dump-keychain 2>/dev/null | sed -n 's/^ *"svce"<blob>="\(.*\)"$/\1/p' | sort -u; }
+          if [ "$RUNNER_OS" = macOS ]; then kc >"$RUNNER_TEMP/keychain-before.txt"; fi
           k start --home fixture --out "$out"
           k plan --home fixture
           sed -n 's/^step: \([^ ]*\) needs=login [^ ]* measures=.*/\1/p' "$raw" >"$RUNNER_TEMP/fixture-steps.txt"
           echo "fixture steps in the plan: $(wc -l <"$RUNNER_TEMP/fixture-steps.txt" | tr -d ' ')"
           # A green job must not hide a plan with no step.
-          if command -v codex >/dev/null && [ ! -s "$RUNNER_TEMP/fixture-steps.txt" ]; then
+          if { command -v codex || command -v claude || command -v agy; } >/dev/null && [ ! -s "$RUNNER_TEMP/fixture-steps.txt" ]; then
             echo "no fixture step in the plan" >>"$RUNNER_TEMP/kit-failed.txt"
           fi
           while read -r s; do
@@ -613,6 +625,15 @@ jobs:
           done <"$RUNNER_TEMP/fixture-steps.txt"
           k session stop --all || true
           k check
+          if [ "$RUNNER_OS" = macOS ]; then
+            kc >"$RUNNER_TEMP/keychain-after.txt"
+            new=$(comm -13 "$RUNNER_TEMP/keychain-before.txt" "$RUNNER_TEMP/keychain-after.txt")
+            echo "keychain items before: $(wc -l <"$RUNNER_TEMP/keychain-before.txt" | tr -d ' '), new: $(printf '%s' "$new" | grep -c . || true)"
+            if [ -n "$new" ]; then
+              printf '%s\n' "$new" | sed 's/^/new keychain item: /'
+              echo "a fixture run wrote to the keychain" >>"$RUNNER_TEMP/kit-failed.txt"
+            fi
+          fi
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: steps.fixture.outcome == 'success'
         with:
@@ -659,6 +680,17 @@ jobs:
       - name: Install the agents
         shell: pwsh
         run: ./scenarios/install-windows-agents.ps1 -Group a
+      # The agy install command of
+      # https://antigravity.google/docs/getting-started?tab=cli. It puts agy
+      # in %LOCALAPPDATA%\agy\bin and takes no version.
+      - name: Install agy
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:RUNNER_TEMP 'install-agy.txt'
+          & { irm https://antigravity.google/cli/install.ps1 | iex } *> $log
+          Join-Path $env:LOCALAPPDATA 'agy\bin' | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          & pwsh -NoProfile -File tools/scrub.ps1 -Path $log 2>$null | Select-Object -Last 5
       - name: Run the kit
         shell: pwsh
         run: |

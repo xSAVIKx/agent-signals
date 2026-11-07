@@ -22,7 +22,7 @@ adds one.
 | `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY` | Claude Code | the permission scenario on macOS runners | The variable names are not checked in CI. |
 | `OPENAI_API_KEY` | Codex CLI | the approval scenarios; the scenario runs `codex login --with-api-key` in the throwaway `HOME` | from `codex login --help` |
 | `CURSOR_API_KEY` | Cursor CLI | all Cursor model scenarios, on the Linux server too: it has no Cursor login | from `cursor-agent --help` |
-| none known | agy | agy logs in with OAuth in a browser. No key login was found. Its scenarios run only on a machine with a login. | open |
+| none known | agy | agy logs in with OAuth in a browser. No key login was found. Its scenarios run only on a machine with a login. The kit fixture uses the gateway variables `AGY_LLM_GATEWAY_URL` and `AGY_LLM_GATEWAY_API_KEY` with a fake model (fact 77). | open |
 | provider keys | opencode | not checked | open |
 
 ## The agent kit workflow
