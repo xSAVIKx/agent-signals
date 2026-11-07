@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.7.1](https://github.com/xSAVIKx/agent-signals/compare/python-v0.7.0...python-v0.7.1) (2026-11-07)
+
+
+### Bug Fixes
+
+* **probes:** report a broken link in the layout instead of a shell error ([#102](https://github.com/xSAVIKx/agent-signals/issues/102)) ([e0b1671](https://github.com/xSAVIKx/agent-signals/commit/e0b1671056874a4782e607a6f2976dad90cae3d6))
+
+
+### Documentation
+
+* **facts:** add facts 80 and 81, the macOS procStart form and the Cursor worker process ([#100](https://github.com/xSAVIKx/agent-signals/issues/100)) ([42dd9f2](https://github.com/xSAVIKx/agent-signals/commit/42dd9f2dd6d01fe4e80343ae73b62016442e549a))
+
 ## [0.7.0](https://github.com/xSAVIKx/agent-signals/compare/python-v0.6.0...python-v0.7.0) (2026-11-07)
 
 
