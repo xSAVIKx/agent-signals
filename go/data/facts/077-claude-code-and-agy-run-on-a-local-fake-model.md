@@ -45,8 +45,16 @@ machine.
    `"enterpriseOnboardingComplete": true`. With that file, a new home
    showed only the trust question. `jetski_state.pbtxt`, `settings.json`
    and `AGY_CLI_THEME` did not stop the menu.
-7. The kit ran the steps permission, new-chat, resume and interrupt of both
-   agents on the fake model, on tmux and on pty. RESULTS.
+7. agy shows the trust question on the alternate screen: it sends
+   `ESC[?1049h` at the start and `ESC[?1049l` after the answer. The pty
+   backend of the kit (pyte 0.8.2) had no alternate screen, so the trust
+   question stayed above the idle box, and the four agy steps on pty failed
+   with `no-idle`. `probes/agent/ptydrive.py` now keeps the main screen and
+   gives it back, as tmux does.
+8. The kit ran the steps permission, new-chat, resume and interrupt of
+   Codex 0.167.0, Claude Code and agy on the fake model, on tmux and on pty.
+   All 24 steps gave `ok`, and `kit check` gave `ok`. The agy steps on pty
+   ran in a second run, after the change of item 7.
 
 ## Mechanism
 
