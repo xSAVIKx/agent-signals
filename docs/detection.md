@@ -38,7 +38,7 @@ this repository run `--version`; the agent kit doctor will not.
 | Skip | `claude --chrome-native-host`: no tty, no pid file. | fact 066 |
 | Skip | A psmux pane shell whose command line holds a `claude` function. Match the program, not the command line. | fact 070 |
 | Link | `~/.claude/sessions/<pid>.json` names the pid. Check that the pid lives and that `procStart` matches, because stale files stay. | facts 023, 066 |
-| Link | aw compares `procStart` with the start time of the process on Linux and on Windows (the Windows file-time form matches). On macOS no form matched yet, so aw checks the pid only there. The kit prints the candidate forms on macOS (`probes/claude/unix.sh`); a run on a real Mac is open. | aw v0.42.0 |
+| Link | Compare `procStart` with the start time of the process. On Linux and on Windows aw does this (the Windows file-time form matches). On macOS `procStart` is the start time in UTC, in the form `%a %b %e %H:%M:%S %Y`: use `TZ=UTC ps -o lstart=` and remove trailing spaces. | aw v0.42.0, fact 080 |
 | Link | A `.key` file with no `.json` file: the trust question waits, or the process has just started. | fact 023 |
 | Link | On Linux, the open task folder `/tmp/claude-<uid>/<key>/<session id>/tasks`. Not on macOS. | facts 025, 066 |
 | Link | Two pid files with one session ID (a resume): the live file with the matching start wins, then the later start, then the later status time. | aw |
