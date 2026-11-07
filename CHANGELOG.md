@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.1](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.16.0...corpus-v0.16.1) (2026-11-07)
+
+
+### Bug Fixes
+
+* **probes:** fixes from the unattended runs of 0.16.0 ([#110](https://github.com/xSAVIKx/agent-signals/issues/110)) ([c3758dc](https://github.com/xSAVIKx/agent-signals/commit/c3758dce81679765ce35475634b93cb7efeba014))
+
 ## [0.16.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.15.0...corpus-v0.16.0) (2026-11-07)
 
 

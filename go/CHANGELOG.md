@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.1](https://github.com/xSAVIKx/agent-signals/compare/go/v0.13.0...go/v0.13.1) (2026-11-07)
+
+
+### Bug Fixes
+
+* **probes:** fixes from the unattended runs of 0.16.0 ([#110](https://github.com/xSAVIKx/agent-signals/issues/110)) ([c3758dc](https://github.com/xSAVIKx/agent-signals/commit/c3758dce81679765ce35475634b93cb7efeba014))
+
 ## [0.13.0](https://github.com/xSAVIKx/agent-signals/compare/go/v0.12.1...go/v0.13.0) (2026-11-07)
 
 
