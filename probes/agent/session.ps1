@@ -560,8 +560,14 @@ function Start-Session([string[]]$A) {
         # word through the shell of the pane. So one program runs through
         # cmd.exe. The session inside the private server is "kit", as in
         # session.sh.
+        # psmux does not search PATH for the program of a command with two
+        # or more words, so cmd.exe goes with its full path, as in
+        # Get-AgentArgv.
         $tail = $argv
-        if ($argv.Count -eq 1) { $tail = @('cmd.exe', '/d', '/c', $argv[0]) }
+        if ($argv.Count -eq 1) {
+            $comspec = if ($env:ComSpec) { $env:ComSpec } else { Join-Path $env:SystemRoot 'System32\cmd.exe' }
+            $tail = @($comspec, '/d', '/c', $argv[0])
+        }
         $list = @('-L', $tag, 'new-session', '-d', '-s', 'kit', '-x', "$Cols", '-y', "$Rows", '-c', $work, '--') + $tail
         $s = Start-KitDetached $psmux $list $work $envPsmux 30
         Write-State $dir 'breakaway' $(if ($s.Breakaway) { 'yes' } else { 'no' })
