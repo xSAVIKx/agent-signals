@@ -50,6 +50,10 @@ Read the scripts first if you want: [`probes/kit.sh`](probes/kit.sh) and
 [`probes/kit.ps1`](probes/kit.ps1). The kit only reads. Read the file that
 it writes before you send it.
 
+An agent on the machine can also run the kit for you: it runs each step,
+drives test sessions of the other agents, and checks the files. Give it the
+prompt in [the task for an agent that runs the kit](tasks/run-the-kit-as-an-agent.md).
+
 ## What is in the repository
 
 | Path | Content |

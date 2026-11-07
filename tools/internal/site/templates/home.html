@@ -1,6 +1,14 @@
 {{define "home.html"}}<h1>{{.Doc.Title}}</h1>
 <p class="lead">{{.Doc.Lead}}</p>
 {{.Intro}}
+<h2 id="let-an-agent-run-the-kit">Let an agent run the kit</h2>
+<p>Paste this prompt into an agent on the machine, for example Claude Code or Codex CLI. The agent gets the kit, runs each step of the plan, starts test sessions of the other agents, and checks the files. It asks you before each step that needs you, and it gives you the path of one archive to send.</p>
+<div class="prompt-box">
+<p class="prompt"><code id="agent-prompt">Read https://xsavikx.github.io/agent-signals/tasks/run-the-kit-as-an-agent.md and do the task. Ask me before each step that needs me.</code></p>
+<p class="prompt-actions"><button type="button" class="copy-prompt" data-copy="agent-prompt" aria-describedby="copy-prompt-status" hidden>Copy the prompt</button>
+<span id="copy-prompt-status" class="copy-md-status" role="status"></span></p>
+</div>
+<p>The agent follows <a href="{{rel .Out "tasks/run-the-kit-as-an-agent.html"}}">the task file for an agent that runs the kit</a>. Read it first if you want.</p>
 <h2 id="three-kinds-of-signals">Three kinds of signals</h2>
 <ul class="cards">
 <li class="card">

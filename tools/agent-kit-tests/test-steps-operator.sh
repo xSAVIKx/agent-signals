@@ -119,6 +119,7 @@ for p in scenarios/lib.sh scenarios/first-run.sh scenarios/conpty.py scenarios/f
   probes/agent/steps/first-run.sh probes/agent/steps/real-session.sh; do
   expect_file "the kit has $p" "$K/$p"
 done
+if cmp -s "$ROOT/tasks/run-the-kit-as-an-agent.md" "$K/AGENTS.md"; then pass "AGENTS.md of the kit is the task file"; else fail "AGENTS.md of the kit is the task file" "it differs or is missing"; fi
 # The control: the work tree defines copy_login, so the search can find it.
 expect_line "the control: scenarios/login.sh defines copy_login" '^copy_login\(\)' "$ROOT/scenarios/login.sh"
 

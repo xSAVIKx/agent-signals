@@ -21,6 +21,7 @@ Each job has a task file. Follow the task file step by step.
 | Job | Task file |
 |---|---|
 | Run the probe kit on a real machine and send the file | `tasks/run-the-kit.md` |
+| Run the agent kit as the orchestrator: steps, test sessions and checks | `tasks/run-the-kit-as-an-agent.md` |
 | Write a fact from probe or scenario output | `tasks/write-a-fact.md` |
 | Add a probe for a new agent or a new OS | `tasks/add-a-probe.md` |
 | Add an agent to the roadmap, the probes and CI | `tasks/add-an-agent.md` |
