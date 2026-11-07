@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.1](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.12.0...corpus-v0.12.1) (2026-11-07)
+
+
+### Bug Fixes
+
+* **probes:** use the newer run pointer ([#94](https://github.com/xSAVIKx/agent-signals/issues/94)) ([6f4b8dc](https://github.com/xSAVIKx/agent-signals/commit/6f4b8dc23e872b7a1bfe50a6c26a6d3174543d8b))
+
 ## [0.12.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.11.0...corpus-v0.12.0) (2026-11-07)
 
 
