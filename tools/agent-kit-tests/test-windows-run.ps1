@@ -174,10 +174,15 @@ Expect-Kit 'check passes a clean run' 0 'check'
 Expect-Line 'check prints ok' '^check: ok$' $out
 Expect-Line 'check prints the archive' '^archive: .*\.zip$' $out
 $summary = Join-Path $run 'summary.txt'
-Expect-Line 'the first line of the summary' '^kit \S+ on windows \((x86_64|arm64)\), .+\. Run from [0-9]{8}T[0-9]{6}Z to [0-9]{8}T[0-9]{6}Z \(real\)\.$' $summary
+Expect-Line 'the first line of the summary' '^kit \S+ on windows \((x86_64|arm64)\), .+\. Run from [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z to [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z \(real\)\.$' $summary
+# test_summary_lines_as_on_unix: "NAME@BACKEND: RESULT REASON, FILE".
+Expect-Line 'the summary has the probe line' '^probe@none: ok, 01-probe@none\.txt$' $summary
+Expect-Line 'the summary has the reason of a skip' '^permission-claude@conpty: skip needs-conpty-python, \S+\.txt$' $summary
+Expect-Line 'the manifest has the reason column' "^step`tpermission-claude`tconpty`tskip`t[0-9-]+T[0-9:]+Z`t[0-9-]+T[0-9:]+Z`t\S+`t[0-9a-f]{64}`tneeds-conpty-python$" (Join-Path $run 'manifest.tsv')
 try {
     $j = Get-Content -Raw -LiteralPath (Join-Path $run 'manifest.json') | ConvertFrom-Json
     if (@($j.steps).Count -eq 4) { Pass 'manifest.json has the steps' } else { Fail 'manifest.json has the steps' "$(@($j.steps).Count) steps" }
+    if (@($j.steps | Where-Object { $_.reason -eq 'needs-conpty-python' }).Count -eq 1) { Pass 'manifest.json has the reason' } else { Fail 'manifest.json has the reason' 'no step with the reason needs-conpty-python' }
 } catch { Fail 'manifest.json parses' $_.Exception.Message }
 $zip = "$run.zip"
 Add-Type -AssemblyName System.IO.Compression.FileSystem

@@ -108,7 +108,8 @@ $endS = 20
 $log = New-Object System.Text.StringBuilder
 $t0 = Get-Date
 $deadline = $t0.AddSeconds(225)
-function Add-Log([string]$Text) { [void]$log.Append(('t={0:N1}s {1}' -f ((Get-Date) - $t0).TotalSeconds, $Text) + "`n") }
+# The invariant culture writes "t=11.8s", also where the decimal mark is a comma.
+function Add-Log([string]$Text) { [void]$log.Append([string]::Format([Globalization.CultureInfo]::InvariantCulture, 't={0:N1}s {1}', ((Get-Date) - $t0).TotalSeconds, $Text) + "`n") }
 $screens = New-Object System.Collections.ArrayList
 $blankValues = @()
 function Add-Screen([string]$Name, [string]$Text) {

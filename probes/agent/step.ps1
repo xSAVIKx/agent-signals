@@ -57,7 +57,7 @@ New-Item -ItemType Directory -Force -Path $raw | Out-Null
 # All raw files of the step start with "$base.": KIT_OUT, KIT_OUT.reason,
 # the console files and the work folders of the step script.
 $kitOut = Join-Path $raw "$base.out"
-$start = Get-KitTime
+$start = Get-KitIsoTime
 $code = 3
 $reason = ''
 $console = ''
@@ -107,7 +107,8 @@ try {
     }
     if (-not $text.Trim()) { $text = "result: $result $reason".TrimEnd() + "`n" }
     Write-KitText $file (ConvertTo-KitScrubbed $text)
-    Add-KitManifest $run @('step', $name, $backend, $result, $start, (Get-KitTime), "$base.txt", (Get-KitSha256 $file))
+    $why = if ($reason) { $reason } else { '-' }
+    Add-KitManifest $run @('step', $name, $backend, $result, $start, (Get-KitIsoTime), "$base.txt", (Get-KitSha256 $file), $why)
 } finally {
     # Delete the raw files of this step, also after an error.
     foreach ($x in @(Get-ChildItem -LiteralPath $raw -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name.StartsWith("$base.") })) {

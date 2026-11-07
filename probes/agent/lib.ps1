@@ -146,6 +146,12 @@ function Get-KitTime {
     return (Get-Date).ToUniversalTime().ToString("yyyyMMdd'T'HHmmss'Z'")
 }
 
+# Get-KitIsoTime: the UTC time in the form 2026-11-01T15:38:47Z, as kit_now
+# in lib.sh. The manifest uses this form.
+function Get-KitIsoTime {
+    return (Get-Date).ToUniversalTime().ToString("yyyy'-'MM'-'dd'T'HH':'mm':'ss'Z'", [Globalization.CultureInfo]::InvariantCulture)
+}
+
 # Get-KitSha256 FILE: the SHA-256 of the file, in lower case.
 function Get-KitSha256([string]$File) {
     return (Get-FileHash -Algorithm SHA256 -LiteralPath $File).Hash.ToLowerInvariant()
