@@ -1,0 +1,26 @@
+schema: 1
+agent: codex
+agent_version: 0.164.0
+measured: 2026-11-07
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - the kit removed the spaces at the end of each line
+  - the kit removed the empty lines at the end of the pane
+description: >-
+  The update dialog of Codex CLI 0.164.0 when 0.167.0 is out. It shows
+  before the input box, at each start in the real home of the operator.
+  The mark starts on "1. Update now", which runs the install script. The
+  footer is "enter continue · esc skip". Measured by the agent kit 0.16.0
+  (step permission-codex@tmux, home real, unattended) on macOS 26.6.2
+  (arm64). The 16 Codex session steps of the run, on tmux and pty, all
+  saved the same screen. The screen holds no path.
+expect:
+  state: NO_BOX
+  dialog: none
+  options:
+    - {n: 1, label: "Update now (runs `sh -c 'curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh'`)", selected: true}
+    - {n: 2, label: "Skip"}
+    - {n: 3, label: "Skip until next version"}
+facts: [83]
