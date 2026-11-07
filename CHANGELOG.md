@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.15.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.14.1...corpus-v0.15.0) (2026-11-07)
+
+
+### Features
+
+* **probes:** add an unattended run and the agent prompt on the home page ([#104](https://github.com/xSAVIKx/agent-signals/issues/104)) ([e134d09](https://github.com/xSAVIKx/agent-signals/commit/e134d09bd7e6b3a89bbbdf5a84bbac28861ea1d2))
+
+
+### Bug Fixes
+
+* **probes:** add the broken-link change to the layout helper ([#103](https://github.com/xSAVIKx/agent-signals/issues/103)) ([e66f6db](https://github.com/xSAVIKx/agent-signals/commit/e66f6dbd0585515d36dc3bcac55564ba7d8319ad))
+
 ## [0.14.1](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.14.0...corpus-v0.14.1) (2026-11-07)
 
 
