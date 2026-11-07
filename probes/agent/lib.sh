@@ -50,7 +50,8 @@ kit_os() {
 # equal times, the file in the current folder wins. With no run, it exits 2.
 kit_run_dir() {
   _r=${AGENT_SIGNALS_RUN:-}
-  if [ -z "$_r" ] && [ -r .agent-signals-run ] && ! [ "$KIT_ROOT/.agent-signals-run" -nt .agent-signals-run ]; then
+  if [ -z "$_r" ] && [ -r .agent-signals-run ] &&
+    [ -z "$(find "$KIT_ROOT/.agent-signals-run" -newer .agent-signals-run 2>/dev/null)" ]; then
     _r=$(head -n 1 .agent-signals-run)
   fi
   if [ -z "$_r" ] && [ -r "$KIT_ROOT/.agent-signals-run" ]; then
