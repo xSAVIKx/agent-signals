@@ -141,7 +141,8 @@ cat >"$T/k/probes/agent/steps/probe.sh" <<'EOF'
 #!/bin/sh
 echo "fake probe" >"$KIT_OUT"
 EOF
-(cd "$T/r" && HOME=$H kitc "$T/k" step probe) >"$T/out" 2>&1
+# The start in "$T/m" is newer, so this test names the run.
+(cd "$T/r" && HOME=$H AGENT_SIGNALS_RUN=$run2 kitc "$T/k" step probe) >"$T/out" 2>&1
 expect_code "a step with one backend runs with no @" 0 $?
 expect_file "the next step has the next number" "$run2/05-probe@none.txt"
 

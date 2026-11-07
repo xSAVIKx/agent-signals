@@ -30,8 +30,8 @@ function Get-KitVersion {
 }
 
 # Get-KitRunDir: the full path of the current run folder. It reads, in
-# this order: $env:AGENT_SIGNALS_RUN, the file .agent-signals-run in the
-# current folder, the file .agent-signals-run in the kit root, as
+# this order: $env:AGENT_SIGNALS_RUN, then the newer of the two files
+# .agent-signals-run in the current folder and in the kit root, as
 # kit_run_dir of lib.sh does. kit start writes both files. With no run, it
 # exits 2.
 function Get-KitRunDir {
@@ -46,7 +46,13 @@ function Get-KitRunDir {
 # with letters outside ASCII works also in Windows PowerShell 5.1.
 function Get-KitRunPointer {
     if ($env:AGENT_SIGNALS_RUN) { return $env:AGENT_SIGNALS_RUN }
-    foreach ($f in @('.agent-signals-run', (Join-Path $script:KitRoot '.agent-signals-run'))) {
+    $files = @('.agent-signals-run', (Join-Path $script:KitRoot '.agent-signals-run'))
+    # A file can stay from an earlier run, so the newer file comes first.
+    if ((Test-Path -LiteralPath $files[0] -PathType Leaf) -and (Test-Path -LiteralPath $files[1] -PathType Leaf) -and
+        ((Get-Item -LiteralPath $files[1]).LastWriteTimeUtc -gt (Get-Item -LiteralPath $files[0]).LastWriteTimeUtc)) {
+        [array]::Reverse($files)
+    }
+    foreach ($f in $files) {
         if (Test-Path -LiteralPath $f -PathType Leaf) {
             $l = ([IO.File]::ReadAllText((Resolve-Path -LiteralPath $f).ProviderPath, (New-Object System.Text.UTF8Encoding $false)) -split "`r?`n")[0].Trim()
             if ($l) { return $l }

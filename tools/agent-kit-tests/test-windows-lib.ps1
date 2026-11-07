@@ -91,4 +91,28 @@ $null = Invoke-Expression $hint.Replace('<sid>', $me)
 $sids = @(Get-AclSids $d)
 Expect-True 'the hint works' ($sids -notcontains 'S-1-5-11' -and $sids -notcontains 'S-1-5-32-545' -and $sids -contains $me) ($sids -join ' ')
 
+# The newer run pointer wins.
+$pd = Join-Path $T 'pointers'
+$pk = Join-Path $pd 'kit'
+New-Item -ItemType Directory -Path $pk | Out-Null
+$cwdFile = Join-Path $pd '.agent-signals-run'
+$kitFile = Join-Path $pk '.agent-signals-run'
+[IO.File]::WriteAllText($cwdFile, "cwd-run`n")
+[IO.File]::WriteAllText($kitFile, "kit-run`n")
+$keepRoot = $script:KitRoot
+$keepRun = $env:AGENT_SIGNALS_RUN
+$script:KitRoot = $pk
+$env:AGENT_SIGNALS_RUN = ''
+Push-Location $pd
+(Get-Item -LiteralPath $cwdFile).LastWriteTimeUtc = [datetime]'2020-01-01'
+(Get-Item -LiteralPath $kitFile).LastWriteTimeUtc = [datetime]'2021-01-01'
+$got = Get-KitRunPointer
+Expect-True 'an old pointer in the current folder loses' ($got -eq 'kit-run') $got
+(Get-Item -LiteralPath $cwdFile).LastWriteTimeUtc = [datetime]'2022-01-01'
+$got = Get-KitRunPointer
+Expect-True 'a newer pointer in the current folder wins' ($got -eq 'cwd-run') $got
+Pop-Location
+$script:KitRoot = $keepRoot
+$env:AGENT_SIGNALS_RUN = $keepRun
+
 Complete-Tests
