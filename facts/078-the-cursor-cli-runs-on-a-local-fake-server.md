@@ -46,7 +46,10 @@ Measured on: real machine.
 8. The idle box shows `→ Plan, search, build anything` before the first
    turn and `→ Add a follow-up` after it. The busy screen shows
    `ctrl+c to stop`.
-9. RESULTS.
+9. The kit ran the Cursor steps permission, new-chat, resume and
+   interrupt on the fake server, on tmux and on pty. All 8 steps gave `ok`,
+   and `kit check` gave `ok`. The permission step answers the dialog with
+   Esc, then Enter on the empty line of item 5.
 
 ## Mechanism
 
