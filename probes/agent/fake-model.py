@@ -38,7 +38,14 @@ The answer depends on the last user message of a request with tools:
   "Create a file"  a shell command that needs an approval, then a text reply
                    after the tool result
   "Count from"     no reply: the turn stays busy until the client ends it
+  "Let me choose"  Claude Code: an AskUserQuestion call with the options "Red"
+                   and "Blue", then a text reply after the answer. The other
+                   agents: the reply of the next line.
+  "End your reply with a question"
+                   a text reply that ends with a question
   other text       a text reply
+The Go package github.com/xSAVIKx/agent-signals/go/fakemodel gives the same
+answers.
 A request with no tools (a title or a summary) gets a text reply.
 
 The standard library only: this file runs on each OS of the kit.
@@ -65,6 +72,18 @@ AGY_MODEL = "fixture-model"
 COMMAND = "touch agent-signals-test.txt"
 TEXT = "The fixture has no more to say."
 TOOL_DONE = "The fixture finished the tool call."
+QUESTION = "The fixture has one question. Do you want to go on?"
+CLAUDE_CHOICE = {
+    "questions": [{
+        "question": "Which color do you like?",
+        "header": "Color",
+        "options": [
+            {"label": "Red", "description": "The color red."},
+            {"label": "Blue", "description": "The color blue."},
+        ],
+        "multiSelect": False,
+    }],
+}
 
 # No "model" line: a name that this Codex version does not know makes it swap
 # the model at start, and the swap loses a prompt.
@@ -103,13 +122,18 @@ def sse(event, data):
 
 
 def classify(text, has_tools):
-    """Return "tool", "hold" or "text" for the last user text."""
+    """Return "tool", "hold", "choice", "question" or "text" for the last
+    user text."""
     if not has_tools:
         return "text"
     if "Count from" in text:
         return "hold"
     if "Create a file" in text:
         return "tool"
+    if "Let me choose" in text:
+        return "choice"
+    if "End your reply with a question" in text:
+        return "question"
     return "text"
 
 
@@ -149,6 +173,8 @@ def codex_answer(body):
             "name": "exec_command",
             "arguments": json.dumps(args),
         }]
+    if kind in ("choice", "question"):
+        return [codex_text(QUESTION)]
     return [codex_text(TEXT)]
 
 
@@ -189,6 +215,11 @@ def claude_answer(body):
             isinstance(c, dict) and c.get("type") == "tool_result" for c in content):
         return "text", TOOL_DONE
     kind = classify(text_of(content), bool(body.get("tools")))
+    names = [t.get("name") for t in body.get("tools") or [] if isinstance(t, dict)]
+    if kind == "choice" and "AskUserQuestion" not in names:
+        return "question", QUESTION
+    if kind == "question":
+        return kind, QUESTION
     return kind, TEXT
 
 
@@ -199,6 +230,13 @@ def claude_blocks(kind, text):
             "id": "toolu_fixture",
             "name": "Bash",
             "input": {"command": COMMAND, "description": "Create the test file"},
+        }], "tool_use"
+    if kind == "choice":
+        return [{
+            "type": "tool_use",
+            "id": "toolu_fixture_choice",
+            "name": "AskUserQuestion",
+            "input": CLAUDE_CHOICE,
         }], "tool_use"
     return [{"type": "text", "text": text}], "end_turn"
 
@@ -249,6 +287,8 @@ def agy_answer(body):
     if last.get("role") == "tool":
         return "text", TOOL_DONE
     kind = classify(text_of(last.get("content")), bool(body.get("tools")))
+    if kind in ("choice", "question"):
+        return "question", QUESTION
     return kind, TEXT
 
 
@@ -652,6 +692,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     send(cursor_shell(cwd))
                     self.cursor_wait(take, send)
                     send(cursor_text(TOOL_DONE))
+                elif kind in ("choice", "question"):
+                    send(cursor_text(QUESTION))
                 else:
                     send(cursor_text(TEXT))
                 send(CURSOR_CHECKPOINT)

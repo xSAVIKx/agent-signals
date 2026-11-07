@@ -118,6 +118,14 @@ expect_no_line "claude: a request with no tools gets no call" 'tool_use' "$T/rep
 post2 /v1/messages "{\"stream\": true, $tools, \"messages\": [{\"role\": \"user\", \"content\": \"Count from 1 to 300.\"}]}"
 expect_line "claude: a long prompt holds the turn" ' hold$' "$T/claude.log"
 expect_no_line "claude: a long prompt gets no end" 'message_stop' "$T/reply"
+ask='"tools": [{"name": "Bash"}, {"name": "AskUserQuestion"}]'
+post2 /v1/messages "{\"stream\": true, $ask, \"messages\": [{\"role\": \"user\", \"content\": \"Let me choose red or blue.\"}]}"
+expect_line "claude: a choice prompt gets an AskUserQuestion call" '"name": "AskUserQuestion"' "$T/reply"
+expect_line "claude: the choice has the option Red" 'label.*Red' "$T/reply"
+post2 /v1/messages "{\"stream\": true, $tools, \"messages\": [{\"role\": \"user\", \"content\": \"Let me choose red or blue.\"}]}"
+expect_line "claude: a choice with no question tool gets a question" 'Do you want to go on\?' "$T/reply"
+post2 /v1/messages "{\"stream\": true, $tools, \"messages\": [{\"role\": \"user\", \"content\": \"End your reply with a question.\"}]}"
+expect_line "claude: a question prompt gets a question" 'Do you want to go on\?' "$T/reply"
 post2 /v1/messages/count_tokens '{}'
 expect_line "claude: count_tokens gets a count" 'input_tokens' "$T/reply"
 expect_no_line "claude: the log holds no prompt text" 'Create a file|Count from' "$T/claude.log"
