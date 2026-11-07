@@ -34,6 +34,8 @@
 #   STUB_KEEP=yes      "/clear" stays in the box after Enter.
 #   STUB_LOSE=N        the stub drops the first N characters of input, as an
 #                      agent that redraws its box after the idle screen.
+#   STUB_NBSP=yes      the box line is "❯", a no-break space and the text,
+#                      as Claude Code draws it while the box holds text.
 #   STUB_TRUST=yes     start with a trust question, with the selection on
 #                      "No, exit". Down moves the selection to "Yes, I
 #                      trust this folder". Enter on Yes goes to idle, Enter
@@ -95,7 +97,11 @@ draw() {
       printf 'stub idle\r\n'
       [ -n "${STUB_WELCOME:-}" ] && printf '%s\r\n' "$STUB_WELCOME"
       [ -n "$note" ] && printf '%s\r\n' "$note"
-      printf '\r\n> %s\r\n? for shortcuts' "$buf"
+      if [ "${STUB_NBSP:-}" = yes ] && [ -n "$buf" ]; then
+        printf '\r\n\342\235\257\302\240%s\r\n? for shortcuts' "$buf"
+      else
+        printf '\r\n> %s\r\n? for shortcuts' "$buf"
+      fi
       ;;
   esac
 }
