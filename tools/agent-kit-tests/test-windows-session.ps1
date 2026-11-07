@@ -173,19 +173,27 @@ foreach ($b in 'conpty', 'psmux') {
         Expect-Code "${b}: stop the reused session" 0 (Invoke-Kit 'session' 'stop' $s)
 
         # test_one_word_exe_agent: claude, codex and agy install one .exe
-        # file. A copy of cmd.exe as claude.exe is such an agent: with no
-        # argument it shows a prompt and waits.
+        # file. The test builds a small console program as claude.exe: it
+        # prints "stub exe idle" and waits for a line.
         $exeBin = Join-Path $T "exe-bin-$b"
         New-Item -ItemType Directory -Force -Path $exeBin | Out-Null
-        Copy-Item -LiteralPath (Join-Path $env:SystemRoot 'System32\cmd.exe') -Destination (Join-Path $exeBin 'claude.exe')
+        $exe = Join-Path $exeBin 'claude.exe'
+        Add-Type -OutputType ConsoleApplication -OutputAssembly $exe -TypeDefinition @'
+public static class StubExe {
+    public static void Main() {
+        System.Console.WriteLine("stub exe idle");
+        while (System.Console.ReadLine() != null) { }
+    }
+}
+'@
         $savedPath = $env:PATH
         $env:PATH = $exeBin + ';' + $env:PATH
         try {
             $s4 = "exe-$b"
             Expect-Code "${b}: start a one-word .exe agent" 0 (Invoke-Kit 'session' 'start' $s4 'claude' '--via' $b)
             Get-Content -LiteralPath $out | Write-Output
-            $c = Invoke-Kit 'session' 'wait' $s4 '>' '30'
-            Expect-Code "${b}: the .exe agent shows its prompt" 0 $c
+            $c = Invoke-Kit 'session' 'wait' $s4 'stub exe idle' '30'
+            Expect-Code "${b}: the .exe agent shows its text" 0 $c
             if ($c -ne 0) {
                 # Show what the pane holds, and the state of the session.
                 Get-Content -LiteralPath $out | Write-Output
@@ -193,36 +201,45 @@ foreach ($b in 'conpty', 'psmux') {
                     $p = Join-Path $run "sessions/$s4/$k"
                     if (Test-Path -LiteralPath $p) { Write-Output "--- $k"; Get-Content -LiteralPath $p | Write-Output }
                 }
-                $null = Invoke-Kit 'session' 'screen' $s4
-                Write-Output '--- screen'
-                Get-Content -LiteralPath $out | Write-Output
+            }
+            # DIAGNOSTIC, to be removed: psmux with the environment of the kit.
+            $ej = Join-Path $run "sessions/$s4/env.json"
+            if ($b -eq 'psmux' -and (Test-Path -LiteralPath $ej)) {
+                $px = (Get-Command psmux -CommandType Application).Source
+                $kenv = [IO.File]::ReadAllText($ej) | ConvertFrom-Json
+                Write-Output "DIAG env names: $(($kenv.PSObject.Properties | ForEach-Object { $_.Name }) -join ',')"
+                $keep = @{}
+                foreach ($i in Get-ChildItem Env:) { $keep[$i.Name] = $i.Value }
+                $variants = @(
+                    @('k', @($env:ComSpec, '/d', '/k', $exe)),
+                    @('c', @($env:ComSpec, '/d', '/c', $exe)),
+                    @('one', @($exe))
+                )
+                foreach ($mode in 'kitenv', 'fullenv') {
+                    foreach ($v in $variants) {
+                        $tag = "diag-$mode-$($v[0])"
+                        $dd = Join-Path $T "pd-$tag"
+                        New-Item -ItemType Directory -Force -Path $dd | Out-Null
+                        if ($mode -eq 'kitenv') {
+                            foreach ($n in @($keep.Keys)) { if ($n -ne 'PATH') { Remove-Item -LiteralPath "Env:$n" -ErrorAction SilentlyContinue } }
+                            foreach ($q in $kenv.PSObject.Properties) { Set-Item -LiteralPath "Env:$($q.Name)" -Value ([string]$q.Value) }
+                        }
+                        $env:PSMUX_DATA_DIR = $dd
+                        $env:PSMUX_NO_WARM = '1'
+                        $o = & $px -L $tag new-session -d -s x -x 120 -y 30 -c $exeBin -- @($v[1]) 2>&1
+                        $rc = $LASTEXITCODE
+                        Start-Sleep -Seconds 4
+                        $cap = & $px -L $tag capture-pane -p -t x 2>&1
+                        $null = & $px -L $tag kill-server 2>&1
+                        foreach ($n in @(Get-ChildItem Env: | ForEach-Object { $_.Name })) { if (-not $keep.ContainsKey($n)) { Remove-Item -LiteralPath "Env:$n" -ErrorAction SilentlyContinue } }
+                        foreach ($n in $keep.Keys) { Set-Item -LiteralPath "Env:$n" -Value $keep[$n] }
+                        Write-Output "DIAG $tag new-session exit $rc $o"
+                        $cap | Where-Object { $_ -match '\S' } | ForEach-Object { Write-Output "DIAG $tag | $_" }
+                    }
+                }
             }
             Expect-Code "${b}: stop the .exe agent" 0 (Invoke-Kit 'session' 'stop' $s4)
             Expect-NoLivePids "${b}: no pid of the .exe agent runs after stop" $s4
-            # DIAGNOSTIC, to be removed: direct psmux variants.
-            if ($b -eq 'psmux') {
-                $px = (Get-Command psmux -CommandType Application).Source
-                $exe = Join-Path $exeBin 'claude.exe'
-                $cs = $env:ComSpec
-                $variants = @(
-                    @('k', @($cs, '/d', '/k', $exe)),
-                    @('c', @($cs, '/d', '/c', $exe)),
-                    @('one', @($exe)),
-                    @('sys', @($cs, '/d', '/c', (Join-Path $env:SystemRoot 'System32\cmd.exe'))),
-                    @('ping', @($cs, '/d', '/c', 'ping -n 30 127.0.0.1'))
-                )
-                foreach ($v in $variants) {
-                    $tag = "diag-$($v[0])"
-                    $a = @('-L', $tag, 'new-session', '-d', '-s', 'x', '-x', '120', '-y', '30', '--') + $v[1]
-                    $o = & $px @a 2>&1
-                    Write-Output "DIAG $($v[0]) new-session exit $LASTEXITCODE $o"
-                    Start-Sleep -Seconds 4
-                    $o = & $px -L $tag capture-pane -p -t x 2>&1
-                    Write-Output "DIAG $($v[0]) capture exit $LASTEXITCODE"
-                    $o | Where-Object { $_ -match '\S' } | ForEach-Object { Write-Output "DIAG $($v[0]) | $_" }
-                    $null = & $px -L $tag kill-server 2>&1
-                }
-            }
         } finally {
             $env:PATH = $savedPath
         }
