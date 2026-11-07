@@ -21,7 +21,9 @@
 # summary.txt, and prints
 #   step: NAME@BACKEND ok|skip|fail|operator [REASON]
 # A step that needs a login skips with the reason "no-login" in a run
-# with a throwaway home, and exits 0. "operator" adds no line, so that the
+# with a throwaway home, and exits 0. In an unattended run (kit start
+# --unattended), a step that needs the operator or the screen, or that has
+# the backend "operator", skips with the reason "unattended". "operator" adds no line, so that the
 # next call (for example with --ready) gets the same number. When the
 # scrub fails, the step is "fail scrub" and has no file.
 # Exit codes: the code of the script (0, 1, 3 or 4), 2 for bad use.
@@ -64,6 +66,7 @@ record() {
 }
 
 why=$(kit_login_skip "$home" "$needs" "$(kit_step_field "$name" agent)")
+[ -n "$why" ] || why=$(kit_unattended_skip "$(kit_manifest_value "$run" unattended)" "$needs" "$backend")
 if [ -n "$why" ]; then
   now=$(kit_now)
   record skip "$now" "$now" - - "$why"

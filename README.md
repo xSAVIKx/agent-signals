@@ -34,25 +34,60 @@ session files and log lines follow.
 
 The corpus holds no code that your tool runs. Each tool keeps its own reader.
 
-## Run the probe kit on your machine
+## Run every check with an agent
 
-Run the kit with one command. It downloads the kit of the latest release
-(about 30 KB) to a temporary folder, runs the probes, writes one file in the current folder, and deletes
-the temporary folder.
+Start an agent on the machine, for example Claude Code, Codex CLI, agy or
+the Cursor CLI. Paste the prompt for your OS. The agent downloads the kit,
+runs every check, checks the files, and asks you nothing. When it stops,
+its last message gives the path of one archive. Send that archive.
+
+Caution: the home mode `real` uses your login and your home folder. The
+test sessions cost a few model turns on your plan, their chats go into
+your history, and an agent can write a trust entry for each test folder
+into its settings. For a run with no login, replace `real` with
+`throwaway`.
+
+Linux and macOS:
+
+```text
+Run this command: `curl -fsSL https://xsavikx.github.io/agent-signals/kit.sh | sh -s -- --get "$(mktemp -d)"`. It prints the kit folder. Read AGENTS.md in that folder and do its task unattended, with the home mode real. Do not ask me anything.
+```
+
+Windows:
+
+```text
+Run this PowerShell command: `$env:AGENT_SIGNALS_GET = Join-Path ([IO.Path]::GetTempPath()) ('agent-signals-' + [guid]::NewGuid().ToString('N')); irm https://xsavikx.github.io/agent-signals/kit.ps1 | iex`. It prints the kit folder. Read AGENTS.md in that folder and do its task unattended, with the home mode real. Do not ask me anything.
+```
+
+The agent needs a shell with network access. A sandbox with no network
+stops the download. The kit skips the steps
+that need you at a terminal, and the archive records each skip. To answer
+the questions of these steps, replace the last two sentences of the prompt
+with "Ask me before each step that needs me."
+
+The task of the agent is [the task for an agent that runs the kit](tasks/run-the-kit-as-an-agent.md).
+
+## Run the probe kit by hand
+
+The probe kit only reads. One command downloads the kit of the latest
+release (about 170 KB) to a temporary folder, runs the probes, writes one
+file in the current folder, and deletes the temporary folder.
 
 | OS | Command |
 |---|---|
 | macOS, Linux | `curl -fsSL https://xsavikx.github.io/agent-signals/kit.sh \| sh` |
 | Windows (PowerShell) | `irm https://xsavikx.github.io/agent-signals/kit.ps1 \| iex` |
-| A guided step (macOS, Linux) | `curl -fsSL https://xsavikx.github.io/agent-signals/kit.sh \| sh -s -- --guided permission agent` |
+| A guided step (macOS, Linux) | `curl -fsSL https://xsavikx.github.io/agent-signals/kit.sh \| sh -s -- --guided permission cursor` |
+
+A guided step watches the agent folders while you do one action in an
+agent, for example a permission dialog. The step names are `permission`,
+`new-chat`, `resume`, `interrupt` and `front-tab`. The agent names are
+`claude`, `codex`, `agy`, `cursor` (the Cursor CLI, `agent` or
+`cursor-agent`), `opencode`, `copilot` and `gemini`.
 
 Read the scripts first if you want: [`probes/kit.sh`](probes/kit.sh) and
-[`probes/kit.ps1`](probes/kit.ps1). The kit only reads. Read the file that
-it writes before you send it.
-
-An agent on the machine can also run the kit for you: it runs each step,
-drives test sessions of the other agents, and checks the files. Give it the
-prompt in [the task for an agent that runs the kit](tasks/run-the-kit-as-an-agent.md).
+[`probes/kit.ps1`](probes/kit.ps1). Read the file that the kit writes
+before you send it.
 
 ## What is in the repository
 
@@ -105,9 +140,11 @@ Read [`docs/versioning.md`](docs/versioning.md) and the
 
 ## Develop
 
+Run these commands from the root of the repository:
+
 ```sh
-cd tools && go test ./... && go run ./cmd/validate ..
-cd go && go vet ./... && go test ./...
+(cd tools && go test ./... && go run ./cmd/validate ..)
+(cd go && go vet ./... && go test ./...)
 pip install -e "python[test]" && pytest python
 ```
 

@@ -12,6 +12,7 @@ set -u
 . "$(dirname "$0")/lib.sh"
 
 home=
+unattended=
 while [ "$#" -gt 0 ]; do
   case $1 in
     --home)
@@ -19,12 +20,21 @@ while [ "$#" -gt 0 ]; do
       home=$2
       shift 2
       ;;
-    *) kit_die "$KIT_USAGE" "usage: kit plan [--home real|throwaway|fixture]" ;;
+    --unattended)
+      unattended=yes
+      shift
+      ;;
+    *) kit_die "$KIT_USAGE" "usage: kit plan [--home real|throwaway|fixture] [--unattended]" ;;
   esac
 done
+run=$(kit_run_dir 2>/dev/null) || run=
 if [ -z "$home" ]; then
-  run=$(kit_run_dir 2>/dev/null) && home=$(kit_manifest_value "$run" home 2>/dev/null)
+  [ -z "$run" ] || home=$(kit_manifest_value "$run" home 2>/dev/null)
   home=${home:-real}
+fi
+if [ -z "$unattended" ]; then
+  [ -z "$run" ] || unattended=$(kit_manifest_value "$run" unattended 2>/dev/null)
+  unattended=${unattended:-no}
 fi
 case $home in real | throwaway | fixture) ;; *) kit_die "$KIT_USAGE" "--home needs real, throwaway or fixture" ;; esac
 
@@ -50,8 +60,10 @@ awk -F '\t' '
     for b in $(echo "$blist" | tr ',' ' '); do
       case $backends in *" $b "*) ;; *) continue ;; esac
       c=$cost
+      s=$skip
+      [ -n "$s" ] || { w=$(kit_unattended_skip "$unattended" "$needs" "$b"); [ -z "$w" ] || s=" skip=$w"; }
       [ "$home" != fixture ] || c=none
-      echo "step: $name@$b needs=$needs cost=$c$skip measures=$measures"
+      echo "step: $name@$b needs=$needs cost=$c$s measures=$measures"
     done
   done
 exit 0

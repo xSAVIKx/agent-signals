@@ -1,6 +1,10 @@
 # kit start on Windows: make a new run folder.
 #
-#   kit start [--home real|throwaway|fixture] [--out DIR] [--python PATH]
+#   kit start [--home real|throwaway|fixture] [--unattended] [--out DIR] [--python PATH]
+#
+# With --unattended, no person watches the run: "kit plan" and "kit step"
+# skip each step that needs the operator or the screen of the operator, with
+# the reason "unattended".
 #
 # --python names the Python with pywinpty, pyte and psutil for the conpty
 # backend (for example the venv of the scenarios). The run keeps it in
@@ -20,13 +24,15 @@ $ErrorActionPreference = 'Stop'
 
 $homeMode = 'real'
 $python = ''
+$unattended = 'no'
 $out = (Get-Location).ProviderPath
 for ($i = 0; $i -lt $argv.Count; $i++) {
     $a = [string]$argv[$i]
     if ($a -eq '--home' -and $i + 1 -lt $argv.Count) { $homeMode = [string]$argv[++$i] }
     elseif ($a -eq '--out' -and $i + 1 -lt $argv.Count) { $out = [string]$argv[++$i] }
+    elseif ($a -eq '--unattended') { $unattended = 'yes' }
     elseif ($a -eq '--python' -and $i + 1 -lt $argv.Count) { $python = [string]$argv[++$i] }
-    else { Stop-Kit 2 'usage: kit start [--home real|throwaway|fixture] [--out DIR] [--python PATH]' }
+    else { Stop-Kit 2 'usage: kit start [--home real|throwaway|fixture] [--unattended] [--out DIR] [--python PATH]' }
 }
 if ($homeMode -cnotin 'real', 'throwaway', 'fixture') { Stop-Kit 2 "unknown home mode: $homeMode" }
 if ($python) {
@@ -67,6 +73,7 @@ New-Item -ItemType Directory -Path (Join-Path $run 'pids') | Out-Null
 Add-KitManifest $run @('meta', 'kit', (Get-KitVersion))
 Add-KitManifest $run @('meta', 'os', 'windows')
 Add-KitManifest $run @('meta', 'home', $homeMode)
+Add-KitManifest $run @('meta', 'unattended', $unattended)
 Add-KitManifest $run @('meta', 'start', $time)
 # The path of the Python can hold the home folder, so it goes to
 # .kit\python, which the archive does not hold.

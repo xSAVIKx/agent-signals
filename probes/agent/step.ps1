@@ -35,6 +35,7 @@ if (-not $step) { Stop-Kit 2 "unknown step: $name" }
 $run = Get-KitRunDir
 $homeMode = Get-KitMeta $run 'home'
 if (-not $homeMode) { $homeMode = 'real' }
+$unattended = Get-KitMeta $run 'unattended'
 
 $backends = @(Get-KitStepBackends $step)
 if ($backends -notcontains $backend) {
@@ -66,6 +67,8 @@ try {
         $reason = 'not-on-windows'
     } elseif (Get-KitLoginSkip $homeMode $step.needs $step.agent) {
         $reason = Get-KitLoginSkip $homeMode $step.needs $step.agent
+    } elseif (Get-KitUnattendedSkip $unattended $step.needs $backend) {
+        $reason = Get-KitUnattendedSkip $unattended $step.needs $backend
     } else {
         $scriptFile = Join-Path $PSScriptRoot ("steps\{0}.ps1" -f $step.kind)
         if (-not (Test-Path -LiteralPath $scriptFile -PathType Leaf)) { Stop-Kit 1 "no script for the kind $($step.kind)" }
