@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.1](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.18.0...corpus-v0.18.1) (2026-11-08)
+
+
+### Bug Fixes
+
+* **corpus:** measure fact 085 with the run folder outside the temp folders ([#118](https://github.com/xSAVIKx/agent-signals/issues/118)) ([6e219ac](https://github.com/xSAVIKx/agent-signals/commit/6e219ac7648e74a9419256c02ce5e791c00eb053))
+
 ## [0.18.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.17.0...corpus-v0.18.0) (2026-11-08)
 
 
