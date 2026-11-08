@@ -185,7 +185,7 @@ foreach ($b in 'conpty', 'psmux') {
         Expect-Line "${b}: the conditions name the home" '^home: throwaway' $c
         Expect-Line "${b}: the conditions name each machine file" '^machine file: C:/.*managed-settings\.json, ' $c
         Expect-Code "${b}: wait for the stub with --args" 0 (Invoke-Kit 'session' 'wait' $sa 'stub idle' '60')
-        if ((Get-Text $enva) -match '(?m)^STUB_MODE_X$') { Pass "${b}: the agent gets the variable of --args" } else { Fail "${b}: the agent gets the variable of --args" (Get-Text $enva) }
+        if ((Get-Text $enva) -match '(?m)^STUB_MODE_X\r?$') { Pass "${b}: the agent gets the variable of --args" } else { Fail "${b}: the agent gets the variable of --args" (Get-Text $enva) }
         Expect-Code "${b}: stop the --args session" 0 (Invoke-Kit 'session' 'stop' $sa)
         Expect-NoLivePids "${b}: no pid of the --args session runs" $sa
 

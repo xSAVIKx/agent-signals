@@ -351,7 +351,7 @@ conditions() {
     echo "no conditions file"
   fi
   _m=
-  [ -s "$tmp/screen.1" ] && _m=$(grep -iE '(^|[^a-z])mode([^a-z]|$)' "$tmp/screen.1" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | head -n 3)
+  [ -s "$tmp/screen.1" ] && _m=$(grep -iE '(^|[^a-z])mode([^a-z]|$)|shift\+tab to cycle' "$tmp/screen.1" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | head -n 3)
   if [ -n "$_m" ]; then
     printf '%s\n' "$_m" | sed 's/^/mode on the idle screen: /'
   else

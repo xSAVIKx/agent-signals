@@ -477,7 +477,7 @@ try {
         if (Test-Path -LiteralPath $cf) { [void]$cond.Append((Read-KitText $cf).TrimEnd() + "`n") } else { [void]$cond.Append("no conditions file`n") }
         $idleText = ''
         foreach ($s in $screens) { if ($s[0] -eq 'idle') { $idleText = [string]$s[1]; break } }
-        $modeLines = @($idleText -split "`r?`n" | Where-Object { $_ -match '(?i)(^|[^a-z])mode([^a-z]|$)' } | Select-Object -First 3 | ForEach-Object { $_.Trim() })
+        $modeLines = @($idleText -split "`r?`n" | Where-Object { $_ -match '(?i)(^|[^a-z])mode([^a-z]|$)|shift\+tab to cycle' } | Select-Object -First 3 | ForEach-Object { $_.Trim() })
         if ($modeLines.Count -gt 0) { foreach ($l in $modeLines) { [void]$cond.Append("mode on the idle screen: $l`n") } }
         else { [void]$cond.Append("mode on the idle screen: no line names a mode`n") }
         $fl = Join-Path $sdir 'fake-model.log'

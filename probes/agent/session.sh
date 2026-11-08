@@ -195,6 +195,21 @@ write_conditions() {
     rm -f "$sdir/settings.list"
     [ "$_home" -gt 0 ] || echo "home file: none"
     [ "$_proj" -gt 0 ] || echo "project file: none"
+    # The sandbox of Codex runs its commands and its file edits. When the
+    # host does not let it start (bwrap with no user namespaces), Codex
+    # asks to run them with no sandbox, in each approval mode.
+    if [ "$agent" = codex ]; then
+      _c=$(kit_agent_command codex)
+      if [ -n "$_c" ]; then
+        _sb=$(cd "$work" && env -i "$@" "$_c" sandbox -- true </dev/null 2>&1)
+        _rc=$?
+        if [ "$_rc" -eq 0 ]; then
+          echo "codex sandbox: works ('codex sandbox -- true' exits 0)"
+        else
+          echo "codex sandbox: fails ('codex sandbox -- true' exits $_rc): $(printf '%s\n' "$_sb" | grep -v '^WARNING' | head -n 1 | cut -c1-160)"
+        fi
+      fi
+    fi
   } >"$sdir/conditions"
 }
 

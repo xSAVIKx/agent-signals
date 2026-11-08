@@ -493,6 +493,7 @@ function Write-Conditions([string]$Dir, [string]$Agent, [string]$Mode, [string]$
     }
     if ($nHome -eq 0) { [void]$sb.Append("home file: none`n") }
     if ($nProj -eq 0) { [void]$sb.Append("project file: none`n") }
+    if ($Agent -eq 'codex') { [void]$sb.Append("codex sandbox: not checked on Windows`n") }
     [IO.File]::WriteAllText((Join-Path $Dir 'conditions'), $sb.ToString(), $Utf8)
 }
 
