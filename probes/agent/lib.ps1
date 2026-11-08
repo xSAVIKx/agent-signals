@@ -62,6 +62,44 @@ function Get-KitUnattendedSkip([string]$Unattended, [string]$Needs, [string]$Bac
     return ''
 }
 
+# Get-KitWorkRoot RUN: the folder that holds the work folders of the
+# sessions of RUN. It is the twin of kit_work_root in lib.sh. An agent can
+# give access to a temp folder with no question (the default preset of agy,
+# fact 085). So the kit keeps the work folders out of the temp folders:
+#   AGENT_SIGNALS_WORK not set  RUN\work, or
+#                               USERPROFILE\agent-signals-work\NAME-HASH
+#                               when RUN is in a temp folder.
+#   AGENT_SIGNALS_WORK=in-run   RUN\work, also in a temp folder (the tests).
+#   AGENT_SIGNALS_WORK=PATH     PATH.
+function Get-KitWorkRoot([string]$Run) {
+    $w = $env:AGENT_SIGNALS_WORK
+    if ($w -eq 'in-run') { return (Join-Path $Run 'work') }
+    if ($w) { return $w.TrimEnd('\', '/') }
+    $full = [IO.Path]::GetFullPath($Run).TrimEnd('\') + '\'
+    $inTemp = $false
+    foreach ($t in @($env:TEMP, $env:TMP, (Join-Path $env:SystemRoot 'Temp'))) {
+        if (-not $t) { continue }
+        $tf = [IO.Path]::GetFullPath($t).TrimEnd('\') + '\'
+        if ($full.StartsWith($tf, [StringComparison]::OrdinalIgnoreCase)) { $inTemp = $true }
+    }
+    if (-not $inTemp) { return (Join-Path $Run 'work') }
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    $h = (@($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($Run)) | Select-Object -First 4 | ForEach-Object { $_.ToString('x2') }) -join '')
+    return (Join-Path (Join-Path $env:USERPROFILE 'agent-signals-work') ((Split-Path -Leaf $Run) + '-' + $h))
+}
+
+# Clear-KitWorkRoot DIR: delete DIR, a work root, when it is empty, and
+# then the folder agent-signals-work above it when that is empty.
+function Clear-KitWorkRoot([string]$Dir) {
+    if (-not $Dir -or -not (Test-Path -LiteralPath $Dir -PathType Container)) { return }
+    if (@(Get-ChildItem -LiteralPath $Dir -Force).Count -gt 0) { return }
+    Remove-Item -Force -LiteralPath $Dir -ErrorAction SilentlyContinue
+    $p = Split-Path -Parent $Dir
+    if ((Split-Path -Leaf $p) -eq 'agent-signals-work' -and @(Get-ChildItem -LiteralPath $p -Force).Count -eq 0) {
+        Remove-Item -Force -LiteralPath $p -ErrorAction SilentlyContinue
+    }
+}
+
 # Get-KitRunPointer: the run path that the environment or a
 # .agent-signals-run file names, or ''. The file is UTF-8, so that a path
 # with letters outside ASCII works also in Windows PowerShell 5.1.

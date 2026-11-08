@@ -196,7 +196,9 @@ foreach ($b in 'conpty', 'psmux') {
         New-Item -ItemType Directory -Force -Path $exeBin | Out-Null
         $stubExe = Join-Path $exeBin 'claude.exe'
         $src = Join-Path $exeBin 'stub.cs'
-        [IO.File]::WriteAllText($src, 'public static class StubExe { public static void Main() { System.Console.WriteLine("stub exe idle"); while (System.Console.ReadLine() != null) { } } }')
+        # With STUB_ARGV, the stub writes its arguments to that file, one on
+        # each line.
+        [IO.File]::WriteAllText($src, 'public static class StubExe { public static void Main(string[] a) { string f = System.Environment.GetEnvironmentVariable("STUB_ARGV"); if (f != null) { System.IO.File.WriteAllLines(f, a); } System.Console.WriteLine("stub exe idle"); while (System.Console.ReadLine() != null) { } } }')
         $csc = Join-Path $env:SystemRoot 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
         if (-not (Test-Path -LiteralPath $csc)) { $csc = Join-Path $env:SystemRoot 'Microsoft.NET\Framework\v4.0.30319\csc.exe' }
         $null = & $csc /nologo /target:exe "/out:$stubExe" $src 2>&1
@@ -219,6 +221,22 @@ foreach ($b in 'conpty', 'psmux') {
             }
             Expect-Code "${b}: stop the .exe agent" 0 (Invoke-Kit 'session' 'stop' $s4)
             Expect-NoLivePids "${b}: no pid of the .exe agent runs after stop" $s4
+
+            # test_args64_json_word: a JSON word of --args reaches the agent
+            # as one argument, with its quotes (the agy --settings steps).
+            $s5 = "json-$b"
+            $argvFile = Join-Path $T "argv-$b.txt"
+            $json = '{"permissions":{"ask":["write_file(*)"]}}'
+            $words = "STUB_ARGV=$argvFile --settings $json"
+            $b64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($words))
+            Expect-Code "${b}: start with a JSON word in --args64" 0 (Invoke-Kit 'session' 'start' $s5 'claude' '--via' $b '--args64' $b64)
+            Expect-Code "${b}: the JSON agent shows its text" 0 (Invoke-Kit 'session' 'wait' $s5 'stub exe idle' '30')
+            $got = @(Get-Content -LiteralPath $argvFile -ErrorAction SilentlyContinue)
+            if ($got.Count -eq 2 -and $got[0] -eq '--settings' -and $got[1] -eq $json) { Pass "${b}: the agent gets the JSON word as one argument" } else { Fail "${b}: the agent gets the JSON word as one argument" ($got -join ' | ') }
+            Expect-Line "${b}: the conditions show the JSON word" ('^command: claude --settings ' + [regex]::Escape($json) + '$') (Join-Path $run "sessions/$s5/conditions")
+            Expect-Code "${b}: stop the JSON agent" 0 (Invoke-Kit 'session' 'stop' $s5)
+            Expect-NoLivePids "${b}: no pid of the JSON agent runs after stop" $s5
+            Expect-Code "${b}: bad base64 in --args64 is bad use" 2 (Invoke-Kit 'session' 'start' "bad64-$b" 'claude' '--via' $b '--args64' 'not base64!')
         } finally {
             $env:PATH = $savedPath
         }

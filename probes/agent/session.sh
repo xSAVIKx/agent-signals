@@ -29,7 +29,9 @@
 #   backend    tmux or pty
 #   agent      the agent name
 #   home-mode  real, throwaway or fixture
-#   work       the path of the work folder of the agent, RUN/work/NAME
+#   work       the path of the work folder of the agent: ROOT/NAME, where
+#              ROOT is RUN/work or a folder outside the temp folders
+#              (kit_work_root in lib.sh)
 #   conditions the conditions of the start: the command, the names of the
 #              variables of the environment, and the settings files of
 #              settings-files.tsv. Written before the agent starts.
@@ -174,7 +176,9 @@ write_conditions() {
         project)
           _d=$work _n=0
           while :; do
-            if [ -e "$_d/$_p" ]; then
+            # At the home folder, a path that is also a home path is a
+            # home file, not a project file.
+            if [ -e "$_d/$_p" ] && ! { [ "$_d" = "$h" ] && grep -qxF "home	$_p" "$sdir/settings.list"; }; then
               _proj=$((_proj + 1))
               echo "project file: $_p, $_n folders above the work folder, $(file_facts "$_d/$_p")"
             fi
@@ -378,7 +382,7 @@ do_start() {
     [ -f "$sdir/stopped" ] || kit_die 2 "the session exists: $name"
     rm -rf "$sdir"
   fi
-  work=$run/work/$name
+  work=$(kit_work_root "$run")/$name
   # --keep: the resume step starts a session again. The new start needs the
   # work folder and the home of the old session.
   [ -n "$keep" ] || rm -rf "$work"
@@ -641,6 +645,7 @@ remove_folders() {
       done
     done
     rm -rf "$work"
+    kit_work_tidy "$(dirname "$work")"
   fi
   rm -rf "${run:?}/home/$name"
 }

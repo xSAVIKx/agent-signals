@@ -285,6 +285,31 @@ if have tmux; then
   if [ $((t1 - t0)) -lt 25 ]; then pass "args: the sandbox check ends in its time limit"; else fail "args: the sandbox check ends in its time limit" "$((t1 - t0)) s"; fi
   expect_line "args: a sandbox check with no end is not known" "^codex sandbox: not known " "$run/sessions/a3/conditions"
   kit session stop a3 >"$T/out" 2>&1
+
+  # test_work_root_out_of_temp: with no AGENT_SIGNALS_WORK, a run in a
+  # temp folder gets its work folders in HOME/agent-signals-work, and the
+  # stop deletes them.
+  mkdir -p "$T/h2"
+  (unset AGENT_SIGNALS_WORK && HOME=$T/h2 && export HOME && kit session start w1 stub --via tmux --cmd "sh '$stub'") >"$T/out" 2>&1
+  expect_code "work root: a start in a temp run" 0 $?
+  w=$(cat "$run/sessions/w1/work")
+  case $w in
+    "$T/h2/agent-signals-work/$(basename "$run")-"????????/w1) pass "work root: the work folder is in the home" ;;
+    *) fail "work root: the work folder is in the home" "$w" ;;
+  esac
+  (unset AGENT_SIGNALS_WORK && HOME=$T/h2 && export HOME && kit session stop w1) >"$T/out" 2>&1
+  if [ -e "$T/h2/agent-signals-work" ]; then fail "work root: the stop deletes the work root" "it stays"; else pass "work root: the stop deletes the work root"; fi
+
+  # test_home_file_not_a_project_file: the project walk reaches the home
+  # folder. A home path there is a home file, not a project file.
+  mkdir -p "$T/h3/.claude"
+  echo '{"permissions": {}}' >"$T/h3/.claude/settings.json"
+  (HOME=$T/h3 && export HOME && AGENT_SIGNALS_WORK=$T/h3/proj kit session start w2 claude --via tmux --cmd "sh '$stub'" --home real) >"$T/out" 2>&1
+  expect_code "home walk: a real-home start" 0 $?
+  c=$run/sessions/w2/conditions
+  expect_line "home walk: the home file is named" '^home file: \.claude/settings\.json, sha256 ' "$c"
+  expect_no_line "home walk: the home file is not a project file" '^project file: \.claude/settings\.json' "$c"
+  (HOME=$T/h3 && export HOME && kit session stop w2) >"$T/out" 2>&1
   left=$(pids_run "$run")
   if [ -z "$left" ]; then pass "args: no pid runs after stop"; else fail "args: no pid runs after stop" "$left"; fi
 fi
