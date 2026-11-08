@@ -58,10 +58,17 @@ The answer depends on the last user message:
 | Text in the message | Answer |
 |---|---|
 | `Create a file` | A shell command that needs an approval, then `The fixture finished the tool call.` |
+| `Write a file` | One call of the file-write tool for `agent-signals-write.txt` in the work folder, then `The fixture finished the tool call.` |
+| `Write outside` | The same call for the absolute path that follows the text, for example `Write outside /work/x.txt`. With no absolute path: a text reply that says so. |
 | `Count from` | No reply: the turn stays busy until the client stops it, or for 2 minutes. |
 | `Let me choose` | Claude Code: an `AskUserQuestion` call with the options `Red` and `Blue`. The other agents: the question reply below. |
 | `End your reply with a question` | `The fixture has one question. Do you want to go on?` |
 | Other text | `The fixture has no more to say.` |
+
+The file-write tool is `Write` for Claude Code, `apply_patch` for Codex and
+`write_file` for agy. Claude Code and agy need an absolute path, so the
+server reads the work folder from the system prompt of the request. The
+Cursor CLI gets the text reply for the two write texts.
 
 The Cursor CLI uses a private protocol. The field numbers come from the
 client `fakemodel.CursorClientVersion` (2026.11.05-86047df). A new client
