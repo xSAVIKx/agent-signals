@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.2](https://github.com/xSAVIKx/agent-signals/compare/go/v0.15.1...go/v0.15.2) (2026-11-08)
+
+
+### Bug Fixes
+
+* **probes:** keep work folders out of temp folders and pass JSON args on Windows ([#120](https://github.com/xSAVIKx/agent-signals/issues/120)) ([99450ef](https://github.com/xSAVIKx/agent-signals/commit/99450ef3a5815c3eead82d560005889c2793f6b5))
+
 ## [0.15.1](https://github.com/xSAVIKx/agent-signals/compare/go/v0.15.0...go/v0.15.1) (2026-11-08)
 
 
