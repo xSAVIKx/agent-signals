@@ -233,7 +233,7 @@ if have tmux; then
   kit session start a1 stub --via tmux --cmd "sh '$stub'" --args "STUB_MODE_X=on --mode-x" >"$T/out" 2>&1
   expect_code "args: start with --args" 0 $?
   c=$run/sessions/a1/conditions
-  expect_line "args: the command has the words of the step" "^command: sh '.*stub-agent\.sh' --mode-x\$" "$c"
+  expect_line "args: the command has the words of the step" "^command: sh '.*stub-agent\.sh' '--mode-x'\$" "$c"
   expect_line "args: the variable of the step is named" '^environment from the step: STUB_MODE_X=on$' "$c"
   expect_line "args: the variables are named" '^environment: HOME PATH TERM USER .*LANG ' "$c"
   expect_line "args: the variable of the step is in the list" '^environment: .* STUB_MODE_X' "$c"
@@ -246,6 +246,16 @@ if have tmux; then
   kit session wait a1 'env saved' 30 >"$T/out" 2>&1
   expect_line "args: the agent gets the variable" '^STUB_MODE_X=on$' "$run/work/a1/stub-env.txt"
   kit session stop a1 >"$T/out" 2>&1
+
+  # A JSON value with quotes and parentheses stays one word: the agent
+  # starts, and the command shows the value in single quotes.
+  kit session start a4 stub --via tmux --cmd "sh '$stub'" --args '--settings {"a":["b(*)"]}' >"$T/out" 2>&1
+  expect_code "args: start with a JSON word" 0 $?
+  kit session wait a4 'stub idle' 30 >"$T/out" 2>&1
+  expect_code "args: the agent starts with a JSON word" 0 $?
+  expect_line "args: the JSON word is quoted" "'--settings' '\{\"a\":\[\"b\(\*\)\"\]\}'\$" "$run/sessions/a4/conditions"
+  expect_line "args: the work folder names its temp state" '^work folder in a temp folder: (yes \(.*\)|no)$' "$run/sessions/a4/conditions"
+  kit session stop a4 >"$T/out" 2>&1
 
   # The settings files of claude: the content of a file in a kit-made
   # home, the hash of a project file above the work folder, and each

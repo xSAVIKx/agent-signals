@@ -193,6 +193,10 @@ write_conditions() {
       esac
     done <"$sdir/settings.list"
     rm -f "$sdir/settings.list"
+    # An agent can give access to temp folders with no question (the
+    # default preset of agy). A work folder or an outside folder in a temp
+    # folder changes the result of a write step.
+    echo "work folder in a temp folder: $(kit_temp_place "$work")"
     [ "$_home" -gt 0 ] || echo "home file: none"
     [ "$_proj" -gt 0 ] || echo "project file: none"
     # The sandbox of Codex runs its commands and its file edits. When the
@@ -422,7 +426,9 @@ do_start() {
     done <"$sdir/fake-model.env"
   fi
   # The words of --args: NAME=VALUE words at the start go into the
-  # environment, the others after the command.
+  # environment, the others after the command. Each word goes in single
+  # quotes, because the start runs the command with eval: a JSON value such
+  # as {"permissions":{"ask":["write_file(*)"]}} must stay one word.
   step_env=
   if [ -n "$args" ]; then
     set -f
@@ -433,7 +439,7 @@ do_start() {
           set -- "$@" "$w"
           step_env="${step_env:+$step_env }$w"
           ;;
-        *) _rest="$_rest $w" ;;
+        *) _rest="$_rest '$(printf '%s' "$w" | sed "s/'/'\\\\''/g")'" ;;
       esac
     done
     set +f

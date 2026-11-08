@@ -364,6 +364,7 @@ conditions() {
   [ -z "$work_files" ] || echo "files in the work folder at the end: $work_files"
   if [ -n "$outside" ]; then
     _f=$(ls -A "$outside" 2>/dev/null | tr '\n' ' ' | sed 's/ $//')
+    echo "outside folder in a temp folder: $(kit_temp_place "$outside")"
     echo "files in the outside folder at the end: ${_f:-none}"
   fi
 }

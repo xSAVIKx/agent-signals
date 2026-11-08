@@ -441,6 +441,22 @@ function Get-FileFacts([string]$Path) {
     return $t
 }
 
+# Get-TempPlace PATH ENV: "yes (FOLDER)" when PATH is below a temp folder:
+# TEMP or TMP of the kit or of the agent environment ENV, or
+# C:\Windows\Temp. Else "no". An agent can give access to temp folders
+# with no question (the default preset of agy).
+function Get-TempPlace([string]$Path, [hashtable]$Environment) {
+    $full = [IO.Path]::GetFullPath($Path).TrimEnd('\') + '\'
+    $temps = @($env:TEMP, $env:TMP, (Join-Path $env:SystemRoot 'Temp'))
+    if ($Environment) { $temps += @($Environment['TEMP'], $Environment['TMP']) }
+    foreach ($t in $temps) {
+        if (-not $t) { continue }
+        $tf = [IO.Path]::GetFullPath($t).TrimEnd('\') + '\'
+        if ($full.StartsWith($tf, [StringComparison]::OrdinalIgnoreCase)) { return "yes ($($t.TrimEnd('\')))" }
+    }
+    return 'no'
+}
+
 # Write-Conditions DIR AGENT MODE HOME WORK WORDS ENV STEPENV: write
 # DIR\conditions. WORDS are the words of --args after the command. The
 # command shows the agent name, not its path: the path can hold the account
@@ -456,6 +472,7 @@ function Write-Conditions([string]$Dir, [string]$Agent, [string]$Mode, [string]$
         'throwaway' { [void]$sb.Append("home: throwaway, made by the kit, with no login`n") }
         'real' { [void]$sb.Append("home: real, the home of the operator`n") }
     }
+    [void]$sb.Append("work folder in a temp folder: $(Get-TempPlace $Work $Environment)`n")
     $nHome = 0; $nProj = 0
     foreach ($line in [IO.File]::ReadAllLines((Join-Path $PSScriptRoot 'settings-files.tsv'))) {
         if ($line.StartsWith('#')) { continue }
