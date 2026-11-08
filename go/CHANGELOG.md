@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.0](https://github.com/xSAVIKx/agent-signals/compare/go/v0.15.2...go/v0.16.0) (2026-11-08)
+
+
+### Features
+
+* **probes:** run opencode with the fake model and measure when it asks ([#122](https://github.com/xSAVIKx/agent-signals/issues/122)) ([73d90da](https://github.com/xSAVIKx/agent-signals/commit/73d90da4664e4cfd2e3a8af46e288bcd34d8f6f7))
+
 ## [0.15.2](https://github.com/xSAVIKx/agent-signals/compare/go/v0.15.1...go/v0.15.2) (2026-11-08)
 
 
