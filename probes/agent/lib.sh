@@ -263,7 +263,11 @@ kit_text_re() { printf '%s' "$1" | sed 's/[][\.*^$+?(){}|]/\\&/g'; }
 # in the home mode HOME, or nothing. The fixture mode has a fake model
 # (fake-model.py) for Codex, Claude Code, agy and the Cursor CLI.
 kit_login_skip() {
-  [ "$2" = login ] || return 0
+  case $2 in
+    login) ;;
+    fixture) [ "$1" = fixture ] || { echo needs-fixture; return 0; } ;;
+    *) return 0 ;;
+  esac
   case $1:$3 in
     throwaway:*) echo no-login ;;
     fixture:codex | fixture:claude | fixture:agy) ;;

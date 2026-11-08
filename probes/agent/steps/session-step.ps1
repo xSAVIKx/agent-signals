@@ -78,6 +78,16 @@ $kind = [string]$step.kind
 $agent = [string]$env:KIT_AGENT
 $backend = [string]$env:KIT_BACKEND
 $prompt = Get-Field 'prompt'
+# The mode of the agent: the words of "session start --args".
+$stepArgs = Get-Field 'args'
+# The outside folder: a new folder that is not in the work folder. The text
+# @OUTSIDE@ in the prompt becomes the path of a file in it.
+$outside = ''
+if ($prompt.Contains('@OUTSIDE@')) {
+    $outside = "$out.outside"
+    New-Item -ItemType Directory -Force -Path $outside | Out-Null
+    $prompt = $prompt.Replace('@OUTSIDE@', (Join-Path $outside 'agent-signals-write.txt'))
+}
 $waitRe = Get-Field 'wait_regex'
 $answer = Get-Field 'answer'
 $idleRe = Get-Field 'idle_regex'
@@ -325,7 +335,9 @@ try {
     }
     if ($agent -eq 'codex') { Add-Log 'not measured: Codex on Windows. The Tab send key comes from a report.' }
     Add-Log "start: $agent on $backend, home $env:KIT_HOME"
-    $r = Invoke-Session @('start', $name, $agent, '--via', $backend, '--home', $env:KIT_HOME) (Get-Clip 120)
+    $startArgs = @('start', $name, $agent, '--via', $backend, '--home', $env:KIT_HOME)
+    if ($stepArgs) { $startArgs += @('--args', $stepArgs) }
+    $r = Invoke-Session $startArgs (Get-Clip 120)
     if ($r.Code -eq 3) {
         $code = 3
         $why = $r.Err.Trim()
@@ -457,6 +469,38 @@ try {
         $watchBad = 'watch-timeout'
     }
     foreach ($x in "$out.watch", "$out.watch.stop", "$out.watch.console", "$out.watch.err") { Remove-Item -LiteralPath $x -Force -ErrorAction SilentlyContinue }
+    # The conditions of the session and the facts of the end. "session
+    # stop" deletes the work folder, so the step reads it before the stop.
+    $cond = New-Object System.Text.StringBuilder
+    try {
+        $cf = Join-Path $sdir 'conditions'
+        if (Test-Path -LiteralPath $cf) { [void]$cond.Append((Read-KitText $cf).TrimEnd() + "`n") } else { [void]$cond.Append("no conditions file`n") }
+        $idleText = ''
+        foreach ($s in $screens) { if ($s[0] -eq 'idle') { $idleText = [string]$s[1]; break } }
+        $modeLines = @($idleText -split "`r?`n" | Where-Object { $_ -match '(?i)(^|[^a-z])mode([^a-z]|$)|shift\+tab to cycle' } | Select-Object -First 3 | ForEach-Object { $_.Trim() })
+        if ($modeLines.Count -gt 0) { foreach ($l in $modeLines) { [void]$cond.Append("mode on the idle screen: $l`n") } }
+        else { [void]$cond.Append("mode on the idle screen: no line names a mode`n") }
+        $fl = Join-Path $sdir 'fake-model.log'
+        if (Test-Path -LiteralPath $fl) {
+            $counts = @{}
+            foreach ($l in [IO.File]::ReadAllLines($fl)) {
+                $w = $l -split ' '
+                if ($w.Count -ge 4 -and $w[0] -eq 'POST') { $k = ($w[3..($w.Count - 1)] -join ' '); $counts[$k] = 1 + [int]$counts[$k] }
+            }
+            $parts = @($counts.Keys | Sort-Object | ForEach-Object { "$_ $($counts[$_])" })
+            [void]$cond.Append("fake model answers: $(if ($parts.Count -gt 0) { $parts -join ', ' } else { 'none' })`n")
+        }
+        $wf = (Read-KitText (Join-Path $sdir 'work')).Trim()
+        if ($wf -and (Test-Path -LiteralPath $wf)) {
+            $names = @(Get-ChildItem -LiteralPath $wf -Force -Name | Sort-Object)
+            [void]$cond.Append("files in the work folder at the end: $(if ($names.Count -gt 0) { $names -join ' ' } else { 'none' })`n")
+        }
+        if ($outside) {
+            $names = @(Get-ChildItem -LiteralPath $outside -Force -Name -ErrorAction SilentlyContinue | Sort-Object)
+            [void]$cond.Append("files in the outside folder at the end: $(if ($names.Count -gt 0) { $names -join ' ' } else { 'none' })`n")
+        }
+    } catch { [void]$cond.Append("the conditions failed: $_`n") }
+    if ($outside) { Remove-Item -Recurse -Force -LiteralPath $outside -ErrorAction SilentlyContinue }
     if (Test-Path -LiteralPath (Join-Path $sdir 'backend')) {
         $left = [int][math]::Ceiling(($deadline - (Get-Date)).TotalSeconds)
         $r = Invoke-Session @('stop', $name) ([math]::Max(10, $left))
@@ -476,6 +520,7 @@ try {
     [void]$sb.Append("kind: $kind`nagent: $agent`nbackend: $backend`nhome: $env:KIT_HOME`n$(if ($env:KIT_HOME -eq 'fixture') { "model: fake-model.py with fixed answers. No real model ran.`n" })send key: $sendKey`n")
     [void]$sb.Append(("result: $result $reason").TrimEnd() + "`n")
     if ($agent -eq 'claude') { [void]$sb.Append("screens: the kit blanks each welcome box line that can show a display name or an organisation. No real screen was measured.`n") }
+    [void]$sb.Append("### conditions`n" + $cond.ToString())
     [void]$sb.Append("### log`n" + $log.ToString())
     if ($watchText) { [void]$sb.Append("### guided watch`n" + $watchText.TrimEnd() + "`n") }
     foreach ($s in $screens) {

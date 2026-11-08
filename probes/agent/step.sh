@@ -5,7 +5,7 @@
 #
 # It runs probes/agent/steps/<kind>.sh with no stdin and these variables:
 #   KIT_RUN KIT_ROOT KIT_DIR KIT_STEP KIT_KIND KIT_AGENT KIT_BACKEND
-#   KIT_PROMPT KIT_WAIT_REGEX KIT_ANSWER KIT_PRE KIT_IDLE_REGEX
+#   KIT_PROMPT KIT_ARGS KIT_WAIT_REGEX KIT_ANSWER KIT_PRE KIT_IDLE_REGEX
 #   KIT_BUSY_REGEX KIT_DIALOG_REGEX KIT_WINDOWS
 #   KIT_HOME (real, throwaway or fixture) and KIT_OUT (the raw output file).
 # ARGS go to the script. The script writes its output to KIT_OUT, and can
@@ -87,6 +87,7 @@ start=$(kit_now)
 KIT_RUN=$run KIT_ROOT=$KIT_ROOT KIT_DIR=$KIT_DIR KIT_STEP=$name KIT_KIND=$kind KIT_BACKEND=$backend \
   KIT_AGENT=$(kit_step_field "$name" agent) \
   KIT_PROMPT=$(kit_step_field "$name" prompt) \
+  KIT_ARGS=$(kit_step_field "$name" args) \
   KIT_WAIT_REGEX=$(kit_step_field "$name" wait_regex) \
   KIT_ANSWER=$(kit_step_field "$name" answer) \
   KIT_PRE=$(kit_step_field "$name" pre) \

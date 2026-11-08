@@ -2,13 +2,17 @@
 # (scenarios/conpty.py in its serve mode) or psmux (a private psmux
 # server). It is the twin of probes/agent/session.sh.
 #
-#   kit session start NAME AGENT --via conpty|psmux [--cmd CMD] [--home real|throwaway|fixture]
+#   kit session start NAME AGENT --via conpty|psmux [--cmd CMD] [--args ARGS] [--home real|throwaway|fixture]
 #   kit session send NAME TEXT
 #   kit session key NAME KEY...       (tmux names: Enter, Escape, C-c, Tab, 1)
 #   kit session screen NAME           (the format of tmux capture-pane -p -J)
 #   kit session wait NAME REGEX SECONDS
 #   kit session stop NAME
 #   kit session stop --all
+#
+# ARGS is a list of words, separated by spaces: the NAME=VALUE words at its
+# start go into the environment of the agent, and the other words go after
+# the agent command. The column "args" of steps.tsv gives ARGS.
 #
 # CMD is a PowerShell command. The agent starts in a new work folder with a
 # clean environment: the system variables, PATH, and the profile variables
@@ -23,6 +27,9 @@
 #   agent      the agent name
 #   home-mode  real, throwaway or fixture
 #   work       the path of the work folder of the agent, RUN\work\NAME
+#   conditions the conditions of the start: the command, the names of the
+#              variables of the environment, and the settings files of
+#              settings-files.tsv. Written before the agent starts.
 #   pipe       conpty: the name of the pipe of the driver; pipe.key its key
 #   socket     psmux: the name of the private server (psmux -L)
 #   pid        the pid of the agent
@@ -415,6 +422,81 @@ function Get-SessionEnv([string]$Mode, [string]$HomeDir) {
     return $e
 }
 
+# Get-FileFacts PATH: the start of the SHA-256, the size and the top-level
+# keys of a JSON object, or "a folder". 12 hex characters: the scrub of the
+# kit changes a run of 16 or more.
+function Get-FileFacts([string]$Path) {
+    if (Test-Path -LiteralPath $Path -PathType Container) { return 'a folder' }
+    $h = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant().Substring(0, 12)
+    $n = (Get-Item -LiteralPath $Path).Length
+    $keys = ''
+    try {
+        $j = [IO.File]::ReadAllText($Path) | ConvertFrom-Json -ErrorAction Stop
+        if ($j -is [System.Management.Automation.PSCustomObject]) {
+            $keys = (@($j.PSObject.Properties.Name) | Sort-Object) -join ', '
+        }
+    } catch { $keys = '' }
+    $t = "sha256 $h, $n bytes"
+    if ($keys) { $t += ", keys: $keys" }
+    return $t
+}
+
+# Write-Conditions DIR AGENT MODE HOME WORK WORDS ENV STEPENV: write
+# DIR\conditions. WORDS are the words of --args after the command. The
+# command shows the agent name, not its path: the path can hold the account
+# name. The values of the variables stay out: a real environment can hold a
+# token.
+function Write-Conditions([string]$Dir, [string]$Agent, [string]$Mode, [string]$HomeDir, [string]$Work, [string[]]$Words, [hashtable]$Environment, [string]$StepEnv) {
+    $sb = New-Object System.Text.StringBuilder
+    [void]$sb.Append(("command: $Agent " + ($Words -join ' ')).TrimEnd() + "`n")
+    [void]$sb.Append("environment: $((@($Environment.Keys) | Sort-Object) -join ' ')`n")
+    if ($StepEnv) { [void]$sb.Append("environment from the step: $StepEnv`n") }
+    switch ($Mode) {
+        'fixture' { [void]$sb.Append("home: fixture, made by the kit, with the fake model of the kit`n") }
+        'throwaway' { [void]$sb.Append("home: throwaway, made by the kit, with no login`n") }
+        'real' { [void]$sb.Append("home: real, the home of the operator`n") }
+    }
+    $nHome = 0; $nProj = 0
+    foreach ($line in [IO.File]::ReadAllLines((Join-Path $PSScriptRoot 'settings-files.tsv'))) {
+        if ($line.StartsWith('#')) { continue }
+        $f = $line -split "`t"
+        if ($f.Count -ne 4 -or $f[0] -ne $Agent -or $f[2] -notin 'all', 'windows') { continue }
+        $p = $f[3]
+        switch ($f[1]) {
+            'home' {
+                $x = Join-Path $HomeDir ($p -replace '/', '\')
+                if (-not (Test-Path -LiteralPath $x)) { continue }
+                $nHome++
+                [void]$sb.Append("home file: $p, $(Get-FileFacts $x)`n")
+                if ($Mode -ne 'real' -and (Test-Path -LiteralPath $x -PathType Leaf)) {
+                    foreach ($l in @([IO.File]::ReadAllLines($x) | Select-Object -First 200)) { [void]$sb.Append("  | $l`n") }
+                }
+            }
+            'project' {
+                $d = $Work; $n = 0
+                while ($d) {
+                    $x = Join-Path $d ($p -replace '/', '\')
+                    if (Test-Path -LiteralPath $x) {
+                        $nProj++
+                        [void]$sb.Append("project file: $p, $n folders above the work folder, $(Get-FileFacts $x)`n")
+                    }
+                    $d = Split-Path -Parent $d
+                    $n++
+                }
+            }
+            'machine' {
+                $x = $p -replace '/', '\'
+                if (Test-Path -LiteralPath $x) { [void]$sb.Append("machine file: $p, $(Get-FileFacts $x)`n") }
+                else { [void]$sb.Append("machine file: $p, absent`n") }
+            }
+        }
+    }
+    if ($nHome -eq 0) { [void]$sb.Append("home file: none`n") }
+    if ($nProj -eq 0) { [void]$sb.Append("project file: none`n") }
+    if ($Agent -eq 'codex') { [void]$sb.Append("codex sandbox: not checked on Windows`n") }
+    [IO.File]::WriteAllText((Join-Path $Dir 'conditions'), $sb.ToString(), $Utf8)
+}
+
 function Get-PsmuxEnv([string]$Dir) {
     $e = @{}
     $f = Join-Path $Dir 'env.json'
@@ -442,7 +524,7 @@ function Start-Session([string[]]$A) {
     $name = $A[0]; $agent = $A[1]
     Test-SessionName $name
     if ($agent -cnotmatch '^[A-Za-z0-9._-]+$') { Stop-Kit 2 "bad agent name: $agent" }
-    $via = ''; $cmd = ''
+    $via = ''; $cmd = ''; $stepArgs = ''
     $mode = if ($env:KIT_HOME) { $env:KIT_HOME } else { 'throwaway' }
     $i = 2
     while ($i -lt $A.Count) {
@@ -451,12 +533,12 @@ function Start-Session([string[]]$A) {
         $v = $null
         if ($o -match '^([A-Za-z]+):(.*)$') { $o = $Matches[1]; $v = $Matches[2] }
         $o = $o.ToLowerInvariant()
-        if ($o -notin 'via', 'cmd', 'home') { Show-Usage }
+        if ($o -notin 'via', 'cmd', 'args', 'home') { Show-Usage }
         if ($null -eq $v) {
             if ($i + 1 -ge $A.Count) { Show-Usage }
             $v = $A[$i + 1]; $i += 2
         } else { $i += 1 }
-        switch ($o) { 'via' { $via = $v } 'cmd' { $cmd = $v } 'home' { $mode = $v } }
+        switch ($o) { 'via' { $via = $v } 'cmd' { $cmd = $v } 'args' { $stepArgs = $v } 'home' { $mode = $v } }
     }
     if (-not $via) { Stop-Kit 2 'give --via conpty or --via psmux' }
     if ($via -notin 'conpty', 'psmux') { Stop-Kit 2 "unknown backend: $via" }
@@ -520,6 +602,23 @@ function Start-Session([string[]]$A) {
             if ($i -gt 0) { $envAgent[$line.Substring(0, $i)] = $line.Substring($i + 1) }
         }
     }
+    # The words of --args: NAME=VALUE words at the start go into the
+    # environment, the others after the command.
+    $stepEnv = @()
+    $rest = @()
+    foreach ($w in @($stepArgs -split ' ' | Where-Object { $_ })) {
+        if ($rest.Count -eq 0 -and $w -match '^([A-Za-z_][A-Za-z0-9_]*)=(.*)$') {
+            $envAgent[$Matches[1]] = $Matches[2]
+            $stepEnv += $w
+        } else { $rest += $w }
+    }
+    if ($rest.Count -gt 0) {
+        # With --cmd, the agent runs through PowerShell -Command: the words
+        # go into that command.
+        if ($cmd) { $argv = @($argv[0..($argv.Count - 2)]) + @($argv[-1] + ' ' + ($rest -join ' ')) }
+        else { $argv = @($argv) + $rest }
+    }
+    Write-Conditions $dir $agent $mode $homeDir $work $rest $envAgent ($stepEnv -join ' ')
     $tag = 'kit-' + $name + '-' + [guid]::NewGuid().ToString('N').Substring(0, 8)
 
     if ($via -eq 'conpty') {

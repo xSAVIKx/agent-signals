@@ -1,0 +1,70 @@
+# The settings files that can change what an agent asks before a tool call.
+# "kit session start" records each file that exists in the conditions of the
+# session (RUN/sessions/NAME/conditions), so that a result names the
+# settings that were in effect. Read by session.sh and session.ps1.
+#
+# Each line that does not start with "#" has 4 fields, separated by tabs.
+#
+#   agent  claude, codex, agy or cursor-agent.
+#   scope  home     a path below the home of the session.
+#          project  a path below the work folder or a folder above it. The
+#                   kit looks in each folder from the work folder up to the
+#                   root.
+#          machine  an absolute path. A machine file applies to each
+#                   account and each home, also to a throwaway home.
+#   os     linux, macos, windows, or "all".
+#   path   The path. "/" separates folders on each OS.
+#
+# A kit-made home (throwaway or fixture) holds no private data: the
+# conditions show the content of each home file. A real home and a machine
+# file can hold private data: the conditions show only the SHA-256, the
+# size, and the top-level keys of a JSON file. A project file shows the
+# number of folders above the work folder, not the path.
+#
+# The paths come from the documentation of each agent and from the strings
+# in the binary of agy 1.5.1. A path that an agent does not read does no
+# harm. A missing path is a gap: the conditions do not show that file.
+claude	home	all	.claude/settings.json
+claude	home	all	.claude/settings.local.json
+claude	home	all	.claude/CLAUDE.md
+claude	home	all	.claude.json
+claude	home	all	.claude/.claude.json
+claude	project	all	.claude/settings.json
+claude	project	all	.claude/settings.local.json
+claude	project	all	CLAUDE.md
+claude	project	all	CLAUDE.local.md
+claude	machine	linux	/etc/claude-code/managed-settings.json
+claude	machine	linux	/etc/claude-code/managed-mcp.json
+claude	machine	linux	/etc/claude-code/CLAUDE.md
+claude	machine	macos	/Library/Application Support/ClaudeCode/managed-settings.json
+claude	machine	macos	/Library/Application Support/ClaudeCode/managed-mcp.json
+claude	machine	macos	/Library/Application Support/ClaudeCode/CLAUDE.md
+claude	machine	windows	C:/Program Files/ClaudeCode/managed-settings.json
+claude	machine	windows	C:/Program Files/ClaudeCode/CLAUDE.md
+claude	machine	windows	C:/ProgramData/ClaudeCode/managed-settings.json
+claude	machine	windows	C:/ProgramData/ClaudeCode/CLAUDE.md
+codex	home	all	.codex/config.toml
+codex	home	all	.codex/requirements.toml
+codex	home	all	.codex/AGENTS.md
+codex	project	all	.codex/config.toml
+codex	project	all	AGENTS.md
+codex	project	all	AGENTS.override.md
+codex	machine	linux	/etc/codex/config.toml
+codex	machine	linux	/etc/codex/managed_config.toml
+codex	machine	linux	/etc/codex/requirements.toml
+codex	machine	macos	/etc/codex/config.toml
+codex	machine	macos	/etc/codex/managed_config.toml
+codex	machine	macos	/etc/codex/requirements.toml
+agy	home	all	.gemini/antigravity-cli/settings.json
+agy	home	all	.gemini/config/config.json
+agy	home	all	.gemini/GEMINI.md
+agy	project	all	GEMINI.md
+agy	project	all	AGENTS.md
+agy	project	all	.agents
+agy	machine	linux	/etc/antigravity/admin_settings.json
+agy	machine	macos	/Library/Application Support/Antigravity/admin_settings.json
+agy	machine	windows	C:/ProgramData/Antigravity/admin_settings.json
+cursor-agent	home	all	.cursor/cli-config.json
+cursor-agent	home	all	.cursor/permissions.json
+cursor-agent	project	all	.cursor/cli.json
+cursor-agent	project	all	AGENTS.md

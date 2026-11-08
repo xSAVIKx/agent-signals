@@ -1,7 +1,7 @@
 #!/bin/sh
 # kit session: start and drive a test session of one agent.
 #
-#   kit session start NAME AGENT --via tmux|pty [--cmd CMD] [--home real|throwaway|fixture]
+#   kit session start NAME AGENT --via tmux|pty [--cmd CMD] [--args ARGS] [--home real|throwaway|fixture]
 #   kit session send NAME TEXT
 #   kit session key NAME KEY...
 #   kit session screen NAME
@@ -12,7 +12,10 @@
 #
 # CMD is one simple command, for example "env NAME=VALUE prog arg". The
 # agent starts as "exec CMD", so that its pid is the pid of the pane or of
-# the pty.
+# the pty. ARGS is a list of words, separated by spaces: the NAME=VALUE
+# words at its start go into the environment of the agent, and the other
+# words go after CMD. The column "args" of steps.tsv gives ARGS, for
+# example "CLAUDE_CODE_AUTO_MODE_SERVER=0 --permission-mode auto".
 #
 # The tmux backend uses a private tmux server. The pty backend uses
 # ptydrive.py: a plain pty with no multiplexer. The agent starts in a new
@@ -27,6 +30,9 @@
 #   agent      the agent name
 #   home-mode  real, throwaway or fixture
 #   work       the path of the work folder of the agent, RUN/work/NAME
+#   conditions the conditions of the start: the command, the names of the
+#              variables of the environment, and the settings files of
+#              settings-files.tsv. Written before the agent starts.
 #   socket     the path of the socket of the server
 #   pid        the pid of the agent
 #   pids       the pids of the session: lines "PID LABEL<tab>START"
@@ -108,6 +114,121 @@ start_fake_model() {
     _n=$((_n + 1))
     sleep 0.1
   done
+}
+
+# json_keys FILE: the top-level keys of the JSON object in FILE, separated
+# by ", ". Empty when FILE is not a JSON object or python3 is missing.
+json_keys() {
+  command -v python3 >/dev/null 2>&1 || return 0
+  python3 -I -c 'import json, sys
+try:
+    d = json.load(open(sys.argv[1], encoding="utf-8"))
+except Exception:
+    sys.exit(0)
+if isinstance(d, dict):
+    print(", ".join(sorted(d)))' "$1" 2>/dev/null
+}
+
+# file_facts FILE: the start of the SHA-256, the size and the JSON keys of
+# FILE, or
+# "a folder" for a folder.
+file_facts() {
+  if [ -d "$1" ]; then
+    echo "a folder"
+    return 0
+  fi
+  _k=$(json_keys "$1")
+  # 12 hex characters: the scrub of the kit changes a run of 16 or more.
+  printf 'sha256 %s, %s bytes%s\n' "$(kit_sha256 "$1" | cut -c1-12)" "$(wc -c <"$1" | tr -d ' ')" "${_k:+, keys: $_k}"
+}
+
+# write_conditions VAR=VALUE...: write $sdir/conditions. It reads cmd,
+# mode, h, work, agent and step_env. The values of the variables stay out:
+# a real environment can hold a token.
+write_conditions() {
+  {
+    echo "command: $cmd"
+    printf 'environment:'
+    for kv in "$@"; do echo "${kv%%=*}"; done | awk '!seen[$0]++ { printf " %s", $0 }'
+    echo
+    [ -z "$step_env" ] || echo "environment from the step: $step_env"
+    case $mode in
+      fixture) echo "home: fixture, made by the kit, with the fake model of the kit" ;;
+      throwaway) echo "home: throwaway, made by the kit, with no login" ;;
+      real) echo "home: real, the home of the operator" ;;
+    esac
+    _os=$(kit_os)
+    awk -F '\t' -v a="$agent" -v o="$_os" '!/^#/ && NF == 4 && $1 == a && ($3 == "all" || $3 == o) { print $2 "\t" $4 }' \
+      "$KIT_DIR/settings-files.tsv" >"$sdir/settings.list"
+    _home=0 _proj=0
+    while IFS='	' read -r _scope _p; do
+      case $_scope in
+        home)
+          [ -e "$h/$_p" ] || continue
+          _home=$((_home + 1))
+          echo "home file: $_p, $(file_facts "$h/$_p")"
+          if [ "$mode" != real ] && [ -f "$h/$_p" ]; then
+            sed -n '1,200s/^/  | /p' "$h/$_p"
+          fi
+          ;;
+        project)
+          _d=$work _n=0
+          while :; do
+            if [ -e "$_d/$_p" ]; then
+              _proj=$((_proj + 1))
+              echo "project file: $_p, $_n folders above the work folder, $(file_facts "$_d/$_p")"
+            fi
+            [ "$_d" != / ] && [ -n "$_d" ] || break
+            _d=$(dirname "$_d")
+            _n=$((_n + 1))
+          done
+          ;;
+        machine)
+          if [ -e "$_p" ]; then
+            echo "machine file: $_p, $(file_facts "$_p")"
+          else
+            echo "machine file: $_p, absent"
+          fi
+          ;;
+      esac
+    done <"$sdir/settings.list"
+    rm -f "$sdir/settings.list"
+    [ "$_home" -gt 0 ] || echo "home file: none"
+    [ "$_proj" -gt 0 ] || echo "project file: none"
+    # The sandbox of Codex runs its commands and its file edits. When the
+    # host does not let it start (bwrap with no user namespaces), Codex
+    # asks to run them with no sandbox, in each approval mode.
+    if [ "$agent" = codex ]; then
+      _c=$(kit_agent_command codex)
+      if [ -n "$_c" ]; then
+        # A time limit of 10 s: a program that does not know the command
+        # can wait for input. It stops by its pid.
+        (cd "$work" && exec env -i "$@" "$_c" sandbox -- true) </dev/null >"$sdir/sandbox.out" 2>&1 &
+        _p=$!
+        _n=0
+        while kill -0 "$_p" 2>/dev/null && [ "$_n" -lt 50 ]; do
+          sleep 0.2
+          _n=$((_n + 1))
+        done
+        if kill -0 "$_p" 2>/dev/null; then
+          kill "$_p" 2>/dev/null
+          sleep 0.5
+          kill -9 "$_p" 2>/dev/null
+          wait "$_p" 2>/dev/null
+          echo "codex sandbox: not known ('codex sandbox -- true' did not end in 10 s)"
+        else
+          wait "$_p"
+          _rc=$?
+          if [ "$_rc" -eq 0 ]; then
+            echo "codex sandbox: works ('codex sandbox -- true' exits 0)"
+          else
+            echo "codex sandbox: fails ('codex sandbox -- true' exits $_rc): $(grep -v '^WARNING' "$sdir/sandbox.out" | head -n 1 | cut -c1-160)"
+          fi
+        fi
+        rm -f "$sdir/sandbox.out"
+      fi
+    fi
+  } >"$sdir/conditions"
 }
 
 # label PIDFILE: the label of a pid file.
@@ -216,7 +337,7 @@ do_start() {
   esac
   # The home mode: --home, else KIT_HOME, else the line "meta home MODE"
   # that kit start writes to the manifest, else throwaway.
-  via='' cmd='' keep='' mode=${KIT_HOME:-}
+  via='' cmd='' keep='' args='' mode=${KIT_HOME:-}
   if [ -z "$mode" ] && [ -r "$run/manifest.tsv" ]; then
     mode=$(awk -F '\t' '$1 == "meta" && $2 == "home" { m = $3 } END { print m }' "$run/manifest.tsv")
   fi
@@ -225,6 +346,7 @@ do_start() {
     case $1 in
       --via) [ "$#" -ge 2 ] || usage; via=$2; shift 2 ;;
       --cmd) [ "$#" -ge 2 ] || usage; cmd=$2; shift 2 ;;
+      --args) [ "$#" -ge 2 ] || usage; args=$2; shift 2 ;;
       --home) [ "$#" -ge 2 ] || usage; mode=$2; shift 2 ;;
       --keep) keep=yes; shift ;;
       *) usage ;;
@@ -299,6 +421,25 @@ do_start() {
       set -- "$@" "$kv"
     done <"$sdir/fake-model.env"
   fi
+  # The words of --args: NAME=VALUE words at the start go into the
+  # environment, the others after the command.
+  step_env=
+  if [ -n "$args" ]; then
+    set -f
+    _rest=
+    for w in $args; do
+      case $_rest$w in
+        [A-Za-z_]*=*)
+          set -- "$@" "$w"
+          step_env="${step_env:+$step_env }$w"
+          ;;
+        *) _rest="$_rest $w" ;;
+      esac
+    done
+    set +f
+    cmd="$cmd$_rest"
+  fi
+  write_conditions "$@"
   sockdir=$(mktemp -d /tmp/as.XXXXXX) || kit_die 1 "mktemp failed"
   chmod 700 "$sockdir"
   # The agent starts with "exec", so that its pid is the pid of the pane

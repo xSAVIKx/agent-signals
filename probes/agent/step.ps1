@@ -5,7 +5,7 @@
 # It reads the line NAME of probes\agent\steps.tsv and runs
 # probes\agent\steps\<kind>.ps1 in a new PowerShell process, with the
 # KIT_* variables of the step contract (KIT_RUN, KIT_ROOT, KIT_STEP,
-# KIT_KIND, KIT_AGENT, KIT_BACKEND, KIT_PROMPT, KIT_WAIT_REGEX, KIT_ANSWER,
+# KIT_KIND, KIT_AGENT, KIT_BACKEND, KIT_PROMPT, KIT_ARGS, KIT_WAIT_REGEX, KIT_ANSWER,
 # KIT_HOME, KIT_OUT). The ARGUMENTS go to the script. The script writes its
 # output to KIT_OUT, and one line of reason to KIT_OUT.reason.
 # The step then sends the output through tools\scrub.ps1 into
@@ -78,6 +78,7 @@ try {
         $env:KIT_AGENT = [string]$step.agent
         $env:KIT_BACKEND = $backend
         $env:KIT_PROMPT = [string]$step.prompt
+        $env:KIT_ARGS = if ($step.PSObject.Properties['args'] -and [string]$step.args -ne '-') { [string]$step.args } else { '' }
         $env:KIT_WAIT_REGEX = [string]$step.wait_regex
         $env:KIT_ANSWER = [string]$step.answer
         $env:KIT_HOME = $homeMode
