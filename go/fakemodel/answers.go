@@ -19,7 +19,54 @@ const (
 	kindChoice   = "choice"
 	kindQuestion = "question"
 	kindWrite    = "write"
+	// A review answer. The log names the verdict: "review allow" or
+	// "review deny".
+	kindReview = "review"
+	// The answer to a request with a JSON schema that is not a review.
+	kindStructured = "structured"
 )
+
+// severityForm is the text of the Claude Code review prompt that asks for
+// the verdict.
+const severityForm = "<severity>N</severity>"
+
+// verdict returns "deny" when TEXT holds TriggerDeny, else "allow".
+func verdict(text string) string {
+	if strings.Contains(text, TriggerDeny) {
+		return "deny"
+	}
+	return "allow"
+}
+
+// fill returns a value for the JSON SCHEMA: the first enum value, "Fixture"
+// for a string, 0 for a number, false for a boolean, and an object with each
+// required property. For the property "outcome" the value is VERDICT.
+func fill(schema map[string]any, verdictValue string) any {
+	if e := list(schema["enum"]); len(e) > 0 {
+		return e[0]
+	}
+	switch schema["type"] {
+	case "object":
+		out := map[string]any{}
+		props := obj(schema["properties"])
+		for _, r := range list(schema["required"]) {
+			name, _ := r.(string)
+			if name == "outcome" {
+				out[name] = verdictValue
+				continue
+			}
+			out[name] = fill(obj(props[name]), verdictValue)
+		}
+		return out
+	case "array":
+		return []any{}
+	case "number", "integer":
+		return 0
+	case "boolean":
+		return false
+	}
+	return "Fixture"
+}
 
 // classify returns the kind of answer for the last user text.
 func classify(text string, hasTools bool) string {
@@ -106,8 +153,18 @@ func hasTool(body map[string]any, name string) bool {
 	return false
 }
 
+// marshal returns the JSON of V with no HTML escapes, as the real APIs
+// write it: "<" stays "<", not "\u003c".
+func marshal(v any) []byte {
+	var buf bytes.Buffer
+	e := json.NewEncoder(&buf)
+	e.SetEscapeHTML(false)
+	e.Encode(v)
+	return bytes.TrimSuffix(buf.Bytes(), []byte("\n"))
+}
+
 func sse(event string, data any) []byte {
-	b, _ := json.Marshal(data)
+	b := marshal(data)
 	head := ""
 	if event != "" {
 		head = "event: " + event + "\n"
@@ -161,7 +218,7 @@ func (s *server) post(w http.ResponseWriter, r *http.Request) {
 		var items []any
 		kind, items = codexAnswer(body)
 		chunks = codexStream(rid, kind, items)
-		if kind != kindHold {
+		if kind != kindHold && !strings.HasPrefix(kind, kindReview) && kind != kindStructured {
 			kind = "reply"
 		}
 	case strings.HasSuffix(path, "/messages"):
@@ -216,6 +273,16 @@ func (s *server) post(w http.ResponseWriter, r *http.Request) {
 // last user message count: a tool result of an earlier turn must not end a
 // new turn.
 func codexAnswer(body map[string]any) (string, []any) {
+	if format := obj(obj(body["text"])["format"]); format["type"] == "json_schema" {
+		schema := obj(format["schema"])
+		if _, ok := obj(schema["properties"])["outcome"]; ok {
+			v := verdict(inputText(body["input"]))
+			out := marshal(fill(schema, v))
+			return kindReview + " " + v, []any{codexText(string(out))}
+		}
+		out := marshal(fill(schema, ""))
+		return kindStructured, []any{codexText(string(out))}
+	}
 	var items []map[string]any
 	for _, i := range list(body["input"]) {
 		if m := obj(i); m != nil {
@@ -270,6 +337,17 @@ func codexAnswer(body map[string]any) (string, []any) {
 	return kindText, []any{codexText(Text)}
 }
 
+// inputText returns the text of all user messages of a Codex input list.
+func inputText(input any) string {
+	var out []string
+	for _, i := range list(input) {
+		if m := obj(i); m["role"] == "user" {
+			out = append(out, textOf(m["content"]))
+		}
+	}
+	return strings.Join(out, " ")
+}
+
 func codexText(text string) map[string]any {
 	return map[string]any{
 		"type":    "message",
@@ -303,6 +381,16 @@ func codexStream(rid, kind string, items []any) [][]byte {
 // path. Claude Code 2.1.318 puts a "system" message after the user message,
 // so the last user message counts.
 func claudeAnswer(body map[string]any) (string, string) {
+	if strings.Contains(textOf(body["system"]), severityForm) {
+		var all []string
+		for _, m := range list(body["messages"]) {
+			all = append(all, textOf(obj(m)["content"]))
+		}
+		if verdict(strings.Join(all, " ")) == "deny" {
+			return kindReview + " deny", ReviewDeny
+		}
+		return kindReview + " allow", ReviewAllow
+	}
 	var last map[string]any
 	msgs := list(body["messages"])
 	for i := len(msgs) - 1; i >= 0; i-- {
@@ -408,7 +496,7 @@ func claudeStream(rid, model, kind, text string) [][]byte {
 				first[k] = v
 			}
 			first["input"] = map[string]any{}
-			in, _ := json.Marshal(m["input"])
+			in := marshal(m["input"])
 			delta = map[string]any{"type": "input_json_delta", "partial_json": string(in)}
 		}
 		out = append(out,

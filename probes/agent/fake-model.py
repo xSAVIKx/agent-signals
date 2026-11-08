@@ -53,6 +53,15 @@ The answer depends on the last user message of a request with tools:
   "End your reply with a question"
                    a text reply that ends with a question
   other text       a text reply
+A review request asks if a tool call can run. Its verdict is "deny" when the
+user text that it reviews holds "Deny the review", else "allow":
+  Claude Code in auto mode with CLAUDE_CODE_AUTO_MODE_SERVER=0: a request
+  whose system prompt asks for <severity>N</severity>. The answer is
+  <severity>5</severity>, or <severity>95</severity> and a category.
+  Codex with --approve-for-me: a request with a JSON schema that has the
+  property "outcome". The answer is a JSON object with that outcome.
+A request with another JSON schema (a title) gets an object with a fixed
+value for each required property.
 The Go package github.com/xSAVIKx/agent-signals/go/fakemodel gives the same
 answers.
 A request with no tools (a title or a summary) gets a text reply.
@@ -86,6 +95,9 @@ QUESTION = "The fixture has one question. Do you want to go on?"
 WRITE_FILE = "agent-signals-write.txt"
 WRITE_TEXT = "The fixture wrote this file.\n"
 NO_PATH = 'The fixture found no absolute path after "Write outside".'
+REVIEW_ALLOW = "<severity>5</severity>"
+REVIEW_DENY = "<severity>95</severity><category>Fixture Block</category>"
+SEVERITY_FORM = "<severity>N</severity>"
 ABS_PATH = re.compile(r"""(?:[A-Za-z]:\\|/)[^\s"'<>]+""")
 CLAUDE_CHOICE = {
     "questions": [{
@@ -168,6 +180,31 @@ def write_path(text, cwd):
     return cwd.rstrip("/") + "/" + WRITE_FILE
 
 
+def verdict(text):
+    return "deny" if "Deny the review" in text else "allow"
+
+
+def fill(schema, verdict_value):
+    """Return a value for the JSON SCHEMA: the first enum value, "Fixture" for
+    a string, 0 for a number, False for a boolean, and an object with each
+    required property. The property "outcome" gets VERDICT_VALUE."""
+    schema = schema if isinstance(schema, dict) else {}
+    if schema.get("enum"):
+        return schema["enum"][0]
+    kind = schema.get("type")
+    if kind == "object":
+        props = schema.get("properties") or {}
+        return {name: verdict_value if name == "outcome" else fill(props.get(name), verdict_value)
+                for name in schema.get("required") or []}
+    if kind == "array":
+        return []
+    if kind in ("number", "integer"):
+        return 0
+    if kind == "boolean":
+        return False
+    return "Fixture"
+
+
 def label_value(text, label):
     """Return the rest of the line after LABEL in TEXT, or ""."""
     i = text.find(label)
@@ -190,6 +227,21 @@ def text_of(content):
 
 
 def codex_answer(body):
+    """Return the kind and the output items."""
+    fmt = (body.get("text") or {}).get("format") or {}
+    if fmt.get("type") == "json_schema":
+        schema = fmt.get("schema") or {}
+        if "outcome" in (schema.get("properties") or {}):
+            v = verdict(" ".join(text_of(i.get("content")) for i in body.get("input") or []
+                                 if isinstance(i, dict) and i.get("role") == "user"))
+            return "review " + v, [codex_text(json.dumps(fill(schema, v), separators=(",", ":")))]
+        return "structured", [codex_text(json.dumps(fill(schema, ""), separators=(",", ":")))]
+    reply = codex_turn(body)
+    return ("hold" if reply == "hold" else "reply"), reply
+
+
+def codex_turn(body):
+    """Return the output items of a turn, or "hold"."""
     items = [i for i in body.get("input") or [] if isinstance(i, dict)]
     # Only the items after the last user message count: a tool result of an
     # earlier turn must not end a new turn.
@@ -258,6 +310,11 @@ def codex_stream(rid, reply):
 
 
 def claude_answer(body):
+    if SEVERITY_FORM in text_of(body.get("system")):
+        text = " ".join(text_of(m.get("content")) for m in body.get("messages") or [] if isinstance(m, dict))
+        if verdict(text) == "deny":
+            return "review deny", REVIEW_DENY
+        return "review allow", REVIEW_ALLOW
     # For "write" the text is the path.
     # Claude Code 2.1.318 puts a "system" message after the user message.
     last = next((m for m in reversed(body.get("messages") or [])
@@ -653,8 +710,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         model = body.get("model") or AGY_MODEL
         stream = True
         if path.endswith("/responses"):
-            reply = codex_answer(body)
-            kind = "hold" if reply == "hold" else "reply"
+            kind, reply = codex_answer(body)
             chunks = codex_stream(rid, reply)
         elif path.endswith("/messages"):
             kind, text = claude_answer(body)

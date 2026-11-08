@@ -65,6 +65,21 @@ The answer depends on the last user message:
 | `End your reply with a question` | `The fixture has one question. Do you want to go on?` |
 | Other text | `The fixture has no more to say.` |
 
+A review request asks the model whether a tool call can run. The answer
+is "allow", or "deny" when the user text under review holds
+`Deny the review`. The server knows two forms:
+
+- Claude Code in auto mode with `CLAUDE_CODE_AUTO_MODE_SERVER=0`: the
+  request asks for `<severity>N</severity>`. The answer is
+  `<severity>5</severity>`, or `<severity>95</severity>` with a category.
+  Without that variable, Claude Code asks the server of the API for the
+  review, and the fake model cannot answer it.
+- Codex with `--approve-for-me`: a request with a JSON schema that has the
+  property `outcome`.
+
+A request with another JSON schema, for example a title request, gets an
+object with a fixed value for each required property.
+
 The file-write tool is `Write` for Claude Code, `apply_patch` for Codex and
 `write_file` for agy. Claude Code and agy need an absolute path, so the
 server reads the work folder from the system prompt of the request. The

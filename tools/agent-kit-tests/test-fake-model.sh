@@ -74,6 +74,28 @@ post text "Write outside /work/example/out.txt."
 expect_line "an outside write uses the given path" 'Add File: /work/example/out\.txt\\n' "$T/reply"
 post text "Write outside the work folder."
 expect_line "an outside write with no path gets a text reply" 'found no absolute path' "$T/reply"
+cat >"$T/review.py" <<'X'
+import http.client, json, sys
+port, text, form = int(sys.argv[1]), sys.argv[2], sys.argv[3]
+props = {"outcome": {"type": "string", "enum": ["allow", "deny"]}, "risk_level": {"type": "string", "enum": ["low", "high"]}}
+schema = {"type": "object", "required": ["outcome", "risk_level"], "properties": props}
+if form == "title":
+    schema = {"type": "object", "required": ["title"], "properties": {"title": {"type": "string"}}}
+body = {"text": {"format": {"type": "json_schema", "schema": schema}},
+        "input": [{"role": "user", "content": [{"type": "input_text", "text": text}]}]}
+c = http.client.HTTPConnection("127.0.0.1", port, timeout=3)
+c.request("POST", "/v1/responses", json.dumps(body))
+print(c.getresponse().read().decode())
+X
+python3 "$T/review.py" "$port" "Write a file now." outcome >"$T/reply" 2>&1
+expect_line "a review gets the verdict allow" '\{\\"outcome\\":\\"allow\\",\\"risk_level\\":\\"low\\"\}' "$T/reply"
+python3 "$T/review.py" "$port" "Write a file now. Deny the review." outcome >"$T/reply" 2>&1
+expect_line "a review with the deny text gets the verdict deny" '\\"outcome\\":\\"deny\\"' "$T/reply"
+python3 "$T/review.py" "$port" "Write a file now." title >"$T/reply" 2>&1
+expect_line "a title request gets a title" '\{\\"title\\":\\"Fixture\\"\}' "$T/reply"
+expect_no_line "a title request gets no call" 'apply_patch' "$T/reply"
+expect_line "the log names the review verdict" ' review allow$' "$T/log"
+expect_line "the log names a structured reply" ' structured$' "$T/log"
 post text "Count from 1 to 300."
 expect_no_line "a long prompt gets no completed event" 'response\.completed' "$T/reply"
 expect_line "the log has the hold" ' hold$' "$T/log"
@@ -146,6 +168,12 @@ post2 /v1/messages "{\"stream\": true, $wsys, $wtools, \"messages\": [{\"role\":
 expect_line "claude: an outside write uses the given path" 'file_path.*/work/other/x\.txt' "$T/reply"
 post2 /v1/messages "{\"stream\": true, $wsys, $wtools, \"messages\": [{\"role\": \"user\", \"content\": \"Write outside please.\"}]}"
 expect_line "claude: an outside write with no path gets a text reply" 'found no absolute path' "$T/reply"
+rsys='"system": [{"type": "text", "text": "You are a security monitor.\nOutput <severity>N</severity> where N is an integer 0-100."}], "stop_sequences": ["</severity>"]'
+post2 /v1/messages "{$rsys, \"messages\": [{\"role\": \"user\", \"content\": \"<transcript>Write outside /work/x.txt</transcript>\"}]}"
+expect_line "claude: a review gets the verdict allow" '<severity>5</severity>' "$T/reply"
+post2 /v1/messages "{$rsys, \"messages\": [{\"role\": \"user\", \"content\": \"<transcript>Write outside /work/x.txt. Deny the review.</transcript>\"}]}"
+expect_line "claude: a review with the deny text gets the verdict deny" '<severity>95</severity>' "$T/reply"
+expect_line "claude: the log names the review verdict" ' review deny$' "$T/claude.log"
 post2 /v1/messages/count_tokens '{}'
 expect_line "claude: count_tokens gets a count" 'input_tokens' "$T/reply"
 expect_line "claude: the log has the write" ' write$' "$T/claude.log"
