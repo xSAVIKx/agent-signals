@@ -222,4 +222,48 @@ for via in tmux pty; do
   if [ "$n" = 0 ]; then pass "$via: stop --all removes the pid files"; else fail "$via: stop --all removes the pid files" "$n files"; fi
 done
 
+# test_start_args_and_conditions: --args puts its NAME=VALUE words into the
+# environment and its other words after the command. The conditions file
+# names the command, the names of the variables, the home, and the
+# settings files of settings-files.tsv.
+if have tmux; then
+  run="$T/run args"
+  mkdir -m 700 "$run"
+  export AGENT_SIGNALS_RUN="$run"
+  kit session start a1 stub --via tmux --cmd "sh '$stub'" --args "STUB_MODE_X=on --mode-x" >"$T/out" 2>&1
+  expect_code "args: start with --args" 0 $?
+  c=$run/sessions/a1/conditions
+  expect_line "args: the command has the words of the step" "^command: sh '.*stub-agent\.sh' --mode-x\$" "$c"
+  expect_line "args: the variable of the step is named" '^environment from the step: STUB_MODE_X=on$' "$c"
+  expect_line "args: the variables are named" '^environment: HOME PATH TERM USER LANG ' "$c"
+  expect_line "args: the variable of the step is in the list" '^environment: .* STUB_MODE_X' "$c"
+  expect_no_line "args: no value of a variable" 'PATH=|HOME=' "$c"
+  expect_line "args: the home is named" '^home: throwaway' "$c"
+  expect_line "args: an agent with no settings files has none" '^home file: none$' "$c"
+  kit session wait a1 'stub idle' 30 >"$T/out" 2>&1
+  kit session send a1 env >"$T/out" 2>&1
+  kit session key a1 Enter >"$T/out" 2>&1
+  kit session wait a1 'env saved' 30 >"$T/out" 2>&1
+  expect_line "args: the agent gets the variable" '^STUB_MODE_X=on$' "$run/work/a1/stub-env.txt"
+  kit session stop a1 >"$T/out" 2>&1
+
+  # The settings files of claude: the content of a file in a kit-made
+  # home, the hash of a project file above the work folder, and each
+  # machine file of this OS.
+  mkdir -p "$run/work"
+  echo 'project rules' >"$run/work/CLAUDE.md"
+  kit session start a2 claude --via tmux --cmd "sh '$stub'" --home fixture >"$T/out" 2>&1
+  expect_code "args: a fixture start of claude" 0 $?
+  c=$run/sessions/a2/conditions
+  expect_line "args: a kit-made home shows its settings file" '^home file: \.claude/settings\.json, sha256 [0-9a-f]{12}, [0-9]+ bytes, keys: permissions$' "$c"
+  expect_line "args: a kit-made home shows the content" '^  \|     "defaultMode": "default"$' "$c"
+  expect_line "args: a project file shows its level and its hash" '^project file: CLAUDE\.md, 1 folders above the work folder, sha256 [0-9a-f]{12}, 14 bytes$' "$c"
+  expect_no_line "args: a project file shows no content" 'project rules' "$c"
+  expect_line "args: each machine file is named" '^machine file: .*managed-settings\.json, ' "$c"
+  kit session stop a2 >"$T/out" 2>&1
+  rm -f "$run/work/CLAUDE.md"
+  left=$(pids_run "$run")
+  if [ -z "$left" ]; then pass "args: no pid runs after stop"; else fail "args: no pid runs after stop" "$left"; fi
+fi
+
 done_tests

@@ -172,6 +172,23 @@ foreach ($b in 'conpty', 'psmux') {
         Expect-Code "${b}: a start reuses the name of a stopped session" 0 (Invoke-Kit 'session' 'start' $s 'claude' '--via' $b)
         Expect-Code "${b}: stop the reused session" 0 (Invoke-Kit 'session' 'stop' $s)
 
+        # test_start_args_and_conditions: --args puts its NAME=VALUE words
+        # into the environment and its other words after the command. The
+        # conditions file names the command, the variables and the home.
+        $sa = "args-$b"
+        $enva = Join-Path $T "env-args-$b.txt"
+        Expect-Code "${b}: start with --args" 0 (Invoke-Kit 'session' 'start' $sa 'claude' '--via' $b '--cmd' "`$env:STUB_ENV = '$enva'; claude" '--args' 'STUB_MODE_X=on --mode-x')
+        $c = Join-Path $run "sessions/$sa/conditions"
+        Expect-Line "${b}: the conditions name the agent and the step words" '^command: claude --mode-x$' $c
+        Expect-Line "${b}: the conditions name the variable of the step" '^environment from the step: STUB_MODE_X=on$' $c
+        Expect-Line "${b}: the conditions name the variables" '^environment: .*STUB_MODE_X' $c
+        Expect-Line "${b}: the conditions name the home" '^home: throwaway' $c
+        Expect-Line "${b}: the conditions name each machine file" '^machine file: C:/.*managed-settings\.json, ' $c
+        Expect-Code "${b}: wait for the stub with --args" 0 (Invoke-Kit 'session' 'wait' $sa 'stub idle' '60')
+        if ((Get-Text $enva) -match '(?m)^STUB_MODE_X$') { Pass "${b}: the agent gets the variable of --args" } else { Fail "${b}: the agent gets the variable of --args" (Get-Text $enva) }
+        Expect-Code "${b}: stop the --args session" 0 (Invoke-Kit 'session' 'stop' $sa)
+        Expect-NoLivePids "${b}: no pid of the --args session runs" $sa
+
         # test_one_word_exe_agent: claude, codex and agy install one .exe
         # file. The test builds a small console program as claude.exe: it
         # prints "stub exe idle" and waits for a line.

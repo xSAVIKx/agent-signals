@@ -19,15 +19,18 @@ awk -F '\t' '
     for (i = 1; i <= NF; i++) if ($i == "") print $1 ": field " i " is empty"
     if (seen[$1]++) print $1 ": two lines"
     if ($c["kind"] !~ /^(probe|terminals|first-run|permission|new-chat|resume|interrupt|real-session)$/) print $1 ": kind " $c["kind"]
-    if ($c["needs"] !~ /^(none|operator|login|screen)$/) print $1 ": needs " $c["needs"]
+    if ($c["needs"] !~ /^(none|operator|login|fixture|screen)$/) print $1 ": needs " $c["needs"]
     if ($c["cost"] !~ /^(none|turns:[0-9]+)$/) print $1 ": cost " $c["cost"]
     if (!words($c["backends"], "^(none|tmux|pty|conpty|psmux|operator)$")) print $1 ": backends " $c["backends"]
     if (!words($c["os"], "^(linux|macos|windows)$")) print $1 ": os " $c["os"]
     if ($c["agent"] !~ /^(-|claude|codex|agy|cursor-agent)$/) print $1 ": agent " $c["agent"]
     want = $c["kind"] ($c["agent"] == "-" ? "" : "-" $c["agent"])
-    if ($1 != want) print $1 ": the name is not " want
+    # A permission step for one mode: write-AGENT-MODE or
+    # write-outside-AGENT-MODE.
+    mode = $c["kind"] == "permission" && $1 ~ ("^write-(outside-)?" $c["agent"] "-[a-z-]+$")
+    if ($1 != want && !mode) print $1 ": the name is not " want
   }
-  END { if (n != 17) print "the header has " n " columns, want 17" }' "$steps" >"$T/shape"
+  END { if (n != 18) print "the header has " n " columns, want 18" }' "$steps" >"$T/shape"
 if [ -s "$T/shape" ]; then fail "each line of steps.tsv has a known shape" "$(head -n 3 "$T/shape" | tr '\n' ';')"; else pass "each line of steps.tsv has a known shape"; fi
 
 for k in probe terminals first-run permission new-chat resume interrupt real-session; do
@@ -95,6 +98,29 @@ for a in claude codex agy; do
   else
     pass "the regexes of $a agree with its $n corpus screens"
   fi
+  # The other idle regexes of the permission rows of $a (the rows of one
+  # mode) follow the same idle rule.
+  awk -F '\t' -v a="$a" -v r="$idle" '/^#/ { next } !h { for (i = 1; i <= NF; i++) col[$i] = i; h = 1; next }
+    $col["kind"] == "permission" && $col["agent"] == a && $col["idle_regex"] != r && !seen[$col["idle_regex"]]++ { print $col["idle_regex"] }' "$steps" >"$T/idles"
+  : >"$T/bad"
+  while IFS= read -r idle2; do
+    for y in "$ROOT"/corpus/$a/screens/*.yaml; do
+      s=${y%.yaml}.screen
+      [ -f "$s" ] || continue
+      b=$(basename "$s" .screen)
+      i=no
+      has "$idle2" "$s" && ! has "$busy" "$s" && ! has "$dialog" "$s" && i=yes
+      case $(sed -n 's/^  state: *//p' "$y" | head -n 1) in
+        IDLE) case $b in typed* | paste*) ;; *) [ "$i" = yes ] || echo "$idle2: $b is not idle" >>"$T/bad" ;; esac ;;
+        BUSY | PERMISSION | DIALOG_OVER_BOX | TRUST) [ "$i" = no ] || echo "$idle2: $b is idle" >>"$T/bad" ;;
+      esac
+    done
+  done <"$T/idles"
+  if [ -s "$T/bad" ]; then
+    fail "the mode rows of $a agree with its corpus screens" "$(tr '\n' ';' <"$T/bad")"
+  else
+    pass "the mode rows of $a agree with its corpus screens"
+  fi
   # Each pre pair matches a screen of the agent, and no IDLE, BUSY or
   # PERMISSION screen.
   field "permission-$a" pre | awk '{ n = split($0, p, ";;"); for (i = 1; i <= n; i++) { sub(/=>.*/, "", p[i]); print p[i] } }' >"$T/pre"
@@ -149,7 +175,8 @@ if [ "$os" = Darwin ]; then
 else
   expect_no_line "the plan has no terminal probe on Linux" '^step: terminals@' "$T/plan"
 fi
-expect_no_line "a real home gives no skip" 'skip=' "$T/plan"
+grep -v ' needs=fixture ' "$T/plan" >"$T/plan-login"
+expect_no_line "a real home gives no skip to a step with no fixture need" 'skip=' "$T/plan-login"
 
 (cd "$T" && PATH=$P AGENT_SIGNALS_RUN='' kitc "$T/k" plan --home throwaway) >"$T/plan2" 2>&1
 expect_code "kit plan --home throwaway exits 0" 0 $?
@@ -160,6 +187,11 @@ else
 fi
 expect_line "a login step is still in the plan" '^step: permission-claude@tmux needs=login cost=turns:1 skip=no-login measures=' "$T/plan2"
 expect_line "a step with no login does not skip" '^step: probe@none needs=none cost=none measures=' "$T/plan2"
+expect_line "a fixture step skips in a throwaway home" '^step: write-outside-claude-auto-deny@tmux needs=fixture cost=turns:1 skip=needs-fixture ' "$T/plan2"
+expect_line "a fixture step skips in a real home" '^step: write-outside-claude-auto-deny@tmux needs=fixture cost=turns:1 skip=needs-fixture ' "$T/plan"
+(cd "$T" && PATH=$P AGENT_SIGNALS_RUN='' kitc "$T/k" plan --home fixture) >"$T/plan3" 2>&1
+expect_line "a fixture step runs in the fixture" '^step: write-outside-claude-auto-deny@tmux needs=fixture cost=none measures=' "$T/plan3"
+expect_line "a mode step is in the plan" '^step: write-claude-accept-edits@tmux needs=login cost=none measures=' "$T/plan3"
 
 (cd "$T" && PATH=$P kitc "$T/k" plan --home other) >"$T/out" 2>&1
 expect_code "a bad home mode is bad use" 2 $?

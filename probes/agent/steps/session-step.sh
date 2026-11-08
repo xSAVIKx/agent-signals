@@ -2,8 +2,12 @@
 # The test-session steps: permission, new-chat, resume and interrupt. The
 # files steps/<kind>.sh run this script. It reads the step from the
 # variables of "kit step" (probes/agent/step.sh): KIT_KIND, KIT_AGENT,
-# KIT_BACKEND (tmux or pty), KIT_PROMPT, KIT_WAIT_REGEX, KIT_ANSWER,
-# KIT_PRE, KIT_IDLE_REGEX, KIT_BUSY_REGEX and KIT_DIALOG_REGEX.
+# KIT_BACKEND (tmux or pty), KIT_PROMPT, KIT_ARGS, KIT_WAIT_REGEX,
+# KIT_ANSWER, KIT_PRE, KIT_IDLE_REGEX, KIT_BUSY_REGEX and KIT_DIALOG_REGEX.
+#
+# KIT_ARGS go to "kit session start --args": the mode of the agent, for
+# example "--permission-mode acceptEdits". In KIT_PROMPT, the text @OUTSIDE@
+# becomes the path of a file in a new folder outside the work folder.
 #
 # The steps of the script:
 #   1. Start a session of the agent with "kit session start" in a new work
@@ -32,9 +36,13 @@
 #   5. Make the stop file of the watch, and wait for the end of the watch,
 #      so that the "after" snapshot sees the session. Then stop the
 #      session.
-# The output file holds the guided-step output, the screens (idle, dialog
-# and after for permission) and a log of the step with the time of each
-# stage.
+# The output file holds the conditions of the session, the guided-step
+# output, the screens (idle, dialog and after for permission) and a log of
+# the step with the time of each stage. The conditions are the command, the
+# names of the variables of the environment, the settings files that were
+# in effect (see settings-files.tsv), the lines of the idle screen that name
+# a mode, the answers of the fake model, and the files in the work folder
+# and in the outside folder at the end.
 #
 # Results and reasons:
 #   ok                       the step did its action, and the watch saw a
@@ -245,7 +253,8 @@ wait_re() {
 keep=
 start_session() {
   # shellcheck disable=SC2086
-  ses start "$sess" "$KIT_AGENT" --via "$KIT_BACKEND" --cmd "$cmd${1:+ $1}" $keep >"$tmp/start" 2>&1
+  ses start "$sess" "$KIT_AGENT" --via "$KIT_BACKEND" --cmd "$cmd${1:+ $1}" \
+    ${KIT_ARGS:+--args "$KIT_ARGS"} $keep >"$tmp/start" 2>&1
   _c=$?
   if [ "$_c" -ne 0 ]; then
     say "the session did not start: $(tail -n 1 "$tmp/start")"
@@ -331,11 +340,49 @@ no_records() {
     END { exit n ? 1 : 0 }' "$tmp/watch.txt"
 }
 
+# conditions: the conditions of the session, then the facts of the end:
+# the mode lines of the idle screen, the answers of the fake model, and
+# the files in the work folder and in the outside folder.
+conditions() {
+  _s=$KIT_RUN/sessions/$sess
+  if [ -s "$_s/conditions" ]; then
+    cat "$_s/conditions"
+  else
+    echo "no conditions file"
+  fi
+  _m=
+  [ -s "$tmp/screen.1" ] && _m=$(grep -iE '(^|[^a-z])mode([^a-z]|$)' "$tmp/screen.1" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | head -n 3)
+  if [ -n "$_m" ]; then
+    printf '%s\n' "$_m" | sed 's/^/mode on the idle screen: /'
+  else
+    echo "mode on the idle screen: no line names a mode"
+  fi
+  if [ -s "$_s/fake-model.log" ]; then
+    awk '$1 == "POST" { $1 = $2 = $3 = ""; sub(/^ +/, ""); n[$0]++ } END { for (k in n) print n[k] " " k }' \
+      "$_s/fake-model.log" | sort -k2 | awk '{ c = $1; $1 = ""; sub(/^ /, ""); s = s (s ? ", " : "") $0 " " c } END { print "fake model answers: " (s ? s : "none") }'
+  fi
+  [ -z "$work_files" ] || echo "files in the work folder at the end: $work_files"
+  if [ -n "$outside" ]; then
+    _f=$(ls -A "$outside" 2>/dev/null | tr '\n' ' ' | sed 's/ $//')
+    echo "files in the outside folder at the end: ${_f:-none}"
+  fi
+}
+
+# list_work: the names in the work folder, or "none". "kit session stop"
+# deletes the folder, so the step reads it before the stop.
+work_files=
+list_work() {
+  [ -n "${work:-}" ] && [ -d "$work" ] || return 0
+  work_files=$(ls -A "$work" 2>/dev/null | tr '\n' ' ' | sed 's/ $//')
+  work_files=${work_files:-none}
+}
+
 # finish RESULT: end the watch, stop the session, and write the output
 # file. RESULT is ok or fail.
 finish() {
   _r=$1
   end_watch
+  list_work
   say "stop the session"
   ses stop "$sess" >>"$tmp/log" 2>&1
   if [ -n "$watch_bad" ]; then
@@ -357,6 +404,9 @@ finish() {
     if [ "$KIT_AGENT" = claude ]; then
       echo "screens: the kit blanks each welcome box line that can show a display name or an organisation. No real screen was measured."
     fi
+    echo
+    echo "################ conditions"
+    conditions
     echo
     echo "################ guided step"
     if [ -s "$tmp/watch.txt" ]; then
@@ -464,6 +514,16 @@ keys() {
 why=
 : >"$tmp/log"
 : >"$tmp/s"
+# The outside folder: a new folder that is not in the work folder. The text
+# @OUTSIDE@ in the prompt becomes the path of a file in it.
+outside=
+case ${KIT_PROMPT:-} in
+  *@OUTSIDE@*)
+    outside=$tmp/outside
+    mkdir -p "$outside"
+    KIT_PROMPT=$(printf '%s' "$KIT_PROMPT" | awk -v o="$outside/agent-signals-write.txt" '{ gsub(/@OUTSIDE@/, o); print }')
+    ;;
+esac
 say "start a session of $KIT_AGENT on $KIT_BACKEND"
 start_session
 work=$(cat "$KIT_RUN/sessions/$sess/work")

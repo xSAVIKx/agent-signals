@@ -109,7 +109,7 @@ fails twice.
 | Command | Does |
 |---|---|
 | `kit doctor` | Prints `key: value` lines: os, cpu, shell, tools, agents and versions, the orchestrator agent (from the environment of its own process, fact 069). |
-| `kit plan` | Prints one line for each step: name, needs (`none`, `operator`, `login`, `screen`), cost (`none`, `turns:N`), and what it measures. |
+| `kit plan` | Prints one line for each step: name, needs (`none`, `operator`, `login`, `fixture`, `screen`), cost (`none`, `turns:N`), and what it measures. |
 | `kit step NAME` | Runs one step. Writes `NN-NAME.txt` in the run folder. Prints one result line: `step: NAME ok|skip|fail <reason>`. |
 | `kit check` | Checks the run folder (part 5). Exit 0 means complete. |
 | `kit edit FILE REASON` | Records a manual change in the manifest. |
@@ -173,6 +173,26 @@ The prompts are fixed text in the kit, the same as in the scenarios, for
 example the file write in the work folder that opens a permission
 dialog. The agent cannot give its own prompt to a step.
 
+Whether an agent asks before a tool call depends on its mode, its
+settings files, the settings files of the machine and of the project, and
+its environment. A result without them is not a fact. So each session step
+records its conditions in the step output:
+
+- the command and the arguments of the step (the mode),
+- the names of the variables of the environment (not the values),
+- each settings file of `probes/agent/settings-files.tsv` that exists: in
+  a kit-made home its content; in a real home, in the project and on the
+  machine only the start of its SHA-256, its size and its JSON keys,
+- the lines of the idle screen that name a mode,
+- the answers of the fake model (`write 1`, `review deny 2`),
+- the files in the work folder and in the outside folder at the end.
+
+An auto mode sends a review request to a model before a tool call runs.
+The fake model answers it (allow, or deny for the text `Deny the review`),
+so that a fixture run shows how the agent acts on each verdict. A real
+review is the decision of a model, so the kit does not record it as a
+fact of the agent.
+
 A wait uses the screen shapes of the corpus, where the corpus has them
 (the `expect` patterns of each screen). A step that waits for a screen
 and does not see it in its time limit fails and saves the last screen.
@@ -187,6 +207,8 @@ needs, cost, what it measures, the facts it checks. First steps:
 | `probe` | none | The current full kit run. |
 | `terminals` | screen (macOS) | The terminal probe, with its dialog warning. |
 | `permission-<agent>` | login, turns:1 | A test session, a file-write prompt, a wait for the dialog screen, the guided-step watch for 30 s, then Esc and stop. |
+| `write-<agent>-<mode>`, `write-outside-<agent>-<mode>` | login, turns:1 | A permission step in one mode of the agent (the column `args`), with a file write in the work folder or outside it. The step records the dialog or no dialog, and the files at the end. |
+| `write-...-deny` | fixture | The same, with a fake review that denies the call. Only with `--home fixture`: the answer of a real review is the decision of a model. |
 | `new-chat-<agent>`, `resume-<agent>`, `interrupt-<agent>` | login, turns:1 | The other guided steps, in a test session. |
 | `first-run-<agent>` | none | The current `scenarios/first-run.sh`: a start with a throwaway HOME and no login. |
 | `real-session-<agent>` | operator | The current guided step with `--wait`, for a session that the operator drives. |

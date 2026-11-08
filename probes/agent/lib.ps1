@@ -45,7 +45,8 @@ function Get-KitRunDir {
 # home mode HOME, or ''. The fixture mode has a fake model (fake-model.py)
 # for Codex, Claude Code, agy and the Cursor CLI.
 function Get-KitLoginSkip([string]$HomeMode, [string]$Needs, [string]$Agent) {
-    if ($Needs -ne 'login') { return '' }
+    if ($Needs -eq 'fixture' -and $HomeMode -ne 'fixture') { return 'needs-fixture' }
+    if ($Needs -notin 'login', 'fixture') { return '' }
     if ($HomeMode -eq 'throwaway') { return 'no-login' }
     if ($HomeMode -eq 'fixture' -and $Agent -notin 'codex', 'claude', 'agy', 'cursor-agent') { return 'no-fixture' }
     return ''
