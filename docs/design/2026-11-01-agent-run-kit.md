@@ -186,6 +186,10 @@ records its conditions in the step output:
 - the lines of the idle screen that name a mode,
 - the answers of the fake model (`write 1`, `review deny 2`),
 - the files in the work folder and in the outside folder at the end.
+- whether the work folder and the outside folder are in a temp folder. An
+  agent can give access to temp folders with no question, so a
+  write-outside step needs a run folder outside the temp folders,
+- for Codex, whether its sandbox starts.
 
 An auto mode sends a review request to a model before a tool call runs.
 The fake model answers it (allow, or deny for the text `Deny the review`),

@@ -496,6 +496,12 @@ try {
             [void]$cond.Append("files in the work folder at the end: $(if ($names.Count -gt 0) { $names -join ' ' } else { 'none' })`n")
         }
         if ($outside) {
+            $full = [IO.Path]::GetFullPath($outside).TrimEnd('\') + '\'
+            $tp = 'no'
+            foreach ($t in @($env:TEMP, $env:TMP, (Join-Path $env:SystemRoot 'Temp'))) {
+                if ($t -and $full.StartsWith(([IO.Path]::GetFullPath($t).TrimEnd('\') + '\'), [StringComparison]::OrdinalIgnoreCase)) { $tp = "yes ($($t.TrimEnd('\')))"; break }
+            }
+            [void]$cond.Append("outside folder in a temp folder: $tp`n")
             $names = @(Get-ChildItem -LiteralPath $outside -Force -Name -ErrorAction SilentlyContinue | Sort-Object)
             [void]$cond.Append("files in the outside folder at the end: $(if ($names.Count -gt 0) { $names -join ' ' } else { 'none' })`n")
         }

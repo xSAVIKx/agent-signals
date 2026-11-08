@@ -104,6 +104,19 @@ kit_sha256() {
   fi
 }
 
+# kit_temp_place PATH: "yes (/tmp)" when PATH is below a temp folder (/tmp,
+# /var/tmp, /private/tmp, /private/var/folders, /var/folders or TMPDIR),
+# else "no".
+kit_temp_place() {
+  _r=$(cd "$1" 2>/dev/null && pwd -P) || _r=$1
+  for _t in /tmp /var/tmp /private/tmp /private/var/folders /var/folders ${TMPDIR:+"${TMPDIR%/}"}; do
+    case $_r/ in
+      "$_t"/*) echo "yes ($_t)"; return 0 ;;
+    esac
+  done
+  echo no
+}
+
 # kit_cpu: the CPU type, as uname -m prints it.
 kit_cpu() { uname -m; }
 
