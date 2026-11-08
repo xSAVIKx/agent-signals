@@ -182,12 +182,26 @@ func TestClaude(t *testing.T) {
 	if !strings.Contains(out, "found no absolute path") || strings.Contains(out, "tool_use") {
 		t.Errorf("outside write with no path: %s", out)
 	}
+	review := func(text string) string {
+		return post(t, base+"/v1/messages", map[string]any{
+			"system":         []any{map[string]any{"type": "text", "text": "You are a security monitor.\nOutput <severity>N</severity> where N is an integer 0-100."}},
+			"stop_sequences": []any{"</severity>"},
+			"messages":       []any{map[string]any{"role": "user", "content": "<transcript>{\"user\":\"" + text + "\"}</transcript>"}},
+		})
+	}
+	if out := review("Write outside /work/x.txt"); !strings.Contains(out, ReviewAllow) {
+		t.Errorf("review allow: %s", out)
+	}
+	if out := review("Write outside /work/x.txt. Deny the review."); !strings.Contains(out, `<severity>95</severity>`) {
+		t.Errorf("review deny: %s", out)
+	}
 	if out := post(t, base+"/v1/messages/count_tokens", map[string]any{}); !strings.Contains(out, `"input_tokens":1`) {
 		t.Errorf("count_tokens: %s", out)
 	}
 	log, _ := os.ReadFile(logPath)
 	if strings.Contains(string(log), "agent-signals-test") || strings.Contains(string(log), "/work/") ||
-		!strings.Contains(string(log), "POST /v1/messages fixture-1 tool") || !strings.Contains(string(log), " write\n") {
+		!strings.Contains(string(log), "POST /v1/messages fixture-1 tool") || !strings.Contains(string(log), " write\n") ||
+		!strings.Contains(string(log), " review allow\n") || !strings.Contains(string(log), " review deny\n") {
 		t.Errorf("log: %s", log)
 	}
 }
@@ -243,6 +257,37 @@ func TestCodex(t *testing.T) {
 	out = post(t, base+"/v1/responses", map[string]any{"input": []any{map[string]any{"role": "user", "content": "Write outside /work/other/x.txt"}}})
 	if !strings.Contains(out, `*** Add File: /work/other/x.txt\n`) {
 		t.Errorf("outside write reply: %s", out)
+	}
+	outcome := map[string]any{
+		"type": "json_schema",
+		"name": "codex_output_schema",
+		"schema": map[string]any{
+			"type":     "object",
+			"required": []any{"outcome", "risk_level"},
+			"properties": map[string]any{
+				"outcome":    map[string]any{"type": "string", "enum": []any{"allow", "deny"}},
+				"risk_level": map[string]any{"type": "string", "enum": []any{"low", "high"}},
+			},
+		},
+	}
+	reviewIn := func(text string) []any {
+		return []any{map[string]any{"role": "user", "content": []any{map[string]any{"type": "input_text", "text": text}}}}
+	}
+	out = post(t, base+"/v1/responses", map[string]any{"text": map[string]any{"format": outcome}, "input": reviewIn("Write a file now.")})
+	if !strings.Contains(out, `{\"outcome\":\"allow\",\"risk_level\":\"low\"}`) {
+		t.Errorf("review allow: %s", out)
+	}
+	out = post(t, base+"/v1/responses", map[string]any{"text": map[string]any{"format": outcome}, "input": reviewIn("Write a file now. Deny the review.")})
+	if !strings.Contains(out, `\"outcome\":\"deny\"`) {
+		t.Errorf("review deny: %s", out)
+	}
+	title := map[string]any{"type": "json_schema", "schema": map[string]any{
+		"type": "object", "required": []any{"title"},
+		"properties": map[string]any{"title": map[string]any{"type": "string"}},
+	}}
+	out = post(t, base+"/v1/responses", map[string]any{"text": map[string]any{"format": title}, "input": reviewIn("Write a file now.")})
+	if !strings.Contains(out, `{\"title\":\"Fixture\"}`) || strings.Contains(out, "apply_patch") {
+		t.Errorf("title reply: %s", out)
 	}
 	// A tool result of an earlier turn does not end a new turn.
 	q := map[string]any{"role": "user", "content": "End your reply with a question."}

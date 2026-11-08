@@ -75,6 +75,25 @@ const (
 	TriggerChoice = "Let me choose"
 	// TriggerQuestion: a text reply that ends with a question (Question).
 	TriggerQuestion = "End your reply with a question"
+	// TriggerDeny: a review request gets the verdict "deny" when the user
+	// text that it reviews holds this text. Else the verdict is "allow".
+	TriggerDeny = "Deny the review"
+)
+
+// A review request asks the model if a tool call can run. The server knows
+// two forms:
+//   - Claude Code in auto mode with CLAUDE_CODE_AUTO_MODE_SERVER=0: a
+//     request whose system prompt asks for <severity>N</severity>. The
+//     answer is ReviewAllow or ReviewDeny.
+//   - Codex with --approve-for-me: a request with a JSON schema that has
+//     the property "outcome". The answer is {"outcome":"allow"} or
+//     {"outcome":"deny"}, with the other required properties.
+//
+// A request with another JSON schema gets an object with a fixed value for
+// each required property, for example {"title":"Fixture"}.
+const (
+	ReviewAllow = "<severity>5</severity>"
+	ReviewDeny  = "<severity>95</severity><category>Fixture Block</category>"
 )
 
 // The fixed texts of the answers.
@@ -325,7 +344,7 @@ func (s *server) nextID() string {
 }
 
 func sendJSON(w http.ResponseWriter, code int, v any) {
-	b, _ := json.Marshal(v)
+	b := marshal(v)
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Length", strconv.Itoa(len(b)))
 	w.WriteHeader(code)
