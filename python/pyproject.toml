@@ -8,7 +8,7 @@ name = "agent-signals"
 version = "0.8.0"
 description = "Measured terminal screens of AI coding agents, as typed test fixtures."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "Apache-2.0"
 dependencies = ["PyYAML>=6.0"]
 classifiers = [
@@ -37,11 +37,11 @@ testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
 
 [tool.mypy]
 strict = true
-python_version = "3.10"
+python_version = "3.11"

@@ -5,7 +5,7 @@ screens of AI coding agents, with the result that a reader must give for each
 screen. The package holds a copy of the corpus and the facts, so a program
 needs no network and no other file at run time.
 
-It needs Python 3.10 or later. Its only dependency is PyYAML.
+It needs Python 3.11 or later. Python 3.10 reached its end of life in October 2026. Its only dependency is PyYAML.
 
 ## Install
 
