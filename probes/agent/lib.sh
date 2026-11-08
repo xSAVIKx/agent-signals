@@ -117,6 +117,39 @@ kit_temp_place() {
   echo no
 }
 
+# kit_work_root RUN: the folder that holds the work folders of the
+# sessions of RUN. An agent can give access to a temp folder with no
+# question (the default preset of agy, fact 085). So a work folder in a
+# temp folder changes the result of a write step, and the kit keeps the
+# work folders out of the temp folders:
+#   AGENT_SIGNALS_WORK not set  RUN/work, or HOME/agent-signals-work/NAME-HASH
+#                               when RUN is in a temp folder. NAME is the
+#                               name of RUN, HASH comes from its path.
+#   AGENT_SIGNALS_WORK=in-run   RUN/work, also in a temp folder (the tests).
+#   AGENT_SIGNALS_WORK=PATH     PATH.
+kit_work_root() {
+  case ${AGENT_SIGNALS_WORK:-} in
+    in-run) echo "$1/work" ;;
+    ?*) echo "${AGENT_SIGNALS_WORK%/}" ;;
+    *)
+      if [ "$(kit_temp_place "$1")" = no ]; then
+        echo "$1/work"
+      else
+        _h=$(printf '%s' "$1" | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-8)
+        echo "$HOME/agent-signals-work/$(basename "$1")-$_h"
+      fi
+      ;;
+  esac
+}
+
+# kit_work_tidy DIR: delete DIR, a work root, when it is empty, and then
+# the folder agent-signals-work above it when that is empty.
+kit_work_tidy() {
+  rmdir "$1" 2>/dev/null || return 0
+  case ${1%/*} in */agent-signals-work) rmdir "${1%/*}" 2>/dev/null ;; esac
+  return 0
+}
+
 # kit_cpu: the CPU type, as uname -m prints it.
 kit_cpu() { uname -m; }
 

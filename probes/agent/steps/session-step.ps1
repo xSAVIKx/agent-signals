@@ -84,7 +84,9 @@ $stepArgs = Get-Field 'args'
 # @OUTSIDE@ in the prompt becomes the path of a file in it.
 $outside = ''
 if ($prompt.Contains('@OUTSIDE@')) {
-    $outside = "$out.outside"
+    # Next to the work folder, so that it is also out of the temp folders.
+    $outside = Join-Path (Get-KitWorkRoot $run) ((Split-Path -Leaf $out) + '.outside')
+    if (Test-Path -LiteralPath $outside) { Remove-Item -Recurse -Force -LiteralPath $outside }
     New-Item -ItemType Directory -Force -Path $outside | Out-Null
     $prompt = $prompt.Replace('@OUTSIDE@', (Join-Path $outside 'agent-signals-write.txt'))
 }
@@ -336,7 +338,8 @@ try {
     if ($agent -eq 'codex') { Add-Log 'not measured: Codex on Windows. The Tab send key comes from a report.' }
     Add-Log "start: $agent on $backend, home $env:KIT_HOME"
     $startArgs = @('start', $name, $agent, '--via', $backend, '--home', $env:KIT_HOME)
-    if ($stepArgs) { $startArgs += @('--args', $stepArgs) }
+    # Base64: the command line of pwsh -File can split a JSON word.
+    if ($stepArgs) { $startArgs += @('--args64', [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($stepArgs))) }
     $r = Invoke-Session $startArgs (Get-Clip 120)
     if ($r.Code -eq 3) {
         $code = 3
@@ -427,7 +430,13 @@ try {
         }
         'interrupt' {
             $keys = @($answer -split ' ' | Where-Object { $_ })
+            # A screen 2 s after the send: when the busy regex does not
+            # match, it shows what the agent drew while it worked.
+            Start-Sleep -Seconds 2
+            Update-Screen
+            $early = $sc
             if (-not (Wait-Regex $waitRe $waitS)) {
+                Add-Screen '2 s after the prompt' $early
                 if ($keys.Count -gt 0) { Send-Keys @($keys[0]) }
                 Stop-Step 'no-busy'
             }

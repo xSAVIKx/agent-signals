@@ -114,6 +114,44 @@ More results:
    `Yes, I accept`. The kit does not accept it, so the kit has no step
    for this mode.
 
+## Runs of an operator with a real home
+
+On 2026-11-08 an operator ran kit 0.18.1 unattended with `--home real`
+on three machines, with agy 1.5.3 and a real model (Gemini 3.8 Flash).
+In each run the work folder was in a temp folder, because the run folder
+was in a temp folder. The settings files of the real homes differ, and
+the conditions show only their top-level keys, not their values:
+
+- Linux (Ubuntu 24.04.5, tmux and pty): work folder in `/tmp`. The keys of
+  `.gemini/antigravity-cli/settings.json`: `allowNonWorkspaceAccess`,
+  `editor`, `model`, `permissions`, `trustedWorkspaces`.
+- macOS 26.6.2 (tmux and pty): work folder in `/private/var/folders`. The
+  keys: `model`, `permissions`, `trustedWorkspaces`.
+- Windows 11 (psmux): work folder in `%LOCALAPPDATA%\Temp`. No agy home
+  file was recorded: kit 0.18.1 looked for it in the wrong folder.
+
+| Step | Linux | macOS | Windows |
+|---|---|---|---|
+| default, work | written, no dialog | dialog | written, no dialog |
+| `--mode accept-edits`, work | written, no dialog | written, no dialog | written, no dialog |
+| `--mode auto`, work | written, no dialog | dialog | written, no dialog |
+| `--mode plan`, work | dialog | dialog (tmux), not written (pty) | not written, no dialog |
+| default, outside | written, no dialog | dialog, `Reason: outside workspace` | written, no dialog |
+| `--mode accept-edits`, outside | written, no dialog | dialog, `Reason: outside workspace` | written, no dialog |
+| `--mode auto`, outside | written, no dialog | dialog, `Reason: outside workspace` | written, no dialog |
+| `--settings` ask rule, work | dialog | dialog | not run |
+| `--settings` strict, work | dialog | dialog | not run |
+
+"Not written, no dialog": the model did not call the write tool in the
+time limit. On Windows the `--settings` steps did not start: kit 0.18.1
+could not give a JSON argument to `session.ps1` (fixed in a later kit).
+
+The macOS result does not agree with "agy gives access to temp folders
+with no question". This project does not know the cause. Two causes are
+possible: agy does not count `/private/var/folders` as a temp folder, or
+the `permissions` value of that home asks before a write. The values were
+not recorded.
+
 ## Mechanism
 
 agy 1.5.1 gives access to temp folders with no question. The tg-bridge
@@ -151,12 +189,14 @@ None.
 
 ## Not measured
 
-- Which folders agy counts as temp folders, and `TMPDIR`.
-- agy with a settings file in the home, and the real home of an
-  operator.
+- Which folders agy counts as temp folders, and `TMPDIR`. On macOS,
+  `/private/var/folders` is not known (see the runs of an operator).
+- agy with a known settings file in the home. The runs of an operator
+  recorded only the keys of their home files.
 - agy, Claude Code and Codex with a real model and a real login.
 - Codex on a host where its sandbox works.
 - Claude Code auto mode with the review of the API server
   (`CLAUDE_CODE_AUTO_MODE_SERVER` not set).
-- The backends pty, conpty and psmux, and macOS and Windows.
+- With the fake model: the backends pty, conpty and psmux, and macOS and
+  Windows.
 - More than one run of each step.

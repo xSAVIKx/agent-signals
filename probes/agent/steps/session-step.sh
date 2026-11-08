@@ -132,6 +132,7 @@ tmp=$(mktemp -d "$(dirname "$KIT_OUT")/session.XXXXXX") || exit 1
 sess=$(printf '%s' "$KIT_STEP" | cut -c1-30)-$KIT_BACKEND
 watch=
 watched=
+outside=
 # dash runs no EXIT trap on a signal, so a signal exits first.
 trap 'exit 130' INT TERM
 trap 'cleanup' EXIT
@@ -139,6 +140,10 @@ cleanup() {
   [ -n "$watch" ] && kill "$watch" 2>/dev/null
   sh "$KIT_DIR/session.sh" stop "$sess" >/dev/null 2>&1
   rm -rf "$tmp"
+  if [ -n "$outside" ]; then
+    rm -rf "$outside"
+    kit_work_tidy "$(dirname "$outside")"
+  fi
 }
 
 ses() { sh "$KIT_DIR/session.sh" "$@"; }
@@ -520,7 +525,9 @@ why=
 outside=
 case ${KIT_PROMPT:-} in
   *@OUTSIDE@*)
-    outside=$tmp/outside
+    # Next to the work folder, so that it is also out of the temp folders.
+    outside=$(kit_work_root "$KIT_RUN")/$sess.outside
+    rm -rf "$outside"
     mkdir -p "$outside"
     KIT_PROMPT=$(printf '%s' "$KIT_PROMPT" | awk -v o="$outside/agent-signals-write.txt" '{ gsub(/@OUTSIDE@/, o); print }')
     ;;
@@ -619,10 +626,15 @@ case $KIT_KIND in
   interrupt)
     say "send the prompt, wait for the busy screen ($WAIT_S s)"
     send "$KIT_PROMPT"
+    # A screen 2 s after the send: when the busy regex does not match, it
+    # shows what the agent drew while it worked.
+    sleep 2
+    screen "$tmp/early" || : >"$tmp/early"
     wait_re "$KIT_WAIT_REGEX" "$WAIT_S" "$tmp/s"
     rc=$?
     bad "$rc"
     if [ "$rc" -ne 0 ]; then
+      save "2 s after the prompt" "$tmp/early"
       keys "${KIT_ANSWER%% *}"
       stop_now no-busy
     fi

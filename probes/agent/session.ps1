@@ -3,6 +3,11 @@
 # server). It is the twin of probes/agent/session.sh.
 #
 #   kit session start NAME AGENT --via conpty|psmux [--cmd CMD] [--args ARGS] [--home real|throwaway|fixture]
+#
+# --args64 gives ARGS as base64 of UTF-8 text. "pwsh -File" can split an
+# argument that starts with "-" and holds ":" in two, for example
+# --args '--settings {"a":1}' (a Windows run of kit 0.18.1). A base64 text
+# holds no "-", no ":", no quote and no space.
 #   kit session send NAME TEXT
 #   kit session key NAME KEY...       (tmux names: Enter, Escape, C-c, Tab, 1)
 #   kit session screen NAME           (the format of tmux capture-pane -p -J)
@@ -74,7 +79,7 @@ $ProfileVars = @(
 )
 
 function Show-Usage {
-    [Console]::Error.WriteLine('usage: kit session start NAME AGENT --via conpty|psmux [--cmd CMD] [--home real|throwaway|fixture]')
+    [Console]::Error.WriteLine('usage: kit session start NAME AGENT --via conpty|psmux [--cmd CMD] [--args ARGS | --args64 BASE64] [--home real|throwaway|fixture]')
     [Console]::Error.WriteLine('       kit session send NAME TEXT | key NAME KEY... | screen NAME')
     [Console]::Error.WriteLine('       kit session wait NAME REGEX SECONDS | stop NAME | stop --all')
     exit 2
@@ -474,6 +479,11 @@ function Write-Conditions([string]$Dir, [string]$Agent, [string]$Mode, [string]$
     }
     [void]$sb.Append("work folder in a temp folder: $(Get-TempPlace $Work $Environment)`n")
     $nHome = 0; $nProj = 0
+    $homePaths = @()
+    foreach ($line in [IO.File]::ReadAllLines((Join-Path $PSScriptRoot 'settings-files.tsv'))) {
+        $f = $line -split "`t"
+        if ($f.Count -eq 4 -and $f[0] -eq $Agent -and $f[1] -eq 'home') { $homePaths += $f[3] }
+    }
     foreach ($line in [IO.File]::ReadAllLines((Join-Path $PSScriptRoot 'settings-files.tsv'))) {
         if ($line.StartsWith('#')) { continue }
         $f = $line -split "`t"
@@ -493,7 +503,10 @@ function Write-Conditions([string]$Dir, [string]$Agent, [string]$Mode, [string]$
                 $d = $Work; $n = 0
                 while ($d) {
                     $x = Join-Path $d ($p -replace '/', '\')
-                    if (Test-Path -LiteralPath $x) {
+                    # At the home folder, a path that is also a home path is
+                    # a home file, not a project file.
+                    $atHome = $HomeDir -and ([IO.Path]::GetFullPath($d).TrimEnd('\') -eq [IO.Path]::GetFullPath($HomeDir).TrimEnd('\')) -and ($homePaths -contains $p)
+                    if ((Test-Path -LiteralPath $x) -and -not $atHome) {
                         $nProj++
                         [void]$sb.Append("project file: $p, $n folders above the work folder, $(Get-FileFacts $x)`n")
                     }
@@ -550,12 +563,18 @@ function Start-Session([string[]]$A) {
         $v = $null
         if ($o -match '^([A-Za-z]+):(.*)$') { $o = $Matches[1]; $v = $Matches[2] }
         $o = $o.ToLowerInvariant()
-        if ($o -notin 'via', 'cmd', 'args', 'home') { Show-Usage }
+        if ($o -notin 'via', 'cmd', 'args', 'args64', 'home') { Show-Usage }
         if ($null -eq $v) {
             if ($i + 1 -ge $A.Count) { Show-Usage }
             $v = $A[$i + 1]; $i += 2
         } else { $i += 1 }
-        switch ($o) { 'via' { $via = $v } 'cmd' { $cmd = $v } 'args' { $stepArgs = $v } 'home' { $mode = $v } }
+        switch ($o) {
+            'via' { $via = $v } 'cmd' { $cmd = $v } 'args' { $stepArgs = $v } 'home' { $mode = $v }
+            'args64' {
+                try { $stepArgs = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($v)) }
+                catch { Stop-Kit 2 "--args64 is not base64: $v" }
+            }
+        }
     }
     if (-not $via) { Stop-Kit 2 'give --via conpty or --via psmux' }
     if ($via -notin 'conpty', 'psmux') { Stop-Kit 2 "unknown backend: $via" }
@@ -579,7 +598,7 @@ function Start-Session([string[]]$A) {
         if (-not (Test-Path -LiteralPath (Join-Path $dir 'stopped'))) { Stop-Kit 2 "the session exists: $name" }
         Remove-Item -Recurse -Force -LiteralPath $dir
     }
-    $work = Join-Path (Join-Path $run 'work') $name
+    $work = Join-Path (Get-KitWorkRoot $run) $name
     if (Test-Path -LiteralPath $work) { Remove-Item -Recurse -Force -LiteralPath $work }
     New-Item -ItemType Directory -Force -Path $dir | Out-Null
     Protect-KitDir $dir
@@ -635,7 +654,9 @@ function Start-Session([string[]]$A) {
         if ($cmd) { $argv = @($argv[0..($argv.Count - 2)]) + @($argv[-1] + ' ' + ($rest -join ' ')) }
         else { $argv = @($argv) + $rest }
     }
-    Write-Conditions $dir $agent $mode $homeDir $work $rest $envAgent ($stepEnv -join ' ')
+    # The home of the agent: the real profile with --home real.
+    $condHome = if ($mode -eq 'real') { $env:USERPROFILE } else { $homeDir }
+    Write-Conditions $dir $agent $mode $condHome $work $rest $envAgent ($stepEnv -join ' ')
     $tag = 'kit-' + $name + '-' + [guid]::NewGuid().ToString('N').Substring(0, 8)
 
     if ($via -eq 'conpty') {
@@ -784,6 +805,7 @@ function Stop-SessionDir([string]$Run, [string]$Dir) {
         # "kit check" fails on each file that stays.
         if (Test-Path -LiteralPath $d) { Write-Output "session: $name left files in a folder" }
     }
+    if ($work) { Clear-KitWorkRoot (Split-Path -Parent $work) }
     Write-State $Dir 'stopped' (Get-Date).ToUniversalTime().ToString('o')
     Write-Output "session: $name stopped"
 }

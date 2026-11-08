@@ -186,10 +186,20 @@ records its conditions in the step output:
 - the lines of the idle screen that name a mode,
 - the answers of the fake model (`write 1`, `review deny 2`),
 - the files in the work folder and in the outside folder at the end.
-- whether the work folder and the outside folder are in a temp folder. An
-  agent can give access to temp folders with no question, so a
-  write-outside step needs a run folder outside the temp folders,
+- whether the work folder and the outside folder are in a temp folder,
 - for Codex, whether its sandbox starts.
+
+An agent can give access to temp folders with no question (fact 085). So
+the work folders and the outside folders are out of the temp folders.
+They are in `RUN/work`, or in `HOME/agent-signals-work/RUNNAME-HASH` when
+the run folder is in a temp folder. `AGENT_SIGNALS_WORK` sets another
+folder. `AGENT_SIGNALS_WORK=in-run` keeps them in `RUN/work` (the tests use
+it). The stop deletes the work folder, and then each empty folder above it
+up to `agent-signals-work`.
+
+On Windows, `pwsh -File` can split an argument that starts with `-` and
+holds `:`. So the steps give the words of the column `args` to
+`session.ps1` as `--args64`, the base64 of the UTF-8 text.
 
 An auto mode sends a review request to a model before a tool call runs.
 The fake model answers it (allow, or deny for the text `Deny the review`),

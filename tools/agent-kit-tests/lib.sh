@@ -7,6 +7,9 @@ set -u
 # kit ARGS: run the agent kit of this checkout.
 kit() { sh "$ROOT/probes/agent/kit.sh" "$@"; }
 T=$(mktemp -d)
+# The work folders stay in RUN/work, also in a temp folder
+# (kit_work_root in probes/agent/lib.sh).
+export AGENT_SIGNALS_WORK=in-run
 # A folder under $T is not in a git work tree, so a run folder there passes
 # the checks of kit start.
 _fail=0

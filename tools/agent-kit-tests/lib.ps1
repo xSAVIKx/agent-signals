@@ -4,6 +4,9 @@ $ErrorActionPreference = 'Stop'
 $script:Exe = (Get-Process -Id $PID).Path
 $script:KitPs1 = Join-Path $env:ROOT 'probes/agent/kit.ps1'
 $script:T = Join-Path ([IO.Path]::GetTempPath()) ("kit-test-" + [guid]::NewGuid().ToString('N'))
+# The work folders stay in RUN\work, also in a temp folder
+# (Get-KitWorkRoot in probes/agent/lib.ps1).
+$env:AGENT_SIGNALS_WORK = 'in-run'
 New-Item -ItemType Directory -Path $script:T | Out-Null
 $script:Fail = 0
 
