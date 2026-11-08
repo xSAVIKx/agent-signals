@@ -37,6 +37,15 @@ The old form --codex-home DIR writes DIR/config.toml and no FILE.
 The answer depends on the last user message of a request with tools:
   "Create a file"  a shell command that needs an approval, then a text reply
                    after the tool result
+  "Write a file"   one call of the file-write tool of the agent for the file
+                   agent-signals-write.txt in the work folder, then a text
+                   reply after the tool result. Claude Code: Write. Codex:
+                   apply_patch. agy: write_file. Claude Code and agy need an
+                   absolute path: the server reads the work folder from the
+                   system prompt. cursor-agent: a text reply.
+  "Write outside"  the same call for the absolute path that follows this text,
+                   for example "Write outside /work/x.txt". With no absolute
+                   path: a text reply that says so.
   "Count from"     no reply: the turn stays busy until the client ends it
   "Let me choose"  Claude Code: an AskUserQuestion call with the options "Red"
                    and "Blue", then a text reply after the answer. The other
@@ -56,6 +65,7 @@ import gzip
 import http.server
 import json
 import os
+import re
 import queue
 import select
 import struct
@@ -73,6 +83,10 @@ COMMAND = "touch agent-signals-test.txt"
 TEXT = "The fixture has no more to say."
 TOOL_DONE = "The fixture finished the tool call."
 QUESTION = "The fixture has one question. Do you want to go on?"
+WRITE_FILE = "agent-signals-write.txt"
+WRITE_TEXT = "The fixture wrote this file.\n"
+NO_PATH = 'The fixture found no absolute path after "Write outside".'
+ABS_PATH = re.compile(r"""(?:[A-Za-z]:\\|/)[^\s"'<>]+""")
 CLAUDE_CHOICE = {
     "questions": [{
         "question": "Which color do you like?",
@@ -130,11 +144,36 @@ def classify(text, has_tools):
         return "hold"
     if "Create a file" in text:
         return "tool"
+    if "Write a file" in text or "Write outside" in text:
+        return "write"
     if "Let me choose" in text:
         return "choice"
     if "End your reply with a question" in text:
         return "question"
     return "text"
+
+
+def write_path(text, cwd):
+    """Return the path of a write call for the user TEXT, or "" when "Write
+    outside" has no absolute path after it. CWD is the work folder, or "" for
+    a relative path."""
+    i = text.find("Write outside")
+    if i >= 0:
+        m = ABS_PATH.search(text, i + len("Write outside"))
+        return m.group(0).rstrip(".,;:)") if m else ""
+    if not cwd:
+        return WRITE_FILE
+    if "\\" in cwd and "/" not in cwd:
+        return cwd.rstrip("\\") + "\\" + WRITE_FILE
+    return cwd.rstrip("/") + "/" + WRITE_FILE
+
+
+def label_value(text, label):
+    """Return the rest of the line after LABEL in TEXT, or ""."""
+    i = text.find(label)
+    if i < 0:
+        return ""
+    return text[i + len(label):].split("\n", 1)[0].strip()
 
 
 def text_of(content):
@@ -155,7 +194,8 @@ def codex_answer(body):
     # Only the items after the last user message count: a tool result of an
     # earlier turn must not end a new turn.
     last = max([n for n, i in enumerate(items) if i.get("role") == "user"] or [-1])
-    if any(i.get("type") == "function_call_output" for i in items[last + 1:]):
+    if any(i.get("type") in ("function_call_output", "custom_tool_call_output")
+           for i in items[last + 1:]):
         return [codex_text(TOOL_DONE)]
     text = text_of(items[last].get("content")) if last >= 0 else ""
     kind = classify(text, True)
@@ -172,6 +212,17 @@ def codex_answer(body):
             "call_id": "fixture-call",
             "name": "exec_command",
             "arguments": json.dumps(args),
+        }]
+    if kind == "write":
+        path = write_path(text, "")
+        if not path:
+            return [codex_text(NO_PATH)]
+        patch = "*** Begin Patch\n*** Add File: %s\n+%s\n*** End Patch\n" % (path, WRITE_TEXT.rstrip("\n"))
+        return [{
+            "type": "custom_tool_call",
+            "call_id": "fixture-write",
+            "name": "apply_patch",
+            "input": patch,
         }]
     if kind in ("choice", "question"):
         return [codex_text(QUESTION)]
@@ -207,6 +258,7 @@ def codex_stream(rid, reply):
 
 
 def claude_answer(body):
+    # For "write" the text is the path.
     # Claude Code 2.1.318 puts a "system" message after the user message.
     last = next((m for m in reversed(body.get("messages") or [])
                  if isinstance(m, dict) and m.get("role") == "user"), {})
@@ -214,7 +266,11 @@ def claude_answer(body):
     if isinstance(content, list) and any(
             isinstance(c, dict) and c.get("type") == "tool_result" for c in content):
         return "text", TOOL_DONE
-    kind = classify(text_of(content), bool(body.get("tools")))
+    text = text_of(content)
+    kind = classify(text, bool(body.get("tools")))
+    if kind == "write":
+        path = write_path(text, label_value(text_of(body.get("system")), "Primary working directory: "))
+        return ("write", path) if path else ("text", NO_PATH)
     names = [t.get("name") for t in body.get("tools") or [] if isinstance(t, dict)]
     if kind == "choice" and "AskUserQuestion" not in names:
         return "question", QUESTION
@@ -230,6 +286,13 @@ def claude_blocks(kind, text):
             "id": "toolu_fixture",
             "name": "Bash",
             "input": {"command": COMMAND, "description": "Create the test file"},
+        }], "tool_use"
+    if kind == "write":
+        return [{
+            "type": "tool_use",
+            "id": "toolu_fixture_write",
+            "name": "Write",
+            "input": {"file_path": text, "content": WRITE_TEXT},
         }], "tool_use"
     if kind == "choice":
         return [{
@@ -282,17 +345,33 @@ def claude_stream(rid, model, kind, text):
 
 
 def agy_answer(body):
-    last = next((m for m in reversed(body.get("messages") or [])
+    # For "write" the text is the path.
+    msgs = [m for m in body.get("messages") or [] if isinstance(m, dict)]
+    last = next((m for m in reversed(msgs)
                  if isinstance(m, dict) and m.get("role") in ("user", "tool")), {})
     if last.get("role") == "tool":
         return "text", TOOL_DONE
-    kind = classify(text_of(last.get("content")), bool(body.get("tools")))
+    text = text_of(last.get("content"))
+    kind = classify(text, bool(body.get("tools")))
+    if kind == "write":
+        cwd = next((v for v in (label_value(text_of(m.get("content")), "Command Working Directory: ")
+                                for m in msgs) if v), "")
+        path = write_path(text, cwd)
+        return ("write", path) if path else ("text", NO_PATH)
     if kind in ("choice", "question"):
         return "question", QUESTION
     return kind, TEXT
 
 
 def agy_delta(kind, text):
+    if kind == "write":
+        call = {
+            "index": 0,
+            "id": "call_fixture_write",
+            "type": "function",
+            "function": {"name": "write_file", "arguments": json.dumps({"Path": text, "Content": WRITE_TEXT})},
+        }
+        return {"role": "assistant", "tool_calls": [call]}, "tool_calls"
     if kind == "tool":
         args = {
             "CommandLine": COMMAND,

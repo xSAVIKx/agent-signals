@@ -106,10 +106,30 @@ func TestClassify(t *testing.T) {
 		{"End your reply with a question.", true, kindQuestion},
 		{"hello", true, kindText},
 		{"Create a file", false, kindText},
+		{"Write a file now", true, kindWrite},
+		{"Write outside /work/x.txt", true, kindWrite},
+		{"Write a file", false, kindText},
 	}
 	for _, c := range cases {
 		if got := classify(c.text, c.tools); got != c.want {
 			t.Errorf("classify(%q, %v) = %q, want %q", c.text, c.tools, got, c.want)
+		}
+	}
+}
+
+func TestWritePath(t *testing.T) {
+	cases := []struct{ text, cwd, want string }{
+		{"Write a file", "", WriteFile},
+		{"Write a file", "/work/example", "/work/example/" + WriteFile},
+		{"Write a file", "/work/example/", "/work/example/" + WriteFile},
+		{"Write a file", `C:\work\example`, `C:\work\example\` + WriteFile},
+		{"Write outside /work/other/x.txt.", "/work/example", "/work/other/x.txt"},
+		{`Write outside C:\other\x.txt`, "", `C:\other\x.txt`},
+		{"Write outside the folder", "/work/example", ""},
+	}
+	for _, c := range cases {
+		if got := writePath(c.text, c.cwd); got != c.want {
+			t.Errorf("writePath(%q, %q) = %q, want %q", c.text, c.cwd, got, c.want)
 		}
 	}
 }
@@ -149,11 +169,25 @@ func TestClaude(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &m); err != nil || !strings.Contains(out, ToolDone) {
 		t.Errorf("tool result reply: %s %v", out, err)
 	}
+	sys := []any{map[string]any{"type": "text", "text": "env\n - Primary working directory: /work/example\n - Is a git repository: false"}}
+	out = post(t, base+"/v1/messages", map[string]any{"stream": true, "system": sys, "tools": tools, "messages": user("Write a file now.")})
+	if !strings.Contains(out, `"name":"Write"`) || !strings.Contains(out, `\"file_path\":\"/work/example/agent-signals-write.txt\"`) {
+		t.Errorf("write reply: %s", out)
+	}
+	out = post(t, base+"/v1/messages", map[string]any{"stream": true, "system": sys, "tools": tools, "messages": user("Write outside /work/other/x.txt")})
+	if !strings.Contains(out, `\"file_path\":\"/work/other/x.txt\"`) {
+		t.Errorf("outside write reply: %s", out)
+	}
+	out = post(t, base+"/v1/messages", map[string]any{"stream": true, "system": sys, "tools": tools, "messages": user("Write outside please.")})
+	if !strings.Contains(out, "found no absolute path") || strings.Contains(out, "tool_use") {
+		t.Errorf("outside write with no path: %s", out)
+	}
 	if out := post(t, base+"/v1/messages/count_tokens", map[string]any{}); !strings.Contains(out, `"input_tokens":1`) {
 		t.Errorf("count_tokens: %s", out)
 	}
 	log, _ := os.ReadFile(logPath)
-	if strings.Contains(string(log), "agent-signals-test") || !strings.Contains(string(log), "POST /v1/messages fixture-1 tool") {
+	if strings.Contains(string(log), "agent-signals-test") || strings.Contains(string(log), "/work/") ||
+		!strings.Contains(string(log), "POST /v1/messages fixture-1 tool") || !strings.Contains(string(log), " write\n") {
 		t.Errorf("log: %s", log)
 	}
 }
@@ -196,6 +230,20 @@ func TestCodex(t *testing.T) {
 	if !strings.Contains(out, ToolDone) {
 		t.Errorf("tool result reply: %s", out)
 	}
+	w := map[string]any{"role": "user", "content": "Write a file now."}
+	out = post(t, base+"/v1/responses", map[string]any{"input": []any{w}})
+	if !strings.Contains(out, `"type":"custom_tool_call"`) || !strings.Contains(out, `"name":"apply_patch"`) ||
+		!strings.Contains(out, `*** Add File: agent-signals-write.txt\n+The fixture wrote this file.\n*** End Patch`) {
+		t.Errorf("write reply: %s", out)
+	}
+	out = post(t, base+"/v1/responses", map[string]any{"input": []any{w, map[string]any{"type": "custom_tool_call_output"}}})
+	if !strings.Contains(out, ToolDone) {
+		t.Errorf("custom tool result reply: %s", out)
+	}
+	out = post(t, base+"/v1/responses", map[string]any{"input": []any{map[string]any{"role": "user", "content": "Write outside /work/other/x.txt"}}})
+	if !strings.Contains(out, `*** Add File: /work/other/x.txt\n`) {
+		t.Errorf("outside write reply: %s", out)
+	}
 	// A tool result of an earlier turn does not end a new turn.
 	q := map[string]any{"role": "user", "content": "End your reply with a question."}
 	out = post(t, base+"/v1/responses", map[string]any{"input": []any{user, map[string]any{"type": "function_call_output"}, q}})
@@ -225,6 +273,15 @@ func TestAgy(t *testing.T) {
 	out := post(t, base+"/v1/chat/completions", map[string]any{"stream": true, "tools": tools, "messages": []any{map[string]any{"role": "user", "content": "Create a file"}}})
 	if !strings.Contains(out, "run_command") || !strings.HasSuffix(out, "data: [DONE]\n\n") {
 		t.Errorf("tool reply: %s", out)
+	}
+	sys := map[string]any{"role": "system", "content": "Active Workspaces:\n- /work/example\nCommand Working Directory: /work/example\nCode relating to the user"}
+	out = post(t, base+"/v1/chat/completions", map[string]any{"stream": true, "tools": tools, "messages": []any{sys, map[string]any{"role": "user", "content": "<USER_REQUEST>Write a file now.</USER_REQUEST>"}}})
+	if !strings.Contains(out, `"name":"write_file"`) || !strings.Contains(out, `\"Path\":\"/work/example/agent-signals-write.txt\"`) {
+		t.Errorf("write reply: %s", out)
+	}
+	out = post(t, base+"/v1/chat/completions", map[string]any{"tools": tools, "messages": []any{sys, map[string]any{"role": "user", "content": "Write outside /work/other/x.txt"}}})
+	if !strings.Contains(out, `\"Path\":\"/work/other/x.txt\"`) || !strings.Contains(out, `"finish_reason":"tool_calls"`) {
+		t.Errorf("outside write reply: %s", out)
 	}
 	out = post(t, base+"/v1/chat/completions", map[string]any{"tools": tools, "messages": []any{map[string]any{"role": "tool", "content": "ok"}}})
 	if !strings.Contains(out, ToolDone) || !strings.Contains(out, `"object":"chat.completion"`) {

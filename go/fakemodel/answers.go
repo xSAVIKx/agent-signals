@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -17,6 +18,7 @@ const (
 	kindHold     = "hold"
 	kindChoice   = "choice"
 	kindQuestion = "question"
+	kindWrite    = "write"
 )
 
 // classify returns the kind of answer for the last user text.
@@ -28,12 +30,43 @@ func classify(text string, hasTools bool) string {
 		return kindHold
 	case strings.Contains(text, TriggerTool):
 		return kindTool
+	case strings.Contains(text, TriggerWrite), strings.Contains(text, TriggerWriteOutside):
+		return kindWrite
 	case strings.Contains(text, TriggerChoice):
 		return kindChoice
 	case strings.Contains(text, TriggerQuestion):
 		return kindQuestion
 	}
 	return kindText
+}
+
+// absPath matches an absolute path: /x on Unix, or C:\x on Windows.
+var absPath = regexp.MustCompile(`(?:[A-Za-z]:\\|/)[^\s"'<>]+`)
+
+// writePath returns the path of a write call for the user TEXT, or "" when
+// TriggerWriteOutside has no absolute path after it. CWD is the work folder,
+// or "" for a relative path.
+func writePath(text, cwd string) string {
+	if i := strings.Index(text, TriggerWriteOutside); i >= 0 {
+		return strings.TrimRight(absPath.FindString(text[i+len(TriggerWriteOutside):]), ".,;:)")
+	}
+	switch {
+	case cwd == "":
+		return WriteFile
+	case strings.Contains(cwd, `\`) && !strings.Contains(cwd, "/"):
+		return strings.TrimRight(cwd, `\`) + `\` + WriteFile
+	}
+	return strings.TrimRight(cwd, "/") + "/" + WriteFile
+}
+
+// labelValue returns the rest of the line after LABEL in TEXT, or "".
+func labelValue(text, label string) string {
+	i := strings.Index(text, label)
+	if i < 0 {
+		return ""
+	}
+	v, _, _ := strings.Cut(text[i+len(label):], "\n")
+	return strings.TrimSpace(v)
 }
 
 // textOf returns the text of a message content: a string, or a list of parts
@@ -196,7 +229,7 @@ func codexAnswer(body map[string]any) (string, []any) {
 		}
 	}
 	for _, i := range items[last+1:] {
-		if i["type"] == "function_call_output" {
+		if i["type"] == "function_call_output" || i["type"] == "custom_tool_call_output" {
 			return kindText, []any{codexText(ToolDone)}
 		}
 	}
@@ -218,6 +251,18 @@ func codexAnswer(body map[string]any) (string, []any) {
 			"call_id":   "fixture-call",
 			"name":      "exec_command",
 			"arguments": string(args),
+		}}
+	case kindWrite:
+		path := writePath(text, "")
+		if path == "" {
+			return kindText, []any{codexText(NoPath)}
+		}
+		patch := "*** Begin Patch\n*** Add File: " + path + "\n+" + strings.TrimSuffix(WriteText, "\n") + "\n*** End Patch\n"
+		return kind, []any{map[string]any{
+			"type":    "custom_tool_call",
+			"call_id": "fixture-write",
+			"name":    "apply_patch",
+			"input":   patch,
 		}}
 	case kindChoice, kindQuestion:
 		return kind, []any{codexText(Question)}
@@ -254,8 +299,9 @@ func codexStream(rid, kind string, items []any) [][]byte {
 
 // --------------------------------------------------------------- claude
 
-// claudeAnswer returns the kind and the text. Claude Code 2.1.318 puts a
-// "system" message after the user message, so the last user message counts.
+// claudeAnswer returns the kind and the text. For kindWrite the text is the
+// path. Claude Code 2.1.318 puts a "system" message after the user message,
+// so the last user message counts.
 func claudeAnswer(body map[string]any) (string, string) {
 	var last map[string]any
 	msgs := list(body["messages"])
@@ -271,8 +317,15 @@ func claudeAnswer(body map[string]any) (string, string) {
 			return kindText, ToolDone
 		}
 	}
-	kind := classify(textOf(content), hasTools(body))
+	text := textOf(content)
+	kind := classify(text, hasTools(body))
 	switch {
+	case kind == kindWrite:
+		path := writePath(text, labelValue(textOf(body["system"]), "Primary working directory: "))
+		if path == "" {
+			return kindText, NoPath
+		}
+		return kind, path
 	case kind == kindChoice && !hasTool(body, "AskUserQuestion"):
 		return kindQuestion, Question
 	case kind == kindQuestion:
@@ -302,6 +355,13 @@ func claudeBlocks(kind, text string) ([]any, string) {
 			"id":    "toolu_fixture",
 			"name":  "Bash",
 			"input": map[string]any{"command": Command, "description": "Create the test file"},
+		}}, "tool_use"
+	case kindWrite:
+		return []any{map[string]any{
+			"type":  "tool_use",
+			"id":    "toolu_fixture_write",
+			"name":  "Write",
+			"input": map[string]any{"file_path": text, "content": WriteText},
 		}}, "tool_use"
 	case kindChoice:
 		return []any{map[string]any{
@@ -367,6 +427,7 @@ func claudeStream(rid, model, kind, text string) [][]byte {
 
 // ------------------------------------------------------------------ agy
 
+// agyAnswer returns the kind and the text. For kindWrite the text is the path.
 func agyAnswer(body map[string]any) (string, string) {
 	var last map[string]any
 	msgs := list(body["messages"])
@@ -379,14 +440,38 @@ func agyAnswer(body map[string]any) (string, string) {
 	if last["role"] == "tool" {
 		return kindText, ToolDone
 	}
-	kind := classify(textOf(last["content"]), hasTools(body))
-	if kind == kindChoice || kind == kindQuestion {
+	text := textOf(last["content"])
+	kind := classify(text, hasTools(body))
+	switch kind {
+	case kindWrite:
+		cwd := ""
+		for _, m := range msgs {
+			if v := labelValue(textOf(obj(m)["content"]), "Command Working Directory: "); v != "" {
+				cwd = v
+				break
+			}
+		}
+		if path := writePath(text, cwd); path != "" {
+			return kind, path
+		}
+		return kindText, NoPath
+	case kindChoice, kindQuestion:
 		return kindQuestion, Question
 	}
 	return kind, Text
 }
 
 func agyDelta(kind, text string) (map[string]any, string) {
+	if kind == kindWrite {
+		args, _ := json.Marshal(map[string]any{"Path": text, "Content": WriteText})
+		call := map[string]any{
+			"index":    0,
+			"id":       "call_fixture_write",
+			"type":     "function",
+			"function": map[string]any{"name": "write_file", "arguments": string(args)},
+		}
+		return map[string]any{"role": "assistant", "tool_calls": []any{call}}, "tool_calls"
+	}
 	if kind == kindTool {
 		args, _ := json.Marshal(map[string]any{
 			"CommandLine":       Command,

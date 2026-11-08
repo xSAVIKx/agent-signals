@@ -50,7 +50,8 @@ import (
 )
 
 // The texts that select an answer. The server looks for each text in the last
-// user message, in this order. Other text gets the reply Text.
+// user message, in this order. Other text gets the reply Text. cursor-agent
+// gets the reply Text for TriggerWrite and TriggerWriteOutside.
 const (
 	// TriggerHold: no reply. The turn stays busy until the client ends it,
 	// or for 2 minutes.
@@ -58,6 +59,16 @@ const (
 	// TriggerTool: a shell command that needs an approval (Command), then
 	// the reply ToolDone after the tool result.
 	TriggerTool = "Create a file"
+	// TriggerWrite: one call of the file-write tool of the agent for the
+	// file WriteFile in the work folder, then the reply ToolDone after the
+	// tool result. Claude Code gets Write, Codex gets apply_patch, agy gets
+	// write_file. Claude Code and agy need an absolute path: the server reads
+	// the work folder from the system prompt.
+	TriggerWrite = "Write a file"
+	// TriggerWriteOutside: the same call for the absolute path that follows
+	// this text in the message, for example "Write outside /work/x.txt". A
+	// message with no absolute path gets the reply NoPath.
+	TriggerWriteOutside = "Write outside"
 	// TriggerChoice: Claude Code gets an AskUserQuestion call with the two
 	// options "Red" and "Blue", then the reply ToolDone after the answer.
 	// The other agents have no choice tool and get the reply Question.
@@ -68,10 +79,13 @@ const (
 
 // The fixed texts of the answers.
 const (
-	Command  = "touch agent-signals-test.txt"
-	Text     = "The fixture has no more to say."
-	ToolDone = "The fixture finished the tool call."
-	Question = "The fixture has one question. Do you want to go on?"
+	Command   = "touch agent-signals-test.txt"
+	Text      = "The fixture has no more to say."
+	ToolDone  = "The fixture finished the tool call."
+	Question  = "The fixture has one question. Do you want to go on?"
+	WriteFile = "agent-signals-write.txt"
+	WriteText = "The fixture wrote this file.\n"
+	NoPath    = "The fixture found no absolute path after \"Write outside\"."
 )
 
 // CursorClientVersion is the Cursor CLI version that gave the field numbers of

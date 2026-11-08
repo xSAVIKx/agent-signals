@@ -44,6 +44,8 @@ user = {"role": "user", "content": [{"type": "input_text", "text": sys.argv[3] i
 items = [user]
 if kind == "tool-result":
     items.append({"type": "function_call_output", "call_id": "x", "output": "ok"})
+if kind == "custom-result":
+    items.append({"type": "custom_tool_call_output", "call_id": "x", "output": "ok"})
 c = http.client.HTTPConnection("127.0.0.1", port, timeout=3)
 c.request("POST", "/v1/responses", json.dumps({"input": items}))
 r = c.getresponse()
@@ -63,10 +65,19 @@ expect_line "the command asks for an approval" 'require_escalated' "$T/reply"
 post tool-result "Create a file named x."
 expect_line "a tool result ends the turn" 'finished the tool call' "$T/reply"
 expect_no_line "a tool result gets no new command" 'exec_command' "$T/reply"
+post text "Write a file now."
+expect_line "a write prompt gets an apply_patch call" '"name": "apply_patch"' "$T/reply"
+expect_line "the patch adds the file in the work folder" 'Add File: agent-signals-write\.txt' "$T/reply"
+post custom-result "Write a file now."
+expect_line "a custom tool result ends the turn" 'finished the tool call' "$T/reply"
+post text "Write outside /work/example/out.txt."
+expect_line "an outside write uses the given path" 'Add File: /work/example/out\.txt\\n' "$T/reply"
+post text "Write outside the work folder."
+expect_line "an outside write with no path gets a text reply" 'found no absolute path' "$T/reply"
 post text "Count from 1 to 300."
 expect_no_line "a long prompt gets no completed event" 'response\.completed' "$T/reply"
 expect_line "the log has the hold" ' hold$' "$T/log"
-expect_no_line "the log holds no prompt text" 'Create a file|Count from' "$T/log"
+expect_no_line "the log holds no prompt text" 'Create a file|Count from|Write' "$T/log"
 kill "$fake" 2>/dev/null
 
 # start_fake AGENT: start the fake model for AGENT with the home $T/AGENT, and
@@ -126,9 +137,19 @@ post2 /v1/messages "{\"stream\": true, $tools, \"messages\": [{\"role\": \"user\
 expect_line "claude: a choice with no question tool gets a question" 'Do you want to go on\?' "$T/reply"
 post2 /v1/messages "{\"stream\": true, $tools, \"messages\": [{\"role\": \"user\", \"content\": \"End your reply with a question.\"}]}"
 expect_line "claude: a question prompt gets a question" 'Do you want to go on\?' "$T/reply"
+wsys='"system": [{"type": "text", "text": "env\n - Primary working directory: /work/example\n - Is a git repository: false"}]'
+wtools='"tools": [{"name": "Bash"}, {"name": "Write"}]'
+post2 /v1/messages "{\"stream\": true, $wsys, $wtools, \"messages\": [{\"role\": \"user\", \"content\": \"Write a file now.\"}]}"
+expect_line "claude: a write prompt gets a Write call" '"name": "Write"' "$T/reply"
+expect_line "claude: the path is in the work folder" 'file_path.*/work/example/agent-signals-write\.txt' "$T/reply"
+post2 /v1/messages "{\"stream\": true, $wsys, $wtools, \"messages\": [{\"role\": \"user\", \"content\": \"Write outside /work/other/x.txt\"}]}"
+expect_line "claude: an outside write uses the given path" 'file_path.*/work/other/x\.txt' "$T/reply"
+post2 /v1/messages "{\"stream\": true, $wsys, $wtools, \"messages\": [{\"role\": \"user\", \"content\": \"Write outside please.\"}]}"
+expect_line "claude: an outside write with no path gets a text reply" 'found no absolute path' "$T/reply"
 post2 /v1/messages/count_tokens '{}'
 expect_line "claude: count_tokens gets a count" 'input_tokens' "$T/reply"
-expect_no_line "claude: the log holds no prompt text" 'Create a file|Count from' "$T/claude.log"
+expect_line "claude: the log has the write" ' write$' "$T/claude.log"
+expect_no_line "claude: the log holds no prompt text" 'Create a file|Count from|Write|/work/' "$T/claude.log"
 kill "$fake" 2>/dev/null
 
 start_fake agy
@@ -143,6 +164,12 @@ post2 /v1/chat/completions "{\"stream\": true, $tools, \"messages\": [{\"role\":
 expect_line "agy: a file prompt gets a command call" '"name": "run_command"' "$T/reply"
 expect_line "agy: the call ends with tool_calls" '"finish_reason": "tool_calls"' "$T/reply"
 expect_line "agy: the stream ends with DONE" '^data: \[DONE\]$' "$T/reply"
+asys='{"role": "system", "content": "Active Workspaces:\n- /work/example\nCommand Working Directory: /work/example\nCode relating to the user"}'
+post2 /v1/chat/completions "{\"stream\": true, $tools, \"messages\": [$asys, {\"role\": \"user\", \"content\": \"<USER_REQUEST>Write a file now.</USER_REQUEST>\"}]}"
+expect_line "agy: a write prompt gets a write_file call" '"name": "write_file"' "$T/reply"
+expect_line "agy: the path is in the work folder" 'Path.*/work/example/agent-signals-write\.txt' "$T/reply"
+post2 /v1/chat/completions "{\"stream\": true, $tools, \"messages\": [$asys, {\"role\": \"user\", \"content\": \"Write outside /work/other/x.txt\"}]}"
+expect_line "agy: an outside write uses the given path" 'Path.*/work/other/x\.txt' "$T/reply"
 post2 /v1/chat/completions "{\"stream\": true, $tools, \"messages\": [{\"role\": \"tool\", \"tool_call_id\": \"x\", \"content\": \"ok\"}]}"
 expect_line "agy: a tool result ends the turn" 'finished the tool call' "$T/reply"
 post2 /v1/chat/completions '{"stream": true, "messages": [{"role": "user", "content": "Create a file named x."}]}'
@@ -150,7 +177,7 @@ expect_no_line "agy: a request with no tools gets no call" 'run_command' "$T/rep
 post2 /v1/chat/completions "{\"stream\": true, $tools, \"messages\": [{\"role\": \"user\", \"content\": \"Count from 1 to 300.\"}]}"
 expect_no_line "agy: a long prompt gets no reply" 'DONE' "$T/reply"
 expect_line "agy: a long prompt holds the turn" ' hold$' "$T/agy.log"
-expect_no_line "agy: the log holds no prompt text" 'Create a file|Count from' "$T/agy.log"
+expect_no_line "agy: the log holds no prompt text" 'Create a file|Count from|Write|/work/' "$T/agy.log"
 kill "$fake" 2>/dev/null
 
 start_fake cursor-agent
