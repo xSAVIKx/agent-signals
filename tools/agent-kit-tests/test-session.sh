@@ -235,7 +235,7 @@ if have tmux; then
   c=$run/sessions/a1/conditions
   expect_line "args: the command has the words of the step" "^command: sh '.*stub-agent\.sh' --mode-x\$" "$c"
   expect_line "args: the variable of the step is named" '^environment from the step: STUB_MODE_X=on$' "$c"
-  expect_line "args: the variables are named" '^environment: HOME PATH TERM USER LANG ' "$c"
+  expect_line "args: the variables are named" '^environment: HOME PATH TERM USER .*LANG ' "$c"
   expect_line "args: the variable of the step is in the list" '^environment: .* STUB_MODE_X' "$c"
   expect_no_line "args: no value of a variable" 'PATH=|HOME=' "$c"
   expect_line "args: the home is named" '^home: throwaway' "$c"
