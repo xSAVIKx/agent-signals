@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.15.0](https://github.com/xSAVIKx/agent-signals/compare/go/v0.14.0...go/v0.15.0) (2026-11-08)
+
+
+### Features
+
+* **go:** answer the review requests of the auto modes in the fake model ([#114](https://github.com/xSAVIKx/agent-signals/issues/114)) ([ba051da](https://github.com/xSAVIKx/agent-signals/commit/ba051dac57c98f6c2fd1e80bcf4f9456af0321a3))
+* **probes:** record the conditions of each session step and add one step for each mode ([#116](https://github.com/xSAVIKx/agent-signals/issues/116)) ([616d5de](https://github.com/xSAVIKx/agent-signals/commit/616d5de14e0bd72c7a324849838cd2a98585da1e))
+
 ## [0.14.0](https://github.com/xSAVIKx/agent-signals/compare/go/v0.13.1...go/v0.14.0) (2026-11-08)
 
 

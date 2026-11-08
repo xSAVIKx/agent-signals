@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.18.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.17.0...corpus-v0.18.0) (2026-11-08)
+
+
+### ⚠ BREAKING CHANGES
+
+* **python:** the package no longer installs on Python 3.10.
+
+### Features
+
+* **go:** answer the review requests of the auto modes in the fake model ([#114](https://github.com/xSAVIKx/agent-signals/issues/114)) ([ba051da](https://github.com/xSAVIKx/agent-signals/commit/ba051dac57c98f6c2fd1e80bcf4f9456af0321a3))
+* **probes:** record the conditions of each session step and add one step for each mode ([#116](https://github.com/xSAVIKx/agent-signals/issues/116)) ([616d5de](https://github.com/xSAVIKx/agent-signals/commit/616d5de14e0bd72c7a324849838cd2a98585da1e))
+
+
+### Build System
+
+* **python:** require Python 3.11 or later ([#117](https://github.com/xSAVIKx/agent-signals/issues/117)) ([78ec4a8](https://github.com/xSAVIKx/agent-signals/commit/78ec4a88c9312c9dc2095b2e0e9bd8cdb9f98739))
+
 ## [0.17.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.16.1...corpus-v0.17.0) (2026-11-08)
 
 

@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.9.0](https://github.com/xSAVIKx/agent-signals/compare/python-v0.8.0...python-v0.9.0) (2026-11-08)
+
+
+### ⚠ BREAKING CHANGES
+
+* **python:** the package no longer installs on Python 3.10.
+
+### Features
+
+* **probes:** record the conditions of each session step and add one step for each mode ([#116](https://github.com/xSAVIKx/agent-signals/issues/116)) ([616d5de](https://github.com/xSAVIKx/agent-signals/commit/616d5de14e0bd72c7a324849838cd2a98585da1e))
+
+
+### Build System
+
+* **python:** require Python 3.11 or later ([#117](https://github.com/xSAVIKx/agent-signals/issues/117)) ([78ec4a8](https://github.com/xSAVIKx/agent-signals/commit/78ec4a88c9312c9dc2095b2e0e9bd8cdb9f98739))
+
 ## [0.8.0](https://github.com/xSAVIKx/agent-signals/compare/python-v0.7.2...python-v0.8.0) (2026-11-08)
 
 
