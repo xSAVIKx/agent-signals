@@ -23,7 +23,7 @@ awk -F '\t' '
     if ($c["cost"] !~ /^(none|turns:[0-9]+)$/) print $1 ": cost " $c["cost"]
     if (!words($c["backends"], "^(none|tmux|pty|conpty|psmux|operator)$")) print $1 ": backends " $c["backends"]
     if (!words($c["os"], "^(linux|macos|windows)$")) print $1 ": os " $c["os"]
-    if ($c["agent"] !~ /^(-|claude|codex|agy|cursor-agent)$/) print $1 ": agent " $c["agent"]
+    if ($c["agent"] !~ /^(-|claude|codex|agy|cursor-agent|opencode)$/) print $1 ": agent " $c["agent"]
     want = $c["kind"] ($c["agent"] == "-" ? "" : "-" $c["agent"])
     # A permission step for one mode: write-AGENT-MODE or
     # write-outside-AGENT-MODE.
@@ -45,6 +45,14 @@ if [ -f "$T/missing" ]; then fail "steps.tsv has each step kind for each agent" 
 field() {
   awk -F '\t' -v n="$1" -v c="$2" '/^#/ { next } !h { for (i = 1; i <= NF; i++) col[$i] = i; h = 1; next } $1 == n { print $col[c] }' "$steps"
 }
+
+# The idle regexes of opencode agree with the idle screen of opencode 2.2.5
+# in the corpus (corpus/opencode2).
+oscr=$ROOT/corpus/opencode2/screens/idle-v2-2-5.screen
+for n in $(awk -F '\t' '$3 == "opencode" { print $1 }' "$steps"); do
+  if grep -Eq -- "$(field "$n" idle_regex)" "$oscr" && ! grep -Eq -- "$(field "$n" busy_regex)|$(field "$n" dialog_regex)" "$oscr"; then :; else echo "$n" >>"$T/oc-idle"; fi
+done
+if [ -f "$T/oc-idle" ]; then fail "the opencode rows find the idle corpus screen" "$(tr '\n' ' ' <"$T/oc-idle")"; else pass "the opencode rows find the idle corpus screen"; fi
 
 # The regexes agree with the state of each corpus screen (the "state:" of
 # its .yaml). A screen is idle when a line matches idle_regex and no line

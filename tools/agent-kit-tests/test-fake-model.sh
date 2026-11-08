@@ -208,6 +208,25 @@ expect_line "agy: a long prompt holds the turn" ' hold$' "$T/agy.log"
 expect_no_line "agy: the log holds no prompt text" 'Create a file|Count from|Write|/work/' "$T/agy.log"
 kill "$fake" 2>/dev/null
 
+# opencode: the Chat Completions API of agy, with the tools write and shell,
+# and the work folder from "Working directory: ".
+start_fake opencode
+oc=$T/opencode/.config/opencode/opencode.json
+expect_line "opencode: the config names the fixture model" '"model": "fixture/fixture-model"' "$oc"
+expect_line "opencode: the provider is openai-compatible" '"npm": "@ai-sdk/openai-compatible"' "$oc"
+port=$(sed -n 's#.*"baseURL": "http://127\.0\.0\.1:\([0-9]*\)/v1".*#\1#p' "$oc")
+tools='"tools": [{"type": "function", "function": {"name": "shell"}}]'
+post2 /v1/chat/completions "{\"stream\": true, $tools, \"messages\": [{\"role\": \"user\", \"content\": \"Create a file named x.\"}]}"
+expect_line "opencode: a file prompt gets a shell call" '"name": "shell"' "$T/reply"
+osys='{"role": "system", "content": "env\n  Working directory: /work/example\n  Platform: linux"}'
+post2 /v1/chat/completions "{\"stream\": true, $tools, \"messages\": [$osys, {\"role\": \"user\", \"content\": \"Write a file now.\"}]}"
+expect_line "opencode: a write prompt gets a write call" '"name": "write"' "$T/reply"
+expect_line "opencode: the path is in the work folder" 'path.*/work/example/agent-signals-write\.txt' "$T/reply"
+post2 /v1/chat/completions "{\"stream\": true, $tools, \"messages\": [$osys, {\"role\": \"user\", \"content\": \"Write outside /work/other/x.txt\"}]}"
+expect_line "opencode: an outside write uses the given path" 'path.*/work/other/x\.txt' "$T/reply"
+expect_no_line "opencode: the log holds no prompt text" 'Create a file|Write|/work/' "$T/opencode.log"
+kill "$fake" 2>/dev/null
+
 start_fake cursor-agent
 expect_line "cursor: the endpoint is local" '^CURSOR_API_ENDPOINT=http://127\.0\.0\.1:[0-9]+$' "$T/cursor-agent.env"
 expect_line "cursor: the agent stream uses HTTP/1.1" '"useHttp1ForAgent": true' "$T/cursor-agent/.cursor/cli-config.json"

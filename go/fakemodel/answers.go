@@ -230,11 +230,15 @@ func (s *server) post(w http.ResponseWriter, r *http.Request) {
 		whole = func() any { blocks, stop := claudeBlocks(k, t); return claudeMessage(rid, model, blocks, stop) }
 	case strings.HasSuffix(path, "/chat/completions"):
 		var text string
-		kind, text = agyAnswer(body)
+		chat := Agy
+		if s.agent == OpenCode {
+			chat = OpenCode
+		}
+		kind, text = agyAnswer(body, chat)
 		stream, _ = body["stream"].(bool)
-		chunks = agyStream(rid, model, kind, text)
+		chunks = agyStream(rid, model, kind, text, chat)
 		k, t := kind, text
-		whole = func() any { return agyMessage(rid, model, k, t) }
+		whole = func() any { return agyMessage(rid, model, k, t, chat) }
 	default:
 		s.note("POST %s %s unknown", path, rid)
 		sendJSON(w, http.StatusNotFound, map[string]any{})
@@ -515,8 +519,13 @@ func claudeStream(rid, model, kind, text string) [][]byte {
 
 // ------------------------------------------------------------------ agy
 
-// agyAnswer returns the kind and the text. For kindWrite the text is the path.
-func agyAnswer(body map[string]any) (string, string) {
+// chatCwd is the label of the work folder in the system prompt of each
+// Chat Completions agent.
+var chatCwd = map[string]string{Agy: "Command Working Directory: ", OpenCode: "Working directory: "}
+
+// agyAnswer returns the kind and the text for AGENT (agy or opencode). For
+// kindWrite the text is the path.
+func agyAnswer(body map[string]any, agent string) (string, string) {
 	var last map[string]any
 	msgs := list(body["messages"])
 	for i := len(msgs) - 1; i >= 0; i-- {
@@ -534,7 +543,7 @@ func agyAnswer(body map[string]any) (string, string) {
 	case kindWrite:
 		cwd := ""
 		for _, m := range msgs {
-			if v := labelValue(textOf(obj(m)["content"]), "Command Working Directory: "); v != "" {
+			if v := labelValue(textOf(obj(m)["content"]), chatCwd[agent]); v != "" {
 				cwd = v
 				break
 			}
@@ -549,7 +558,25 @@ func agyAnswer(body map[string]any) (string, string) {
 	return kind, Text
 }
 
-func agyDelta(kind, text string) (map[string]any, string) {
+// chatCall is an assistant message with one call of the tool NAME.
+func chatCall(id, name string, args map[string]any) (map[string]any, string) {
+	b, _ := json.Marshal(args)
+	call := map[string]any{
+		"index":    0,
+		"id":       id,
+		"type":     "function",
+		"function": map[string]any{"name": name, "arguments": string(b)},
+	}
+	return map[string]any{"role": "assistant", "tool_calls": []any{call}}, "tool_calls"
+}
+
+func agyDelta(kind, text, agent string) (map[string]any, string) {
+	if agent == OpenCode && kind == kindWrite {
+		return chatCall("call_fixture_write", "write", map[string]any{"path": text, "content": WriteText})
+	}
+	if agent == OpenCode && kind == kindTool {
+		return chatCall("call_fixture", "shell", map[string]any{"command": Command})
+	}
 	if kind == kindWrite {
 		args, _ := json.Marshal(map[string]any{"Path": text, "Content": WriteText})
 		call := map[string]any{
@@ -587,18 +614,18 @@ func agyChunk(rid, model string, delta map[string]any, finish any) map[string]an
 	}
 }
 
-func agyStream(rid, model, kind, text string) [][]byte {
+func agyStream(rid, model, kind, text, agent string) [][]byte {
 	if kind == kindHold {
 		return nil
 	}
-	delta, finish := agyDelta(kind, text)
+	delta, finish := agyDelta(kind, text, agent)
 	end := agyChunk(rid, model, map[string]any{}, finish)
 	end["usage"] = map[string]any{"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}
 	return [][]byte{sse("", agyChunk(rid, model, delta, nil)), sse("", end), []byte("data: [DONE]\n\n")}
 }
 
-func agyMessage(rid, model, kind, text string) map[string]any {
-	delta, finish := agyDelta(kind, text)
+func agyMessage(rid, model, kind, text, agent string) map[string]any {
+	delta, finish := agyDelta(kind, text, agent)
 	return map[string]any{
 		"id":      rid,
 		"object":  "chat.completion",

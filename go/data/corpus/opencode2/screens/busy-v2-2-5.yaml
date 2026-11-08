@@ -1,0 +1,20 @@
+schema: 1
+agent: opencode2
+agent_version: 2.2.5
+measured: 2026-11-08
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured
+description: >-
+  opencode 2.2.5 works on the prompt "Count from 1 to 2000, with one number on
+  each line.", and the fake model holds the turn with no reply. The line below
+  the box shows a bar of squares that moves, and "esc interrupt". One Esc
+  changes the text to "esc again to interrupt", and a second Esc within 5 s
+  stops the turn (fact 86). The footer still shows "ctrl+p commands", as the
+  idle screen does. The screen is the busy screen of the
+  kit step interrupt-opencode@tmux of the agent kit, with --home fixture: opencode 2.2.5 (command opencode) with --standalone, against the fake model of the kit (probes/agent/fake-model.py), in a private tmux server on Linux (x64). The fake model gives the session title "The fixture has no more to say.", which shows cut at the top line.
+expect:
+  state: BUSY
+  dialog: none
+  box_text: null
+facts: [86]

@@ -65,6 +65,18 @@ func start(t *testing.T, agent string) (string, string, string, map[string]strin
 			}
 		}
 	}
+	if agent == OpenCode {
+		var cfg struct {
+			Provider map[string]struct {
+				Options struct{ BaseURL string } `json:"options"`
+			} `json:"provider"`
+		}
+		raw, err := os.ReadFile(filepath.Join(o.Home, ".config", "opencode", "opencode.json"))
+		if err != nil || json.Unmarshal(raw, &cfg) != nil {
+			t.Fatalf("opencode.json: %v", err)
+		}
+		base = strings.TrimSuffix(cfg.Provider["fixture"].Options.BaseURL, "/v1")
+	}
 	if base == "" {
 		t.Fatalf("no base URL in %q", raw)
 	}
@@ -84,7 +96,7 @@ func post(t *testing.T, url string, body any) string {
 }
 
 func TestAgentNames(t *testing.T) {
-	for in, want := range map[string]string{"codex": Codex, "claude": Claude, "agy": Agy, "cursor-agent": CursorAgent, "cursor": CursorAgent, "agent": CursorAgent} {
+	for in, want := range map[string]string{"codex": Codex, "claude": Claude, "agy": Agy, "cursor-agent": CursorAgent, "cursor": CursorAgent, "agent": CursorAgent, "opencode": OpenCode} {
 		if got, err := Agent(in); err != nil || got != want {
 			t.Errorf("Agent(%q) = %q, %v; want %q", in, got, err, want)
 		}
@@ -331,6 +343,28 @@ func TestAgy(t *testing.T) {
 	out = post(t, base+"/v1/chat/completions", map[string]any{"tools": tools, "messages": []any{map[string]any{"role": "tool", "content": "ok"}}})
 	if !strings.Contains(out, ToolDone) || !strings.Contains(out, `"object":"chat.completion"`) {
 		t.Errorf("tool result reply: %s", out)
+	}
+}
+
+func TestOpenCode(t *testing.T) {
+	base, home, _, _ := start(t, OpenCode)
+	cfg, err := os.ReadFile(filepath.Join(home, ".config", "opencode", "opencode.json"))
+	if err != nil || !strings.Contains(string(cfg), base+"/v1") || !strings.Contains(string(cfg), `"model": "fixture/fixture-model"`) {
+		t.Errorf("opencode.json: %s, %v", cfg, err)
+	}
+	tools := []any{map[string]any{"type": "function"}}
+	out := post(t, base+"/v1/chat/completions", map[string]any{"stream": true, "tools": tools, "messages": []any{map[string]any{"role": "user", "content": "Create a file"}}})
+	if !strings.Contains(out, `"name":"shell"`) || !strings.Contains(out, `\"command\":`) {
+		t.Errorf("tool reply: %s", out)
+	}
+	sys := map[string]any{"role": "system", "content": "env\n  Working directory: /work/example\n  Platform: linux"}
+	out = post(t, base+"/v1/chat/completions", map[string]any{"stream": true, "tools": tools, "messages": []any{sys, map[string]any{"role": "user", "content": "Write a file now."}}})
+	if !strings.Contains(out, `"name":"write"`) || !strings.Contains(out, `\"path\":\"/work/example/agent-signals-write.txt\"`) {
+		t.Errorf("write reply: %s", out)
+	}
+	out = post(t, base+"/v1/chat/completions", map[string]any{"tools": tools, "messages": []any{sys, map[string]any{"role": "user", "content": "Write outside /work/other/x.txt"}}})
+	if !strings.Contains(out, `\"path\":\"/work/other/x.txt\"`) {
+		t.Errorf("outside write reply: %s", out)
 	}
 }
 
