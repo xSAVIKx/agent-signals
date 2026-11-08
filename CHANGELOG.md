@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.18.2...corpus-v0.19.0) (2026-11-08)
+
+
+### Features
+
+* **probes:** run opencode with the fake model and measure when it asks ([#122](https://github.com/xSAVIKx/agent-signals/issues/122)) ([73d90da](https://github.com/xSAVIKx/agent-signals/commit/73d90da4664e4cfd2e3a8af46e288bcd34d8f6f7))
+
 ## [0.18.2](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.18.1...corpus-v0.18.2) (2026-11-08)
 
 
