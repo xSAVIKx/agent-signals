@@ -4,7 +4,7 @@
 //
 // Usage:
 //
-//	agent-signals-fake-model --agent codex|claude|agy|cursor-agent --home HOME
+//	agent-signals-fake-model --agent codex|claude|agy|cursor-agent|opencode --home HOME
 //	    --env-file FILE --log FILE [--pid-file FILE]
 //
 // It writes the settings files of the agent in HOME, then FILE with one
@@ -27,7 +27,7 @@ import (
 func main() {
 	var o fakemodel.Options
 	fs := flag.NewFlagSet("agent-signals-fake-model", flag.ContinueOnError)
-	fs.StringVar(&o.Agent, "agent", "", "codex, claude, agy or cursor-agent")
+	fs.StringVar(&o.Agent, "agent", "", "codex, claude, agy, cursor-agent or opencode")
 	fs.StringVar(&o.Home, "home", "", "the throwaway home of the test session")
 	fs.StringVar(&o.EnvFile, "env-file", "", "the file for the variables")
 	fs.StringVar(&o.Log, "log", "", "the log file")
@@ -36,7 +36,7 @@ func main() {
 		os.Exit(2)
 	}
 	if fs.NArg() > 0 || o.Agent == "" || o.Home == "" || o.EnvFile == "" || o.Log == "" {
-		fmt.Fprintln(os.Stderr, "usage: agent-signals-fake-model --agent codex|claude|agy|cursor-agent --home HOME --env-file FILE --log FILE [--pid-file FILE]")
+		fmt.Fprintln(os.Stderr, "usage: agent-signals-fake-model --agent codex|claude|agy|cursor-agent|opencode --home HOME --env-file FILE --log FILE [--pid-file FILE]")
 		os.Exit(2)
 	}
 	if _, err := fakemodel.Agent(o.Agent); err != nil {

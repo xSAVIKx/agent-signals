@@ -1,0 +1,22 @@
+schema: 1
+agent: opencode2
+agent_version: 2.2.5
+measured: 2026-11-08
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured
+description: >-
+  A shell command, with the rule {"permission":{"bash":"ask"}} in
+  OPENCODE_CONFIG_CONTENT. The dialog shows "△ Permission required" and the
+  command "$ touch agent-signals-test.txt", with the same options as the dialog
+  of a file write. The screen is the dialog screen of the
+  kit step permission-opencode@tmux of the agent kit, with --home fixture: opencode 2.2.5 (command opencode) with --standalone, against the fake model of the kit (probes/agent/fake-model.py), in a private tmux server on Linux (x64). The fake model gives the session title "The fixture has no more to say.", which shows cut at the top line.
+expect:
+  state: PERMISSION
+  dialog: permission
+  question: "Permission required"
+  options:
+    - {label: "Allow once"}
+    - {label: "Always allow"}
+    - {label: "Reject"}
+facts: [86]

@@ -316,7 +316,7 @@ kit_login_skip() {
   esac
   case $1:$3 in
     throwaway:*) echo no-login ;;
-    fixture:codex | fixture:claude | fixture:agy) ;;
+    fixture:codex | fixture:claude | fixture:agy | fixture:opencode) ;;
     # The Cursor CLI on macOS saves its login in the keychain, which a
     # throwaway home does not isolate: a fixture run would write a fake
     # token over the real login (fact 78).

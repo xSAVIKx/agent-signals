@@ -5,7 +5,7 @@
 #
 # Each line that does not start with "#" has 4 fields, separated by tabs.
 #
-#   agent  claude, codex, agy or cursor-agent.
+#   agent  claude, codex, agy, cursor-agent or opencode.
 #   scope  home     a path below the home of the session.
 #          project  a path below the work folder or a folder above it. The
 #                   kit looks in each folder from the work folder up to the
@@ -68,3 +68,10 @@ cursor-agent	home	all	.cursor/cli-config.json
 cursor-agent	home	all	.cursor/permissions.json
 cursor-agent	project	all	.cursor/cli.json
 cursor-agent	project	all	AGENTS.md
+opencode	home	all	.config/opencode/opencode.json
+opencode	home	all	.config/opencode/opencode.jsonc
+opencode	home	all	.config/opencode/AGENTS.md
+opencode	project	all	opencode.json
+opencode	project	all	opencode.jsonc
+opencode	project	all	.opencode
+opencode	project	all	AGENTS.md

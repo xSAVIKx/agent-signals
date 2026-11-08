@@ -1,0 +1,25 @@
+schema: 1
+agent: opencode2
+agent_version: 2.2.5
+measured: 2026-11-08
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured
+description: >-
+  A file write in the work folder, with the rule {"permission":{"edit":"ask"}}
+  in OPENCODE_CONFIG_CONTENT. The dialog draws in the transcript area with
+  "△ Permission required", the title "→ Edit agent-signals-write.txt" and the
+  new content, and the options in one row at the bottom with "⇆ select  enter
+  confirm". The options have no numbers, and a plain capture does not show
+  which one is selected. Esc stops the whole turn, not only the call (fact 86).
+  The screen is the dialog screen of the
+  kit step write-opencode-ask-edits@tmux of the agent kit, with --home fixture: opencode 2.2.5 (command opencode) with --standalone, against the fake model of the kit (probes/agent/fake-model.py), in a private tmux server on Linux (x64). The fake model gives the session title "The fixture has no more to say.", which shows cut at the top line.
+expect:
+  state: PERMISSION
+  dialog: permission
+  question: "Permission required"
+  options:
+    - {label: "Allow once"}
+    - {label: "Always allow"}
+    - {label: "Reject"}
+facts: [86]

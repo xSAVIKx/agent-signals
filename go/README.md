@@ -32,8 +32,8 @@ See `ExampleScreensFor` for a complete example.
 ## The fake model
 
 The package `github.com/xSAVIKx/agent-signals/go/fakemodel` is a local fake
-model for test sessions of agent CLIs: Codex CLI, Claude Code, agy and the
-Cursor CLI (`cursor-agent`). The real agent runs against it with no login,
+model for test sessions of agent CLIs: Codex CLI, Claude Code, agy, the
+Cursor CLI (`cursor-agent`) and opencode. The real agent runs against it with no login,
 no network and no cost. It gives fixed answers, so a run measures the agent
 and its screens, not a model. It is the Go form of
 `probes/agent/fake-model.py` and gives the same answers. It uses only the
@@ -80,9 +80,13 @@ is "allow", or "deny" when the user text under review holds
 A request with another JSON schema, for example a title request, gets an
 object with a fixed value for each required property.
 
-The file-write tool is `Write` for Claude Code, `apply_patch` for Codex and
-`write_file` for agy. Claude Code and agy need an absolute path, so the
-server reads the work folder from the system prompt of the request. The
+The file-write tool is `Write` for Claude Code, `apply_patch` for Codex,
+`write_file` for agy and `write` for opencode. Claude Code, agy and opencode
+need an absolute path, so the server reads the work folder from the system
+prompt of the request. The shell tool of opencode is `shell`.
+
+For opencode, `Run` writes `HOME/.config/opencode/opencode.json` with a
+provider of `@ai-sdk/openai-compatible` and no variable. The
 Cursor CLI gets the text reply for the two write texts.
 
 The Cursor CLI uses a private protocol. The field numbers come from the

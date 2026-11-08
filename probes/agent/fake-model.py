@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """A local fake model for the "fixture" home mode of the kit.
 
-It lets the real Codex CLI, Claude Code, agy and the Cursor CLI run a test
+It lets the real Codex CLI, Claude Code, agy, the Cursor CLI and opencode run a test
 session with no login, no network and no cost. It serves the API of one agent on 127.0.0.1
 with fixed answers. No model decides anything, so a fixture run measures the
 agent and its screens, not the behaviour of a model.
 
 Usage:
-  fake-model.py --agent codex|claude|agy|cursor-agent --home HOME --env-file FILE
+  fake-model.py --agent codex|claude|agy|cursor-agent|opencode --home HOME --env-file FILE
                 --log FILE [--pid-file FILE]
   fake-model.py --codex-home DIR --log FILE [--pid-file FILE]
 
@@ -31,6 +31,9 @@ one line for each request, with no request text.
           2026.11.05-86047df, and a new client can change them.
           HOME/.cursor/cli-config.json selects HTTP/1.1 for the agent
           stream. The log names each RPC.
+  opencode
+          The Chat Completions API, as for agy. HOME/.config/opencode/
+          opencode.json names the fake provider and its model. No variable.
 
 The old form --codex-home DIR writes DIR/config.toml and no FILE.
 
@@ -40,9 +43,10 @@ The answer depends on the last user message of a request with tools:
   "Write a file"   one call of the file-write tool of the agent for the file
                    agent-signals-write.txt in the work folder, then a text
                    reply after the tool result. Claude Code: Write. Codex:
-                   apply_patch. agy: write_file. Claude Code and agy need an
-                   absolute path: the server reads the work folder from the
-                   system prompt. cursor-agent: a text reply.
+                   apply_patch. agy: write_file. opencode: write. Claude Code,
+                   agy and opencode need an absolute path: the server reads
+                   the work folder from the system prompt. cursor-agent: a
+                   text reply.
   "Write outside"  the same call for the absolute path that follows this text,
                    for example "Write outside /work/x.txt". With no absolute
                    path: a text reply that says so.
@@ -401,7 +405,12 @@ def claude_stream(rid, model, kind, text):
 # ------------------------------------------------------------------ agy
 
 
-def agy_answer(body):
+# The Chat Completions agents: the label of the work folder in the system
+# prompt, the file-write tool and the shell tool.
+CHAT_CWD = {"agy": "Command Working Directory: ", "opencode": "Working directory: "}
+
+
+def agy_answer(body, agent="agy"):
     # For "write" the text is the path.
     msgs = [m for m in body.get("messages") or [] if isinstance(m, dict)]
     last = next((m for m in reversed(msgs)
@@ -411,7 +420,7 @@ def agy_answer(body):
     text = text_of(last.get("content"))
     kind = classify(text, bool(body.get("tools")))
     if kind == "write":
-        cwd = next((v for v in (label_value(text_of(m.get("content")), "Command Working Directory: ")
+        cwd = next((v for v in (label_value(text_of(m.get("content")), CHAT_CWD[agent])
                                 for m in msgs) if v), "")
         path = write_path(text, cwd)
         return ("write", path) if path else ("text", NO_PATH)
@@ -420,7 +429,23 @@ def agy_answer(body):
     return kind, TEXT
 
 
-def agy_delta(kind, text):
+def agy_delta(kind, text, agent="agy"):
+    if kind == "write" and agent == "opencode":
+        call = {
+            "index": 0,
+            "id": "call_fixture_write",
+            "type": "function",
+            "function": {"name": "write", "arguments": json.dumps({"path": text, "content": WRITE_TEXT})},
+        }
+        return {"role": "assistant", "tool_calls": [call]}, "tool_calls"
+    if kind == "tool" and agent == "opencode":
+        call = {
+            "index": 0,
+            "id": "call_fixture",
+            "type": "function",
+            "function": {"name": "shell", "arguments": json.dumps({"command": COMMAND})},
+        }
+        return {"role": "assistant", "tool_calls": [call]}, "tool_calls"
     if kind == "write":
         call = {
             "index": 0,
@@ -455,10 +480,10 @@ def agy_chunk(rid, model, delta, finish):
     }
 
 
-def agy_stream(rid, model, kind, text):
+def agy_stream(rid, model, kind, text, agent="agy"):
     if kind == "hold":
         return
-    delta, finish = agy_delta(kind, text)
+    delta, finish = agy_delta(kind, text, agent)
     yield sse(None, agy_chunk(rid, model, delta, None))
     end = agy_chunk(rid, model, {}, finish)
     end["usage"] = {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}
@@ -466,8 +491,8 @@ def agy_stream(rid, model, kind, text):
     yield b"data: [DONE]\n\n"
 
 
-def agy_message(rid, model, kind, text):
-    delta, finish = agy_delta(kind, text)
+def agy_message(rid, model, kind, text, agent="agy"):
+    delta, finish = agy_delta(kind, text, agent)
     return {
         "id": rid,
         "object": "chat.completion",
@@ -667,7 +692,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.note("GET %s" % self.path)
         if "models" not in self.path:
             self.send_json(404, {})
-        elif Handler.agent == "agy":
+        elif Handler.agent in ("agy", "opencode"):
             model = {"id": AGY_MODEL, "object": "model", "created": 0, "owned_by": "kit"}
             self.send_json(200, {"object": "list", "data": [model]})
         else:
@@ -718,10 +743,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             chunks = claude_stream(rid, model, kind, text)
             whole = lambda: claude_message(rid, model, *claude_blocks(kind, text))
         elif path.endswith("/chat/completions"):
-            kind, text = agy_answer(body)
+            chat = "opencode" if Handler.agent == "opencode" else "agy"
+            kind, text = agy_answer(body, chat)
             stream = bool(body.get("stream"))
-            chunks = agy_stream(rid, model, kind, text)
-            whole = lambda: agy_message(rid, model, kind, text)
+            chunks = agy_stream(rid, model, kind, text, chat)
+            whole = lambda: agy_message(rid, model, kind, text, chat)
         else:
             self.note("POST %s %s unknown" % (path, rid))
             self.send_json(404, {})
@@ -937,6 +963,21 @@ def prepare(agent, home, port):
         write_file(os.path.join(home, ".cursor", "cli-config.json"),
                    json_text({"version": 1, "network": {"useHttp1ForAgent": True}}))
         return [("CURSOR_API_ENDPOINT", base), ("CURSOR_API_KEY", "dummy")]
+    if agent == "opencode":
+        # A provider of the built-in package @ai-sdk/openai-compatible needs
+        # no install. opencode 2.2.5 reads the v1 form of this file.
+        write_file(os.path.join(home, ".config", "opencode", "opencode.json"), json_text({
+            "provider": {"fixture": {
+                "npm": "@ai-sdk/openai-compatible",
+                "name": "Fixture",
+                "options": {"baseURL": base + "/v1", "apiKey": "dummy"},
+                "models": {AGY_MODEL: {"name": "Fixture model"}},
+            }},
+            "model": "fixture/" + AGY_MODEL,
+            "autoupdate": False,
+            "share": "disabled",
+        }))
+        return []
     write_file(os.path.join(home, ".gemini", "antigravity-cli", "cache", "onboarding.json"),
                json_text({
                    "consumerOnboardingComplete": False,
@@ -954,7 +995,7 @@ def prepare(agent, home, port):
 def main():
     parser = argparse.ArgumentParser()
     # "cursor" and "agent" are other names of cursor-agent.
-    parser.add_argument("--agent", choices=["codex", "claude", "agy", "cursor-agent", "cursor", "agent"])
+    parser.add_argument("--agent", choices=["codex", "claude", "agy", "cursor-agent", "cursor", "agent", "opencode"])
     parser.add_argument("--home")
     parser.add_argument("--env-file")
     parser.add_argument("--codex-home")
