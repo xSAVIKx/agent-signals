@@ -262,6 +262,19 @@ if have tmux; then
   expect_line "args: each machine file is named" '^machine file: .*managed-settings\.json, ' "$c"
   kit session stop a2 >"$T/out" 2>&1
   rm -f "$run/work/CLAUDE.md"
+
+  # The sandbox check of codex has a time limit: a codex that waits for
+  # input does not stop the start.
+  mkdir -p "$T/cbin"
+  printf '#!/bin/sh\nsleep 60\n' >"$T/cbin/codex"
+  chmod +x "$T/cbin/codex"
+  t0=$(date +%s)
+  (PATH="$T/cbin:$PATH" && kit session start a3 codex --via tmux --cmd "sh '$stub'") >"$T/out" 2>&1
+  expect_code "args: a start with a codex that waits" 0 $?
+  t1=$(date +%s)
+  if [ $((t1 - t0)) -lt 25 ]; then pass "args: the sandbox check ends in its time limit"; else fail "args: the sandbox check ends in its time limit" "$((t1 - t0)) s"; fi
+  expect_line "args: a sandbox check with no end is not known" "^codex sandbox: not known " "$run/sessions/a3/conditions"
+  kit session stop a3 >"$T/out" 2>&1
   left=$(pids_run "$run")
   if [ -z "$left" ]; then pass "args: no pid runs after stop"; else fail "args: no pid runs after stop" "$left"; fi
 fi

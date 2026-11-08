@@ -201,13 +201,31 @@ write_conditions() {
     if [ "$agent" = codex ]; then
       _c=$(kit_agent_command codex)
       if [ -n "$_c" ]; then
-        _sb=$(cd "$work" && env -i "$@" "$_c" sandbox -- true </dev/null 2>&1)
-        _rc=$?
-        if [ "$_rc" -eq 0 ]; then
-          echo "codex sandbox: works ('codex sandbox -- true' exits 0)"
+        # A time limit of 10 s: a program that does not know the command
+        # can wait for input. It stops by its pid.
+        (cd "$work" && exec env -i "$@" "$_c" sandbox -- true) </dev/null >"$sdir/sandbox.out" 2>&1 &
+        _p=$!
+        _n=0
+        while kill -0 "$_p" 2>/dev/null && [ "$_n" -lt 50 ]; do
+          sleep 0.2
+          _n=$((_n + 1))
+        done
+        if kill -0 "$_p" 2>/dev/null; then
+          kill "$_p" 2>/dev/null
+          sleep 0.5
+          kill -9 "$_p" 2>/dev/null
+          wait "$_p" 2>/dev/null
+          echo "codex sandbox: not known ('codex sandbox -- true' did not end in 10 s)"
         else
-          echo "codex sandbox: fails ('codex sandbox -- true' exits $_rc): $(printf '%s\n' "$_sb" | grep -v '^WARNING' | head -n 1 | cut -c1-160)"
+          wait "$_p"
+          _rc=$?
+          if [ "$_rc" -eq 0 ]; then
+            echo "codex sandbox: works ('codex sandbox -- true' exits 0)"
+          else
+            echo "codex sandbox: fails ('codex sandbox -- true' exits $_rc): $(grep -v '^WARNING' "$sdir/sandbox.out" | head -n 1 | cut -c1-160)"
+          fi
         fi
+        rm -f "$sdir/sandbox.out"
       fi
     fi
   } >"$sdir/conditions"
