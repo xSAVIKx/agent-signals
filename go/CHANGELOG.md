@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.0](https://github.com/xSAVIKx/agent-signals/compare/go/v0.13.1...go/v0.14.0) (2026-11-08)
+
+
+### Features
+
+* **go:** add the file-write texts "Write a file" and "Write outside" to the fake model ([#112](https://github.com/xSAVIKx/agent-signals/issues/112)) ([70c2cbe](https://github.com/xSAVIKx/agent-signals/commit/70c2cbe9de9510ae6eee8fd077a5c9875c14dc27))
+
 ## [0.13.1](https://github.com/xSAVIKx/agent-signals/compare/go/v0.13.0...go/v0.13.1) (2026-11-07)
 
 
