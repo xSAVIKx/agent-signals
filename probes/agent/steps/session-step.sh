@@ -68,9 +68,10 @@
 #                            agent still works, so the step does not know
 #                            if a dialog comes. The file keeps the last
 #                            screen.
-#   fail clock-gap           the wall clock moved much more than the time
-#                            that the watch or the step counted: the machine
-#                            slept in the step (a Mac with its lid closed).
+#   fail clock-gap           one turn of the watch, or of the wait for its
+#                            end, took more than 60 s of wall time: the
+#                            machine slept in the step (a Mac with its lid
+#                            closed).
 #                            The line "clock gap: ..." gives the size. This
 #                            result replaces each other result.
 #   skip unmeasured          the step list has no idle regex for the agent,
@@ -322,8 +323,10 @@ save() {
 
 # end_watch: make the stop file, wait a limited time for the end of the
 # watch, then kill it. It sets watch_bad to the reason of a failure. The
-# wait counts its sleeps. When the wall clock moved more than 60 s past
-# them, the machine slept: it sets end_gap.
+# wait reads the wall clock at the end of each turn (a sleep of 0.2 s).
+# A turn that took more than 60 s means that the machine slept: it sets
+# end_gap. For the tests, AGENT_SIGNALS_CLOCK_JUMP=N with
+# AGENT_SIGNALS_CLOCK_JUMP_AT=end adds N s to the first turn.
 watch_bad=
 end_gap=
 end_watch() {
@@ -332,15 +335,26 @@ end_watch() {
   fi
   : >"$tmp/stop"
   say "end the watch"
-  _w0=$(date +%s)
-  _end=$((_w0 + END_S))
-  _n=0
+  _p=$(date +%s)
+  _end=$((_p + END_S))
+  if [ "${AGENT_SIGNALS_CLOCK_JUMP_AT:-}" = end ]; then
+    case ${AGENT_SIGNALS_CLOCK_JUMP:-} in '' | *[!0-9]*) ;; *) _p=$((_p - AGENT_SIGNALS_CLOCK_JUMP)) ;; esac
+  fi
+  _dmax=0
+  # turn: the wall time of the turn that ends now.
+  turn() {
+    _now=$(date +%s)
+    [ $((_now - _p)) -gt "$_dmax" ] && _dmax=$((_now - _p))
+    _p=$_now
+  }
   while watching && [ "$(date +%s)" -lt "$_end" ]; do
     sleep 0.2
-    _n=$((_n + 1))
+    turn
   done
-  _g=$(($(date +%s) - _w0 - _n / 5))
-  [ "$_g" -gt 60 ] && end_gap="the wall clock moved $((_g + _n / 5)) s, the step counted $((_n / 5)) s (the end of the watch)"
+  turn
+  if [ "$_dmax" -gt 60 ]; then
+    end_gap="a turn of the wait for the end of the watch took $_dmax s of wall time (the end of the watch)"
+  fi
   if watching; then
     watch_bad='watch-timeout'
     kill "$watch" 2>/dev/null
@@ -677,7 +691,9 @@ case $KIT_KIND in
       kit_trace_state idle-after
     fi
     save after "$tmp/s"
-    [ "$why" = busy-at-end ] && finish fail
+    if [ "$why" = busy-at-end ]; then
+      finish fail
+    fi
     ;;
   new-chat)
     say "send $KIT_PROMPT, wait for idle ($WAIT_S s)"

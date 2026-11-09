@@ -103,8 +103,8 @@ if [ -n "$ran" ]; then
   section "$f" '^################ screen: last$' '^################ ' >"$T/sec"
   expect_line "busy at end: the last screen shows the busy text" 'esc to interrupt' "$T/sec"
 
-  # test_clock_gap: the wall clock of the watch jumps 600 s after its first
-  # sample, as when the machine sleeps. The step fails with clock-gap and
+  # test_clock_gap: the first turn of the watch takes 600 s more wall
+  # time, as when the machine sleeps. The step fails with clock-gap and
   # gives the size.
   stub_set
   (WATCH=4 && AGENT_SIGNALS_CLOCK_JUMP=600 && export WATCH AGENT_SIGNALS_CLOCK_JUMP && kitx step "permission-claude@$ran") >"$T/step" 2>&1
@@ -112,7 +112,7 @@ if [ -n "$ran" ]; then
   expect_line "clock gap: the step is fail clock-gap" "^step: permission-claude@$ran fail clock-gap$" "$T/step"
   f=$run/$(last_file)
   expect_line "clock gap: the file has the result" '^result: fail clock-gap$' "$f"
-  expect_line "clock gap: the file gives the size" '^clock gap: the wall clock moved [0-9]+ s, the watch counted [0-9]+ s \(the guided watch\)$' "$f"
+  expect_line "clock gap: the file gives the size" '^clock gap: a turn of the watch took [0-9]+ s of wall time, at 2 s of counted time \(the guided watch\)$' "$f"
   expect_line "clock gap: the guided step has the gap line" '^watch: clock gap of [0-9]+ s: ' "$f"
   g=$(sed -n 's/^watch: clock gap of \([0-9]*\) s: .*/\1/p' "$f" | head -n 1)
   if [ "${g:-0}" -ge 600 ]; then pass "clock gap: the size holds the jump"; else fail "clock gap: the size holds the jump" "${g:-none}"; fi
@@ -120,6 +120,45 @@ if [ -n "$ran" ]; then
   (WATCH=4 && export WATCH && kitx step "permission-claude@$ran") >"$T/step" 2>&1
   expect_no_line "no jump: no clock gap" 'clock-gap' "$T/step"
   expect_no_line "no jump: the file has no gap line" '^watch: clock gap' "$run/$(last_file)"
+
+  # test_clock_gap_at_the_end: the wait of the step for the end of the
+  # watch takes 100 s more wall time. A bad jump value is ignored.
+  (WATCH=4 && AGENT_SIGNALS_CLOCK_JUMP=100 && AGENT_SIGNALS_CLOCK_JUMP_AT=end && export WATCH AGENT_SIGNALS_CLOCK_JUMP AGENT_SIGNALS_CLOCK_JUMP_AT && kitx step "permission-claude@$ran") >"$T/step" 2>&1
+  expect_code "end gap: the step exits 1" 1 $?
+  expect_line "end gap: the step is fail clock-gap" "^step: permission-claude@$ran fail clock-gap$" "$T/step"
+  f=$run/$(last_file)
+  expect_line "end gap: the file gives the size" '^clock gap: a turn of the wait for the end of the watch took [0-9]+ s of wall time \(the end of the watch\)$' "$f"
+  expect_no_line "end gap: the watch saw no gap" '^watch: clock gap' "$f"
+  (WATCH=4 && AGENT_SIGNALS_CLOCK_JUMP=9x && AGENT_SIGNALS_CLOCK_JUMP_AT=end && export WATCH AGENT_SIGNALS_CLOCK_JUMP AGENT_SIGNALS_CLOCK_JUMP_AT && kitx step "permission-claude@$ran") >"$T/step" 2>&1
+  expect_no_line "bad jump: the kit ignores it" 'clock-gap' "$T/step"
+fi
+
+# test_clock_gap_late and test_slow_machine: the guided watch alone, 70 s,
+# on the other claude. A jump of 65 s at 66 s of counted time is a gap,
+# also after more counted time than the jump. A machine where each turn
+# takes 2 s more is slow, but has no gap. The two watches run at the same
+# time.
+if [ -n "$ran" ]; then
+  echo "$other" >"$T/other.pid"
+  guided() {
+    (cd "$T" && HOME=$H && AGENT_SIGNALS_CLOCK_JUMP=$2 && AGENT_SIGNALS_CLOCK_JUMP_AT=$3 &&
+      export HOME AGENT_SIGNALS_CLOCK_JUMP AGENT_SIGNALS_CLOCK_JUMP_AT &&
+      sh "$ROOT/probes/run.sh" --guided permission claude --wait 70 --pids "$T/other.pid" --out "$T/$1.txt") </dev/null >"$T/$1.log" 2>&1
+  }
+  guided late 65 66 &
+  g1=$!
+  bg_pid "$g1"
+  guided slow 2 each &
+  g2=$!
+  bg_pid "$g2"
+  wait "$g1"
+  wait "$g2"
+  expect_line "late gap: the watch prints the gap at once" '^kit: clock gap: a turn of the watch took [0-9]+ s of wall time, at 66 s of counted time$' "$T/late.log"
+  g=$(sed -n 's/^watch: clock gap of \([0-9]*\) s: .*/\1/p' "$T/late.txt" | head -n 1)
+  if [ "${g:-0}" -ge 65 ]; then pass "late gap: the file has the size"; else fail "late gap: the file has the size" "${g:-none}"; fi
+  expect_no_line "slow machine: no gap line" 'clock gap' "$T/slow.log"
+  expect_no_line "slow machine: no gap in the file" '^watch: clock gap' "$T/slow.txt"
+  expect_line "slow machine: the watch ran to its end" '^### 1\. ' "$T/slow.txt"
 
   # With --files-of-pids, the watch does not walk ~/.claude/projects: a
   # fake find logs its folders.

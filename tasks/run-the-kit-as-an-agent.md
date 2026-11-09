@@ -94,9 +94,12 @@ answers in the prompt. In an unattended run, these rules replace rules 2,
    step that needs the operator or the screen of the operator, with the
    reason `unattended`. Run every step of the plan in the order of the
    plan, also the steps that skip. Do not select steps. On macOS, each
-   step keeps the Mac awake with `caffeinate`. The manifest line
-   `meta awake` tells if the kit can use it. A machine that sleeps in a
-   step gives the result `fail clock-gap`.
+   step runs `caffeinate -i`. The manifest line `meta awake` tells if
+   the kit can use it. It stops the idle sleep only. A closed lid, a
+   forced sleep, or a Mac on battery can still sleep. A machine that
+   sleeps in a step gives the result `fail clock-gap`. A permission
+   step whose agent still works at the end of the dialog wait gives
+   `fail busy-at-end`.
 4. Do not install a tool. Record the missing tool in your last message.
 5. When a step fails two times, go to the next step.
 6. When a step prints `operator` (exit code 4), do not run it again. Go to

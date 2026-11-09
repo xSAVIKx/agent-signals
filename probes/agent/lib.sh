@@ -357,13 +357,15 @@ kit_unattended_skip() {
 
 # kit_awake OS UNATTENDED: the value of the meta line "awake" of a new run,
 # or nothing. A Mac that sleeps stops all clocks of a step, also the
-# timers of the agent. So an unattended run on macOS keeps the machine
-# awake with caffeinate in each step (kit step), when the command exists.
-# Linux and Windows get no line.
+# timers of the agent. So an unattended run on macOS runs "caffeinate -i"
+# in each step (kit step), when the command exists. "-i" stops the idle
+# sleep only. A closed lid, a sleep that the operator or the system
+# forces, and a Mac on battery can still sleep: the step then gives
+# "fail clock-gap". Linux and Windows get no line.
 kit_awake() {
   [ "$1" = macos ] && [ "$2" = yes ] || return 0
   if command -v caffeinate >/dev/null 2>&1; then
-    echo "caffeinate -i -w <pid of kit step>, in each step"
+    echo "caffeinate -i -w <pid of kit step>, in each step; it stops the idle sleep only"
   else
     echo "none: no caffeinate command, the machine can sleep in a step"
   fi
