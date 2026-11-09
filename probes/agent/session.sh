@@ -490,6 +490,12 @@ do_start() {
   write_conditions "$@"
   trace_term=
   trace_terminal && trace_term=1
+  # The pipe-pane command holds these paths in single quotes.
+  if [ -n "$trace_term" ]; then
+    case $sdir$KIT_DIR$KIT_TRACE in
+      *"'"*) kit_die 2 "a path with a single quote is not supported when the terminal is recorded" ;;
+    esac
+  fi
   sockdir=$(mktemp -d /tmp/as.XXXXXX) || kit_die 1 "mktemp failed"
   chmod 700 "$sockdir"
   # The agent starts with "exec", so that its pid is the pid of the pane
@@ -508,11 +514,12 @@ do_start() {
       rm -f "$sdir/gate"
       gate_wait=
       gate_arg=
-      [ -n "$trace_term" ] && gate_arg="$sdir/gate ${KIT_TRACE_GATE_TURNS:-200}" && gate_wait='i=0; while [ ! -e "$1" ] && [ "$i" -lt "$2" ]; do sleep 0.05; i=$((i+1)); done; [ -e "$1" ] || exit 125; '
+      gate_turns=
+      [ -n "$trace_term" ] && gate_arg=$sdir/gate && gate_turns=${KIT_TRACE_GATE_TURNS:-200} && gate_wait='i=0; while [ ! -e "$1" ] && [ "$i" -lt "$2" ]; do sleep 0.05; i=$((i+1)); done; [ -e "$1" ] || exit 125; '
       env -i "$@" \
         tmux -S "$sock" -f "$sdir/tmux.conf" new-session -d -s kit \
         -x "$COLS" -y "$ROWS" -c "$work" \
-        sh -c "${gate_wait}"'eval "exec $0"' "$cmd" $gate_arg </dev/null >"$sdir/server.log" 2>&1 \
+        sh -c "${gate_wait}"'eval "exec $0"' "$cmd" ${gate_arg:+"$gate_arg"} ${gate_turns:+"$gate_turns"} </dev/null >"$sdir/server.log" 2>&1 \
         3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- ||
         kit_die 1 "tmux did not start: $(cat "$sdir/server.log")"
       server=$(tm display -p -t kit '#{pid}' 2>/dev/null)

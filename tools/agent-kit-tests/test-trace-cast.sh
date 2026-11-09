@@ -88,6 +88,25 @@ if [ "$n" = 1 ]; then pass "session: one header line after a second start"; else
 n=$(grep -c 'stub idle' "$raw/terminal.cast")
 if [ "$n" -ge 2 ]; then pass "session: the second start adds events"; else fail "session: the second start adds events" "$n"; fi
 
+# A run folder with a space in its path.
+mkdir -m 700 "$T/run with space"
+raws=$T/raw\ s
+mkdir -m 0700 "$raws"
+cp "$raw/t0" "$raws/t0"
+(AGENT_SIGNALS_RUN="$T/run with space"; KIT_TRACE=$raws; KIT_TRACE_CHECKS=; export AGENT_SIGNALS_RUN KIT_TRACE KIT_TRACE_CHECKS
+ kit session start s6 stub --via tmux --cmd "sh '$stub'") >"$T/o" 2>&1
+expect_code "space: start exits 0" 0 $?
+(AGENT_SIGNALS_RUN="$T/run with space"; export AGENT_SIGNALS_RUN
+ kit session wait s6 'stub idle' 30) >"$T/o" 2>&1
+expect_code "space: the agent started and shows idle" 0 $?
+sp_pid=$(cat "$T/run with space/sessions/s6/pid")
+sp_want=$(awk -F '\t' '$1 == "s6" { print $4 }' "$raws/sessions.tsv")
+if [ -n "$sp_pid" ] && [ "$sp_pid" = "$sp_want" ]; then pass "space: the pid matches"; else fail "space: the pid matches" "$sp_pid / $sp_want"; fi
+(AGENT_SIGNALS_RUN="$T/run with space"; export AGENT_SIGNALS_RUN
+ kit session stop s6) >"$T/o" 2>&1
+expect_code "space: stop exits 0" 0 $?
+if grep -q 'stub idle' "$raws/terminal.cast"; then pass "space: the cast holds stub idle"; else fail "space: the cast holds stub idle" "no text"; fi
+
 # KIT_TRACE_CHECKS=network: no cast and no gate wait.
 rm -f "$raw/terminal.cast"
 (KIT_TRACE=$raw; KIT_TRACE_CHECKS=network; export KIT_TRACE KIT_TRACE_CHECKS
