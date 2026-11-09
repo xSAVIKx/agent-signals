@@ -132,7 +132,10 @@ np=$(awk 'END { print NR }' "$tmp/anchors")
 # The ~ is text here: an agent writes it in a path.
 # shellcheck disable=SC2088
 printf '%s\n' /Users/ /home/ '~/' /srv/ /work/ >>"$tmp/anchors"
-awk -v afile="$tmp/anchors" -v np="$np" -v bx="$(printf '\342\224\202')" '
+# The pass works on bytes (LC_ALL=C). The awk of macOS reads UTF-8 in a
+# UTF-8 locale, and it stops with "towc: multibyte conversion failure" on
+# this pass. mawk and busybox awk work on bytes in each locale.
+LC_ALL=C awk -v afile="$tmp/anchors" -v np="$np" -v bx="$(printf '\342\224\202')" '
 # esc(c): the character c as an ERE that matches only c.
 function esc(c) {
   if (c == "\\") return "\\\\"
