@@ -453,11 +453,13 @@ applies.
     The build reads the model logs only when `network` is selected.
     Else `summary.model_requests` is null, and there is no model event.
 11. Account and host names in paths (Task 6): the build replaces the
-    account name and the short host name in each part of a path with
-    `dev` and `host`, also in a hidden folder. For example,
-    `~/.cache/alice-notes` becomes `~/.cache/dev-notes`. The values come
-    from `SCRUB_USER` and `SCRUB_HOST`, else from `id -un` and
-    `hostname`. A test covers this case.
+    account name and the host name in each part of a path with `dev`
+    and `host`, also in a hidden folder. It replaces the full host name
+    first, then the short host name. For example,
+    `~/.cache/alice-notes` becomes `~/.cache/dev-notes`, and
+    `~/.cache/build01.corp.internal` becomes `~/.cache/host`. The values
+    come from `SCRUB_USER` and `SCRUB_HOST`, else from `id -un` and
+    `hostname`. Tests cover both cases.
 12. The placeholder `~/<private>` (Task 6): `tools/scrub.sh` changes it
     to `/work/example` now. Task 6 changes the scrub so that it keeps
     the exact path `~/<private>`, and adds a case to
