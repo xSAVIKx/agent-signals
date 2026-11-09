@@ -81,7 +81,7 @@ PYEOF
 cat >"$H/client.py" <<'PYEOF'
 import socket, sys, time
 mode, pport = sys.argv[1], int(sys.argv[2])
-tport = int(sys.argv[3]) if mode not in ("bad", "ka") else 0
+tport = int(sys.argv[3]) if mode not in ("bad", "ka", "raw") else 0
 c = socket.create_connection(("127.0.0.1", pport))
 if mode == "ka":
     # Two requests in one write, each for its own origin port, both with
@@ -99,6 +99,27 @@ if mode == "ka":
         r += x
     print(r.count(b"HTTP/1.1 200"))
     print("closed")
+    sys.exit(0)
+if mode == "raw":
+    kind, tport = sys.argv[3], sys.argv[4].encode()
+    base = b"%s http://127.0.0.1:" + tport + b"/p HTTP/1.1\r\nHost: 127.0.0.1:" + tport + b"\r\n"
+    heads = {
+        "post": base % b"POST" + b"Content-Length: 5\r\nCONNECTION: keep-alive\r\n\r\nhello"
+                + base % b"GET" + b"\r\n",
+        "badcl": base % b"POST" + b"Content-Length: -1\r\n\r\nhello",
+        "dupcl": base % b"POST" + b"Content-Length: 5\r\nContent-Length: 6\r\n\r\nhello!",
+        "fold": base % b"GET" + b"X-A: one\r\n two\r\n\r\n",
+        "space": base % b"POST" + b"Content-Length : 5\r\n\r\nhello",
+    }
+    c.sendall(heads[kind])
+    c.settimeout(10)
+    r = b""
+    while True:
+        x = c.recv(4096)
+        if not x:
+            break
+        r += x
+    print(r.split(b"\r\n")[0].decode())
     sys.exit(0)
 if mode == "bad":
     c.sendall(b"CONNECT " + sys.argv[3].encode() + b" HTTP/1.1\r\n\r\n")
@@ -150,16 +171,19 @@ python3 -I "$H/server.py" keep "$H/ka1.port" "$H/ka1.head" &
 bg_pid $!
 python3 -I "$H/server.py" keep "$H/ka2.port" "$H/ka2.head" &
 bg_pid $!
+python3 -I "$H/server.py" http "$H/h2.port" "$H/h2.head" &
+bg_pid $!
 python3 -I "$H/server.py" reset "$H/reset.port" "$H/unused2" &
 bg_pid $!
 python3 -I "$H/server.py" http "$H/http.port" "$H/http.head" &
 bg_pid $!
-wait_file "$H/echo.port" && wait_file "$H/http.port" && wait_file "$H/reset.port" && wait_file "$H/ka1.port" && wait_file "$H/ka2.port" || fail "servers start" "no port file"
+wait_file "$H/echo.port" && wait_file "$H/http.port" && wait_file "$H/reset.port" && wait_file "$H/ka1.port" && wait_file "$H/ka2.port" && wait_file "$H/h2.port" || fail "servers start" "no port file"
 eport=$(cat "$H/echo.port")
 hport=$(cat "$H/http.port")
 rport=$(cat "$H/reset.port")
 k1=$(cat "$H/ka1.port")
 k2=$(cat "$H/ka2.port")
+h2=$(cat "$H/h2.port")
 
 python3 -I "$proxy" --log "$raw/proxy.jsonl" --port-file "$raw/proxy.port" &
 ppid=$!
@@ -279,6 +303,23 @@ wait_lines 16
 got=$(jfield 16 port)
 if [ "$got" = "$k2" ]; then pass "keep-alive: a new connection gets its own line"; else fail "keep-alive: a new connection gets its own line" "$got"; fi
 if [ "$(wc -l <"$raw/proxy.jsonl")" = 16 ]; then pass "keep-alive: two lines in all"; else fail "keep-alive: two lines in all" "$(wc -l <"$raw/proxy.jsonl")"; fi
+
+# A POST with a body and a pipelined second request: the body reaches the
+# origin exactly, the second request does not. CONNECTION in upper case
+# is removed.
+python3 -I "$H/client.py" raw "$pport" post "$h2" >"$T/o" 2>&1
+wait_lines 17
+want=$(printf 'POST /p HTTP/1.1\r\nHost: 127.0.0.1:%s\r\nContent-Length: 5\r\nConnection: close\r\n\r\nhello' "$h2" | od -An -c | tr -d ' \n')
+got=$(od -An -c <"$H/h2.head" | tr -d ' \n')
+if [ "$got" = "$want" ]; then pass "body: the origin gets the head and the body, nothing more"; else fail "body: the origin gets the head and the body, nothing more" "$got"; fi
+expect_no_line "body: no upper-case CONNECTION header" 'CONNECTION' "$H/h2.head"
+
+# A bad request head: 400 and no new line.
+for kind in badcl dupcl fold space; do
+  python3 -I "$H/client.py" raw "$pport" $kind "$h2" >"$T/o" 2>&1
+  expect_line "bad head $kind: 400" '^HTTP/1.1 400' "$T/o"
+done
+if [ "$(wc -l <"$raw/proxy.jsonl")" = 17 ]; then pass "bad head: no line in the log"; else fail "bad head: no line in the log" "$(wc -l <"$raw/proxy.jsonl")"; fi
 
 # TERM with one open connection: one line with status open, exit 0.
 python3 -I "$H/client.py" hold "$pport" "$eport" "$H/held" >"$T/o" 2>&1 &

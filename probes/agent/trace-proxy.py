@@ -25,8 +25,11 @@ so a client that keeps its connection must open a new one for the next
 request. Limit: with "Transfer-Encoding: chunked", or with no length on
 POST, PUT or PATCH, the proxy cannot find the end of the body, and it sends
 client bytes until the host ends. A host that ignores "Connection: close"
-keeps the connection open until the client or the host ends it. A host that refuses or fails gives
-"502" to the client. On SIGTERM the proxy writes each open connection with
+keeps the connection open until the client or the host ends it. A plain
+request with a bad head gets "400" and no log line. A bad head has a
+folded header line, white space before a colon, a Content-Length that is
+not all digits, or two Content-Length headers with different values. A
+host that refuses or fails gives "502" to the client. On SIGTERM the proxy writes each open connection with
 the status "open" and "end" set to the time of the signal, and exits 0.
 Each connection has its own thread. The standard library only.
 """
@@ -137,6 +140,37 @@ def split_hostport(text, default_port):
     return host, int(port) if port else default_port
 
 
+def parse_headers(block):
+    """Return (kept, length, chunked) for the header lines of a plain
+    request. Raise ValueError for a bad head. kept has no connection
+    header."""
+    kept = []
+    length = None
+    chunked = False
+    for h in block.split(b"\r\n"):
+        if not h:
+            continue
+        if h[:1] in (b" ", b"\t"):
+            raise ValueError("folded header line")
+        name, sep, value = h.partition(b":")
+        if not sep or not name or name != name.strip():
+            raise ValueError("bad header name")
+        low = name.lower()
+        if (low + b":") in DROP_HEADERS:
+            continue
+        if low == b"content-length":
+            v = value.strip()
+            if not (v.isascii() and v.isdigit()):
+                raise ValueError("bad Content-Length")
+            if length is not None and length != int(v):
+                raise ValueError("two Content-Length values")
+            length = int(v)
+        elif low == b"transfer-encoding" and b"chunked" in value.lower():
+            chunked = True
+        kept.append(h)
+    return kept, length, chunked
+
+
 def close_both(a, b):
     """Shut down both sockets, so that a pump that waits in recv wakes."""
     for s in (a, b):
@@ -232,6 +266,7 @@ def handle(client, rec_id):
                 origin = url.path or "/"
                 if url.query:
                     origin += "?" + url.query
+                kept, length, chunked = parse_headers(other)
             else:
                 host, port = split_hostport(target, 443)
         except ValueError:
@@ -255,19 +290,6 @@ def handle(client, rec_id):
         if plain:
             # One request on each connection: drop the connection headers
             # and say "Connection: close".
-            kept = []
-            length = None
-            chunked = False
-            for h in other.split(b"\r\n"):
-                low = h.lower()
-                if not h or low.startswith(DROP_HEADERS):
-                    continue
-                if low.startswith(b"content-length:"):
-                    v = h.split(b":", 1)[1].strip()
-                    length = int(v) if v.isascii() and v.isdigit() else None
-                elif low.startswith(b"transfer-encoding:") and b"chunked" in low:
-                    chunked = True
-                kept.append(h)
             kept.append(b"Connection: close")
             if chunked or (length is None and method in BODY_METHODS):
                 limit = None
