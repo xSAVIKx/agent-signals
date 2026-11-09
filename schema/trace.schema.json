@@ -1,0 +1,203 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/xSAVIKx/agent-signals/schema/trace.schema.json",
+  "title": "Harness trace",
+  "description": "The record of one step that the agent kit ran: the states of the agent, the events that the recorders saw, and a summary. The file is trace.json in traces/AGENT/VERSION/STEP/. The recorders write no content: no prompt, no reply, no file content, no request body. A path starts with ~ (the session home), WORK (the work folder) or TMP (the temp folder).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["meta", "states", "events", "terminal", "summary"],
+  "properties": {
+    "provenance": {
+      "description": "How the trace was made. The kit writes measured. A file under traces/ must have this key. The validator checks that, not this schema.",
+      "enum": ["measured", "measured-edited", "derived"]
+    },
+    "edits": {
+      "description": "One line for each edit of a measured-edited trace.",
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "meta": {
+      "description": "Where, when and how the kit made the trace.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agent", "agent_version", "kit", "os", "os_version", "cpu", "runner_image", "machine", "backend", "mode", "home", "step", "date", "checks", "skipped", "files_limit"],
+      "properties": {
+        "agent": {"description": "The agent that the kit ran.", "type": "string", "minLength": 1},
+        "agent_version": {"description": "The version of the agent, or unknown.", "type": "string", "minLength": 1},
+        "kit": {"description": "The version of the kit.", "type": "string", "minLength": 1},
+        "os": {"description": "The operating system.", "type": "string", "minLength": 1},
+        "os_version": {"description": "The version of the operating system.", "type": "string", "minLength": 1},
+        "cpu": {"description": "The processor architecture.", "type": "string", "minLength": 1},
+        "runner_image": {"description": "The image of the CI runner, or null when the machine is not a runner.", "type": ["string", "null"]},
+        "machine": {"description": "runner: a CI runner. real: a machine of a person.", "enum": ["runner", "real"]},
+        "backend": {"description": "The terminal backend that ran the agent.", "type": "string", "minLength": 1},
+        "mode": {"description": "fixture: the agent talks to the fake model. login: the agent uses a real login.", "enum": ["fixture", "login"]},
+        "home": {"description": "fixture: a prepared home. throwaway: a new empty home. real: the home of the person.", "enum": ["fixture", "throwaway", "real"]},
+        "step": {"description": "The name of the step file that the kit ran.", "type": "string", "minLength": 1},
+        "date": {"description": "The day of the run.", "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", "format": "date"},
+        "checks": {
+          "description": "The checks that ran.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"enum": ["terminal", "network", "files", "ebpf"]}
+        },
+        "skipped": {
+          "description": "The checks that did not run, each with the reason.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["check", "reason"],
+            "properties": {
+              "check": {"enum": ["terminal", "network", "files", "ebpf"]},
+              "reason": {"type": "string", "minLength": 1}
+            }
+          }
+        },
+        "files_limit": {"description": "True when the file recorder reached its limit and dropped events.", "type": "boolean"}
+      }
+    },
+    "states": {
+      "description": "The states of the agent in time order.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["t", "state"],
+        "properties": {
+          "t": {"description": "Milliseconds from the start of the run.", "type": "integer"},
+          "state": {"enum": ["start", "idle", "prompt", "busy", "dialog", "answer", "idle-after", "stop"]}
+        }
+      }
+    },
+    "events": {
+      "description": "The events that the recorders saw, in time order.",
+      "type": "array",
+      "items": {"$ref": "#/$defs/event"}
+    },
+    "terminal": {
+      "description": "The file name of the terminal record, or null when the terminal check did not run.",
+      "type": ["string", "null"]
+    },
+    "summary": {
+      "description": "The totals of the events. A key is null when its check did not run.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["files", "hosts", "model_requests", "programs", "processes_left", "timeline"],
+      "properties": {
+        "files": {
+          "description": "The paths that the agent touched, sorted, for each area. Null when the files check did not run.",
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": ["home", "work", "tmp", "other"],
+          "properties": {
+            "home": {"$ref": "#/$defs/paths"},
+            "work": {"$ref": "#/$defs/paths"},
+            "tmp": {"$ref": "#/$defs/paths"},
+            "other": {"$ref": "#/$defs/paths"}
+          }
+        },
+        "hosts": {
+          "description": "The hosts that the agent connected to. Null when the network check did not run.",
+          "type": ["array", "null"],
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["host", "port", "connections", "up", "down"],
+            "properties": {
+              "host": {"type": "string", "minLength": 1},
+              "port": {"type": "integer", "minimum": 0, "maximum": 65535},
+              "connections": {"type": "integer", "minimum": 0},
+              "up": {"description": "Bytes sent to the host.", "type": "integer", "minimum": 0},
+              "down": {"description": "Bytes received from the host.", "type": "integer", "minimum": 0}
+            }
+          }
+        },
+        "model_requests": {"description": "The number of requests to the fake model. Null when the network check did not run.", "type": ["integer", "null"], "minimum": 0},
+        "programs": {"description": "The programs that the agent started. Null until the ebpf check exists.", "type": ["array", "null"]},
+        "processes_left": {"description": "The processes that stayed after the stop. Null until the ebpf check exists.", "type": ["array", "null"]},
+        "timeline": {
+          "description": "For each state, the events near its start.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["state", "t", "near"],
+            "properties": {
+              "state": {"enum": ["start", "idle", "prompt", "busy", "dialog", "answer", "idle-after", "stop"]},
+              "t": {"type": "integer"},
+              "near": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["t", "kind", "text"],
+                  "properties": {
+                    "t": {"type": "integer"},
+                    "kind": {"type": "string", "minLength": 1},
+                    "text": {"type": "string"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "paths": {
+      "description": "A sorted array of paths.",
+      "type": ["array", "null"],
+      "items": {"type": "string", "minLength": 1}
+    },
+    "pid": {"description": "A process number, or null when the recorder cannot know it.", "type": ["integer", "null"]},
+    "event": {
+      "description": "One event. The fields that the kind needs are listed in allOf. The kinds exec, exit, open, connect and dns are for the ebpf check and may hold more fields.",
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["t", "kind", "pid", "ppid"],
+      "properties": {
+        "t": {"description": "Milliseconds from the start of the run.", "type": "integer"},
+        "kind": {"enum": ["exec", "exit", "open", "create", "write", "delete", "move", "connect", "dns", "proxy", "model"]},
+        "pid": {"$ref": "#/$defs/pid"},
+        "ppid": {"$ref": "#/$defs/pid"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"kind": {"enum": ["create", "write", "delete", "move"]}}},
+          "then": {"required": ["path"], "properties": {"path": {"type": "string", "minLength": 1}}}
+        },
+        {
+          "if": {"properties": {"kind": {"const": "move"}}},
+          "then": {"required": ["from"], "properties": {"from": {"type": "string", "minLength": 1}}}
+        },
+        {
+          "if": {"properties": {"kind": {"const": "proxy"}}},
+          "then": {
+            "required": ["host", "port", "up", "down", "end", "status"],
+            "properties": {
+              "host": {"type": "string", "minLength": 1},
+              "port": {"type": "integer", "minimum": 0, "maximum": 65535},
+              "up": {"type": "integer", "minimum": 0},
+              "down": {"type": "integer", "minimum": 0},
+              "end": {"description": "Milliseconds from the start of the run to the end of the connection.", "type": "integer"},
+              "status": {"enum": ["ok", "refused", "open", "error"]}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"kind": {"const": "model"}}},
+          "then": {
+            "required": ["method", "route"],
+            "properties": {
+              "method": {"type": "string", "minLength": 1},
+              "route": {"type": "string", "minLength": 1},
+              "model_kind": {"description": "The kind word of the request, or a dash when the request has none.", "type": "string"}
+            }
+          }
+        }
+      ]
+    }
+  }
+}

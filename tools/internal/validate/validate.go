@@ -57,6 +57,10 @@ func Check(root string) ([]Problem, error) {
 	if err != nil {
 		return nil, err
 	}
+	traceSchema, err := compile(root, "trace.schema.json")
+	if err != nil {
+		return nil, err
+	}
 	facts, err := factNumbers(root)
 	if err != nil {
 		return nil, err
@@ -80,6 +84,8 @@ func Check(root string) ([]Problem, error) {
 		checkCoverage(root, agent, coverageSchema, add)
 		checkScreens(root, agent, screenSchema, facts, add)
 	}
+
+	checkTraces(root, traceSchema, add)
 
 	sort.Slice(problems, func(i, j int) bool {
 		if problems[i].Path != problems[j].Path {
@@ -144,6 +150,69 @@ func checkScreens(root, agent string, schema *jsonschema.Schema, facts map[int]b
 			add(rel(dir, slug+".yaml"), "no %s.screen beside it", slug)
 		}
 		checkMeta(root, rel(dir, slug+".yaml"), agent, schema, screens, facts, add)
+	}
+}
+
+// checkTraces validates traces/ when it exists. A file is trace.json or
+// terminal.cast at depth AGENT/VERSION/STEP/. Each trace.json must follow the
+// schema, name its provenance, and list its edits when it is measured-edited.
+func checkTraces(root string, schema *jsonschema.Schema, add addFunc) {
+	base := filepath.Join(root, "traces")
+	if _, err := os.Stat(base); err != nil {
+		if !os.IsNotExist(err) {
+			add("traces", "%v", err)
+		}
+		return
+	}
+	err := filepath.WalkDir(base, func(full string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		r, _ := filepath.Rel(root, full)
+		path := filepath.ToSlash(r)
+		if d.IsDir() {
+			return nil
+		}
+		parts := strings.Split(path, "/")
+		name := d.Name()
+		if len(parts) != 5 || (name != "trace.json" && name != "terminal.cast") {
+			add(path, "unexpected file; traces/ holds AGENT/VERSION/STEP/trace.json and terminal.cast")
+			return nil
+		}
+		data, err := os.ReadFile(full)
+		if err != nil {
+			add(path, "%v", err)
+			return nil
+		}
+		checkPrivate(path, data, add)
+		if name == "trace.json" {
+			checkTrace(path, data, schema, add)
+		}
+		return nil
+	})
+	if err != nil {
+		add("traces", "%v", err)
+	}
+}
+
+func checkTrace(path string, data []byte, schema *jsonschema.Schema, add addFunc) {
+	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(data))
+	if err != nil {
+		add(path, "json: %v", err)
+		return
+	}
+	if err := schema.Validate(doc); err != nil {
+		add(path, "schema: %v", oneLine(err))
+		return
+	}
+	m := doc.(map[string]any)
+	prov, ok := m["provenance"].(string)
+	if !ok {
+		add(path, "no provenance; the kit writes \"measured\"")
+		return
+	}
+	if edits, _ := m["edits"].([]any); prov == "measured-edited" && len(edits) == 0 {
+		add(path, "provenance is measured-edited, but edits has no line")
 	}
 }
 

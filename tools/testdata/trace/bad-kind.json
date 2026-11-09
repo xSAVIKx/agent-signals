@@ -1,0 +1,180 @@
+{
+  "meta": {
+    "agent": "claude",
+    "agent_version": "2.1.319",
+    "kit": "0.1.0",
+    "os": "linux",
+    "os_version": "6.12",
+    "cpu": "x86_64",
+    "runner_image": null,
+    "machine": "real",
+    "backend": "tmux",
+    "mode": "fixture",
+    "home": "throwaway",
+    "step": "permission",
+    "date": "2026-11-09",
+    "checks": [
+      "terminal",
+      "network",
+      "files"
+    ],
+    "skipped": [
+      {
+        "check": "ebpf",
+        "reason": "the kernel check did not run"
+      }
+    ],
+    "files_limit": false
+  },
+  "states": [
+    {
+      "t": 0,
+      "state": "start"
+    },
+    {
+      "t": 1200,
+      "state": "idle"
+    },
+    {
+      "t": 1500,
+      "state": "prompt"
+    },
+    {
+      "t": 1800,
+      "state": "busy"
+    },
+    {
+      "t": 4200,
+      "state": "dialog"
+    },
+    {
+      "t": 5000,
+      "state": "answer"
+    },
+    {
+      "t": 6100,
+      "state": "idle-after"
+    },
+    {
+      "t": 6500,
+      "state": "stop"
+    }
+  ],
+  "events": [
+    {
+      "t": 300,
+      "kind": "spawn",
+      "pid": null,
+      "ppid": null,
+      "path": "~/.config/agent/state.json"
+    },
+    {
+      "t": 1300,
+      "kind": "write",
+      "pid": null,
+      "ppid": null,
+      "path": "~/.config/agent/state.json"
+    },
+    {
+      "t": 1900,
+      "kind": "proxy",
+      "pid": null,
+      "ppid": null,
+      "host": "api.example.com",
+      "port": 443,
+      "up": 2048,
+      "down": 8192,
+      "end": 6000,
+      "status": "ok"
+    },
+    {
+      "t": 2000,
+      "kind": "model",
+      "pid": null,
+      "ppid": null,
+      "method": "POST",
+      "route": "/v1/messages",
+      "model_kind": "tool"
+    },
+    {
+      "t": 4300,
+      "kind": "create",
+      "pid": null,
+      "ppid": null,
+      "path": "WORK/note.txt"
+    },
+    {
+      "t": 5200,
+      "kind": "move",
+      "pid": null,
+      "ppid": null,
+      "from": "WORK/note.txt",
+      "path": "WORK/note.md"
+    },
+    {
+      "t": 5800,
+      "kind": "delete",
+      "pid": null,
+      "ppid": null,
+      "path": "TMP/agent.lock"
+    }
+  ],
+  "terminal": "terminal.cast",
+  "summary": {
+    "files": {
+      "home": [
+        "~/.config/agent/state.json"
+      ],
+      "work": [
+        "WORK/note.md",
+        "WORK/note.txt"
+      ],
+      "tmp": [
+        "TMP/agent.lock"
+      ],
+      "other": []
+    },
+    "hosts": [
+      {
+        "host": "api.example.com",
+        "port": 443,
+        "connections": 1,
+        "up": 2048,
+        "down": 8192
+      }
+    ],
+    "model_requests": 1,
+    "programs": null,
+    "processes_left": null,
+    "timeline": [
+      {
+        "state": "start",
+        "t": 0,
+        "near": [
+          {
+            "t": 300,
+            "kind": "create",
+            "text": "~/.config/agent/state.json"
+          }
+        ]
+      },
+      {
+        "state": "busy",
+        "t": 1800,
+        "near": [
+          {
+            "t": 1900,
+            "kind": "proxy",
+            "text": "api.example.com:443"
+          }
+        ]
+      },
+      {
+        "state": "dialog",
+        "t": 4200,
+        "near": []
+      }
+    ]
+  },
+  "provenance": "measured"
+}

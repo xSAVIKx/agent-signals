@@ -31,7 +31,7 @@ const goodScreen = " Which colour?\n ❯ 1. Red\n   2. Blue\n\n Esc to cancel\n"
 func corpus(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
-	for _, name := range []string{"screen.schema.json", "coverage.schema.json"} {
+	for _, name := range []string{"screen.schema.json", "coverage.schema.json", "trace.schema.json"} {
 		data, err := os.ReadFile(filepath.Join("..", "..", "..", "schema", name))
 		if err != nil {
 			t.Fatal(err)
@@ -255,4 +255,66 @@ func TestAnUnknownAgentIsAProblem(t *testing.T) {
 			t.Errorf("want a schema problem, got %v", q)
 		}
 	}
+}
+
+// tracesRoot builds a corpus with the trace schema and one trace file from
+// testdata/trace under traces/claude/2.1.319/<step>/trace.json.
+func tracesRoot(t *testing.T, step, testFile string) (string, string) {
+	t.Helper()
+	root := corpus(t)
+	data, err := os.ReadFile(filepath.Join("..", "..", "testdata", "trace", testFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := "traces/claude/2.1.319/" + step + "/trace.json"
+	write(t, root, path, string(data))
+	return root, path
+}
+
+func TestTraces(t *testing.T) {
+	t.Run("a valid trace has no problem", func(t *testing.T) {
+		root, _ := tracesRoot(t, "permission", "valid.json")
+		if p := check(t, root); len(p) != 0 {
+			t.Fatalf("want no problem, got %v", p)
+		}
+	})
+	t.Run("a trace without provenance is a problem", func(t *testing.T) {
+		root, path := tracesRoot(t, "permission", "no-provenance.json")
+		wantOne(t, check(t, root), path, "provenance")
+	})
+	t.Run("an unknown event kind fails the schema", func(t *testing.T) {
+		root, path := tracesRoot(t, "question", "bad-kind.json")
+		wantOne(t, check(t, root), path, "schema:")
+	})
+	t.Run("a measured-edited trace needs one edits line", func(t *testing.T) {
+		root, path := tracesRoot(t, "permission", "valid.json")
+		data, _ := os.ReadFile(filepath.Join(root, path))
+		write(t, root, path, strings.Replace(string(data), `"measured"`, `"measured-edited"`, 1))
+		wantOne(t, check(t, root), path, "edits")
+	})
+	t.Run("a terminal cast is allowed at the step folder", func(t *testing.T) {
+		root, _ := tracesRoot(t, "permission", "valid.json")
+		write(t, root, "traces/claude/2.1.319/permission/terminal.cast", "{\"version\": 2}\n")
+		if p := check(t, root); len(p) != 0 {
+			t.Fatalf("want no problem, got %v", p)
+		}
+	})
+	t.Run("private text in a trace is a problem", func(t *testing.T) {
+		root, path := tracesRoot(t, "permission", "valid.json")
+		data, _ := os.ReadFile(filepath.Join(root, path))
+		write(t, root, path, strings.Replace(string(data), "WORK/note.txt", "/srv/work/note.txt", 1))
+		if p := check(t, root); len(p) == 0 || p[0].Path != path || !strings.Contains(p[0].Message, "/srv/") {
+			t.Fatalf("want a private-text problem on %s, got %v", path, p)
+		}
+	})
+	t.Run("another file is a problem", func(t *testing.T) {
+		root, _ := tracesRoot(t, "permission", "valid.json")
+		write(t, root, "traces/x.txt", "x\n")
+		wantOne(t, check(t, root), "traces/x.txt", "unexpected file")
+	})
+	t.Run("a file at the wrong depth is a problem", func(t *testing.T) {
+		root, _ := tracesRoot(t, "permission", "valid.json")
+		write(t, root, "traces/claude/trace.json", "{}\n")
+		wantOne(t, check(t, root), "traces/claude/trace.json", "unexpected file")
+	})
 }
