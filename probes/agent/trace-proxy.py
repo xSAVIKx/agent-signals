@@ -30,8 +30,9 @@ request with a bad head gets "400" and no log line. A bad head has a
 folded header line, white space before a colon, a Content-Length that is
 not all digits, or two Content-Length headers with different values. A
 host that refuses or fails gives "502" to the client. On SIGTERM the proxy
-writes each open connection with the status "open" and "end" set to the time of the signal, and exits 0.
-Each connection has its own thread. The standard library only.
+writes each open connection with the status "open" and "end" set to the
+time of the signal, and exits 0. Each connection has its own thread. The
+standard library only.
 """
 
 import argparse
