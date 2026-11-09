@@ -9,3 +9,10 @@ crlf 4: /var/tmp/agent-signals-ru
 crlf 5: write /Users/alice/proj/x.txt
    [Y/n]
 crlf 6: cwd /Users/alice/code/shop
+private 1: open ~/<private>
+private 2: open ~/<private>/x.txt
+private 3: │ ~/<private> │
+private 4: open ~/<private>
+   src/a/b.go done
+private 5: "~/<private>" and (~/<private>) and ~/<private>, ok
+private 6: open ~/code/app/y.txt

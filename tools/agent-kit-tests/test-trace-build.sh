@@ -115,6 +115,14 @@ want "real home: no terminal" real 'd["terminal"] is None and "terminal" not in 
 if [ ! -e "$T/real/out/terminal.cast" ]; then pass "real home: no cast in the output"; else fail "real home: no cast in the output" "file exists"; fi
 if [ ! -e "$T/real/.trace/terminal.cast" ]; then pass "real home: the raw cast is deleted"; else fail "real home: the raw cast is deleted" "file exists"; fi
 
+# The scrub keeps the placeholder ~/<private> of the build.
+(
+  SCRUB_HOME=/Users/alice SCRUB_USER=alice SCRUB_HOST=build01.corp.internal
+  export SCRUB_HOME SCRUB_USER SCRUB_HOST
+  sh "$ROOT/tools/scrub.sh" "$T/real/out/trace.json" >"$T/real/scrubbed.json" 2>/dev/null
+)
+if grep -F '"path": "~/<private>"' "$T/real/scrubbed.json" >/dev/null 2>&1; then pass "real home: ~/<private> survives the scrub"; else fail "real home: ~/<private> survives the scrub" "no such line"; fi
+
 # The login mode: no cast.
 mkraw login
 run_build login "$H/meta-login.json"

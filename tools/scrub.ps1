@@ -237,6 +237,12 @@ function Invoke-Scrub([string]$Text, [string]$HomeDir, [string]$User, [string]$H
   # is <sandbox>/home/, and no home rule may read the next word as an account
   # name. So the / after <sandbox> is @S@ until all rules are done.
   $s = $Text.Replace('<sandbox>/', '<sandbox>@S@')
+  # The placeholder ~/<private> of the trace build is not a home path, so it
+  # stays. Its ~ is @P@ until all rules are done. A suffix (~/<private>/x)
+  # is not the placeholder: the rules change it like any other path under
+  # ~. It is hidden before the unwrap pass, so that a line end after it
+  # does not join the next line. tools/scrub.sh does the same.
+  $s = [regex]::Replace($s, '(?<![A-Za-z0-9_.~-])~/<private>(?![^\s"'':,;()])', '@P@/<private>')
   # A caller with four arguments gets the extra roots and the domain of the
   # environment.
   if (-not $PSBoundParameters.ContainsKey('Extra') -or -not $PSBoundParameters.ContainsKey('Domain')) {
@@ -382,6 +388,7 @@ function Invoke-Scrub([string]$Text, [string]$HomeDir, [string]$User, [string]$H
   } $counts 'ip'
 
   $s = $s.Replace('<sandbox>@S@', '<sandbox>/')
+  $s = $s.Replace('@P@/<private>', '~/<private>')
   return New-Object PSObject -Property @{ Text = $s; Counts = $counts }
 }
 
