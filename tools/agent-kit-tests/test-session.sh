@@ -160,6 +160,12 @@ for via in tmux pty; do
   printf 'sleep 300\n' >"$run/home/s2/.codex/packages/fake-daemon.sh"
   sh "$run/home/s2/.codex/packages/fake-daemon.sh" </dev/null >/dev/null 2>&1 &
   daemon=$!
+  # The control socket of the daemon is a link to a file in a folder
+  # codex-daemon-UID (fact 088).
+  mkdir -p "$run/home/s2/.codex/app-server-control" "$T/codex-daemon-1"
+  : >"$T/codex-daemon-1/sock1"
+  : >"$T/codex-daemon-1/sock1.lock"
+  ln -s "$T/codex-daemon-1/sock1" "$run/home/s2/.codex/app-server-control/app-server-control.sock"
   in_new_shell stop s2 >"$T/out" 2>&1
   expect_code "$via: stop across shells" 0 $?
   sleep 1
@@ -173,6 +179,12 @@ for via in tmux pty; do
   fi
   wait "$daemon" 2>/dev/null
   expect_line "$via: stop names the daemon" "^stop: $daemon daemon\$" "$T/out"
+  if [ -e "$T/codex-daemon-1/sock1" ] || [ -e "$T/codex-daemon-1/sock1.lock" ]; then
+    fail "$via: stop deletes the control socket of the daemon" "$(ls "$T/codex-daemon-1")"
+  else
+    pass "$via: stop deletes the control socket of the daemon"
+  fi
+  rm -rf "$T/codex-daemon-1"
 
   # test_pty_has_no_tmux_env, and its control on tmux. The manifest line
   # "meta home real" keeps HOME at the real home.
