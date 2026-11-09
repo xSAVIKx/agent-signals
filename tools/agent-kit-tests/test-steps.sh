@@ -133,19 +133,19 @@ if [ -n "$ran" ]; then
   expect_no_line "bad jump: the kit ignores it" 'clock-gap' "$T/step"
 fi
 
-# test_clock_gap_late and test_slow_machine: the guided watch alone, 70 s,
-# on the other claude. A jump of 65 s at 66 s of counted time is a gap,
-# also after more counted time than the jump. A machine where each turn
-# takes 2 s more is slow, but has no gap. The two watches run at the same
-# time.
+# test_clock_gap_late and test_slow_machine: the guided watch alone, 10 s,
+# on the other claude. The rule is for each turn, so a jump of 65 s at the
+# second turn (4 s of counted time) is a gap, as a jump later in the watch.
+# A machine where each turn takes 2 s more (fake wall time) is slow, but
+# has no gap. The two watches run at the same time.
 if [ -n "$ran" ]; then
   echo "$other" >"$T/other.pid"
   guided() {
     (cd "$T" && HOME=$H && AGENT_SIGNALS_CLOCK_JUMP=$2 && AGENT_SIGNALS_CLOCK_JUMP_AT=$3 &&
       export HOME AGENT_SIGNALS_CLOCK_JUMP AGENT_SIGNALS_CLOCK_JUMP_AT &&
-      sh "$ROOT/probes/run.sh" --guided permission claude --wait 70 --pids "$T/other.pid" --out "$T/$1.txt") </dev/null >"$T/$1.log" 2>&1
+      sh "$ROOT/probes/run.sh" --guided permission claude --wait 10 --pids "$T/other.pid" --out "$T/$1.txt") </dev/null >"$T/$1.log" 2>&1
   }
-  guided late 65 66 &
+  guided late 65 4 &
   g1=$!
   bg_pid "$g1"
   guided slow 2 each &
@@ -153,7 +153,7 @@ if [ -n "$ran" ]; then
   bg_pid "$g2"
   wait "$g1"
   wait "$g2"
-  expect_line "late gap: the watch prints the gap at once" '^kit: clock gap: a turn of the watch took [0-9]+ s of wall time, at 66 s of counted time$' "$T/late.log"
+  expect_line "late gap: the watch prints the gap at once" '^kit: clock gap: a turn of the watch took [0-9]+ s of wall time, at 4 s of counted time$' "$T/late.log"
   g=$(sed -n 's/^watch: clock gap of \([0-9]*\) s: .*/\1/p' "$T/late.txt" | head -n 1)
   if [ "${g:-0}" -ge 65 ]; then pass "late gap: the file has the size"; else fail "late gap: the file has the size" "${g:-none}"; fi
   expect_no_line "slow machine: no gap line" 'clock gap' "$T/slow.log"
