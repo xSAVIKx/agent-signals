@@ -302,7 +302,7 @@ python3 -I "$H/client.py" ka "$pport" "$k2" >"$T/o" 2>&1
 wait_lines 16
 got=$(jfield 16 port)
 if [ "$got" = "$k2" ]; then pass "keep-alive: a new connection gets its own line"; else fail "keep-alive: a new connection gets its own line" "$got"; fi
-if [ "$(wc -l <"$raw/proxy.jsonl")" = 16 ]; then pass "keep-alive: two lines in all"; else fail "keep-alive: two lines in all" "$(wc -l <"$raw/proxy.jsonl")"; fi
+if [ "$(wc -l <"$raw/proxy.jsonl")" -eq 16 ]; then pass "keep-alive: two lines in all"; else fail "keep-alive: two lines in all" "$(wc -l <"$raw/proxy.jsonl")"; fi
 
 # A POST with a body and a pipelined second request: the body reaches the
 # origin exactly, the second request does not. CONNECTION in upper case
@@ -319,7 +319,7 @@ for kind in badcl dupcl fold space; do
   python3 -I "$H/client.py" raw "$pport" $kind "$h2" >"$T/o" 2>&1
   expect_line "bad head $kind: 400" '^HTTP/1.1 400' "$T/o"
 done
-if [ "$(wc -l <"$raw/proxy.jsonl")" = 17 ]; then pass "bad head: no line in the log"; else fail "bad head: no line in the log" "$(wc -l <"$raw/proxy.jsonl")"; fi
+if [ "$(wc -l <"$raw/proxy.jsonl")" -eq 17 ]; then pass "bad head: no line in the log"; else fail "bad head: no line in the log" "$(wc -l <"$raw/proxy.jsonl")"; fi
 
 # TERM with one open connection: one line with status open, exit 0.
 python3 -I "$H/client.py" hold "$pport" "$eport" "$H/held" >"$T/o" 2>&1 &
