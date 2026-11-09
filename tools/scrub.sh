@@ -141,17 +141,36 @@ function esc(c) {
   if (index(".[*+?{}()|$", c)) return "[" c "]"
   return c
 }
-# pattern(v, win): the ERE for the anchor v, with an optional line end
-# between two characters.
+# pattern(v, win): the ERE for the anchor v. The search runs on the text
+# without its line ends (flat), so that the ERE stays small: the awk of
+# macOS fails on a large ERE.
 function pattern(v, win,    i, c, p) {
   p = ""
   for (i = 1; i <= length(v); i++) {
     c = substr(v, i, 1)
-    if (i > 1) p = p "(" nl ")?"
     if (win && (c == "\\" || c == "/")) p = p "[\\\\/]+"
     else p = p esc(c)
   }
   return p
+}
+# flat(t, last): set F to t without each line end that comes after a
+# character that is not white space. last is the character before t.
+# BP[k] is the position in F just after the k-th line end, and BL[k] is
+# its length in t. NB is the count of line ends.
+function flat(t, last,    r, x, c) {
+  F = ""; NB = 0; r = t
+  while (match(r, nl)) {
+    x = substr(r, 1, RSTART - 1)
+    c = (RSTART > 1) ? substr(r, RSTART - 1, 1) : last
+    if (c == "" || c ~ /[ \t]/) {
+      F = F substr(r, 1, RSTART + RLENGTH - 1)
+    } else {
+      F = F x; NB++; BP[NB] = length(F) + 1; BL[NB] = RLENGTH
+    }
+    last = substr(r, RSTART + RLENGTH - 1, 1)
+    r = substr(r, RSTART + RLENGTH)
+  }
+  F = F r
 }
 # brk(b): a line end that is not the last one keeps no white space after
 # it, so that its line stays empty.
@@ -172,13 +191,19 @@ function more(j, after, first,    nxt, w) {
   return 0
 }
 # unwrap(t): the text t with each wrapped path on one line.
-function unwrap(t,    a, out, rest, src, s, l, pre, m, j, nb, b, after, k, first) {
+function unwrap(t,    a, out, rest, src, s, l, pre, m, j, nb, b, after, k, first, fs, fl) {
   for (a = 1; a <= n; a++) {
     out = ""; rest = t
     while (1) {
-      src = win[a] ? tolower(rest) : rest
+      flat(rest, substr(out, length(out), 1))
+      src = win[a] ? tolower(F) : F
       if (!match(src, re[a])) break
-      s = RSTART; l = RLENGTH
+      # The match in rest: add the line ends before it and in it.
+      fs = RSTART; fl = RLENGTH; s = fs; l = fl
+      for (k = 1; k <= NB; k++) {
+        if (BP[k] <= fs) s += BL[k]
+        else if (BP[k] < fs + fl) l += BL[k]
+      }
       pre = (s > 1) ? substr(rest, s - 1, 1) : substr(out, length(out), 1)
       if (pre ~ /[A-Za-z0-9_.~-]/) {
         out = out substr(rest, 1, s); rest = substr(rest, s + 1); continue
