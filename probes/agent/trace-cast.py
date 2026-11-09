@@ -2,7 +2,7 @@
 """trace-cast.py: record the output of a terminal as asciicast v2.
 
 Run: python3 -I trace-cast.py --t0 FILE --out FILE --width N --height N
-         [--ready FILE] [--failed FILE]
+         [--ready FILE] [--failed FILE] [--pid-file FILE]
 
 The program reads raw bytes on stdin. It appends asciicast v2 to --out.
 "kit session start" runs it through "tmux pipe-pane" when KIT_TRACE is set
@@ -28,6 +28,10 @@ and KIT_TRACE_CHECKS is empty or has the word "terminal".
   flush at the end of the input. The program then writes one line to
   stderr and exits 1. "kit session stop" reads the file, because the
   agent continues to run when the recorder ends.
+- With --pid-file FILE, the program writes its own pid and a newline to
+  this file right after it starts, before it opens --out. "kit session
+  stop" waits for this pid to end before it reads the --failed file,
+  because the recorder is not in RUN/pids/.
 - The program writes and flushes each event when it reads the bytes. It
   stops at the end of the input. An incomplete character at the end
   becomes U+FFFD in a last event.
@@ -50,7 +54,12 @@ def main():
     ap.add_argument("--height", type=int, required=True)
     ap.add_argument("--ready")
     ap.add_argument("--failed")
+    ap.add_argument("--pid-file")
     args = ap.parse_args()
+
+    if args.pid_file:
+        with open(args.pid_file, "w", encoding="ascii") as f:
+            f.write("%d\n" % os.getpid())
 
     with open(args.t0, encoding="ascii") as f:
         t0_ms = int(f.read().strip())

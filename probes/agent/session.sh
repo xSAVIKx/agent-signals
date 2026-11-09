@@ -40,6 +40,9 @@
 #   pids       the pids of the session: lines "PID LABEL<tab>START"
 #   last.screen  the last screen that "wait" read
 #   stopped    the session has stopped
+#   trace      the trace folder (KIT_TRACE) of a recorded tmux session
+#   recorder.pid  the pid of the recorder (trace-cast.py)
+#   recorder.start  the start time of the recorder, as ps prints it
 # A throwaway home is RUN/home/NAME.
 # A socket path has a limit of about 104 bytes on macOS, so the socket is
 # in a new short folder below /tmp, not in the run folder.
@@ -69,8 +72,13 @@
 # When a write to the cast fails after the start, the recorder makes the
 # file "recorder-failed" in the state folder and ends. The agent continues
 # to run. "stop" then appends "terminal<tab>recorder-failed" to
-# $KIT_TRACE/skipped.tsv, so that the trace shows that the terminal check
-# failed.
+# skipped.tsv in the trace folder, so that the trace shows that the
+# terminal check failed. "start" writes the trace folder (KIT_TRACE) to the
+# file "trace" in the state folder, and "stop" reads it from there, so a
+# stop with no KIT_TRACE also writes the line. The recorder writes its pid
+# to "recorder.pid" (option --pid-file), and "start" writes its start time
+# to "recorder.start". "stop" waits for this pid (5 s at most) before it
+# reads "recorder-failed", then sends TERM to it.
 # The pty backend has no recording yet: "start" writes the line
 # "terminal<tab>pty-not-yet" to $KIT_TRACE/skipped.tsv.
 #
@@ -520,7 +528,11 @@ do_start() {
       # pane gets the TERM of the pty backend.
       printf 'set -g remain-on-exit on\nset -g default-terminal %s\n' "$term" >"$sdir/tmux.conf"
       # With the terminal check, the pane waits for the gate file first.
-      rm -f "$sdir/gate" "$sdir/ready" "$sdir/recorder-failed"
+      rm -f "$sdir/gate" "$sdir/ready" "$sdir/recorder-failed" \
+        "$sdir/recorder.pid" "$sdir/recorder.start" "$sdir/trace"
+      # "stop" reads the trace folder from this file, not from the
+      # KIT_TRACE of its caller.
+      [ -n "$trace_term" ] && printf '%s\n' "$KIT_TRACE" >"$sdir/trace"
       gate_wait=
       gate_arg=
       gate_turns=
@@ -537,7 +549,7 @@ do_start() {
       if [ -n "$trace_term" ]; then
         # No recorder: stop the server, so that the pane never runs the
         # agent unrecorded and no process stays.
-        if ! tm pipe-pane -t kit -O "exec python3 -I '$KIT_DIR/trace-cast.py' --t0 '$KIT_TRACE/t0' --out '$KIT_TRACE/terminal.cast' --ready '$sdir/ready' --failed '$sdir/recorder-failed' --width $COLS --height $ROWS"; then
+        if ! tm pipe-pane -t kit -O "exec python3 -I '$KIT_DIR/trace-cast.py' --t0 '$KIT_TRACE/t0' --out '$KIT_TRACE/terminal.cast' --ready '$sdir/ready' --failed '$sdir/recorder-failed' --pid-file '$sdir/recorder.pid' --width $COLS --height $ROWS"; then
           _why="pipe-pane failed: the terminal is not recorded"
           [ "$(tm display -p -t kit '#{pane_dead_status}' 2>/dev/null)" = 125 ] &&
             _why="the gate wait ended before the recorder started: the agent did not run"
@@ -556,6 +568,10 @@ do_start() {
           [ -n "$server" ] && rm -f "$run/pids/$server"
           kit_die 1 "the recorder did not start: the terminal is not recorded"
         fi
+        # The start time of the recorder, so that "stop" does not wait for
+        # a new process that got the same pid.
+        _rp=$(cat "$sdir/recorder.pid" 2>/dev/null)
+        [ -n "$_rp" ] && kit_pid_start "$_rp" >"$sdir/recorder.start"
         : >"$sdir/gate"
         # A pane that ended with 125 gave up at the gate (10 s at most).
         if [ "$(tm display -p -t kit '#{pane_dead_status}' 2>/dev/null)" = 125 ]; then
@@ -759,6 +775,38 @@ remove_folders() {
   rm -rf "${run:?}/home/$name"
 }
 
+# recorder_runs PID: true when PID runs and has the start time in
+# $sdir/recorder.start. A pid that the system gave again to a new process
+# is not the recorder.
+recorder_runs() {
+  kit_pid_runs "$1" || return 1
+  _want=$(cat "$sdir/recorder.start" 2>/dev/null)
+  [ -n "$_want" ] && [ "$_want" = "$(kit_pid_start "$1")" ]
+}
+
+# end_recorder: wait for the recorder (trace-cast.py) of the session to
+# end, 5 s at most. Then send TERM to its pid and wait 1 s more, then send
+# KILL. The pid is in $sdir/recorder.pid.
+end_recorder() {
+  _rp=$(cat "$sdir/recorder.pid" 2>/dev/null)
+  case $_rp in '' | *[!0-9]*) return 0 ;; esac
+  _n=0
+  while recorder_runs "$_rp" && [ "$_n" -lt 100 ]; do
+    sleep 0.05
+    _n=$((_n + 1))
+  done
+  recorder_runs "$_rp" || return 0
+  echo "stop: $_rp recorder"
+  kill "$_rp" 2>/dev/null
+  _n=0
+  while recorder_runs "$_rp" && [ "$_n" -lt 20 ]; do
+    sleep 0.05
+    _n=$((_n + 1))
+  done
+  recorder_runs "$_rp" && kill -9 "$_rp" 2>/dev/null
+  return 0
+}
+
 # stop_session [--keep]: stop the session in sdir. With --keep, the work
 # folder and the home stay, and the file "kept" says so. A later stop without
 # --keep deletes them.
@@ -779,9 +827,11 @@ stop_session() {
   esac
   # shellcheck disable=SC2046
   end_pids $(session_pids)
-  # The server is stopped, so the recorder had its last flush.
-  if [ -n "${KIT_TRACE:-}" ] && [ -e "$sdir/recorder-failed" ]; then
-    printf 'terminal\trecorder-failed\n' >>"$KIT_TRACE/skipped.tsv"
+  # The server is stopped. The recorder gets the end of its input and
+  # does its last flush. It is not in RUN/pids/, so wait for its pid here.
+  end_recorder
+  if [ -f "$sdir/trace" ] && [ -e "$sdir/recorder-failed" ]; then
+    printf 'terminal\trecorder-failed\n' >>"$(cat "$sdir/trace")/skipped.tsv"
   fi
   end_home_daemons
   [ -n "$sock" ] && rm -rf "$(dirname "$sock")"

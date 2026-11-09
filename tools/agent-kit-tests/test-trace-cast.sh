@@ -58,6 +58,25 @@ printf 'd' | python3 -I "$cast" --t0 "$T/t0" --out "$T/g.cast" --failed "$T/g.fa
 expect_code "unit: a good run exits 0" 0 $?
 if [ ! -e "$T/g.failed" ]; then pass "unit: a good run makes no --failed file"; else fail "unit: a good run makes no --failed file" "file exists"; fi
 
+# --pid-file holds the pid of the recorder and a newline.
+python3 -I "$cast" --t0 "$T/t0" --out "$T/p.cast" --pid-file "$T/p.pid" --width 120 --height 40 </dev/null &
+_pp=$!
+wait "$_pp"
+expect_code "unit: a run with --pid-file exits 0" 0 $?
+if [ "$(cat "$T/p.pid")" = "$_pp" ]; then pass "unit: --pid-file holds the pid of the recorder"; else fail "unit: --pid-file holds the pid of the recorder" "$(cat "$T/p.pid") / $_pp"; fi
+
+# rec_gone FILE: pass when the pid in FILE (recorder.pid) does not run.
+rec_gone() {
+  _rp=$(cat "$1" 2>/dev/null)
+  if [ -z "$_rp" ]; then
+    fail "$2" "no pid in $1"
+  elif kill -0 "$_rp" 2>/dev/null; then
+    fail "$2" "pid $_rp runs"
+  else
+    pass "$2"
+  fi
+}
+
 if ! command -v tmux >/dev/null 2>&1; then
   echo "skip: tmux is not installed"
   done_tests
@@ -87,8 +106,10 @@ else
 fi
 # The pane pid is the agent pid: the gate loop ended with exec.
 if [ -e "$sdir/gate" ]; then pass "session: the gate file exists"; else fail "session: the gate file exists" "no file"; fi
+cp "$sdir/recorder.pid" "$T/s1.rec.pid" 2>/dev/null
 kit session stop s1 --keep >"$T/o" 2>&1
 expect_code "session: stop --keep exits 0" 0 $?
+rec_gone "$T/s1.rec.pid" "session: no recorder stays after stop"
 if grep -q 'stub idle' "$raw/terminal.cast"; then pass "session: the cast holds stub idle"; else fail "session: the cast holds stub idle" "$(head -c 300 "$raw/terminal.cast")"; fi
 # A second start of the same session (resume) continues the same file.
 (KIT_TRACE=$raw; KIT_TRACE_CHECKS=terminal,network; export KIT_TRACE KIT_TRACE_CHECKS
@@ -96,8 +117,10 @@ if grep -q 'stub idle' "$raw/terminal.cast"; then pass "session: the cast holds 
 expect_code "session: the second start exits 0" 0 $?
 kit session wait s1 'stub idle' 30 >"$T/o" 2>&1
 expect_code "session: the second wait for idle" 0 $?
+cp "$sdir/recorder.pid" "$T/s1b.rec.pid" 2>/dev/null
 kit session stop s1 >"$T/o" 2>&1
 expect_code "session: the second stop exits 0" 0 $?
+rec_gone "$T/s1b.rec.pid" "session: no recorder stays after the second stop"
 n=$(grep -c '"version"' "$raw/terminal.cast")
 if [ "$n" = 1 ]; then pass "session: one header line after a second start"; else fail "session: one header line after a second start" "$n headers"; fi
 n=$(grep -c 'stub idle' "$raw/terminal.cast")
@@ -118,7 +141,8 @@ if [ -z "$left" ]; then pass "no recorder: no pid of the run stays"; else fail "
 # The recorder fails after the start: a file size limit (ulimit -f) of the
 # server lets the recorder open the cast and make "ready", but the first
 # event is too large. The agent continues to run, and "stop" appends
-# "terminal<tab>recorder-failed" to skipped.tsv.
+# "terminal<tab>recorder-failed" to skipped.tsv. The stop runs with no
+# KIT_TRACE.
 mkdir -m 0700 "$T/raw-full"
 cp "$raw/t0" "$T/raw-full/t0"
 # The cast is filled to the limit, so the recorder writes no header.
@@ -143,9 +167,13 @@ if (ulimit -f 64) 2>/dev/null; then
     _n=$((_n + 1))
   done
   if [ -e "$T/run1/sessions/s8/recorder-failed" ]; then pass "recorder fails: the recorder-failed file"; else fail "recorder fails: the recorder-failed file" "no file"; fi
-  (KIT_TRACE=$T/raw-full; export KIT_TRACE
+  cp "$T/run1/sessions/s8/recorder.pid" "$T/s8.rec.pid" 2>/dev/null
+  # The stop runs with no KIT_TRACE: it reads the trace folder from the
+  # state folder of the session.
+  (unset KIT_TRACE
    kit session stop s8) >"$T/o" 2>&1
-  expect_code "recorder fails: stop exits 0" 0 $?
+  expect_code "recorder fails: stop with no KIT_TRACE exits 0" 0 $?
+  rec_gone "$T/s8.rec.pid" "recorder fails: no recorder stays after stop"
   if [ -f "$T/raw-full/skipped.tsv" ]; then
     expect_line "recorder fails: the skip line" '^terminal	recorder-failed$' "$T/raw-full/skipped.tsv"
   else
