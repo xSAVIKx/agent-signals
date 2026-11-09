@@ -18,7 +18,8 @@ and KIT_TRACE_CHECKS is empty or has the word "terminal".
   with an incremental decoder and errors="replace". A character that is
   split over two reads stays whole.
 - The program writes and flushes each event when it reads the bytes. It
-  stops at the end of the input.
+  stops at the end of the input. An incomplete character at the end
+  becomes U+FFFD in a last event.
 
 It uses the standard library only.
 """
@@ -59,6 +60,12 @@ def main():
             except InterruptedError:
                 continue
             if not data:
+                # An incomplete character at the end becomes U+FFFD.
+                tail = dec.decode(b"", final=True)
+                if tail:
+                    secs = time.time() - t0_ms / 1000.0
+                    out.write(json.dumps([round(secs, 3), "o", tail], ensure_ascii=False) + "\n")
+                    out.flush()
                 break
             text = dec.decode(data)
             if not text:

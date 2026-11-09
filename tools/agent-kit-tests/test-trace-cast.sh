@@ -8,6 +8,15 @@
 cast=$ROOT/probes/agent/trace-cast.py
 stub=$ROOT/tools/testdata/agent-kit/stub-agent.sh
 
+# pids_run RUN: each pid of RUN/pids/ that still runs.
+pids_run() {
+  for f in "$1"/pids/*; do
+    [ -f "$f" ] || continue
+    p=$(basename "$f")
+    kill -0 "$p" 2>/dev/null && echo "$p"
+  done
+}
+
 # Unit: a character split over two writes stays whole.
 printf '1700000000123\n' >"$T/t0"
 {
@@ -28,6 +37,11 @@ if [ "$text" = "a─b" ]; then pass "unit: the joined text is a─b"; else fail 
 printf 'c' | python3 -I "$cast" --t0 "$T/t0" --out "$T/u.cast" --width 120 --height 40
 n=$(grep -c '"version"' "$T/u.cast")
 if [ "$n" = 1 ]; then pass "unit: a second run adds no header"; else fail "unit: a second run adds no header" "$n headers"; fi
+
+# An incomplete character at the end becomes U+FFFD.
+printf 'x\342\224' | python3 -I "$cast" --t0 "$T/t0" --out "$T/e.cast" --width 120 --height 40
+last=$(tail -n 1 "$T/e.cast" | python3 -I -c 'import json,sys; sys.stdout.write(json.loads(sys.stdin.read())[2])')
+if [ "$last" = "$(printf '\357\277\275')" ]; then pass "unit: an incomplete end gives U+FFFD"; else fail "unit: an incomplete end gives U+FFFD" "$last"; fi
 
 if ! command -v tmux >/dev/null 2>&1; then
   echo "skip: tmux is not installed"
@@ -89,6 +103,37 @@ case $pane in
   *gate*) fail "network only: no gate wait in the pane command" "$pane" ;;
   *) pass "network only: no gate wait in the pane command" ;;
 esac
+
+# A tmux wrapper: WRAP_MODE=fail makes pipe-pane fail, slow delays it by 1 s.
+real_tmux=$(command -v tmux)
+mkdir "$T/wrap"
+cat >"$T/wrap/tmux" <<WRAPEOF
+#!/bin/sh
+for a in "\$@"; do
+  if [ "\$a" = pipe-pane ]; then
+    [ "\${WRAP_MODE:-}" = fail ] && exit 1
+    [ "\${WRAP_MODE:-}" = slow ] && sleep 1
+  fi
+done
+exec "$real_tmux" "\$@"
+WRAPEOF
+chmod +x "$T/wrap/tmux"
+
+# pipe-pane fails: the start exits 1, the server is stopped, no pid stays.
+(PATH="$T/wrap:$PATH"; KIT_TRACE=$raw; KIT_TRACE_CHECKS=; WRAP_MODE=fail; export PATH KIT_TRACE KIT_TRACE_CHECKS WRAP_MODE
+ kit session start s4 stub --via tmux --cmd "sh '$stub'") >"$T/o" 2>&1
+expect_code "pipe-pane fails: start exits 1" 1 $?
+expect_line "pipe-pane fails: the reason" 'pipe-pane failed' "$T/o"
+left=$(pids_run "$T/run1")
+if [ -z "$left" ]; then pass "pipe-pane fails: no pid of the run stays"; else fail "pipe-pane fails: no pid of the run stays" "$left"; fi
+
+# The gate wait ends before the recorder starts: the start exits 1.
+(PATH="$T/wrap:$PATH"; KIT_TRACE=$raw; KIT_TRACE_CHECKS=; WRAP_MODE=slow; KIT_TRACE_GATE_TURNS=4; export PATH KIT_TRACE KIT_TRACE_CHECKS WRAP_MODE KIT_TRACE_GATE_TURNS
+ kit session start s5 stub --via tmux --cmd "sh '$stub'") >"$T/o" 2>&1
+expect_code "gate timeout: start exits 1" 1 $?
+expect_line "gate timeout: the reason" "gate wait ended" "$T/o"
+left=$(pids_run "$T/run1")
+if [ -z "$left" ]; then pass "gate timeout: no pid of the run stays"; else fail "gate timeout: no pid of the run stays" "$left"; fi
 
 # Step with the states: the first event comes before the idle state.
 stub_set STUB_TRUST=yes
