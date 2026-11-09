@@ -9,6 +9,13 @@
 # example "--permission-mode acceptEdits". In KIT_PROMPT, the text @OUTSIDE@
 # becomes the path of a file in a new folder outside the work folder.
 #
+# With KIT_TRACE set (kit trace), the step also writes its stages to
+# $KIT_TRACE/states.tsv with kit_trace_state (lib.sh): idle (the idle screen
+# is found), prompt (the prompt is sent), busy (the busy screen is found),
+# dialog (the dialog is found), answer (the keys of KIT_ANSWER are sent) and
+# idle-after (idle after the answer). "kit session" writes start and stop.
+# The model log then holds the time of each line (see session.sh).
+#
 # The steps of the script:
 #   1. Start a session of the agent with "kit session start" in a new work
 #      folder.
@@ -362,9 +369,11 @@ conditions() {
   else
     echo "mode on the idle screen: no line names a mode"
   fi
-  if [ -s "$_s/fake-model.log" ]; then
-    awk '$1 == "POST" { $1 = $2 = $3 = ""; sub(/^ +/, ""); n[$0]++ } END { for (k in n) print n[k] " " k }' \
-      "$_s/fake-model.log" | sort -k2 | awk '{ c = $1; $1 = ""; sub(/^ /, ""); s = s (s ? ", " : "") $0 " " c } END { print "fake model answers: " (s ? s : "none") }'
+  _fl=$_s/fake-model.log
+  [ -z "${KIT_TRACE:-}" ] || _fl=$KIT_TRACE/model-$sess.log
+  if [ -s "$_fl" ]; then
+    sed 's/^[0-9]\{13\} //' "$_fl" | awk '$1 == "POST" { $1 = $2 = $3 = ""; sub(/^ +/, ""); n[$0]++ } END { for (k in n) print n[k] " " k }' \
+      | sort -k2 | awk '{ c = $1; $1 = ""; sub(/^ /, ""); s = s (s ? ", " : "") $0 " " c } END { print "fake model answers: " (s ? s : "none") }'
   fi
   [ -z "$work_files" ] || echo "files in the work folder at the end: $work_files"
   if [ -n "$outside" ]; then
@@ -495,6 +504,7 @@ send() {
   done
   [ -n "$_seen" ] || say "the prompt did not show on the screen in $_try tries"
   ses key "$sess" Enter >/dev/null || broken
+  kit_trace_state prompt
   _n=0
   while [ "$_n" -lt 3 ]; do
     _n=$((_n + 1))
@@ -545,6 +555,7 @@ bad "$rc"
 if [ "$rc" -ne 0 ]; then
   stop_now no-idle
 fi
+kit_trace_state idle
 save idle "$tmp/s"
 
 # The scope of the watch: the work folder, the throwaway home, and the
@@ -589,6 +600,7 @@ case $KIT_KIND in
     rc=$?
     bad "$rc"
     if [ "$rc" -eq 0 ]; then
+      kit_trace_state dialog
       watching || why=dialog-after-watch
       save dialog "$tmp/s"
       say "the dialog shows. Hold it for $HOLD_S s"
@@ -600,6 +612,7 @@ case $KIT_KIND in
       why=no-dialog
       say "no dialog in $WAIT_S s. Send: $KIT_ANSWER"
     fi
+    kit_trace_state answer
     keys "${KIT_ANSWER:-}"
     sleep 1
     wait_idle "$AFTER_S" "$tmp/s"
@@ -608,6 +621,8 @@ case $KIT_KIND in
     if [ "$rc" -ne 0 ]; then
       say "no idle screen after the answer"
       why=${why:-no-idle-after}
+    else
+      kit_trace_state idle-after
     fi
     save after "$tmp/s"
     ;;
@@ -635,12 +650,15 @@ case $KIT_KIND in
     bad "$rc"
     if [ "$rc" -ne 0 ]; then
       save "2 s after the prompt" "$tmp/early"
+      kit_trace_state answer
       keys "${KIT_ANSWER%% *}"
       stop_now no-busy
     fi
+    kit_trace_state busy
     save busy "$tmp/s"
     for k in ${KIT_ANSWER:-}; do
       say "send $k"
+      kit_trace_state answer
       keys "$k"
       sleep 2
       screen "$tmp/s" || stop_now screen-failed

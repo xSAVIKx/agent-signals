@@ -8,14 +8,15 @@ agent and its screens, not the behaviour of a model.
 
 Usage:
   fake-model.py --agent codex|claude|agy|cursor-agent|opencode --home HOME --env-file FILE
-                --log FILE [--pid-file FILE]
-  fake-model.py --codex-home DIR --log FILE [--pid-file FILE]
+                --log FILE [--pid-file FILE] [--log-times]
+  fake-model.py --codex-home DIR --log FILE [--pid-file FILE] [--log-times]
 
 It binds a free port and writes the settings files of the agent in HOME, the
 throwaway home of the session. Then it writes FILE: one KEY=VALUE line for
 each environment variable that the agent needs. The kit waits for FILE. It
 serves until the kit stops it, or for 30 minutes at most. The file LOG gets
-one line for each request, with no request text.
+one line for each request, with no request text. With --log-times, each
+line starts with the time in epoch milliseconds and a space.
 
   codex   The Responses API. HOME/.codex/config.toml names the fake provider.
   claude  The Messages API, from ANTHROPIC_BASE_URL. HOME/.claude/.claude.json
@@ -664,12 +665,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
     count = 0
     agent = "codex"
     log_file = None
+    log_times = False
     lock = threading.Lock()
 
     def log_message(self, *args):
         pass
 
     def note(self, text):
+        if Handler.log_times:
+            text = "%d %s" % (time.time() * 1000, text)
         with Handler.lock:
             Handler.log_file.write(text + "\n")
             Handler.log_file.flush()
@@ -1001,6 +1005,7 @@ def main():
     parser.add_argument("--codex-home")
     parser.add_argument("--log", required=True)
     parser.add_argument("--pid-file")
+    parser.add_argument("--log-times", action="store_true")
     args = parser.parse_args()
     if args.codex_home:
         args.agent = "codex"
@@ -1009,6 +1014,7 @@ def main():
     if args.agent in ("cursor", "agent"):
         args.agent = "cursor-agent"
     Handler.agent = args.agent
+    Handler.log_times = args.log_times
     Handler.log_file = open(args.log, "a", encoding="utf-8")
     server = Server(("127.0.0.1", 0), Handler)
     server.daemon_threads = True
