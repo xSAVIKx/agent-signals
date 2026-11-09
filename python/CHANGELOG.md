@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.0](https://github.com/xSAVIKx/agent-signals/compare/python-v0.10.0...python-v0.11.0) (2026-11-09)
+
+
+### Features
+
+* **scenarios:** measure Claude Code after its pipes close and the Codex app-server status ([#124](https://github.com/xSAVIKx/agent-signals/issues/124)) ([6e89c43](https://github.com/xSAVIKx/agent-signals/commit/6e89c435e77fab45b707b72cd1abeecc93fca625))
+
 ## [0.10.0](https://github.com/xSAVIKx/agent-signals/compare/python-v0.9.2...python-v0.10.0) (2026-11-08)
 
 

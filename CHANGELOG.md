@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.19.0...corpus-v0.20.0) (2026-11-09)
+
+
+### Features
+
+* **scenarios:** measure Claude Code after its pipes close and the Codex app-server status ([#124](https://github.com/xSAVIKx/agent-signals/issues/124)) ([6e89c43](https://github.com/xSAVIKx/agent-signals/commit/6e89c435e77fab45b707b72cd1abeecc93fca625))
+
 ## [0.19.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.18.2...corpus-v0.19.0) (2026-11-08)
 
 
