@@ -72,6 +72,7 @@ WATCH_LIMIT = 8192
 WRITE_WINDOW = 0.1
 MOVE_WAIT = 0.05
 STOP_POLL = 0.1
+DRAIN_READS = 64
 HEADER = struct.Struct("iIII")
 
 
@@ -335,9 +336,15 @@ class Watcher:
             self.finish()
 
     def finish(self):
-        """Drain the queue one time without blocking, then write all."""
+        """Drain the queue without blocking, then write all.
+
+        The drain stops after DRAIN_READS reads, so that a writer that
+        keeps the queue full cannot hold the stop.
+        """
         try:
-            while select.select([self.fd], [], [], 0)[0]:
+            for _ in range(DRAIN_READS):
+                if not select.select([self.fd], [], [], 0)[0]:
+                    break
                 self.read_events()
         finally:
             try:
