@@ -411,3 +411,38 @@ the build, `trace.sh` deletes `RUN/.trace/`.
   Report what the trace shows (hosts, files outside WORK). Do not commit
   the trace.
 - [ ] **Step 6: Commit** `feat(kit): add kit trace for terminal, network and file traces`.
+
+## Amendments after review
+
+The review of this plan (PR #127) found eight defects. These amendments
+are part of the plan. Where a task above says otherwise, the amendment
+applies.
+
+1. Model events (Tasks 1 and 6): the model result goes in the field
+   `model_kind`. The field `kind` of each event holds the event kind
+   (`model`).
+2. Terminal file (Task 7): with the home `real`, or in login mode, the
+   output has no cast, and `terminal` is null. Only a trace with the
+   fixture home keeps the cast, because its prompts are fixed. The scrub
+   cannot remove any prompt text.
+3. Selected checks (Tasks 3, 4 and 7): `kit trace` exports
+   `KIT_TRACE_CHECKS`, a list of checks separated by commas.
+   `session.sh` records the terminal only when the list holds
+   `terminal`. It sets the proxy variables only when the list holds
+   `network`. An empty list means all checks.
+4. New folders (Task 5): after the watch adds a new or moved folder, it
+   reads that folder. It writes `create` for each item that it did not
+   see, and adds watches below it. The test makes a folder tree with one
+   `mkdir -p` and writes files into it at once.
+5. Real home (Tasks 6 and 7): the build changes a path below `~` whose
+   first folder is not hidden into `~/<private>`. A path in a hidden
+   folder, for example `~/.claude/settings.json`, stays. The test checks
+   that `~/<private>` stays after the scrub.
+6. Model routes (Task 6): `route` is the path before `?`. The build
+   drops the query, and then normalizes the names.
+7. Folders before the watch (Task 7): `kit trace` makes
+   `kit_work_root RUN` and `RUN/home` before it starts the watch. A test
+   runs a trace just after `kit start`.
+8. Trace numbers (Task 7): the number NN of a trace folder is one more
+   than the highest NN in `RUN/traces/`. It does not come from the step
+   file, because a skipped or failed step has no file.
