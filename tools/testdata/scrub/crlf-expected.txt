@@ -1,0 +1,11 @@
+crlf 1: p=Path("/work/example
+     "); ok
+crlf 2: open /work/example
+    now
+crlf 3: │ cat /work/example   │
+│    │
+crlf 4: /work/example/01-probe.txt
+   ok
+crlf 5: write /work/example
+   [Y/n]
+crlf 6: cwd /work/example

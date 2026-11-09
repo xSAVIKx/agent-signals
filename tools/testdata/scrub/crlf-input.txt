@@ -1,0 +1,11 @@
+crlf 1: p=Path("/Users/
+     alice/agent-signals-work/agent-signals-run-linux-1-0a1b2c3d/w.outside/x.txt"); ok
+crlf 2: open /Users/alice/agent-signals-work/agent-signals-run-linux-1-0a1b
+   2c3d now
+crlf 3: │ cat /Users/alice/proj/some-fo   │
+│ lder/x.txt   │
+crlf 4: /var/tmp/agent-signals-ru
+  n-linux-20260101T000000Z/01-probe.txt ok
+crlf 5: write /Users/alice/proj/x.txt
+   [Y/n]
+crlf 6: cwd /Users/alice/code/shop
