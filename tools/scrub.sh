@@ -7,6 +7,9 @@
 # with the number of lines that changed.
 #
 # Changes, in this order:
+#   W. a path that an agent wrapped onto the next screen lines: its line
+#      ends move to just after the path, so that the rules below see the
+#      full path. The line count stays. See the comment of the pass.
 #   0. each extra root: a line of SCRUB_EXTRA (for example the run folder of
 #      the agent kit), and the values of OneDrive, OneDriveCommercial and
 #      OneDriveConsumer                              -> /work/example
@@ -91,6 +94,136 @@ rule() {
 while IFS= read -r _x; do
   printf 's#%s#/work/example#g\n' "$(q "$_x")" >>"$tmp/extra.sed"
 done <"$tmp/extra"
+
+# A wrapped path. An agent can wrap a long path onto the next screen
+# lines, so a line holds only a part of it. Then no rule below sees the
+# full path. This pass moves the line ends from a wrapped path to just
+# after it, so that the full path is on its first line. Each line end and
+# the line count stay. A path is wrapped when:
+#   - an anchor is cut by one or more line ends: each extra root, the home
+#     folder, /Users/, /home/, ~/, /srv/ and /work/, or
+#   - the path after an anchor goes to the end of the line, and the path
+#     ends with / or \ or the first word of the next line holds a / or a
+#     \. A word that fills its line can be a part of the path too: then
+#     the next line decides.
+# The line after a line end starts with white space. This white space can
+# hold one box line (U+2502), as in the command box of Claude Code. A
+# Windows root (a drive letter) matches in any case, and each / or \ in it
+# matches one or more of / and \. tools/scrub.ps1 does the same in
+# Invoke-ScrubUnwrap.
+{
+  cat "$tmp/extra"
+  # The ~ is text here: an agent writes it in a path.
+  # shellcheck disable=SC2088
+  printf '%s\n' "$home" /Users/ /home/ '~/' /srv/ /work/
+} | awk 'length($0) > 1' >"$tmp/anchors"
+awk -v afile="$tmp/anchors" -v bx="$(printf '\342\224\202')" '
+# esc(c): the character c as an ERE that matches only c.
+function esc(c) {
+  if (c == "\\") return "\\\\"
+  if (c == "^") return "\\^"
+  if (c == "]") return "[]]"
+  if (index(".[*+?{}()|$", c)) return "[" c "]"
+  return c
+}
+# pattern(v, win): the ERE for the anchor v, with an optional line end
+# between two characters.
+function pattern(v, win,    i, c, p) {
+  p = ""
+  for (i = 1; i <= length(v); i++) {
+    c = substr(v, i, 1)
+    if (i > 1) p = p "(" nl ")?"
+    if (win && (c == "\\" || c == "/")) p = p "[\\\\/]+"
+    else p = p esc(c)
+  }
+  return p
+}
+# brk(b): a line end that is not the last one keeps no white space after
+# it, so that its line stays empty.
+function brk(b) { sub(/[ \t]*$/, "", b); return b }
+# more(j, after): 1 when the path j continues after the line end at the
+# start of after.
+function more(j, after,    nxt, w) {
+  while (match(after, "^" nl pc)) {
+    nxt = substr(after, RLENGTH)
+    match(nxt, "^" pc "*")
+    w = substr(nxt, 1, RLENGTH)
+    if (j ~ /[\/\\]$/ || w ~ /[\/\\]/) return 1
+    j = w; after = substr(nxt, RLENGTH + 1)
+  }
+  return 0
+}
+# unwrap(t): the text t with each wrapped path on one line.
+function unwrap(t,    a, out, rest, src, s, l, pre, m, j, nb, b, after, k) {
+  for (a = 1; a <= n; a++) {
+    out = ""; rest = t
+    while (1) {
+      src = win[a] ? tolower(rest) : rest
+      if (!match(src, re[a])) break
+      s = RSTART; l = RLENGTH
+      pre = (s > 1) ? substr(rest, s - 1, 1) : substr(out, length(out), 1)
+      if (pre ~ /[A-Za-z0-9_.~-]/) {
+        out = out substr(rest, 1, s); rest = substr(rest, s + 1); continue
+      }
+      # The anchor without its line ends.
+      m = substr(rest, s, l); j = ""; nb = 0
+      while (match(m, nl)) {
+        j = j substr(m, 1, RSTART - 1)
+        b[++nb] = substr(m, RSTART, RLENGTH)
+        m = substr(m, RSTART + RLENGTH)
+      }
+      j = j m
+      # The rest of the path, also on the next lines.
+      after = substr(rest, s + l)
+      while (1) {
+        match(after, "^" pc "*")
+        j = j substr(after, 1, RLENGTH); after = substr(after, RLENGTH + 1)
+        if (!more(j, after)) break
+        match(after, "^" nl)
+        b[++nb] = substr(after, 1, RLENGTH); after = substr(after, RLENGTH + 1)
+      }
+      if (nb == 0) {
+        out = out substr(rest, 1, s + l - 1); rest = substr(rest, s + l); continue
+      }
+      out = out substr(rest, 1, s - 1) j
+      for (k = 1; k < nb; k++) out = out brk(b[k])
+      out = out b[nb]
+      rest = after
+    }
+    t = out rest
+  }
+  return t
+}
+BEGIN {
+  pc = "[^ \t\r\n\"'\'',:;()]"
+  # A line end, and the white space at the start of the next line.
+  nl = "\r?\n([ \t]*" bx ")?[ \t]+"
+  n = 0
+  while ((getline v < afile) > 0) {
+    n++
+    win[n] = (v ~ /^[A-Za-z]:/)
+    re[n] = pattern(win[n] ? tolower(v) : v, win[n])
+  }
+}
+{ line[NR] = $0 }
+# A block is a line and the next lines that can continue a path on it:
+# the line before ends with a character that is not white space, and the
+# line starts with white space. The pass looks at one block at a time, so
+# that a long file stays fast.
+END {
+  i = 1
+  while (i <= NR) {
+    t = line[i]
+    while (i < NR && line[i] ~ /[^ \t]\r?$/ && ("\n" line[i + 1]) ~ ("^" nl "[^ \t]")) {
+      i++
+      t = t "\n" line[i]
+    }
+    print unwrap(t)
+    i++
+  }
+}' "$tmp/a" >"$tmp/b"
+count "wrapped path"
+
 if [ -s "$tmp/extra.sed" ]; then
   sed -E -f "$tmp/extra.sed" "$tmp/a" >"$tmp/b"
   count "extra root"

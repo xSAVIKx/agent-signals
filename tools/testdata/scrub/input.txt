@@ -47,3 +47,41 @@ extra key: ~/.claude/projects/-opt-kit-runs-work-x/1.jsonl and -opt-kit-runs-y, 
 sid: icacls x /grant "*S-1-5-21-2059143792-918228121-4054068362-500:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F" and S-1-5-21-1111-2222-3333-1001 alone
 temp: /tmp/claude-1042/-opt-x/tasks and /tmp/claude-eval-a1B2, x-api-key: stays
 sandbox: 53 1 <sandbox>/home/.cursor/cli-config.json and <sandbox>/work/app.txt and /tmp/cursor-agent-logs-1042/s.log
+wrap home 1: p=Path("/Users/
+     alice/agent-signals-work/agent-signals-run-linux-1-0a1b2c3d/w.outside/x.txt"); p.write_text("hi")
+wrap home 2: open /Users/al
+     ice/code/shop/main.go and more
+wrap home 3: write > /Users/alice/
+     agent-signals-work/agent-signals-run-linux-1-0a1b2c3d/w.outside/
+     x.txt and more
+wrap home 4: /Us
+  ers/ali
+  ce/code/app/main.go x
+wrap home 5: open /Users/alice
+     /agent-signals-work/agent-signals-run-linux-1-0a1b2c3d/w/x.txt now
+wrap work 1: "mkdir -p \"/Users/alice/agent-signals-work/agent-signals-run-linux-1-0a1b
+      2c3d/w-pty.outside\"" in /Users/alice/agent-signa
+      ls-work/agent-signals-run-linux-1-0a1b2c3d/w-pty, ok
+wrap work 2: cd /Users/alice/agent-
+   signals-wo
+   rk/agent-signals-run-linux-1-0a1b2c3d && ls
+wrap run 1: /var/tmp/agent-signals-ru
+  n-linux-20260101T000000Z/01-probe.txt ok
+wrap run 2: /var/tmp/agent-
+  signals-run-linux-2026
+  0101T000000Z/02-x.txt done
+wrap run 3: /var/tmp/agent-signals-run-linux-20260101T000000Z
+  /03-x.txt end
+wrap run 4: /var/tmp/agent-signals-run-linux-20260101T000000Z/
+  04-x.txt end
+wrap other home: /home/
+    bob/projects/app/x.go y
+wrap onedrive: "C:\Users\ali
+  ce\OneDrive - Contoso" is it
+no wrap: wrote /Users/alice/x.txt
+      1 hello
+no wrap: /Users/alice/code/a.go
+next: line
+wrap box: │ printf 'hello' > /Users/alice/agent-signals-work/agent-signals-run-linux-1-0a1
+│ b2c3d/w-tmux.outside/x.txt && cat /Users/alice/agen
+│ t-signals-work/agent-signals-run-linux-1-0a1b2c3d/w-tmux.outside/x.txt ok

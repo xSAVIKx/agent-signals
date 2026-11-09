@@ -17,7 +17,11 @@
 #               is not the host name)
 #
 # The changes, in this order:
-#   0. extra      each extra root, the longest first -> /work/example
+#   W. wrap       a path that an agent wrapped onto the next screen lines:
+#                 its line ends move to just after the path, so that the
+#                 rules below see the full path. The line count stays.
+#                 See Invoke-ScrubUnwrap.
+#   0. extra     each extra root, the longest first -> /work/example
 #   1. home       the home folder -> ~
 #   2. other-home /Users/<name>, /home/<name>, C:\Users\<name> -> ~
 #   3. project    a project path below ~, /srv/ or /work/<name>, or a drive
@@ -54,7 +58,7 @@
 
 param([string]$Path)
 
-$script:ScrubKinds = @('extra', 'home', 'other-home', 'project', 'temp', 'sid', 'key', 'user', 'domain', 'host', 'secret', 'uuid', 'hex', 'email', 'ip')
+$script:ScrubKinds = @('wrap', 'extra', 'home', 'other-home', 'project', 'temp', 'sid', 'key', 'user', 'domain', 'host', 'secret', 'uuid', 'hex', 'email', 'ip')
 
 # A path ends at white space, a quote, a colon, a comma, a semicolon or a
 # parenthesis.
@@ -72,6 +76,97 @@ function Get-RootPattern([string]$Root) {
     return '(?i)(?<![A-Za-z0-9_.-])' + ($parts -join '[\\/]+') + '(?![A-Za-z0-9._-])'
   }
   return '(?<![A-Za-z0-9_.~-])' + [regex]::Escape($Root) + '(?![A-Za-z0-9._-])'
+}
+
+# A character of a path in a wrapped path (Invoke-ScrubUnwrap).
+$script:WrapChar = '[^ \t\r\n"'':,;()]'
+# A line end after a character that is not white space, and the white
+# space at the start of the next line. This white space can hold one box
+# line (U+2502), as in the command box of Claude Code.
+$script:WrapBreak = '(?<![ \t])\r?\n(?:[ \t]*\u2502)?[ \t]+'
+
+# Test-ScrubMore J TEXT AT: $true when the path J continues after the line
+# end at AT in TEXT: J ends with / or \, or the first word of the next line
+# holds a / or a \. A word that fills its line can be a part of the path
+# too: then the next line decides.
+function Test-ScrubMore([string]$J, [string]$Text, [int]$At) {
+  $nl = New-Object System.Text.RegularExpressions.Regex ('\G' + $script:WrapBreak + '(?=' + $script:WrapChar + ')')
+  $word = New-Object System.Text.RegularExpressions.Regex ('\G' + $script:WrapChar + '*')
+  while ($true) {
+    $b = $nl.Match($Text, $At)
+    if (-not $b.Success) { return $false }
+    $w = $word.Match($Text, $b.Index + $b.Length)
+    if ($J -match '[/\\]$' -or $w.Value -match '[/\\]') { return $true }
+    $J = $w.Value
+    $At = $w.Index + $w.Length
+  }
+}
+
+# Invoke-ScrubUnwrap TEXT ANCHORS COUNTS: an agent can wrap a long path
+# onto the next screen lines, so a line holds only a part of it. Then no
+# rule sees the full path. This function moves the line ends from a
+# wrapped path to just after it, so that the full path is on its first
+# line. Each line end and the line count stay. A path is wrapped when:
+#   - an anchor is cut by one or more line ends: each of ANCHORS, then
+#     /Users/, /home/, ~/, /srv/ and /work/, or
+#   - the path after an anchor goes to the end of the line, and the path
+#     ends with / or \ or the first word of the next line holds a / or a
+#     \. A word that fills its line can be a part of the path too: then
+#     the next line decides.
+# The line after a line end starts with white space ($script:WrapBreak).
+# A Windows root (a drive letter) matches in any case, and each / or \ in
+# it matches one or more of / and \. tools/scrub.sh does the same.
+function Invoke-ScrubUnwrap([string]$Text, [string[]]$Anchors, [hashtable]$Counts) {
+  $s = $Text
+  $word = New-Object System.Text.RegularExpressions.Regex ('\G' + $script:WrapChar + '*')
+  $nl = New-Object System.Text.RegularExpressions.Regex ('\G' + $script:WrapBreak)
+  foreach ($a in @($Anchors) + @('/Users/', '/home/', '~/', '/srv/', '/work/')) {
+    if (-not $a -or $a.Length -le 1) { continue }
+    $win = $a -match '^[A-Za-z]:'
+    $parts = @(foreach ($c in $a.ToCharArray()) {
+        if ($win -and ($c -eq [char]'\' -or $c -eq [char]'/')) { '[\\/]+' } else { [regex]::Escape([string]$c) }
+      })
+    $pat = '(?<![A-Za-z0-9_.~-])' + ($parts -join ('(?:' + $script:WrapBreak + ')?'))
+    $opt = [System.Text.RegularExpressions.RegexOptions]::None
+    if ($win) { $opt = [System.Text.RegularExpressions.RegexOptions]::IgnoreCase }
+    $re = New-Object System.Text.RegularExpressions.Regex ($pat, $opt)
+    $pos = 0
+    while ($pos -le $s.Length) {
+      $m = $re.Match($s, $pos)
+      if (-not $m.Success) { break }
+      # The anchor without its line ends.
+      $breaks = New-Object System.Collections.Generic.List[string]
+      $j = ''
+      $last = 0
+      foreach ($x in [regex]::Matches($m.Value, $script:WrapBreak)) {
+        $j += $m.Value.Substring($last, $x.Index - $last)
+        $breaks.Add($x.Value)
+        $last = $x.Index + $x.Length
+      }
+      $j += $m.Value.Substring($last)
+      # The rest of the path, also on the next lines.
+      $end = $m.Index + $m.Length
+      while ($true) {
+        $w = $word.Match($s, $end)
+        $j += $w.Value
+        $end += $w.Length
+        if (-not (Test-ScrubMore $j $s $end)) { break }
+        $b = $nl.Match($s, $end)
+        $breaks.Add($b.Value)
+        $end += $b.Length
+      }
+      if ($breaks.Count -eq 0) { $pos = $m.Index + $m.Length; continue }
+      # A line end that is not the last one keeps no white space after
+      # it, so that its line stays empty.
+      $new = $j
+      for ($k = 0; $k -lt $breaks.Count - 1; $k++) { $new += ($breaks[$k] -replace '[ \t]+\z', '') }
+      $new += $breaks[$breaks.Count - 1]
+      $s = $s.Substring(0, $m.Index) + $new + $s.Substring($end)
+      $pos = $m.Index + $new.Length
+      $Counts['wrap'] = 1 + $Counts['wrap']
+    }
+  }
+  return $s
 }
 
 function Invoke-ScrubReplace([string]$Text, [string]$Pattern, [scriptblock]$Change, [hashtable]$Counts, [string]$Kind) {
@@ -123,6 +218,9 @@ function Invoke-Scrub([string]$Text, [string]$HomeDir, [string]$User, [string]$H
 
   # 0. The extra roots, the longest first.
   $roots = @($Extra | Where-Object { $_ -and $_.TrimEnd('/', '\').Length -gt 1 } | ForEach-Object { $_.TrimEnd('/', '\') } | Sort-Object -Property Length -Descending)
+  # A wrapped path: its line ends move to just after it, so that the rules
+  # below see the full path.
+  $s = Invoke-ScrubUnwrap $s (@($roots) + @($HomeDir)) $counts
   foreach ($r in $roots) {
     $s = Invoke-ScrubReplace $s (Get-RootPattern $r) { '/work/example' } $counts 'extra'
   }

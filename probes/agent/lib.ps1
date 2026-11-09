@@ -258,6 +258,10 @@ function Get-KitLiteralPaths {
 function ConvertTo-KitScrubbed([string]$Text) {
     $d = Get-ScrubDefaults
     $s = $Text
+    # A path that the agent wrapped onto the next screen lines: first put
+    # it on one line, so that the literal folders below match it.
+    $wrap = @(@(Get-KitLiteralPaths) | ForEach-Object { $_.Path }) + @(Get-KitHomes | Sort-Object { $_.Length } -Descending)
+    $s = Invoke-ScrubUnwrap $s $wrap @{ wrap = 0 }
     foreach ($p in @(Get-KitLiteralPaths)) {
         $s = [regex]::Replace($s, (Get-KitPathPattern $p.Path), $p.New.Replace('$', '$$'))
     }
