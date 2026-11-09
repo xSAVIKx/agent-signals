@@ -136,8 +136,9 @@ fi
 # --top: no watch for old folders, a watch for new ones.
 echo CONTENT-MARK-two >>"$T/t/old/x"
 mkdir "$T/t/new"
-echo y >"$T/t/new/y"
+# The create line of a folder comes after its watch, so wait for it first.
 check_has "top: create new" "$f" create "$T/t/new"
+echo y >"$T/t/new/y"
 check_has "top: create new/y" "$f" create "$T/t/new/y"
 check_has "top: write new/y" "$f" write "$T/t/new/y"
 check_none "top: no line for old/x" "$f" write "$T/t/old/x"
