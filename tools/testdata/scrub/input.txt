@@ -85,3 +85,25 @@ next: line
 wrap box: │ printf 'hello' > /Users/alice/agent-signals-work/agent-signals-run-linux-1-0a1
 │ b2c3d/w-tmux.outside/x.txt && cat /Users/alice/agen
 │ t-signals-work/agent-signals-run-linux-1-0a1b2c3d/w-tmux.outside/x.txt ok
+border: │ cat /Users/alice/proj/some-fo   │
+│ lder/x.txt   │
+border 3: │ ls /var/tmp/agent-signals-run-li   │
+│ nux-20260101T000000Z/write-outside-   │
+│ tmux.outside/x.txt   │
+bare hash: open /Users/alice/agent-signals-work/agent-signals-run-linux-1-0a1b
+   2c3d now
+bare name: wrote /Users/alice/proj/fi
+   le.txt done
+run cut: /var/tmp/agent-signals-run-li
+   nux-20260101T000000Z/write-outside-
+   tmux.outside/x.txt end
+yes no 1: write /Users/alice/proj/x.txt
+   [Y/n]
+yes no 2: write /Users/alice/proj/new-fo
+   (y/n) or Esc/Ctrl+C
+yes no 3: write /Users/alice/proj/new-fo
+   Esc/Ctrl+C to stop
+tab: open /Users/alice/proj/a/
+	b/c.txt done
+tab 2: open /Users/alice/agent-signals-work/run-0a1b
+	2c3d/x.txt ok

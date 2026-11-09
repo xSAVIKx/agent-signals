@@ -102,22 +102,37 @@ done <"$tmp/extra"
 # the line count stay. A path is wrapped when:
 #   - an anchor is cut by one or more line ends: each extra root, the home
 #     folder, /Users/, /home/, ~/, /srv/ and /work/, or
-#   - the path after an anchor goes to the end of the line, and the path
-#     ends with / or \ or the first word of the next line holds a / or a
-#     \. A word that fills its line can be a part of the path too: then
-#     the next line decides.
+#   - the path after an anchor goes to the end of the line, the first word
+#     of the next line is made only of the characters A-Z a-z 0-9 . _ ~ -
+#     / and \, and one of these is true:
+#     - the path ends with / or \,
+#     - the word holds a / or a \,
+#     - the path starts at a private anchor (an extra root or the home
+#       folder), this is the first line end after the anchor, and the path
+#       does not end with a full file extension such as .txt. So the tail
+#       of a hash, of a folder name or of a file name joins too.
+#     A word that fills its line can be a part of the path too: then the
+#     next line decides. A word such as [Y/n], (y/n) or Esc/Ctrl+C does
+#     not join.
 # The line after a line end starts with white space. This white space can
 # hold one box line (U+2502), as in the command box of Claude Code. A
+# right box line can come after the path, with white space before it: the
+# line end is then after this box line, and both box lines stay. A
 # Windows root (a drive letter) matches in any case, and each / or \ in it
 # matches one or more of / and \. tools/scrub.ps1 does the same in
 # Invoke-ScrubUnwrap.
+# The gap: a next line with no white space at its start does not join, so
+# a part of a path on it stays. tmux -J and the pty screen of the kit join
+# the lines of a terminal wrap; an agent indents its own wrap.
 {
   cat "$tmp/extra"
-  # The ~ is text here: an agent writes it in a path.
-  # shellcheck disable=SC2088
-  printf '%s\n' "$home" /Users/ /home/ '~/' /srv/ /work/
+  printf '%s\n' "$home"
 } | awk 'length($0) > 1' >"$tmp/anchors"
-awk -v afile="$tmp/anchors" -v bx="$(printf '\342\224\202')" '
+np=$(awk 'END { print NR }' "$tmp/anchors")
+# The ~ is text here: an agent writes it in a path.
+# shellcheck disable=SC2088
+printf '%s\n' /Users/ /home/ '~/' /srv/ /work/ >>"$tmp/anchors"
+awk -v afile="$tmp/anchors" -v np="$np" -v bx="$(printf '\342\224\202')" '
 # esc(c): the character c as an ERE that matches only c.
 function esc(c) {
   if (c == "\\") return "\\\\"
@@ -141,20 +156,23 @@ function pattern(v, win,    i, c, p) {
 # brk(b): a line end that is not the last one keeps no white space after
 # it, so that its line stays empty.
 function brk(b) { sub(/[ \t]*$/, "", b); return b }
-# more(j, after): 1 when the path j continues after the line end at the
-# start of after.
-function more(j, after,    nxt, w) {
+# more(j, after, first): 1 when the path j continues after the line end
+# at the start of after. first is 1 for the first line end after a
+# private anchor.
+function more(j, after, first,    nxt, w) {
   while (match(after, "^" nl pc)) {
     nxt = substr(after, RLENGTH)
     match(nxt, "^" pc "*")
     w = substr(nxt, 1, RLENGTH)
+    if (w !~ /^[A-Za-z0-9._~\/\\-]+$/) return 0
     if (j ~ /[\/\\]$/ || w ~ /[\/\\]/) return 1
-    j = w; after = substr(nxt, RLENGTH + 1)
+    if (first && j !~ /\.[A-Za-z0-9]+$/) return 1
+    j = w; first = 0; after = substr(nxt, RLENGTH + 1)
   }
   return 0
 }
 # unwrap(t): the text t with each wrapped path on one line.
-function unwrap(t,    a, out, rest, src, s, l, pre, m, j, nb, b, after, k) {
+function unwrap(t,    a, out, rest, src, s, l, pre, m, j, nb, b, after, k, first) {
   for (a = 1; a <= n; a++) {
     out = ""; rest = t
     while (1) {
@@ -175,10 +193,12 @@ function unwrap(t,    a, out, rest, src, s, l, pre, m, j, nb, b, after, k) {
       j = j m
       # The rest of the path, also on the next lines.
       after = substr(rest, s + l)
+      first = (a <= np)
       while (1) {
         match(after, "^" pc "*")
         j = j substr(after, 1, RLENGTH); after = substr(after, RLENGTH + 1)
-        if (!more(j, after)) break
+        if (!more(j, after, first)) break
+        first = 0
         match(after, "^" nl)
         b[++nb] = substr(after, 1, RLENGTH); after = substr(after, RLENGTH + 1)
       }
@@ -196,8 +216,9 @@ function unwrap(t,    a, out, rest, src, s, l, pre, m, j, nb, b, after, k) {
 }
 BEGIN {
   pc = "[^ \t\r\n\"'\'',:;()]"
-  # A line end, and the white space at the start of the next line.
-  nl = "\r?\n([ \t]*" bx ")?[ \t]+"
+  # A line end, maybe after a right box line, and the white space at the
+  # start of the next line.
+  nl = "([ \t]*" bx ")?\r?\n([ \t]*" bx ")?[ \t]+"
   n = 0
   while ((getline v < afile) > 0) {
     n++
@@ -276,8 +297,8 @@ function more(rest, bs,    n, w) {
   while (1) {
     w = substr(rest, n + 1)
     if (bs) {
-      if (!match(w, /^ [^ \t"'\'',:;()\/\\~][^ \t"'\'',:;()\/\\]*[\/\\][^ \t"'\'',:;()]*/)) break
-    } else if (!match(w, /^ [^ \t"'\'',:;()\/~][^ \t"'\'',:;()\/]*\/[^ \t"'\'',:;()]*/)) break
+      if (!match(w, /^ [^ \t\r"'\'',:;()\/\\~][^ \t\r"'\'',:;()\/\\]*[\/\\][^ \t\r"'\'',:;()]*/)) break
+    } else if (!match(w, /^ [^ \t\r"'\'',:;()\/~][^ \t\r"'\'',:;()\/]*\/[^ \t\r"'\'',:;()]*/)) break
     n += RLENGTH
   }
   return n
@@ -296,8 +317,8 @@ function span(line, s, l, bs,    q) {
   res = ""
   while (1) {
     s1 = 0; s2 = 0
-    if (match(line, /(~|\/srv|\/work)\/[^ \t"'\'',:;()]+/)) { s1 = RSTART; l1 = span(line, RSTART, RLENGTH, 0) }
-    if (match(line, /[A-Za-z]:(\\|\/)+[^ \t"'\'',:;()]+/)) { s2 = RSTART; l2 = span(line, RSTART, RLENGTH, 1) }
+    if (match(line, /(~|\/srv|\/work)\/[^ \t\r"'\'',:;()]+/)) { s1 = RSTART; l1 = span(line, RSTART, RLENGTH, 0) }
+    if (match(line, /[A-Za-z]:(\\|\/)+[^ \t\r"'\'',:;()]+/)) { s2 = RSTART; l2 = span(line, RSTART, RLENGTH, 1) }
     if (s1 == 0 && s2 == 0) break
     # A \\?\ or \\? prefix goes with the drive path. Some awks do not
     # match an optional group before the drive letter, so look back here.

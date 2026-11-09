@@ -85,3 +85,25 @@ next: line
 wrap box: │ printf 'hello' > /work/example
 │  && cat /work/example
 │  ok
+border: │ cat /work/example   │
+│    │
+border 3: │ ls /work/example/write-outside-tmux.outside/x.txt   │
+│   │
+│    │
+bare hash: open /work/example
+    now
+bare name: wrote /work/example
+    done
+run cut: /work/example/write-outside-tmux.outside/x.txt
+
+    end
+yes no 1: write /work/example
+   [Y/n]
+yes no 2: write /work/example
+   (y/n) or Esc/Ctrl+C
+yes no 3: write /work/example
+   Esc/Ctrl+C to stop
+tab: open /work/example
+	 done
+tab 2: open /work/example
+	 ok

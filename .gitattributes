@@ -1,2 +1,4 @@
 # A screen holds exact bytes: no line-ending conversion, no white-space checks.
 *.screen -text diff whitespace=-trailing-space,-space-before-tab,-indent-with-non-tab
+# The CRLF fixtures of the scrub test hold exact line ends.
+tools/testdata/scrub/crlf-*.txt -text

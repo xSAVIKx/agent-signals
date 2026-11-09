@@ -82,22 +82,25 @@ function Get-RootPattern([string]$Root) {
 $script:WrapChar = '[^ \t\r\n"'':,;()]'
 # A line end after a character that is not white space, and the white
 # space at the start of the next line. This white space can hold one box
-# line (U+2502), as in the command box of Claude Code.
-$script:WrapBreak = '(?<![ \t])\r?\n(?:[ \t]*\u2502)?[ \t]+'
+# line (U+2502), as in the command box of Claude Code. A right box line,
+# with white space before it, can come just before the line end.
+$script:WrapBreak = '(?<![ \t])(?:[ \t]*\u2502)?\r?\n(?:[ \t]*\u2502)?[ \t]+'
 
-# Test-ScrubMore J TEXT AT: $true when the path J continues after the line
-# end at AT in TEXT: J ends with / or \, or the first word of the next line
-# holds a / or a \. A word that fills its line can be a part of the path
-# too: then the next line decides.
-function Test-ScrubMore([string]$J, [string]$Text, [int]$At) {
+# Test-ScrubMore J TEXT AT FIRST: $true when the path J continues after the
+# line end at AT in TEXT. FIRST is $true for the first line end after a
+# private anchor. See Invoke-ScrubUnwrap for the rule.
+function Test-ScrubMore([string]$J, [string]$Text, [int]$At, [bool]$First) {
   $nl = New-Object System.Text.RegularExpressions.Regex ('\G' + $script:WrapBreak + '(?=' + $script:WrapChar + ')')
   $word = New-Object System.Text.RegularExpressions.Regex ('\G' + $script:WrapChar + '*')
   while ($true) {
     $b = $nl.Match($Text, $At)
     if (-not $b.Success) { return $false }
     $w = $word.Match($Text, $b.Index + $b.Length)
+    if ($w.Value -cnotmatch '^[A-Za-z0-9._~/\\-]+$') { return $false }
     if ($J -match '[/\\]$' -or $w.Value -match '[/\\]') { return $true }
+    if ($First -and $J -notmatch '\.[A-Za-z0-9]+$') { return $true }
     $J = $w.Value
+    $First = $false
     $At = $w.Index + $w.Length
   }
 }
@@ -109,19 +112,34 @@ function Test-ScrubMore([string]$J, [string]$Text, [int]$At) {
 # line. Each line end and the line count stay. A path is wrapped when:
 #   - an anchor is cut by one or more line ends: each of ANCHORS, then
 #     /Users/, /home/, ~/, /srv/ and /work/, or
-#   - the path after an anchor goes to the end of the line, and the path
-#     ends with / or \ or the first word of the next line holds a / or a
-#     \. A word that fills its line can be a part of the path too: then
-#     the next line decides.
-# The line after a line end starts with white space ($script:WrapBreak).
+#   - the path after an anchor goes to the end of the line, the first word
+#     of the next line is made only of the characters A-Z a-z 0-9 . _ ~ -
+#     / and \, and one of these is true:
+#     - the path ends with / or \,
+#     - the word holds a / or a \,
+#     - the path starts at a private anchor (one of ANCHORS), this is the
+#       first line end after the anchor, and the path does not end with a
+#       full file extension such as .txt. So the tail of a hash, of a
+#       folder name or of a file name joins too.
+#     A word that fills its line can be a part of the path too: then the
+#     next line decides. A word such as [Y/n], (y/n) or Esc/Ctrl+C does
+#     not join.
+# The line after a line end starts with white space, and a right box line
+# can come before the line end ($script:WrapBreak). Both box lines stay.
 # A Windows root (a drive letter) matches in any case, and each / or \ in
 # it matches one or more of / and \. tools/scrub.sh does the same.
+# The gap: a next line with no white space at its start does not join, so
+# a part of a path on it stays. tmux -J and the pty screen of the kit join
+# the lines of a terminal wrap; an agent indents its own wrap.
 function Invoke-ScrubUnwrap([string]$Text, [string[]]$Anchors, [hashtable]$Counts) {
   $s = $Text
   $word = New-Object System.Text.RegularExpressions.Regex ('\G' + $script:WrapChar + '*')
   $nl = New-Object System.Text.RegularExpressions.Regex ('\G' + $script:WrapBreak)
-  foreach ($a in @($Anchors) + @('/Users/', '/home/', '~/', '/srv/', '/work/')) {
-    if (-not $a -or $a.Length -le 1) { continue }
+  $own = @($Anchors | Where-Object { $_ -and $_.Length -gt 1 })
+  $all = @($own | ForEach-Object { New-Object PSObject -Property @{ Value = [string]$_; Private = $true } }) +
+    @(@('/Users/', '/home/', '~/', '/srv/', '/work/') | ForEach-Object { New-Object PSObject -Property @{ Value = $_; Private = $false } })
+  foreach ($e in $all) {
+    $a = $e.Value
     $win = $a -match '^[A-Za-z]:'
     $parts = @(foreach ($c in $a.ToCharArray()) {
         if ($win -and ($c -eq [char]'\' -or $c -eq [char]'/')) { '[\\/]+' } else { [regex]::Escape([string]$c) }
@@ -146,11 +164,13 @@ function Invoke-ScrubUnwrap([string]$Text, [string[]]$Anchors, [hashtable]$Count
       $j += $m.Value.Substring($last)
       # The rest of the path, also on the next lines.
       $end = $m.Index + $m.Length
+      $first = [bool]$e.Private
       while ($true) {
         $w = $word.Match($s, $end)
         $j += $w.Value
         $end += $w.Length
-        if (-not (Test-ScrubMore $j $s $end)) { break }
+        if (-not (Test-ScrubMore $j $s $end $first)) { break }
+        $first = $false
         $b = $nl.Match($s, $end)
         $breaks.Add($b.Value)
         $end += $b.Length
