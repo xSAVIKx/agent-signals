@@ -58,8 +58,12 @@
 # sleep 0.05, 10 seconds at most; KIT_TRACE_GATE_TURNS sets the number of
 # turns, 200 by default). When the gate wait ends with no gate, the pane
 # exits with 125 and does not run the agent, and "start" fails. When
-# pipe-pane fails, "start" stops the server and fails. "start" runs "tmux pipe-pane" with
-# trace-cast.py, and then makes the gate. So the recording has the first
+# pipe-pane fails, "start" stops the server and fails. "start" runs
+# "tmux pipe-pane" with trace-cast.py (option --ready FILE). It waits for
+# the file "ready" in the state folder, which the recorder makes after it
+# opened the cast and wrote the header. The wait has the same limit as the
+# gate (KIT_TRACE_GATE_TURNS). When the file does not come, "start" stops
+# the server and fails. Then it makes the gate. So the recording has the first
 # byte of the agent, and the pid of the agent is still the pid of the
 # pane. A start again of the same session continues the same cast file.
 # The pty backend has no recording yet: "start" writes the line
@@ -491,7 +495,7 @@ do_start() {
   trace_term=
   trace_terminal && trace_term=1
   # The pipe-pane command holds these paths in single quotes.
-  if [ -n "$trace_term" ]; then
+  if [ -n "$trace_term" ] && [ "$via" = tmux ]; then
     case $sdir$KIT_DIR$KIT_TRACE in
       *"'"*) kit_die 2 "a path with a single quote is not supported when the terminal is recorded" ;;
     esac
@@ -511,7 +515,7 @@ do_start() {
       # pane gets the TERM of the pty backend.
       printf 'set -g remain-on-exit on\nset -g default-terminal %s\n' "$term" >"$sdir/tmux.conf"
       # With the terminal check, the pane waits for the gate file first.
-      rm -f "$sdir/gate"
+      rm -f "$sdir/gate" "$sdir/ready"
       gate_wait=
       gate_arg=
       gate_turns=
@@ -528,13 +532,24 @@ do_start() {
       if [ -n "$trace_term" ]; then
         # No recorder: stop the server, so that the pane never runs the
         # agent unrecorded and no process stays.
-        if ! tm pipe-pane -t kit -O "exec python3 -I '$KIT_DIR/trace-cast.py' --t0 '$KIT_TRACE/t0' --out '$KIT_TRACE/terminal.cast' --width $COLS --height $ROWS"; then
+        if ! tm pipe-pane -t kit -O "exec python3 -I '$KIT_DIR/trace-cast.py' --t0 '$KIT_TRACE/t0' --out '$KIT_TRACE/terminal.cast' --ready '$sdir/ready' --width $COLS --height $ROWS"; then
           _why="pipe-pane failed: the terminal is not recorded"
           [ "$(tm display -p -t kit '#{pane_dead_status}' 2>/dev/null)" = 125 ] &&
             _why="the gate wait ended before the recorder started: the agent did not run"
           tm kill-server >/dev/null 2>&1
           [ -n "$server" ] && rm -f "$run/pids/$server"
           kit_die 1 "$_why"
+        fi
+        # The recorder makes "ready" after it opened the cast.
+        _n=0
+        while [ ! -e "$sdir/ready" ] && [ "$_n" -lt "${KIT_TRACE_GATE_TURNS:-200}" ]; do
+          sleep 0.05
+          _n=$((_n + 1))
+        done
+        if [ ! -e "$sdir/ready" ]; then
+          tm kill-server >/dev/null 2>&1
+          [ -n "$server" ] && rm -f "$run/pids/$server"
+          kit_die 1 "the recorder did not start: the terminal is not recorded"
         fi
         : >"$sdir/gate"
         # A pane that ended with 125 gave up at the gate (10 s at most).

@@ -2,6 +2,7 @@
 """trace-cast.py: record the output of a terminal as asciicast v2.
 
 Run: python3 -I trace-cast.py --t0 FILE --out FILE --width N --height N
+         [--ready FILE]
 
 The program reads raw bytes on stdin. It appends asciicast v2 to --out.
 "kit session start" runs it through "tmux pipe-pane" when KIT_TRACE is set
@@ -17,6 +18,11 @@ and KIT_TRACE_CHECKS is empty or has the word "terminal".
 - Each event is [SECONDS_FROM_T0, "o", TEXT]. The program decodes UTF-8
   with an incremental decoder and errors="replace". A character that is
   split over two reads stays whole.
+- With --ready FILE, the program makes this file after it opened --out and
+  wrote the header, when the header was needed. The caller waits for the
+  file, so that it does not start the agent before the recording works.
+  When the program cannot open --out, it exits with an error and does not
+  make the file.
 - The program writes and flushes each event when it reads the bytes. It
   stops at the end of the input. An incomplete character at the end
   becomes U+FFFD in a last event.
@@ -37,6 +43,7 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--width", type=int, required=True)
     ap.add_argument("--height", type=int, required=True)
+    ap.add_argument("--ready")
     args = ap.parse_args()
 
     with open(args.t0, encoding="ascii") as f:
@@ -54,6 +61,8 @@ def main():
             }
             out.write(json.dumps(header) + "\n")
             out.flush()
+        if args.ready:
+            open(args.ready, "w").close()
         while True:
             try:
                 data = os.read(0, 65536)

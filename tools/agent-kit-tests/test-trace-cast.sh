@@ -88,6 +88,18 @@ if [ "$n" = 1 ]; then pass "session: one header line after a second start"; else
 n=$(grep -c 'stub idle' "$raw/terminal.cast")
 if [ "$n" -ge 2 ]; then pass "session: the second start adds events"; else fail "session: the second start adds events" "$n"; fi
 
+# The cast cannot be opened (a folder): the recorder is not ready, the
+# start exits 1, and no pid of the run stays.
+mkdir "$T/raw-bad"
+cp "$raw/t0" "$T/raw-bad/t0"
+mkdir "$T/raw-bad/terminal.cast"
+(KIT_TRACE=$T/raw-bad; KIT_TRACE_CHECKS=; KIT_TRACE_GATE_TURNS=6; export KIT_TRACE KIT_TRACE_CHECKS KIT_TRACE_GATE_TURNS
+ kit session start s7 stub --via tmux --cmd "sh '$stub'") >"$T/o" 2>&1
+expect_code "no recorder: start exits 1" 1 $?
+expect_line "no recorder: the reason" 'the recorder did not start|the gate wait ended' "$T/o"
+left=$(pids_run "$T/run1")
+if [ -z "$left" ]; then pass "no recorder: no pid of the run stays"; else fail "no recorder: no pid of the run stays" "$left"; fi
+
 # A run folder with a space in its path.
 mkdir -m 700 "$T/run with space"
 raws=$T/raw\ s

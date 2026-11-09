@@ -31,6 +31,8 @@ fi
 
 raw=$T/raw
 mkdir -m 0700 "$raw"
+# kit trace writes t0 first: the terminal recorder reads it.
+echo 1700000000000 >"$raw/t0"
 stub_set STUB_TRUST=yes
 # A subshell: in a POSIX-mode sh (macOS), a variable before a function call stays set.
 (KIT_TRACE=$raw; export KIT_TRACE; kitx step "permission-claude@$via") >"$T/step" 2>&1
