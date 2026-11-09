@@ -76,6 +76,26 @@ kit_add_pid() {
   printf '%s\t%s\n' "$3" "$(kit_pid_start "$2")" >"$1/pids/$2"
 }
 
+# kit_ms: the time now in epoch milliseconds. Every recorder of a trace uses
+# this one clock. GNU date prints the milliseconds with %3N. Other dates
+# print the letter N, so python3 gives the time then.
+kit_ms() {
+  _ms=$(date +%s%3N 2>/dev/null)
+  case $_ms in
+    '' | *[!0-9]*) python3 -I -c 'import time; print(time.time_ns() // 1000000)' ;;
+    *) echo "$_ms" ;;
+  esac
+}
+
+# kit_trace_state STATE [MS]: append "MS<tab>STATE" to $KIT_TRACE/states.tsv.
+# MS is the time of the state. With no MS, the time is now.
+# STATE is start, idle, prompt, busy, dialog, answer, idle-after or stop.
+# It does nothing when KIT_TRACE is empty or not set.
+kit_trace_state() {
+  [ -n "${KIT_TRACE:-}" ] || return 0
+  printf '%s\t%s\n' "${2:-$(kit_ms)}" "$1" >>"$KIT_TRACE/states.tsv"
+}
+
 # kit_pid_runs PID: true when the process runs.
 kit_pid_runs() {
   kill -0 "$1" 2>/dev/null

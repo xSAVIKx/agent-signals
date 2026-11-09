@@ -44,6 +44,13 @@
 # A socket path has a limit of about 104 bytes on macOS, so the socket is
 # in a new short folder below /tmp, not in the run folder.
 #
+# With KIT_TRACE set (kit trace), "start" also appends the line
+# NAME<tab>HOME<tab>WORK<tab>AGENT_PID<tab>SOCKDIR to $KIT_TRACE/sessions.tsv
+# (SOCKDIR is the folder of the socket), and it writes the states "start"
+# and "stop" with kit_trace_state (lib.sh). A start again of the same
+# session (resume) adds a second line. The fake model then gets --log-times
+# and writes its log to $KIT_TRACE/model-NAME.log.
+#
 # Each started pid is also in RUN/pids/, with the label "session NAME
 # ROLE". "stop" stops only these pids, never a process found by its name.
 set -u
@@ -106,8 +113,15 @@ add_pid() {
 start_fake_model() {
   command -v python3 >/dev/null 2>&1 || kit_die 3 "needs python3"
   rm -f "$sdir/fake-model.env"
+  _log=$sdir/fake-model.log
+  _times=
+  if [ -n "${KIT_TRACE:-}" ]; then
+    _log=$KIT_TRACE/model-$name.log
+    _times=--log-times
+  fi
+  # shellcheck disable=SC2086
   python3 "$KIT_DIR/fake-model.py" --agent "$1" --home "$2" --env-file "$sdir/fake-model.env" \
-    --log "$sdir/fake-model.log" \
+    --log "$_log" $_times \
     </dev/null >/dev/null 2>&1 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- &
   add_pid "$!" "session $name fake model"
   _n=0
@@ -491,6 +505,10 @@ do_start() {
   [ -n "${a:-}" ] || kit_die 1 "no agent pid"
   echo "$a" >"$sdir/pid"
   add_pid "$a" "session $name agent"
+  if [ -n "${KIT_TRACE:-}" ]; then
+    printf '%s\t%s\t%s\t%s\t%s\n' "$name" "$h" "$work" "$a" "$sockdir" >>"$KIT_TRACE/sessions.tsv"
+    kit_trace_state start
+  fi
   track
   echo "session: $name $via $work"
 }
@@ -674,6 +692,7 @@ stop_session() {
     fi
     return 0
   fi
+  kit_trace_state stop
   track
   # The server hangs up the agent first, so that it can end in its own way.
   case $backend in

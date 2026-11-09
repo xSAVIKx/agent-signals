@@ -180,6 +180,27 @@ expect_line "claude: the log has the write" ' write$' "$T/claude.log"
 expect_no_line "claude: the log holds no prompt text" 'Create a file|Count from|Write|/work/' "$T/claude.log"
 kill "$fake" 2>/dev/null
 
+# --log-times: each log line starts with the time in ms. Without the flag,
+# the lines are as before.
+python3 "$ROOT/probes/agent/fake-model.py" --agent claude --home "$T/times" --env-file "$T/times.env" \
+  --log "$T/times.log" --log-times </dev/null >/dev/null 2>&1 &
+fake=$!
+bg_pid "$fake"
+n=0
+while [ ! -f "$T/times.env" ] && [ "$n" -lt 300 ]; do
+  n=$((n + 1))
+  sleep 0.1
+done
+port=$(sed -n 's#^ANTHROPIC_BASE_URL=http://127\.0\.0\.1:##p' "$T/times.env")
+post2 /v1/messages/count_tokens '{}'
+python3 -c "import http.client,sys; c=http.client.HTTPConnection('127.0.0.1',int(sys.argv[1]),timeout=3); c.request('GET','/v1/models'); c.getresponse().read()" "$port" >/dev/null 2>&1
+if [ -s "$T/times.log" ]; then pass "--log-times: the log has lines"; else fail "--log-times: the log has lines" "empty"; fi
+bad=$(grep -Evc '^[0-9]{13} (GET|POST|HEAD) ' "$T/times.log")
+if [ "$bad" = 0 ]; then pass "--log-times: each line has a time and a verb"; else fail "--log-times: each line has a time and a verb" "$bad bad lines"; fi
+expect_no_line "no flag: the lines have no time" '^[0-9]{13} ' "$T/claude.log"
+expect_line "no flag: the lines start with the verb" '^(GET|POST|HEAD) ' "$T/claude.log"
+kill "$fake" 2>/dev/null
+
 start_fake agy
 expect_line "agy: the gateway URL is local" '^AGY_LLM_GATEWAY_URL=http://127\.0\.0\.1:[0-9]+/v1$' "$T/agy.env"
 expect_line "agy: the wire protocol is openai" '^AGY_LLM_GATEWAY_WIRE_PROTOCOL=openai$' "$T/agy.env"
