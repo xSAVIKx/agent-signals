@@ -26,13 +26,13 @@ request. Limit: with "Transfer-Encoding: chunked", or with no length on
 POST, PUT or PATCH, the proxy cannot find the end of the body, and it sends
 client bytes until the host ends. A host that ignores "Connection: close"
 keeps the connection open until the client or the host ends it. A plain
-request with a bad head gets "400" and no log line. A bad head has a
-folded header line, white space before a colon, a Content-Length that is
-not all digits, two Content-Length headers with different values, or
-both a Content-Length and a chunked Transfer-Encoding. A host that refuses or fails gives "502" to the client. On SIGTERM the proxy
-writes each open connection with the status "open" and "end" set to the
-time of the signal, and exits 0. Each connection has its own thread. The
-standard library only.
+request with a bad head gets "400" and no log line. A bad head has a folded
+header line, white space before a colon, a Content-Length that is not all
+digits, two Content-Length headers with different values, or both a
+Content-Length and a chunked Transfer-Encoding. A host that refuses or
+fails gives "502" to the client. On SIGTERM the proxy writes each open
+connection with the status "open" and "end" set to the time of the signal,
+and exits 0. Each connection has its own thread. The standard library only.
 """
 
 import argparse
