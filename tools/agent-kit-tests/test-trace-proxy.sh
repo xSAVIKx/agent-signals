@@ -109,6 +109,7 @@ if mode == "raw":
         "badcl": base % b"POST" + b"Content-Length: -1\r\n\r\nhello",
         "dupcl": base % b"POST" + b"Content-Length: 5\r\nContent-Length: 6\r\n\r\nhello!",
         "fold": base % b"GET" + b"X-A: one\r\n two\r\n\r\n",
+        "both": base % b"POST" + b"Content-Length: 5\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nhello\r\n0\r\n\r\n",
         "space": base % b"POST" + b"Content-Length : 5\r\n\r\nhello",
     }
     c.sendall(heads[kind])
@@ -315,7 +316,7 @@ if [ "$got" = "$want" ]; then pass "body: the origin gets the head and the body,
 expect_no_line "body: no upper-case CONNECTION header" 'CONNECTION' "$H/h2.head"
 
 # A bad request head: 400 and no new line.
-for kind in badcl dupcl fold space; do
+for kind in badcl dupcl fold space both; do
   python3 -I "$H/client.py" raw "$pport" $kind "$h2" >"$T/o" 2>&1
   expect_line "bad head $kind: 400" '^HTTP/1.1 400' "$T/o"
 done

@@ -28,8 +28,8 @@ client bytes until the host ends. A host that ignores "Connection: close"
 keeps the connection open until the client or the host ends it. A plain
 request with a bad head gets "400" and no log line. A bad head has a
 folded header line, white space before a colon, a Content-Length that is
-not all digits, or two Content-Length headers with different values. A
-host that refuses or fails gives "502" to the client. On SIGTERM the proxy
+not all digits, two Content-Length headers with different values, or
+both a Content-Length and a chunked Transfer-Encoding. A host that refuses or fails gives "502" to the client. On SIGTERM the proxy
 writes each open connection with the status "open" and "end" set to the
 time of the signal, and exits 0. Each connection has its own thread. The
 standard library only.
@@ -169,6 +169,8 @@ def parse_headers(block):
         elif low == b"transfer-encoding" and b"chunked" in value.lower():
             chunked = True
         kept.append(h)
+    if chunked and length is not None:
+        raise ValueError("two framings")
     return kept, length, chunked
 
 
