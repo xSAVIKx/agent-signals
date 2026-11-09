@@ -54,6 +54,11 @@
 # session (resume) adds a second line. The fake model then gets --log-times
 # and writes its log to $KIT_TRACE/model-NAME.log.
 #
+# The network check: with KIT_TRACE set, KIT_TRACE_CHECKS empty or holding
+# "network", and the file $KIT_TRACE/proxy.port present, "start" adds the
+# proxy variables (HTTPS_PROXY and the others) to the environment of the
+# agent. The names go into the conditions file.
+#
 # The terminal check: with KIT_TRACE set, and KIT_TRACE_CHECKS empty or a
 # comma list that has the word "terminal", the tmux backend records the
 # output of the pane as asciicast v2 in $KIT_TRACE/terminal.cast. The pane
@@ -138,6 +143,16 @@ trace_terminal() {
   [ -n "${KIT_TRACE:-}" ] || return 1
   case ",${KIT_TRACE_CHECKS:-}," in
     ,, | *,terminal,*) return 0 ;;
+  esac
+  return 1
+}
+
+# trace_network: true when the network check is on: KIT_TRACE is set, and
+# KIT_TRACE_CHECKS is empty or a comma list that has "network".
+trace_network() {
+  [ -n "${KIT_TRACE:-}" ] || return 1
+  case ",${KIT_TRACE_CHECKS:-}," in
+    ,, | *,network,*) return 0 ;;
   esac
   return 1
 }
@@ -504,6 +519,20 @@ do_start() {
     set +f
     cmd="$cmd$_rest"
   fi
+  # The network check: "kit trace" starts trace-proxy.py and the proxy
+  # writes its port to $KIT_TRACE/proxy.port. "start" only reads that file.
+  if trace_network && [ -s "$KIT_TRACE/proxy.port" ]; then
+    _pp=$(cat "$KIT_TRACE/proxy.port")
+    case $_pp in
+      '' | *[!0-9]*) ;;
+      *)
+        for v in HTTPS_PROXY HTTP_PROXY ALL_PROXY https_proxy http_proxy all_proxy; do
+          set -- "$@" "$v=http://127.0.0.1:$_pp"
+        done
+        set -- "$@" NO_PROXY=127.0.0.1,localhost no_proxy=127.0.0.1,localhost
+        ;;
+    esac
+  fi
   write_conditions "$@"
   trace_term=
   trace_terminal && trace_term=1
@@ -564,9 +593,13 @@ do_start() {
           _n=$((_n + 1))
         done
         if [ ! -e "$sdir/ready" ]; then
+          _why="the recorder did not start: the terminal is not recorded"
+          # A pane that ended with 125 gave up at the gate first.
+          [ "$(tm display -p -t kit '#{pane_dead_status}' 2>/dev/null)" = 125 ] &&
+            _why="the gate wait ended before the recorder started: the agent did not run"
           tm kill-server >/dev/null 2>&1
           [ -n "$server" ] && rm -f "$run/pids/$server"
-          kit_die 1 "the recorder did not start: the terminal is not recorded"
+          kit_die 1 "$_why"
         fi
         # The start time of the recorder, so that "stop" does not wait for
         # a new process that got the same pid.
