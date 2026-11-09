@@ -593,9 +593,13 @@ do_start() {
           _n=$((_n + 1))
         done
         if [ ! -e "$sdir/ready" ]; then
+          _why="the recorder did not start: the terminal is not recorded"
+          # A pane that ended with 125 gave up at the gate first.
+          [ "$(tm display -p -t kit '#{pane_dead_status}' 2>/dev/null)" = 125 ] &&
+            _why="the gate wait ended before the recorder started: the agent did not run"
           tm kill-server >/dev/null 2>&1
           [ -n "$server" ] && rm -f "$run/pids/$server"
-          kit_die 1 "the recorder did not start: the terminal is not recorded"
+          kit_die 1 "$_why"
         fi
         # The start time of the recorder, so that "stop" does not wait for
         # a new process that got the same pid.
