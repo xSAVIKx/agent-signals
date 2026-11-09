@@ -14,7 +14,9 @@
 #
 # The run folder holds manifest.tsv. Its first lines are the facts of the
 # run, one "meta<tab>KEY<tab>VALUE" line each: kit, os, os_version, cpu,
-# home, unattended, orchestrator, start. With --unattended, no person
+# home, unattended, orchestrator, start, and on macOS in an unattended run
+# awake (kit_awake in lib.sh: caffeinate, or why the kit cannot use it).
+# With --unattended, no person
 # watches the run: "kit plan" and "kit step" skip each step that needs the
 # operator or the screen of the operator, with the reason "unattended". "kit step" adds the step lines, and "kit edit" the
 # edit lines. The manifest never holds the host name, the account name or
@@ -69,6 +71,8 @@ chmod 700 "$run"
   printf 'meta\tunattended\t%s\n' "$unattended"
   printf 'meta\torchestrator\t%s\n' "$(kit_orchestrator)"
   printf 'meta\tstart\t%s\n' "$(kit_now)"
+  awake=$(kit_awake "$os" "$unattended")
+  [ -z "$awake" ] || printf 'meta\tawake\t%s\n' "$awake"
 } >"$run/manifest.tsv"
 kit_json "$run"
 kit_summary "$run"

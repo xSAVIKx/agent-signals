@@ -63,6 +63,16 @@
 #   ok restart-outside-watch resume: the watch ended before the new start.
 #   fail no-idle, no-busy, prompt-on-screen, agent-ended, screen-failed,
 #        send-failed, no-watch, watch-exit-N, watch-timeout, no-guided
+#   fail busy-at-end         permission only: no dialog in the time limit,
+#                            but the last screen matches KIT_BUSY_REGEX. The
+#                            agent still works, so the step does not know
+#                            if a dialog comes. The file keeps the last
+#                            screen.
+#   fail clock-gap           the wall clock moved much more than the time
+#                            that the watch or the step counted: the machine
+#                            slept in the step (a Mac with its lid closed).
+#                            The line "clock gap: ..." gives the size. This
+#                            result replaces each other result.
 #   skip unmeasured          the step list has no idle regex for the agent,
 #                            because the corpus has no screen of it (Cursor).
 #
@@ -311,16 +321,26 @@ save() {
 }
 
 # end_watch: make the stop file, wait a limited time for the end of the
-# watch, then kill it. It sets watch_bad to the reason of a failure.
+# watch, then kill it. It sets watch_bad to the reason of a failure. The
+# wait counts its sleeps. When the wall clock moved more than 60 s past
+# them, the machine slept: it sets end_gap.
 watch_bad=
+end_gap=
 end_watch() {
   if [ -z "$watched" ]; then
     return 0
   fi
   : >"$tmp/stop"
   say "end the watch"
-  _end=$(($(date +%s) + END_S))
-  while watching && [ "$(date +%s)" -lt "$_end" ]; do sleep 0.2; done
+  _w0=$(date +%s)
+  _end=$((_w0 + END_S))
+  _n=0
+  while watching && [ "$(date +%s)" -lt "$_end" ]; do
+    sleep 0.2
+    _n=$((_n + 1))
+  done
+  _g=$(($(date +%s) - _w0 - _n / 5))
+  [ "$_g" -gt 60 ] && end_gap="the wall clock moved $((_g + _n / 5)) s, the step counted $((_n / 5)) s (the end of the watch)"
   if watching; then
     watch_bad='watch-timeout'
     kill "$watch" 2>/dev/null
@@ -392,6 +412,17 @@ list_work() {
   work_files=${work_files:-none}
 }
 
+# clock_gap: the clock gap that the watch saw (its "kit: clock gap" line)
+# or that end_watch saw, or nothing.
+clock_gap() {
+  _l=$(grep -h '^kit: clock gap: ' "$tmp/watch.log" 2>/dev/null | head -n 1)
+  if [ -n "$_l" ]; then
+    echo "${_l#kit: clock gap: } (the guided watch)"
+  elif [ -n "$end_gap" ]; then
+    echo "$end_gap"
+  fi
+}
+
 # finish RESULT: end the watch, stop the session, and write the output
 # file. RESULT is ok or fail.
 finish() {
@@ -403,6 +434,12 @@ finish() {
   if [ -n "$watch_bad" ]; then
     [ "$_r" = fail ] || why=$watch_bad
     _r=fail
+  fi
+  _gap=$(clock_gap)
+  if [ -n "$_gap" ]; then
+    say "clock gap: $_gap"
+    _r=fail
+    why=clock-gap
   fi
   if [ "$_r" = ok ] && [ -z "$why" ] && no_records; then
     why=no-records
@@ -416,6 +453,7 @@ finish() {
       echo "model: fake-model.py with fixed answers. No real model ran."
     fi
     echo "result: $_r${why:+ $why}"
+    [ -z "$_gap" ] || echo "clock gap: $_gap"
     if [ "$KIT_AGENT" = claude ]; then
       echo "screens: the kit blanks each welcome box line that can show a display name or an organisation. No real screen was measured."
     fi
@@ -619,7 +657,13 @@ case $KIT_KIND in
     else
       save last "$tmp/s"
       why=no-dialog
-      say "no dialog in $WAIT_S s. Send: $KIT_ANSWER"
+      if has "${KIT_BUSY_REGEX:-}" "$tmp/s"; then
+        # The agent still works: a dialog can come later.
+        why=busy-at-end
+        say "no dialog in $WAIT_S s, and the agent is busy. Send: $KIT_ANSWER"
+      else
+        say "no dialog in $WAIT_S s. Send: $KIT_ANSWER"
+      fi
     fi
     keys_answer "${KIT_ANSWER:-}"
     sleep 1
@@ -633,6 +677,7 @@ case $KIT_KIND in
       kit_trace_state idle-after
     fi
     save after "$tmp/s"
+    [ "$why" = busy-at-end ] && finish fail
     ;;
   new-chat)
     say "send $KIT_PROMPT, wait for idle ($WAIT_S s)"

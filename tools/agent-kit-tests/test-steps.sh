@@ -92,6 +92,35 @@ if [ -n "$ran" ]; then
   expect_code "no records: the step exits 0" 0 $?
   expect_line "no records: the step is ok no-records" "^step: permission-claude@$ran ok no-records$" "$T/step"
 
+  # test_busy_at_end: no dialog, but the last screen shows the busy text.
+  # The agent still works, so the step is not ok no-dialog.
+  stub_set STUB_DIALOG=busy
+  (WATCH=4 && export WATCH && kitx step "permission-claude@$ran") >"$T/step" 2>&1
+  expect_code "busy at end: the step exits 1" 1 $?
+  expect_line "busy at end: the step is fail busy-at-end" "^step: permission-claude@$ran fail busy-at-end$" "$T/step"
+  f=$run/$(last_file)
+  expect_line "busy at end: the file has the result" '^result: fail busy-at-end$' "$f"
+  section "$f" '^################ screen: last$' '^################ ' >"$T/sec"
+  expect_line "busy at end: the last screen shows the busy text" 'esc to interrupt' "$T/sec"
+
+  # test_clock_gap: the wall clock of the watch jumps 600 s after its first
+  # sample, as when the machine sleeps. The step fails with clock-gap and
+  # gives the size.
+  stub_set
+  (WATCH=4 && AGENT_SIGNALS_CLOCK_JUMP=600 && export WATCH AGENT_SIGNALS_CLOCK_JUMP && kitx step "permission-claude@$ran") >"$T/step" 2>&1
+  expect_code "clock gap: the step exits 1" 1 $?
+  expect_line "clock gap: the step is fail clock-gap" "^step: permission-claude@$ran fail clock-gap$" "$T/step"
+  f=$run/$(last_file)
+  expect_line "clock gap: the file has the result" '^result: fail clock-gap$' "$f"
+  expect_line "clock gap: the file gives the size" '^clock gap: the wall clock moved [0-9]+ s, the watch counted [0-9]+ s \(the guided watch\)$' "$f"
+  expect_line "clock gap: the guided step has the gap line" '^watch: clock gap of [0-9]+ s: ' "$f"
+  g=$(sed -n 's/^watch: clock gap of \([0-9]*\) s: .*/\1/p' "$f" | head -n 1)
+  if [ "${g:-0}" -ge 600 ]; then pass "clock gap: the size holds the jump"; else fail "clock gap: the size holds the jump" "${g:-none}"; fi
+  # Without the jump, the same step has no gap.
+  (WATCH=4 && export WATCH && kitx step "permission-claude@$ran") >"$T/step" 2>&1
+  expect_no_line "no jump: no clock gap" 'clock-gap' "$T/step"
+  expect_no_line "no jump: the file has no gap line" '^watch: clock gap' "$run/$(last_file)"
+
   # With --files-of-pids, the watch does not walk ~/.claude/projects: a
   # fake find logs its folders.
   real_find=$(command -v find)

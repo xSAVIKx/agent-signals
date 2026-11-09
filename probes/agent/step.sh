@@ -25,7 +25,9 @@
 # --unattended), a step that needs the operator or the screen, or that has
 # the backend "operator", skips with the reason "unattended". "operator" adds no line, so that the
 # next call (for example with --ready) gets the same number. When the
-# scrub fails, the step is "fail scrub" and has no file.
+# scrub fails, the step is "fail scrub" and has no file. When the
+# manifest has the meta line "awake" with caffeinate (kit start on macOS,
+# unattended), "caffeinate -i -w PID" runs while the script runs.
 # Exit codes: the code of the script (0, 1, 3 or 4), 2 for bad use.
 set -u
 . "$(dirname "$0")/lib.sh"
@@ -84,6 +86,19 @@ mkdir -p "$work"
 out=$work/$nn.raw
 rm -f "$out" "$out.reason"
 start=$(kit_now)
+# The meta line "awake" of kit start names caffeinate (macOS, unattended):
+# it keeps the machine awake while this process runs. The step stops it by
+# its pid; -w also ends it when this process ends.
+awake=
+case $(kit_manifest_value "$run" awake) in
+  caffeinate*)
+    if command -v caffeinate >/dev/null 2>&1; then
+      caffeinate -i -w "$$" </dev/null >/dev/null 2>&1 &
+      awake=$!
+    fi
+    ;;
+esac
+trap '[ -z "$awake" ] || kill "$awake" 2>/dev/null' EXIT
 KIT_RUN=$run KIT_ROOT=$KIT_ROOT KIT_DIR=$KIT_DIR KIT_STEP=$name KIT_KIND=$kind KIT_BACKEND=$backend \
   KIT_AGENT=$(kit_step_field "$name" agent) \
   KIT_PROMPT=$(kit_step_field "$name" prompt) \
@@ -98,6 +113,11 @@ KIT_RUN=$run KIT_ROOT=$KIT_ROOT KIT_DIR=$KIT_DIR KIT_STEP=$name KIT_KIND=$kind K
   KIT_HOME=$home KIT_OUT=$out \
   sh "$script" "$@" </dev/null
 code=$?
+if [ -n "$awake" ]; then
+  kill "$awake" 2>/dev/null
+  wait "$awake" 2>/dev/null
+  awake=
+fi
 end=$(kit_now)
 reason=
 [ -f "$out.reason" ] && reason=$(head -n 1 "$out.reason" | sed 's/[^a-z0-9.-]/-/g' | cut -c1-80)

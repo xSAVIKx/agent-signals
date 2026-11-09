@@ -36,6 +36,11 @@
 #   terminal, or the kit is not in the foreground, it does not wait.
 #   A shell that runs command text (sh -c TEXT) does not count as an
 #   agent, also when the text holds the agent name.
+#   When the wall clock moves more than 60 s past the sleeps that the
+#   watch counted, and more than the counted time, the machine slept. The
+#   kit then prints "kit: clock gap: ..." and the file has the line
+#   "watch: clock gap of N s: ...". AGENT_SIGNALS_CLOCK_JUMP=N (for the
+#   tests) adds N s to the wall clock after the first sample.
 #
 # On macOS, AGENT_SIGNALS_TERMINALS=yes or no answers the question about
 # the terminal probe. With no value and no terminal, the answer is no.
@@ -496,17 +501,39 @@ guided() {
   # A sample every 2 s.
   i=0
   t=0
+  # The clock gap: a machine that sleeps (a Mac with its lid closed) stops
+  # the sleeps of the watch, but the wall clock moves on. The watch counts
+  # its own sleeps in t. When the wall clock moved more than 60 s and more
+  # than t past t, the watch prints a "kit: clock gap" line at once and a
+  # "watch: clock gap" line in the file. AGENT_SIGNALS_CLOCK_JUMP (the
+  # tests) adds that number of seconds to the wall clock after the first
+  # sample.
+  w0=$(date +%s)
+  jump=0
+  gap=
+  gap_check() {
+    [ -z "$gap" ] || return 0
+    _g=$(($(date +%s) + jump - w0 - t))
+    if [ "$_g" -gt 60 ] && [ "$_g" -gt "$t" ]; then
+      gap=$_g
+      echo "kit: clock gap: the wall clock moved $((t + _g)) s, the watch counted $t s"
+    fi
+  }
   while [ $((t + 2)) -le "$watch_s" ] && ! stopped; do
     sleep 2
     t=$((t + 2))
     i=$((i + 1))
+    jump=${AGENT_SIGNALS_CLOCK_JUMP:-0}
+    gap_check
     claude_status >"$raw.status.$i"
     agy_sample "$raw.agy.$i"
   done
-  [ "$t" -lt "$watch_s" ] && ! stopped && sleep $((watch_s - t))
+  [ "$t" -lt "$watch_s" ] && ! stopped && sleep $((watch_s - t)) && t=$watch_s
+  gap_check
   # shellcheck disable=SC2086
   snapshot after $which
   {
+    [ -n "$gap" ] && echo "watch: clock gap of $gap s: the wall clock moved $((t + gap)) s, the watch counted $t s"
     stopped && echo "watch: the stop file ended the watch at about $t s"
     echo "processes after the step:"
     for a in $which; do
