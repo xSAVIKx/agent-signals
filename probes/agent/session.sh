@@ -66,6 +66,11 @@
 # the server and fails. Then it makes the gate. So the recording has the first
 # byte of the agent, and the pid of the agent is still the pid of the
 # pane. A start again of the same session continues the same cast file.
+# When a write to the cast fails after the start, the recorder makes the
+# file "recorder-failed" in the state folder and ends. The agent continues
+# to run. "stop" then appends "terminal<tab>recorder-failed" to
+# $KIT_TRACE/skipped.tsv, so that the trace shows that the terminal check
+# failed.
 # The pty backend has no recording yet: "start" writes the line
 # "terminal<tab>pty-not-yet" to $KIT_TRACE/skipped.tsv.
 #
@@ -515,7 +520,7 @@ do_start() {
       # pane gets the TERM of the pty backend.
       printf 'set -g remain-on-exit on\nset -g default-terminal %s\n' "$term" >"$sdir/tmux.conf"
       # With the terminal check, the pane waits for the gate file first.
-      rm -f "$sdir/gate" "$sdir/ready"
+      rm -f "$sdir/gate" "$sdir/ready" "$sdir/recorder-failed"
       gate_wait=
       gate_arg=
       gate_turns=
@@ -532,7 +537,7 @@ do_start() {
       if [ -n "$trace_term" ]; then
         # No recorder: stop the server, so that the pane never runs the
         # agent unrecorded and no process stays.
-        if ! tm pipe-pane -t kit -O "exec python3 -I '$KIT_DIR/trace-cast.py' --t0 '$KIT_TRACE/t0' --out '$KIT_TRACE/terminal.cast' --ready '$sdir/ready' --width $COLS --height $ROWS"; then
+        if ! tm pipe-pane -t kit -O "exec python3 -I '$KIT_DIR/trace-cast.py' --t0 '$KIT_TRACE/t0' --out '$KIT_TRACE/terminal.cast' --ready '$sdir/ready' --failed '$sdir/recorder-failed' --width $COLS --height $ROWS"; then
           _why="pipe-pane failed: the terminal is not recorded"
           [ "$(tm display -p -t kit '#{pane_dead_status}' 2>/dev/null)" = 125 ] &&
             _why="the gate wait ended before the recorder started: the agent did not run"
@@ -774,6 +779,10 @@ stop_session() {
   esac
   # shellcheck disable=SC2046
   end_pids $(session_pids)
+  # The server is stopped, so the recorder had its last flush.
+  if [ -n "${KIT_TRACE:-}" ] && [ -e "$sdir/recorder-failed" ]; then
+    printf 'terminal\trecorder-failed\n' >>"$KIT_TRACE/skipped.tsv"
+  fi
   end_home_daemons
   [ -n "$sock" ] && rm -rf "$(dirname "$sock")"
   if [ "${1:-}" = --keep ]; then

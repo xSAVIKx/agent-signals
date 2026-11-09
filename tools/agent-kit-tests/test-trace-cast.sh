@@ -43,6 +43,21 @@ printf 'x\342\224' | python3 -I "$cast" --t0 "$T/t0" --out "$T/e.cast" --width 1
 last=$(tail -n 1 "$T/e.cast" | python3 -I -c 'import json,sys; sys.stdout.write(json.loads(sys.stdin.read())[2])')
 if [ "$last" = "$(printf '\357\277\275')" ]; then pass "unit: an incomplete end gives U+FFFD"; else fail "unit: an incomplete end gives U+FFFD" "$last"; fi
 
+# A write to the cast fails after the open (/dev/full): exit 1 and the
+# --failed file.
+if [ -w /dev/full ]; then
+  printf 'abc' | python3 -I "$cast" --t0 "$T/t0" --out /dev/full --failed "$T/full.failed" --width 120 --height 40 2>"$T/full.err"
+  expect_code "unit: a failed write exits 1" 1 $?
+  if [ -e "$T/full.failed" ]; then pass "unit: a failed write makes the --failed file"; else fail "unit: a failed write makes the --failed file" "no file"; fi
+  expect_line "unit: a failed write gives one stderr line" 'a write to the cast failed' "$T/full.err"
+else
+  echo "skip: unit: /dev/full is missing"
+fi
+# A good run makes no --failed file.
+printf 'd' | python3 -I "$cast" --t0 "$T/t0" --out "$T/g.cast" --failed "$T/g.failed" --width 120 --height 40
+expect_code "unit: a good run exits 0" 0 $?
+if [ ! -e "$T/g.failed" ]; then pass "unit: a good run makes no --failed file"; else fail "unit: a good run makes no --failed file" "file exists"; fi
+
 if ! command -v tmux >/dev/null 2>&1; then
   echo "skip: tmux is not installed"
   done_tests
@@ -99,6 +114,48 @@ expect_code "no recorder: start exits 1" 1 $?
 expect_line "no recorder: the reason" 'the recorder did not start|the gate wait ended' "$T/o"
 left=$(pids_run "$T/run1")
 if [ -z "$left" ]; then pass "no recorder: no pid of the run stays"; else fail "no recorder: no pid of the run stays" "$left"; fi
+
+# The recorder fails after the start: a file size limit (ulimit -f) of the
+# server lets the recorder open the cast and make "ready", but the first
+# event is too large. The agent continues to run, and "stop" appends
+# "terminal<tab>recorder-failed" to skipped.tsv.
+mkdir -m 0700 "$T/raw-full"
+cp "$raw/t0" "$T/raw-full/t0"
+# The cast is filled to the limit, so the recorder writes no header.
+pad='import sys
+f = open(sys.argv[1], "ab", buffering=0)
+try:
+    while True:
+        f.write(b"x" * 512)
+except OSError:
+    pass'
+if (ulimit -f 64) 2>/dev/null; then
+  (ulimit -f 64; python3 -I -c "$pad" "$T/raw-full/terminal.cast")
+  (KIT_TRACE=$T/raw-full; KIT_TRACE_CHECKS=; export KIT_TRACE KIT_TRACE_CHECKS
+   ulimit -f 64
+   kit session start s8 stub --via tmux --cmd "sh '$stub'") >"$T/o" 2>&1
+  expect_code "recorder fails: start exits 0" 0 $?
+  kit session wait s8 'stub idle' 30 >"$T/o" 2>&1
+  expect_code "recorder fails: the agent runs" 0 $?
+  _n=0
+  while [ ! -e "$T/run1/sessions/s8/recorder-failed" ] && [ "$_n" -lt 100 ]; do
+    sleep 0.05
+    _n=$((_n + 1))
+  done
+  if [ -e "$T/run1/sessions/s8/recorder-failed" ]; then pass "recorder fails: the recorder-failed file"; else fail "recorder fails: the recorder-failed file" "no file"; fi
+  (KIT_TRACE=$T/raw-full; export KIT_TRACE
+   kit session stop s8) >"$T/o" 2>&1
+  expect_code "recorder fails: stop exits 0" 0 $?
+  if [ -f "$T/raw-full/skipped.tsv" ]; then
+    expect_line "recorder fails: the skip line" '^terminal	recorder-failed$' "$T/raw-full/skipped.tsv"
+  else
+    fail "recorder fails: the skip line" "no skipped.tsv"
+  fi
+  left=$(pids_run "$T/run1")
+  if [ -z "$left" ]; then pass "recorder fails: no pid of the run stays"; else fail "recorder fails: no pid of the run stays" "$left"; fi
+else
+  echo "skip: recorder fails: ulimit -f is not supported"
+fi
 
 # A run folder with a space in its path.
 mkdir -m 700 "$T/run with space"
