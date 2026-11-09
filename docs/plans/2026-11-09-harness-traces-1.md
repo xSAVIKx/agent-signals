@@ -414,7 +414,7 @@ the build, `trace.sh` deletes `RUN/.trace/`.
 
 ## Amendments after review
 
-The review of this plan (PR #127) found eight defects. These amendments
+The reviews of this plan (PR #127 and PR #131) found twelve defects. These amendments
 are part of the plan. Where a task above says otherwise, the amendment
 applies.
 
@@ -446,3 +446,20 @@ applies.
 8. Trace numbers (Task 7): the number NN of a trace folder is one more
    than the highest NN in `RUN/traces/`. It does not come from the step
    file, because a skipped or failed step has no file.
+9. Model lines with no result (Task 6): a GET or HEAD line of the fake
+   model has no result word. Its `model_kind` is `-`.
+10. Model events need the network check (Tasks 6 and 7): `kit trace`
+    writes the selected checks to the file `checks` in the raw folder.
+    The build reads the model logs only when `network` is selected.
+    Else `summary.model_requests` is null, and there is no model event.
+11. Account and host names in paths (Task 6): the build replaces the
+    account name and the short host name in each part of a path with
+    `dev` and `host`, also in a hidden folder. For example,
+    `~/.cache/alice-notes` becomes `~/.cache/dev-notes`. The values come
+    from `SCRUB_USER` and `SCRUB_HOST`, else from `id -un` and
+    `hostname`. A test covers this case.
+12. The placeholder `~/<private>` (Task 6): `tools/scrub.sh` changes it
+    to `/work/example` now. Task 6 changes the scrub so that it keeps
+    the exact path `~/<private>`, and adds a case to
+    `tools/test-scrub.sh`. `tools/scrub.ps1` gets the same rule and a
+    case in `tools/test-scrub.ps1`.
