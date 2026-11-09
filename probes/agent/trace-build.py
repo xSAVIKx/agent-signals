@@ -36,8 +36,8 @@ Rules:
 - A model event holds the method, the route (with no query), and the
   model kind. It holds no text of the request. The program reads the model
   logs only when the network check is selected and ran.
-- With a real home or the login mode, there is no terminal record:
-  "terminal" is null. A terminal line in skipped.tsv also gives null.
+- Only a fixture home, and not the login mode, keeps the terminal record.
+  With any other home, "terminal" is null and the cast is deleted. A terminal line in skipped.tsv also gives null.
 
 It uses the standard library only.
 """
@@ -115,12 +115,13 @@ class Scrub:
     """The account and host names that a path must not hold."""
 
     def __init__(self):
+        # An empty variable is the same as no variable.
         user = os.environ.get("SCRUB_USER")
-        if user is None:
+        if not user:
             try:
-                import getpass
+                import pwd
 
-                user = getpass.getuser()
+                user = pwd.getpwuid(os.getuid()).pw_name
             except Exception:
                 user = ""
         host = os.environ.get("SCRUB_HOST")
@@ -147,7 +148,8 @@ class Scrub:
         self.user = None
         if user:
             self.user = re.compile(
-                r"(?<![A-Za-z0-9])" + re.escape(user) + r"(?![A-Za-z0-9])"
+                r"(?<![A-Za-z0-9])" + re.escape(user) + r"(?![A-Za-z0-9])",
+                re.I,
             )
 
     def text(self, text):
@@ -188,17 +190,18 @@ class Paths:
             if path == prefix or path.startswith(prefix + "/"):
                 if repl is None:
                     return None
-                path = repl + path[len(prefix) :]
-                break
-        return self.clean_path(path)
+                # The scrub sees the rest only, so that it never changes
+                # the placeholder.
+                return self.clean_path(repl, path[len(prefix) :])
+        return self.clean_path("", path)
 
-    def clean_path(self, path):
-        parts = path.split("/")
-        parts = [clean_name(self.scrub.text(p)) for p in parts]
-        if parts[0] == "~" and self.real_home:
+    def clean_path(self, head, rest):
+        parts = [clean_name(self.scrub.text(p)) for p in rest.split("/")]
+        rest = "/".join(parts)
+        if head == "~" and self.real_home:
             if len(parts) > 1 and not parts[1].startswith("."):
                 return "~/<private>"
-        return "/".join(parts)
+        return head + rest
 
 
 def area(path):
@@ -280,6 +283,21 @@ def file_events(rows, t0, paths):
             continue
         path = paths.normalize(raw_path)
         if path is None:
+            # A move into a dropped folder is a delete of the source.
+            src_raw = row.get("from")
+            if kind == "move" and isinstance(src_raw, str) and src_raw:
+                src = paths.normalize(src_raw)
+                if src is not None:
+                    live.discard(src_raw)
+                    events.append(
+                        {
+                            "t": max(to_int(row.get("t")) - t0, 0),
+                            "kind": "delete",
+                            "pid": None,
+                            "ppid": None,
+                            "path": src,
+                        }
+                    )
             continue
         ev = {
             "t": max(to_int(row.get("t")) - t0, 0),
@@ -308,12 +326,13 @@ def file_events(rows, t0, paths):
     return events, limit
 
 
-def proxy_events(rows, t0):
+def proxy_events(rows, t0, scrub):
     out = []
     for row in rows:
         host = row.get("host")
         if not isinstance(host, str) or not host:
             continue
+        host = scrub.text(host)
         start = to_int(row.get("start"))
         end = row.get("end")
         status = row.get("status")
@@ -352,7 +371,7 @@ def model_events(raw, t0, paths):
                 ms = int(words[0])
             except ValueError:
                 continue
-            route = words[2].split("?", 1)[0] or "/"
+            route = clean_route(words[2])
             route = clean_name(paths.scrub.text(route))
             kind = words[4] if len(words) > 4 else "-"
             if not re.fullmatch(r"[A-Za-z0-9_.-]+", kind):
@@ -369,6 +388,19 @@ def model_events(raw, t0, paths):
                 }
             )
     return out
+
+
+def clean_route(route):
+    """Remove userinfo, query, fragment and parameters from a route."""
+    m = re.match(r"([A-Za-z][A-Za-z0-9+.-]*://)(.*)$", route)
+    if m:
+        rest = m.group(2)
+        cut = rest.find("/")
+        auth = rest if cut < 0 else rest[:cut]
+        tail = "" if cut < 0 else rest[cut:]
+        route = m.group(1) + auth.rsplit("@", 1)[-1] + tail
+    route = re.split(r"[?#;]", route, maxsplit=1)[0]
+    return route or "/"
 
 
 def event_text(ev):
@@ -388,7 +420,7 @@ def summarize_files(events):
     sets = {"home": set(), "work": set(), "tmp": set(), "other": set()}
     for ev in events:
         for key in ("path", "from"):
-            if ev.get(key) and ev["kind"] in FILE_KINDS:
+            if ev.get(key) and ev[key] != "?" and ev["kind"] in FILE_KINDS:
                 sets[area(ev[key])].add(ev[key])
     return {k: sorted(v) for k, v in sets.items()}
 
@@ -481,7 +513,11 @@ def main():
     # text of a person, so the program deletes it.
     cast = os.path.join(raw, "terminal.cast")
     terminal = None
-    private_run = meta.get("home") == "real" or meta.get("mode") == "login"
+    # Only a fixture home has fixed prompts. Any other home can hold text
+    # of a person, so the cast is not kept.
+    private_run = not (
+        meta.get("home") == "fixture" and meta.get("mode") != "login"
+    )
     if os.path.isfile(cast):
         if private_run:
             os.remove(cast)
@@ -499,7 +535,7 @@ def main():
     rows = read_json_lines(os.path.join(raw, "proxy.jsonl"))
     if rows is not None and "network" not in skipped_checks:
         checks.append("network")
-        pev = proxy_events(rows, t0)
+        pev = proxy_events(rows, t0, paths.scrub)
         events += pev
         summary_hosts = summarize_hosts(pev)
         if chosen("network"):
