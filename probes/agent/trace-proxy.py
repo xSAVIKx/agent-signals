@@ -16,7 +16,16 @@ client. "status" is "ok", "refused", "error" or "open". "method" is
 query, no header and no body.
 
 A plain request goes to the host in origin-form: the request line holds the
-path only, and the proxy adds no header. A host that refuses or fails gives
+path only. The proxy drops the Connection, Keep-Alive, Proxy-Connection
+and Proxy-Authorization headers of the client and adds "Connection: close".
+Each plain connection carries one request. The proxy sends the head and the
+body to the host (the length is the Content-Length). Then it sends no more
+client bytes. When the host ends its response, the proxy closes both sides,
+so a client that keeps its connection must open a new one for the next
+request. Limit: with "Transfer-Encoding: chunked", or with no length on
+POST, PUT or PATCH, the proxy cannot find the end of the body, and it sends
+client bytes until the host ends. A host that ignores "Connection: close"
+keeps the connection open until the client or the host ends it. A host that refuses or fails gives
 "502" to the client. On SIGTERM the proxy writes each open connection with
 the status "open" and "end" set to the time of the signal, and exits 0.
 Each connection has its own thread. The standard library only.
@@ -35,6 +44,13 @@ from urllib.parse import urlsplit
 HEAD_LIMIT = 65536
 CONNECT_TIMEOUT = 10
 BUF = 65536
+DROP_HEADERS = (
+    b"connection:",
+    b"keep-alive:",
+    b"proxy-connection:",
+    b"proxy-authorization:",
+)
+BODY_METHODS = ("POST", "PUT", "PATCH")
 
 _lock = threading.RLock()
 _open = {}
@@ -130,20 +146,31 @@ def close_both(a, b):
             pass
 
 
-def pump(src, dst, counter, rec):
+def pump(src, dst, counter, rec, limit=None, ended=None):
     """Copy bytes from src to dst until src ends. Count them in rec.
-    On a failure, close both sides and return False."""
+    With a limit, copy at most that many bytes and then return True, with
+    no shutdown. With "ended" (an Event), a normal end of src closes both
+    sides and sets the event. On a failure, close both sides and return
+    False."""
     try:
-        while True:
-            chunk = src.recv(BUF)
+        while limit is None or limit > 0:
+            chunk = src.recv(BUF if limit is None else min(BUF, limit))
             if not chunk:
                 break
             dst.sendall(chunk)
+            if limit is not None:
+                limit -= len(chunk)
             with _lock:
                 rec[counter] += len(chunk)
+        else:
+            return True
     except OSError:
         close_both(src, dst)
         return False
+    if ended is not None:
+        ended.set()
+        close_both(src, dst)
+        return True
     try:
         dst.shutdown(socket.SHUT_WR)
     except OSError:
@@ -151,16 +178,24 @@ def pump(src, dst, counter, rec):
     return True
 
 
-def relay(client, upstream, rec):
-    """Copy both ways until both sides end. Return True when no error."""
+def relay(client, upstream, rec, limit=None, plain=False):
+    """Copy both ways until both sides end. Return True when no error.
+    With plain, the client side sends at most "limit" more bytes, and the
+    end of the host closes both sides."""
     result = []
+    ended = threading.Event() if plain else None
     t = threading.Thread(
-        target=lambda: result.append(pump(upstream, client, "down", rec)),
+        target=lambda: result.append(
+            pump(upstream, client, "down", rec, ended=ended)
+        ),
         daemon=True,
     )
     t.start()
-    ok = pump(client, upstream, "up", rec)
+    ok = pump(client, upstream, "up", rec, limit if plain else None)
     t.join()
+    if not ok and ended is not None and ended.is_set():
+        # The client side failed because the host ended first.
+        ok = True
     return ok and all(result)
 
 
@@ -218,15 +253,29 @@ def handle(client, rec_id):
             finish(rec_id, rec, "error")
             return
         if plain:
-            # Drop the two hop-by-hop proxy headers. Add no header.
-            kept = [
-                h
-                for h in other.split(b"\r\n")
-                if h
-                and not h.lower().startswith(
-                    (b"proxy-authorization:", b"proxy-connection:")
-                )
-            ]
+            # One request on each connection: drop the connection headers
+            # and say "Connection: close".
+            kept = []
+            length = None
+            chunked = False
+            for h in other.split(b"\r\n"):
+                low = h.lower()
+                if not h or low.startswith(DROP_HEADERS):
+                    continue
+                if low.startswith(b"content-length:"):
+                    v = h.split(b":", 1)[1].strip()
+                    length = int(v) if v.isascii() and v.isdigit() else None
+                elif low.startswith(b"transfer-encoding:") and b"chunked" in low:
+                    chunked = True
+                kept.append(h)
+            kept.append(b"Connection: close")
+            if chunked or (length is None and method in BODY_METHODS):
+                limit = None
+            else:
+                limit = length or 0
+            if limit is not None:
+                rest = rest[:limit]
+                limit -= len(rest)
             line = ("%s %s %s" % (method, origin, version)).encode("latin-1")
             first_out = b"\r\n".join([line] + kept) + b"\r\n\r\n" + rest
             upstream.sendall(first_out)
@@ -238,7 +287,7 @@ def handle(client, rec_id):
                 upstream.sendall(rest)
                 with _lock:
                     rec["up"] += len(rest)
-        ok = relay(client, upstream, rec)
+        ok = relay(client, upstream, rec, limit if plain else None, plain)
         finish(rec_id, rec, "ok" if ok else "error")
     except OSError:
         if registered:

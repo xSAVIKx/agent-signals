@@ -37,6 +37,23 @@ def serve(c):
         c.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
         c.close()
         return
+    if mode == "keep":
+        # An HTTP/1.1 origin: it keeps the head of each request in a file,
+        # answers with Content-Length, and closes on "Connection: close".
+        buf = b""
+        while True:
+            while b"\r\n\r\n" not in buf:
+                x = c.recv(4096)
+                if not x:
+                    c.close()
+                    return
+                buf += x
+            head, _, buf = buf.partition(b"\r\n\r\n")
+            open(headfile, "ab").write(head + b"\r\n\r\n")
+            c.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok")
+            if b"connection: close" in head.lower():
+                c.close()
+                return
     if mode == "echo":
         while True:
             d = c.recv(4096)
@@ -64,8 +81,25 @@ PYEOF
 cat >"$H/client.py" <<'PYEOF'
 import socket, sys, time
 mode, pport = sys.argv[1], int(sys.argv[2])
-tport = int(sys.argv[3]) if mode != "bad" else 0
+tport = int(sys.argv[3]) if mode not in ("bad", "ka") else 0
 c = socket.create_connection(("127.0.0.1", pport))
+if mode == "ka":
+    # Two requests in one write, each for its own origin port, both with
+    # keep-alive. Read until the proxy closes the connection.
+    reqs = b""
+    for p in sys.argv[3:]:
+        reqs += (b"GET http://127.0.0.1:%s/one HTTP/1.1\r\nHost: 127.0.0.1:%s\r\nConnection: keep-alive\r\nProxy-Connection: keep-alive\r\nKeep-Alive: 5\r\n\r\n" % (p.encode(), p.encode()))
+    c.sendall(reqs)
+    c.settimeout(10)
+    r = b""
+    while True:
+        x = c.recv(4096)
+        if not x:
+            break
+        r += x
+    print(r.count(b"HTTP/1.1 200"))
+    print("closed")
+    sys.exit(0)
 if mode == "bad":
     c.sendall(b"CONNECT " + sys.argv[3].encode() + b" HTTP/1.1\r\n\r\n")
     print(c.recv(4096).split(b"\r\n")[0].decode())
@@ -112,14 +146,20 @@ raw=$T/raw
 mkdir -m 0700 "$raw"
 python3 -I "$H/server.py" echo "$H/echo.port" "$H/unused" &
 bg_pid $!
+python3 -I "$H/server.py" keep "$H/ka1.port" "$H/ka1.head" &
+bg_pid $!
+python3 -I "$H/server.py" keep "$H/ka2.port" "$H/ka2.head" &
+bg_pid $!
 python3 -I "$H/server.py" reset "$H/reset.port" "$H/unused2" &
 bg_pid $!
 python3 -I "$H/server.py" http "$H/http.port" "$H/http.head" &
 bg_pid $!
-wait_file "$H/echo.port" && wait_file "$H/http.port" && wait_file "$H/reset.port" || fail "servers start" "no port file"
+wait_file "$H/echo.port" && wait_file "$H/http.port" && wait_file "$H/reset.port" && wait_file "$H/ka1.port" && wait_file "$H/ka2.port" || fail "servers start" "no port file"
 eport=$(cat "$H/echo.port")
 hport=$(cat "$H/http.port")
 rport=$(cat "$H/reset.port")
+k1=$(cat "$H/ka1.port")
+k2=$(cat "$H/ka2.port")
 
 python3 -I "$proxy" --log "$raw/proxy.jsonl" --port-file "$raw/proxy.port" &
 ppid=$!
@@ -221,6 +261,24 @@ assert len(rows) == 10 and all(r["up"] == 5 and r["down"] == 5 and r["status"] =
 else
   fail "parallel: 10 whole JSON lines" "$(wc -l <"$raw/proxy.jsonl") lines"
 fi
+
+# One request on each plain connection: two keep-alive requests in one
+# write, for two origins. Only the first goes out.
+python3 -I "$H/client.py" ka "$pport" "$k1" "$k2" >"$T/o" 2>&1
+expect_line "keep-alive: the client sees one response" '^1$' "$T/o"
+expect_line "keep-alive: the proxy closed the client connection" '^closed$' "$T/o"
+wait_lines 15
+if [ "$(grep -c '^GET ' "$H/ka1.head")" = 1 ]; then pass "keep-alive: the first origin got one request"; else fail "keep-alive: the first origin got one request" "$(cat "$H/ka1.head")"; fi
+expect_line "keep-alive: the origin got Connection: close" '^Connection: close' "$H/ka1.head"
+expect_no_line "keep-alive: no keep-alive header at the origin" '[Kk]eep-[Aa]live' "$H/ka1.head"
+if [ ! -s "$H/ka2.head" ]; then pass "keep-alive: the second origin got nothing"; else fail "keep-alive: the second origin got nothing" "$(cat "$H/ka2.head")"; fi
+got=$(jfield 15 port)
+if [ "$got" = "$k1" ]; then pass "keep-alive: one line, with the first port"; else fail "keep-alive: one line, with the first port" "$got"; fi
+python3 -I "$H/client.py" ka "$pport" "$k2" >"$T/o" 2>&1
+wait_lines 16
+got=$(jfield 16 port)
+if [ "$got" = "$k2" ]; then pass "keep-alive: a new connection gets its own line"; else fail "keep-alive: a new connection gets its own line" "$got"; fi
+if [ "$(wc -l <"$raw/proxy.jsonl")" = 16 ]; then pass "keep-alive: two lines in all"; else fail "keep-alive: two lines in all" "$(wc -l <"$raw/proxy.jsonl")"; fi
 
 # TERM with one open connection: one line with status open, exit 0.
 python3 -I "$H/client.py" hold "$pport" "$eport" "$H/held" >"$T/o" 2>&1 &
