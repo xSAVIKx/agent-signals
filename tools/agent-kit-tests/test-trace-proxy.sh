@@ -23,7 +23,7 @@ wait_file() {
 # The server: "echo" sends back what it gets. "http" keeps the head of
 # the request in a file and answers with a short body.
 cat >"$H/server.py" <<'PYEOF'
-import socket, sys, threading
+import socket, struct, sys, threading
 mode, portfile, headfile = sys.argv[1], sys.argv[2], sys.argv[3]
 srv = socket.socket()
 srv.bind(("127.0.0.1", 0))
@@ -31,6 +31,12 @@ srv.listen(8)
 open(portfile, "w").write("%d\n" % srv.getsockname()[1])
 
 def serve(c):
+    if mode == "reset":
+        c.recv(4096)
+        # SO_LINGER 0: close sends a reset.
+        c.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+        c.close()
+        return
     if mode == "echo":
         while True:
             d = c.recv(4096)
@@ -57,8 +63,19 @@ PYEOF
 # does the same, then waits (the test stops it). "get" sends a plain GET.
 cat >"$H/client.py" <<'PYEOF'
 import socket, sys, time
-mode, pport, tport = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
+mode, pport = sys.argv[1], int(sys.argv[2])
+tport = int(sys.argv[3]) if mode != "bad" else 0
 c = socket.create_connection(("127.0.0.1", pport))
+if mode == "bad":
+    c.sendall(b"CONNECT " + sys.argv[3].encode() + b" HTTP/1.1\r\n\r\n")
+    print(c.recv(4096).split(b"\r\n")[0].decode())
+    sys.exit(0)
+if mode == "holdreset":
+    c.sendall(b"CONNECT 127.0.0.1:%d HTTP/1.1\r\n\r\n" % tport)
+    c.recv(4096)
+    c.sendall(b"hello")
+    open(sys.argv[4], "w").write("ready\n")
+    time.sleep(60)
 if mode in ("tunnel", "hold", "refuse"):
     c.sendall(b"CONNECT 127.0.0.1:%d HTTP/1.1\r\nHost: 127.0.0.1:%d\r\n\r\n" % (tport, tport))
     r = b""
@@ -80,7 +97,7 @@ if mode in ("tunnel", "hold", "refuse"):
         time.sleep(60)
     c.close()
 else:
-    c.sendall(b"GET http://127.0.0.1:%d/secret-path?token=abc HTTP/1.1\r\nHost: 127.0.0.1:%d\r\nConnection: close\r\n\r\n" % (tport, tport))
+    c.sendall(b"GET http://127.0.0.1:%d/secret-path?token=abc HTTP/1.1\r\nProxy-Authorization: Basic eA==\r\nHost: 127.0.0.1:%d\r\nproxy-connection: keep-alive\r\nConnection: close\r\n\r\n" % (tport, tport))
     r = b""
     while True:
         x = c.recv(4096)
@@ -95,11 +112,14 @@ raw=$T/raw
 mkdir -m 0700 "$raw"
 python3 -I "$H/server.py" echo "$H/echo.port" "$H/unused" &
 bg_pid $!
+python3 -I "$H/server.py" reset "$H/reset.port" "$H/unused2" &
+bg_pid $!
 python3 -I "$H/server.py" http "$H/http.port" "$H/http.head" &
 bg_pid $!
-wait_file "$H/echo.port" && wait_file "$H/http.port" || fail "servers start" "no port file"
+wait_file "$H/echo.port" && wait_file "$H/http.port" && wait_file "$H/reset.port" || fail "servers start" "no port file"
 eport=$(cat "$H/echo.port")
 hport=$(cat "$H/http.port")
+rport=$(cat "$H/reset.port")
 
 python3 -I "$proxy" --log "$raw/proxy.jsonl" --port-file "$raw/proxy.port" &
 ppid=$!
@@ -148,7 +168,59 @@ got=$(jfield 3 method)
 if [ "$got" = GET ]; then pass "plain: method is GET"; else fail "plain: method is GET" "$got"; fi
 want=$(printf 'GET /secret-path?token=abc HTTP/1.1\r\nHost: 127.0.0.1:%s\r\nConnection: close\r\n\r\n' "$hport" | od -An -c | tr -d ' \n')
 got=$(od -An -c <"$H/http.head" | tr -d ' \n')
-if [ "$got" = "$want" ]; then pass "plain: the host gets origin-form and no added header"; else fail "plain: the host gets origin-form and no added header" "$got"; fi
+if [ "$got" = "$want" ]; then pass "plain: origin-form, no proxy header, no added header"; else fail "plain: origin-form, no proxy header, no added header" "$got"; fi
+
+# wait_lines N: wait up to 10 s for N lines in the log.
+wait_lines() {
+  _n=0
+  while [ "$(wc -l <"$raw/proxy.jsonl")" -lt "$1" ] && [ "$_n" -lt 200 ]; do sleep 0.05; _n=$((_n + 1)); done
+}
+
+# The host resets the connection after data, and the client keeps its
+# socket open: the proxy closes both sides, and writes the line with the
+# status error (a reset is not a normal end).
+python3 -I "$H/client.py" holdreset "$pport" "$rport" "$H/held2" >"$T/o" 2>&1 &
+bg_pid $!
+wait_file "$H/held2"
+wait_lines 4
+got=$(jfield 4 status)
+if [ "$got" = error ]; then pass "reset: status is error, with the client socket open"; else fail "reset: status is error, with the client socket open" "$got"; fi
+
+# A bad CONNECT target gets 400 and no line.
+for bad in 'user@127.0.0.1:80' '::1:80' 'a:b:80' '127.0.0.1:http' '127.0.0.1:' '127.0.0.1:0' '[::1' ; do
+  python3 -I "$H/client.py" bad "$pport" "$bad" >"$T/o" 2>&1
+  expect_line "bad target $bad: 400" '^HTTP/1.1 400' "$T/o"
+done
+n=$(wc -l <"$raw/proxy.jsonl")
+if [ "$n" -eq 4 ]; then pass "bad target: no line in the log"; else fail "bad target: no line in the log" "$n lines"; fi
+
+# 10 CONNECTs in parallel: 10 whole lines.
+cat >"$H/par.py" <<'PYEOF'
+import socket, sys, threading
+pport, tport = int(sys.argv[1]), int(sys.argv[2])
+def one():
+    c = socket.create_connection(("127.0.0.1", pport))
+    c.sendall(b"CONNECT 127.0.0.1:%d HTTP/1.1\r\n\r\n" % tport)
+    c.recv(4096)
+    c.sendall(b"hello")
+    got = b""
+    while len(got) < 5:
+        got += c.recv(4096)
+    c.close()
+ts = [threading.Thread(target=one) for _ in range(10)]
+for t in ts: t.start()
+for t in ts: t.join()
+PYEOF
+python3 -I "$H/par.py" "$pport" "$eport"
+wait_lines 14
+if python3 -I -c '
+import json, sys
+rows = [json.loads(l) for l in open(sys.argv[1])][4:]
+assert len(rows) == 10 and all(r["up"] == 5 and r["down"] == 5 and r["status"] == "ok" for r in rows)' "$raw/proxy.jsonl"; then
+  pass "parallel: 10 whole JSON lines"
+else
+  fail "parallel: 10 whole JSON lines" "$(wc -l <"$raw/proxy.jsonl") lines"
+fi
 
 # TERM with one open connection: one line with status open, exit 0.
 python3 -I "$H/client.py" hold "$pport" "$eport" "$H/held" >"$T/o" 2>&1 &

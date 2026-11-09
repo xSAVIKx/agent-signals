@@ -79,6 +79,14 @@ def finish(cid, rec, status):
         write_line(rec, status, now_ms())
 
 
+def send_502(client):
+    """Send 502 to the client. A failed send changes nothing else."""
+    try:
+        client.sendall(b"HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n")
+    except OSError:
+        pass
+
+
 def read_head(sock):
     """Read up to the end of the request head. Return (head, rest)."""
     data = b""
@@ -96,19 +104,35 @@ def read_head(sock):
 def split_hostport(text, default_port):
     """Return (host, port) from "host:port", "host" or "[v6]:port"."""
     if text.startswith("["):
-        host, _, tail = text[1:].partition("]")
-        port = tail[1:] if tail.startswith(":") else ""
-    elif text.count(":") == 1:
+        host, sep, tail = text[1:].partition("]")
+        if not sep or (tail and not tail.startswith(":")):
+            raise ValueError("bad bracket form")
+        port = tail[1:]
+    elif text.count(":") <= 1:
         host, _, port = text.partition(":")
+        if ":" in text and not port:
+            raise ValueError("empty port")
     else:
-        host, port = text, ""
-    if not host:
-        raise ValueError("no host")
+        raise ValueError("colons with no brackets")
+    if not host or any(c in host for c in "@/?#\\ \t"):
+        raise ValueError("bad host")
+    if port and not (port.isascii() and port.isdigit() and 0 < int(port) < 65536):
+        raise ValueError("bad port")
     return host, int(port) if port else default_port
 
 
+def close_both(a, b):
+    """Shut down both sockets, so that a pump that waits in recv wakes."""
+    for s in (a, b):
+        try:
+            s.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+
+
 def pump(src, dst, counter, rec):
-    """Copy bytes from src to dst until src ends. Count them in rec."""
+    """Copy bytes from src to dst until src ends. Count them in rec.
+    On a failure, close both sides and return False."""
     try:
         while True:
             chunk = src.recv(BUF)
@@ -118,6 +142,7 @@ def pump(src, dst, counter, rec):
             with _lock:
                 rec[counter] += len(chunk)
     except OSError:
+        close_both(src, dst)
         return False
     try:
         dst.shutdown(socket.SHUT_WR)
@@ -135,13 +160,6 @@ def relay(client, upstream, rec):
     )
     t.start()
     ok = pump(client, upstream, "up", rec)
-    if not ok:
-        # Wake the other direction.
-        for s in (client, upstream):
-            try:
-                s.shutdown(socket.SHUT_RDWR)
-            except OSError:
-                pass
     t.join()
     return ok and all(result)
 
@@ -192,23 +210,34 @@ def handle(client, rec_id):
             upstream = socket.create_connection((host, port), CONNECT_TIMEOUT)
             upstream.settimeout(None)
         except ConnectionRefusedError:
-            client.sendall(b"HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n")
+            send_502(client)
             finish(rec_id, rec, "refused")
             return
         except (OSError, ValueError, OverflowError):
-            client.sendall(b"HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n")
+            send_502(client)
             finish(rec_id, rec, "error")
             return
         if plain:
+            # Drop the two hop-by-hop proxy headers. Add no header.
+            kept = [
+                h
+                for h in other.split(b"\r\n")
+                if h
+                and not h.lower().startswith(
+                    (b"proxy-authorization:", b"proxy-connection:")
+                )
+            ]
             line = ("%s %s %s" % (method, origin, version)).encode("latin-1")
-            first_out = line + (b"\r\n" + other if other else b"") + b"\r\n\r\n" + rest
+            first_out = b"\r\n".join([line] + kept) + b"\r\n\r\n" + rest
             upstream.sendall(first_out)
-            rec["up"] += len(first_out)
+            with _lock:
+                rec["up"] += len(first_out)
         else:
             client.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
             if rest:
                 upstream.sendall(rest)
-                rec["up"] += len(rest)
+                with _lock:
+                    rec["up"] += len(rest)
         ok = relay(client, upstream, rec)
         finish(rec_id, rec, "ok" if ok else "error")
     except OSError:
@@ -225,12 +254,14 @@ def handle(client, rec_id):
 
 def on_term(signum, frame):
     """Log the open connections with the status "open" and exit 0."""
-    end = now_ms()
-    with _lock:
-        for rec in list(_open.values()):
-            write_line(rec, "open", end)
-        _open.clear()
-    os._exit(0)
+    try:
+        end = now_ms()
+        with _lock:
+            for rec in list(_open.values()):
+                write_line(rec, "open", end)
+            _open.clear()
+    finally:
+        os._exit(0)
 
 
 def main():
