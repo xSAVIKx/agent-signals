@@ -613,17 +613,30 @@ session_pids() {
 # was started by this session: the home is new and only the session uses
 # it. A real home is not in $run/home, so this never stops a daemon of the
 # operator.
+#
+# The daemon puts its control socket in a folder codex-daemon-UID in the
+# temp folder, and HOME/.codex/app-server-control/app-server-control.sock
+# is a link to it (fact 088). The daemon does not delete the socket and its
+# .lock file when it stops, so this deletes them.
 end_home_daemons() {
   hd=${run:?}/home/$name/
   [ -d "$hd" ] || return 0
   hp=$(ps -A -o pid= -o args= 2>/dev/null | awk -v h="$hd" 'index($0, h) { print $1 }')
-  [ -n "$hp" ] || return 0
   for p in $hp; do
     echo "stop: $p daemon"
     kill "$p" 2>/dev/null
   done
-  sleep 1
-  for p in $hp; do kill -9 "$p" 2>/dev/null; done
+  if [ -n "$hp" ]; then
+    sleep 1
+    for p in $hp; do kill -9 "$p" 2>/dev/null; done
+  fi
+  link=${hd}.codex/app-server-control/app-server-control.sock
+  if [ -L "$link" ]; then
+    sock=$(readlink "$link")
+    case ${sock%/*} in
+      */codex-daemon-*) rm -f "$sock" "$sock.lock" ;;
+    esac
+  fi
   return 0
 }
 

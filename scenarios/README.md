@@ -37,6 +37,8 @@ input `job`.
 | Scenario | Agent | Facts |
 |---|---|---|
 | `codex/early-prompt.sh [trials] [delay ...]` | Codex with the fake model of the kit, no login | 76 |
+| `codex/app-server-status.py` | Codex with the fake model of the kit, no login | 88 |
+| `claude/pipe-close.py [wait] [case ...]` | Claude Code with the fake model of the kit, no login | 87 |
 | `first-run.sh <agent> [command]` | each agent, no login | 29, 30, 46, 49, 50, 56, 57, 61, 62, 63, 65 |
 | `windows-installs.ps1 NAME=CMD[=NPMPKG] ...` | each agent on Windows, not started | 47, 48 |
 | `first-run-windows.py <agent> [command]` (through `first-run-windows.ps1`) | each agent on Windows, no login | 51, 52, 53, 54, 55, 62, 64 |
