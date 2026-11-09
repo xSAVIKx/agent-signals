@@ -110,7 +110,7 @@ if wait_file "$T/f1.ready"; then pass "ready file is written"; else fail "ready 
 f=$T/f1.jsonl
 
 mkdir -p "$T/w/a/b"
-echo hi >"$T/w/a/b/c.txt"
+echo CONTENT-MARK-one >"$T/w/a/b/c.txt"
 check_has "create a" "$f" create "$T/w/a"
 check_has "create b" "$f" create "$T/w/a/b"
 check_has "create c.txt" "$f" create "$T/w/a/b/c.txt"
@@ -134,7 +134,7 @@ else
 fi
 
 # --top: no watch for old folders, a watch for new ones.
-echo more >>"$T/t/old/x"
+echo CONTENT-MARK-two >>"$T/t/old/x"
 mkdir "$T/t/new"
 echo y >"$T/t/new/y"
 check_has "top: create new" "$f" create "$T/t/new"
@@ -218,7 +218,7 @@ else
   fail "t is epoch milliseconds" "bad t"
 fi
 expect_no_line "no limit line below the limit" '"limit"' "$f"
-expect_no_line "no file content in the lines" 'hi|more' "$f"
+expect_no_line "no file content in the lines" 'CONTENT-MARK' "$f"
 
 kill -TERM "$wpid"
 wait "$wpid"
