@@ -107,3 +107,12 @@ tab: open /Users/alice/proj/a/
 	b/c.txt done
 tab 2: open /Users/alice/agent-signals-work/run-0a1b
 	2c3d/x.txt ok
+spaced 1: open /opt/kit runs
+   docs/readme ok
+spaced 2: open C:\Users\alice\Box - Fabrikam Org
+   docs/readme ok
+spaced 3: open C:\Users\alice\Box - Fabrikam Org
+   /docs/readme ok
+win root 1: c:/windows/Pri
+   vate ok
+win root 2: C:/WINDOWS\private ok

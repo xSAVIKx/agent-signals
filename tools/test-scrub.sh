@@ -12,7 +12,9 @@ for name in input crlf-input; do
   exp=$dir/testdata/scrub/$(printf '%s' "$name" | sed 's/input$/expected/').txt
   if ! SCRUB_HOME=/Users/alice SCRUB_USER=alice SCRUB_HOST=alice-mbp.local \
     SCRUB_EXTRA='/opt/kit runs
-/var/tmp/agent-signals-run-linux-20260101T000000Z' SCRUB_DOMAIN=CONTOSO OneDrive='C:\Users\alice\OneDrive - Contoso' \
+/var/tmp/agent-signals-run-linux-20260101T000000Z
+C:\Users\alice\Box - Fabrikam Org
+C:\Windows\Private' SCRUB_DOMAIN=CONTOSO OneDrive='C:\Users\alice\OneDrive - Contoso' \
     OneDriveCommercial='' OneDriveConsumer='' \
     sh "$dir/scrub.sh" "$dir/testdata/scrub/$name.txt" >"$out" 2>"$err"; then
     echo "test-scrub: $name.txt: the scrub failed:" >&2

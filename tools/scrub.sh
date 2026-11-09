@@ -90,9 +90,29 @@ rule() {
     [ -n "$_v" ] && printf '%s\n' "$_v"
   done
 } | awk 'length($0) > 1 { print length($0) "\t" $0 }' | sort -rn | cut -f 2- >"$tmp/extra"
+# A Windows root (a drive letter) matches in any case, and each run of /
+# and \ in it matches one or more of / and \, as in tools/scrub.ps1.
+# Another root matches as it is.
+wq() {
+  printf '%s' "$1" | LC_ALL=C awk '{
+    p = ""; n = length($0)
+    for (i = 1; i <= n; i++) {
+      c = substr($0, i, 1)
+      if (c == "\\" || c == "/") {
+        if (substr(p, length(p) - 5) != "[\\\\/]+") p = p "[\\\\/]+"
+      } else if (c ~ /[A-Za-z]/) p = p "[" toupper(c) tolower(c) "]"
+      else if (index("][.*^$+?(){}|#", c)) p = p "\\" c
+      else p = p c
+    }
+    printf "%s", p
+  }'
+}
 : >"$tmp/extra.sed"
 while IFS= read -r _x; do
-  printf 's#%s#/work/example#g\n' "$(q "$_x")" >>"$tmp/extra.sed"
+  case $_x in
+    [A-Za-z]:*) printf 's#%s#/work/example#g\n' "$(wq "$_x")" >>"$tmp/extra.sed" ;;
+    *) printf 's#%s#/work/example#g\n' "$(q "$_x")" >>"$tmp/extra.sed" ;;
+  esac
 done <"$tmp/extra"
 
 # A wrapped path. An agent can wrap a long path onto the next screen
@@ -113,7 +133,9 @@ done <"$tmp/extra"
 #       of a hash, of a folder name or of a file name joins too.
 #     A word that fills its line can be a part of the path too: then the
 #     next line decides. A word such as [Y/n], (y/n) or Esc/Ctrl+C does
-#     not join.
+#     not join. When the line ends just after a whole anchor that does
+#     not end with / or \, the word must start with / or \: a join must
+#     not make a root such as "C:\Users\a\OneDrive - Org" longer.
 # The line after a line end starts with white space. This white space can
 # hold one box line (U+2502), as in the command box of Claude Code. A
 # right box line can come after the path, with white space before it: the
@@ -178,15 +200,20 @@ function flat(t, last,    r, x, c) {
 # brk(b): a line end that is not the last one keeps no white space after
 # it, so that its line stays empty.
 function brk(b) { sub(/[ \t]*$/, "", b); return b }
-# more(j, after, first): 1 when the path j continues after the line end
-# at the start of after. first is 1 for the first line end after a
-# private anchor.
-function more(j, after, first,    nxt, w) {
+# more(j, after, first, whole): 1 when the path j continues after the line
+# end at the start of after. first is 1 for the first line end after a
+# private anchor. whole is 1 when the line ends just after a whole anchor
+# that does not end with / or \: then the next word must start with / or
+# \, so that a join does not make the anchor longer (a root such as
+# "C:\Users\a\OneDrive - Org" then "docs/x" stays apart).
+function more(j, after, first, whole,    nxt, w) {
   while (match(after, "^" nl pc)) {
     nxt = substr(after, RLENGTH)
     match(nxt, "^" pc "*")
     w = substr(nxt, 1, RLENGTH)
     if (w !~ /^[A-Za-z0-9._~\/\\-]+$/) return 0
+    if (whole && w !~ /^[\/\\]/) return 0
+    whole = 0
     if (j ~ /[\/\\]$/ || w ~ /[\/\\]/) return 1
     if (first && j !~ /\.[A-Za-z0-9]+$/) return 1
     j = w; first = 0; after = substr(nxt, RLENGTH + 1)
@@ -194,7 +221,7 @@ function more(j, after, first,    nxt, w) {
   return 0
 }
 # unwrap(t): the text t with each wrapped path on one line.
-function unwrap(t,    a, out, rest, src, s, l, pre, m, j, nb, b, after, k, first, fs, fl) {
+function unwrap(t,    a, out, rest, src, s, l, pre, m, j, nb, b, after, k, first, fs, fl, whole) {
   for (a = 1; a <= n; a++) {
     out = ""; rest = t
     while (1) {
@@ -222,11 +249,13 @@ function unwrap(t,    a, out, rest, src, s, l, pre, m, j, nb, b, after, k, first
       # The rest of the path, also on the next lines.
       after = substr(rest, s + l)
       first = (a <= np)
+      whole = 1
       while (1) {
         match(after, "^" pc "*")
+        whole = (whole && RLENGTH == 0 && j !~ /[\/\\]$/)
         j = j substr(after, 1, RLENGTH); after = substr(after, RLENGTH + 1)
-        if (!more(j, after, first)) break
-        first = 0
+        if (!more(j, after, first, whole)) break
+        first = 0; whole = 0
         match(after, "^" nl)
         b[++nb] = substr(after, 1, RLENGTH); after = substr(after, RLENGTH + 1)
       }

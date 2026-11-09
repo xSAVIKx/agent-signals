@@ -24,7 +24,7 @@ foreach ($pair in @(@('input.txt', 'expected.txt'), @('crlf-input.txt', 'crlf-ex
   $info.EnvironmentVariables['SCRUB_HOME'] = '/Users/alice'
   $info.EnvironmentVariables['SCRUB_USER'] = 'alice'
   $info.EnvironmentVariables['SCRUB_HOST'] = 'alice-mbp.local'
-  $info.EnvironmentVariables['SCRUB_EXTRA'] = "/opt/kit runs`n/var/tmp/agent-signals-run-linux-20260101T000000Z"
+  $info.EnvironmentVariables['SCRUB_EXTRA'] = "/opt/kit runs`n/var/tmp/agent-signals-run-linux-20260101T000000Z`nC:\Users\alice\Box - Fabrikam Org`nC:\Windows\Private"
   $info.EnvironmentVariables['SCRUB_DOMAIN'] = 'CONTOSO'
   $info.EnvironmentVariables['OneDrive'] = 'C:\Users\alice\OneDrive - Contoso'
   foreach ($k in @('OneDriveCommercial', 'OneDriveConsumer')) {

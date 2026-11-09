@@ -86,10 +86,12 @@ $script:WrapChar = '[^ \t\r\n"'':,;()]'
 # with white space before it, can come just before the line end.
 $script:WrapBreak = '(?<![ \t])(?:[ \t]*\u2502)?\r?\n(?:[ \t]*\u2502)?[ \t]+'
 
-# Test-ScrubMore J TEXT AT FIRST: $true when the path J continues after the
-# line end at AT in TEXT. FIRST is $true for the first line end after a
-# private anchor. See Invoke-ScrubUnwrap for the rule.
-function Test-ScrubMore([string]$J, [string]$Text, [int]$At, [bool]$First) {
+# Test-ScrubMore J TEXT AT FIRST WHOLE: $true when the path J continues
+# after the line end at AT in TEXT. FIRST is $true for the first line end
+# after a private anchor. WHOLE is $true when the line ends just after a
+# whole anchor that does not end with / or \. See Invoke-ScrubUnwrap for
+# the rule.
+function Test-ScrubMore([string]$J, [string]$Text, [int]$At, [bool]$First, [bool]$Whole) {
   $nl = New-Object System.Text.RegularExpressions.Regex ('\G' + $script:WrapBreak + '(?=' + $script:WrapChar + ')')
   $word = New-Object System.Text.RegularExpressions.Regex ('\G' + $script:WrapChar + '*')
   while ($true) {
@@ -97,6 +99,8 @@ function Test-ScrubMore([string]$J, [string]$Text, [int]$At, [bool]$First) {
     if (-not $b.Success) { return $false }
     $w = $word.Match($Text, $b.Index + $b.Length)
     if ($w.Value -cnotmatch '^[A-Za-z0-9._~/\\-]+$') { return $false }
+    if ($Whole -and $w.Value -notmatch '^[/\\]') { return $false }
+    $Whole = $false
     if ($J -match '[/\\]$' -or $w.Value -match '[/\\]') { return $true }
     if ($First -and $J -notmatch '\.[A-Za-z0-9]+$') { return $true }
     $J = $w.Value
@@ -123,7 +127,9 @@ function Test-ScrubMore([string]$J, [string]$Text, [int]$At, [bool]$First) {
 #       folder name or of a file name joins too.
 #     A word that fills its line can be a part of the path too: then the
 #     next line decides. A word such as [Y/n], (y/n) or Esc/Ctrl+C does
-#     not join.
+#     not join. When the line ends just after a whole anchor that does
+#     not end with / or \, the word must start with / or \: a join must
+#     not make a root such as "C:\Users\a\OneDrive - Org" longer.
 # The line after a line end starts with white space, and a right box line
 # can come before the line end ($script:WrapBreak). Both box lines stay.
 # A Windows root (a drive letter) matches in any case, and each / or \ in
@@ -165,12 +171,15 @@ function Invoke-ScrubUnwrap([string]$Text, [string[]]$Anchors, [hashtable]$Count
       # The rest of the path, also on the next lines.
       $end = $m.Index + $m.Length
       $first = [bool]$e.Private
+      $whole = $true
       while ($true) {
         $w = $word.Match($s, $end)
+        $whole = ($whole -and $w.Length -eq 0 -and $j -notmatch '[/\\]$')
         $j += $w.Value
         $end += $w.Length
-        if (-not (Test-ScrubMore $j $s $end $first)) { break }
+        if (-not (Test-ScrubMore $j $s $end $first $whole)) { break }
         $first = $false
+        $whole = $false
         $b = $nl.Match($s, $end)
         $breaks.Add($b.Value)
         $end += $b.Length

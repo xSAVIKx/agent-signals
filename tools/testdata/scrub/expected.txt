@@ -107,3 +107,12 @@ tab: open /work/example
 	 done
 tab 2: open /work/example
 	 ok
+spaced 1: open /work/example
+   docs/readme ok
+spaced 2: open /work/example
+   docs/readme ok
+spaced 3: open /work/example/docs/readme
+    ok
+win root 1: /work/example
+    ok
+win root 2: /work/example ok
