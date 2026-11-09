@@ -27,6 +27,8 @@
 #                      "key Escape", "key C-c", "key C-d", or "char C" for
 #                      a character C.
 #   STUB_DIALOG=no     the prompt of the permission steps opens no dialog.
+#   STUB_DIALOG=busy   the prompt of the permission steps opens no dialog,
+#                      and the stub stays busy until Escape.
 #   STUB_RECORDS=no    the stub writes no record (read record below).
 #   STUB_WELCOME=TEXT  the idle screen shows TEXT, as a welcome box does.
 #   STUB_EXIT=yes      the stub stops at a prompt.
@@ -193,7 +195,11 @@ while :; do
           esac
           case $buf in
             write | "Create a file named"*)
-              if [ "${STUB_DIALOG:-}" = no ]; then note="no dialog"; else state=dialog; fi
+              case ${STUB_DIALOG:-} in
+                no) note="no dialog" ;;
+                busy) state=busy ;;
+                *) state=dialog ;;
+              esac
               ;;
             env)
               env >stub-env.txt

@@ -93,7 +93,18 @@ answers in the prompt. In an unattended run, these rules replace rules 2,
 3. Start the run with `kit start --unattended`. The kit then skips each
    step that needs the operator or the screen of the operator, with the
    reason `unattended`. Run every step of the plan in the order of the
-   plan, also the steps that skip. Do not select steps.
+   plan, also the steps that skip. Do not select steps. On macOS, each
+   step runs `caffeinate -i`. The manifest line `meta awake` tells if
+   the kit can use it. It stops the idle sleep only. A closed lid, a
+   forced sleep, or a Mac on battery can still sleep. On Linux and
+   macOS, the steps of the kinds permission (also the write steps),
+   new-chat, resume and interrupt give `fail clock-gap` when one turn of
+   the guided watch, its last snapshot, or the wait for its end takes
+   more than 60 s of wall time. A shorter sleep, or a sleep outside these
+   checks, can stay unseen. On Linux and macOS, a permission step whose
+   agent still works at the end of the dialog wait gives
+   `fail busy-at-end`. On Windows, `session-step.ps1` does not check
+   this yet.
 4. Do not install a tool. Record the missing tool in your last message.
 5. When a step fails two times, go to the next step.
 6. When a step prints `operator` (exit code 4), do not run it again. Go to

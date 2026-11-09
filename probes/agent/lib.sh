@@ -317,6 +317,7 @@ kit_json() {
       printf "  \"kit\": %s,\n  \"os\": %s,\n  \"os_version\": %s,\n  \"cpu\": %s,\n", s(run["kit"]), s(run["os"]), s(run["os_version"]), s(run["cpu"])
       printf "  \"home\": %s,\n  \"orchestrator\": %s,\n  \"start\": %s,\n  \"end\": %s,\n", s(run["home"]), s(run["orchestrator"]), s(run["start"]), s(end)
       printf "  \"unattended\": %s,\n", (run["unattended"] == "yes" ? "true" : "false")
+      if ("awake" in run) printf "  \"awake\": %s,\n", s(run["awake"])
       printf "  \"steps\": [%s%s%s],\n", (ns ? "\n" : ""), steps, (ns ? "\n  " : "")
       printf "  \"edits\": [%s%s%s]\n}\n", (ne ? "\n" : ""), edits, (ne ? "\n  " : "")
     }' "$1/manifest.tsv" >"$1/manifest.json"
@@ -352,6 +353,22 @@ kit_login_skip() {
 kit_unattended_skip() {
   [ "$1" = yes ] || return 0
   case $2:$3 in operator:* | screen:* | *:operator) echo unattended ;; esac
+}
+
+# kit_awake OS UNATTENDED: the value of the meta line "awake" of a new run,
+# or nothing. A Mac that sleeps stops all clocks of a step, also the
+# timers of the agent. So an unattended run on macOS runs "caffeinate -i"
+# in each step (kit step), when the command exists. "-i" stops the idle
+# sleep only. A closed lid, a sleep that the operator or the system
+# forces, and a Mac on battery can still sleep: the step then gives
+# "fail clock-gap". Linux and Windows get no line.
+kit_awake() {
+  [ "$1" = macos ] && [ "$2" = yes ] || return 0
+  if command -v caffeinate >/dev/null 2>&1; then
+    echo "caffeinate -i -w <pid of kit step>, in each step; it stops the idle sleep only"
+  else
+    echo "none: no caffeinate command, the machine can sleep in a step"
+  fi
 }
 
 # kit_summary RUN: write RUN/summary.txt: the fixed first line, then one

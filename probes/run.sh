@@ -36,6 +36,13 @@
 #   terminal, or the kit is not in the foreground, it does not wait.
 #   A shell that runs command text (sh -c TEXT) does not count as an
 #   agent, also when the text holds the agent name.
+#   When one turn of the watch (a sleep of 2 s and a sample), or its
+#   "after" snapshot, takes more than 60 s of wall time, the machine slept. The kit then prints
+#   "kit: clock gap: ..." and the file has the line "watch: clock gap of
+#   N s: ...", with N the longest turn. For the tests,
+#   AGENT_SIGNALS_CLOCK_JUMP=N adds N s to the turn at
+#   AGENT_SIGNALS_CLOCK_JUMP_AT s of counted time (default 2, "each", or
+#   "snapshot" for the "after" snapshot).
 #
 # On macOS, AGENT_SIGNALS_TERMINALS=yes or no answers the question about
 # the terminal probe. With no value and no terminal, the answer is no.
@@ -496,17 +503,60 @@ guided() {
   # A sample every 2 s.
   i=0
   t=0
+  # The clock gap: a machine that sleeps (a Mac with its lid closed) stops
+  # the sleeps of the watch, but the wall clock moves on. The watch reads
+  # the wall clock at the end of each turn (a sleep of 2 s and a sample).
+  # A turn that took more than 60 s of wall time is a gap. At the first
+  # gap, the watch prints a "kit: clock gap" line at once. The file gets a
+  # "watch: clock gap" line with the longest turn. For the tests,
+  # AGENT_SIGNALS_CLOCK_JUMP=N adds N s to the turn that ends at
+  # AGENT_SIGNALS_CLOCK_JUMP_AT s of counted time (default 2), or to each
+  # turn with AGENT_SIGNALS_CLOCK_JUMP_AT=each, or to the "after" snapshot
+  # with AGENT_SIGNALS_CLOCK_JUMP_AT=snapshot. The "after" snapshot counts
+  # as one more turn. Another value turns the jump off.
+  jn=${AGENT_SIGNALS_CLOCK_JUMP:-0}
+  ja=${AGENT_SIGNALS_CLOCK_JUMP_AT:-2}
+  case $jn in '' | *[!0-9]*) jn=0 ;; esac
+  case $ja in each | snapshot) ;; '' | *[!0-9]*) jn=0 ;; esac
+  skew=0
+  jlast=
+  prev=$(date +%s)
+  gap=0
+  gaps=0
+  # turn_check [snapshot]: check the turn that ends now.
+  turn_check() {
+    _at=${1:-$t}
+    if [ "$jn" -gt 0 ] && [ "$_at" != "$jlast" ]; then
+      case $ja in each | "$_at") skew=$((skew + jn)) jlast=$_at ;; esac
+    fi
+    _now=$(($(date +%s) + skew))
+    _d=$((_now - prev))
+    prev=$_now
+    [ "$_d" -gt 60 ] || return 0
+    gaps=$((gaps + 1))
+    [ "$_d" -gt "$gap" ] && gap=$_d
+    [ "$gaps" -gt 1 ] && return 0
+    if [ "$_at" = snapshot ]; then
+      echo "kit: clock gap: the after snapshot of the watch took $_d s of wall time, at $t s of counted time"
+    else
+      echo "kit: clock gap: a turn of the watch took $_d s of wall time, at $t s of counted time"
+    fi
+  }
   while [ $((t + 2)) -le "$watch_s" ] && ! stopped; do
     sleep 2
     t=$((t + 2))
     i=$((i + 1))
     claude_status >"$raw.status.$i"
     agy_sample "$raw.agy.$i"
+    turn_check
   done
-  [ "$t" -lt "$watch_s" ] && ! stopped && sleep $((watch_s - t))
+  [ "$t" -lt "$watch_s" ] && ! stopped && sleep $((watch_s - t)) && t=$watch_s
+  turn_check
   # shellcheck disable=SC2086
   snapshot after $which
+  turn_check snapshot
   {
+    [ "$gaps" -gt 0 ] && echo "watch: clock gap of $gap s: the longest turn of the watch took $gap s of wall time; $gaps turns took more than 60 s; the watch counted $t s"
     stopped && echo "watch: the stop file ended the watch at about $t s"
     echo "processes after the step:"
     for a in $which; do
