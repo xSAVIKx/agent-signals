@@ -32,7 +32,8 @@ fi
 raw=$T/raw
 mkdir -m 0700 "$raw"
 stub_set STUB_TRUST=yes
-KIT_TRACE=$raw kitx step "permission-claude@$via" >"$T/step" 2>&1
+# A subshell: in a POSIX-mode sh (macOS), a variable before a function call stays set.
+(KIT_TRACE=$raw; export KIT_TRACE; kitx step "permission-claude@$via") >"$T/step" 2>&1
 expect_code "permission: the step exits 0" 0 $?
 st=$raw/states.tsv
 if [ -s "$st" ]; then pass "permission: states.tsv exists"; else fail "permission: states.tsv exists" "no file"; fi
@@ -56,7 +57,7 @@ expect_line "sessions.tsv: NAME, HOME, WORK, AGENT_PID and SOCKDIR" "^permission
 # The kinds that use the busy state.
 rm -f "$st"
 stub_set
-KIT_TRACE=$raw kitx step "interrupt-claude@$via" >"$T/step" 2>&1
+(KIT_TRACE=$raw; export KIT_TRACE; kitx step "interrupt-claude@$via") >"$T/step" 2>&1
 expect_code "interrupt: the step exits 0" 0 $?
 if in_order "$st" prompt busy answer; then
   pass "interrupt: prompt, busy, answer"
@@ -66,10 +67,9 @@ fi
 
 # No KIT_TRACE: no states.tsv anywhere.
 stub_set STUB_TRUST=yes
-kitx step "permission-claude@$via" >"$T/step" 2>&1
-expect_code "no trace: the step exits 0" 0 $?
 rm -f "$st" "$ss"
 kitx step "permission-claude@$via" >"$T/step" 2>&1
+expect_code "no trace: the step exits 0" 0 $?
 found=$(find "$T" -name states.tsv -o -name sessions.tsv 2>/dev/null)
 if [ -z "$found" ]; then pass "no trace: no states.tsv is made"; else fail "no trace: no states.tsv is made" "$found"; fi
 

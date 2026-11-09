@@ -469,6 +469,15 @@ broken() {
   stop_now send-failed
 }
 
+# keys_answer KEYS: send the keys, as "keys" does. The state "answer" gets
+# the time just before the send, and only when the send works.
+keys_answer() {
+  [ -n "$1" ] || return 0
+  _t=$(kit_ms)
+  keys "$1"
+  kit_trace_state answer "$_t"
+}
+
 # send TEXT: type TEXT and push Enter. Codex can keep the text in its box and
 # drop an Enter just after the first idle screen (fact 76). So the step waits
 # 2 s, and looks for the text at the start of a word on the screen. A plain
@@ -612,8 +621,7 @@ case $KIT_KIND in
       why=no-dialog
       say "no dialog in $WAIT_S s. Send: $KIT_ANSWER"
     fi
-    kit_trace_state answer
-    keys "${KIT_ANSWER:-}"
+    keys_answer "${KIT_ANSWER:-}"
     sleep 1
     wait_idle "$AFTER_S" "$tmp/s"
     rc=$?
@@ -650,16 +658,14 @@ case $KIT_KIND in
     bad "$rc"
     if [ "$rc" -ne 0 ]; then
       save "2 s after the prompt" "$tmp/early"
-      kit_trace_state answer
-      keys "${KIT_ANSWER%% *}"
+      keys_answer "${KIT_ANSWER%% *}"
       stop_now no-busy
     fi
     kit_trace_state busy
     save busy "$tmp/s"
     for k in ${KIT_ANSWER:-}; do
       say "send $k"
-      kit_trace_state answer
-      keys "$k"
+      keys_answer "$k"
       sleep 2
       screen "$tmp/s" || stop_now screen-failed
       save "after $k" "$tmp/s"

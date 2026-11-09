@@ -87,12 +87,13 @@ kit_ms() {
   esac
 }
 
-# kit_trace_state STATE: append "MS<tab>STATE" to $KIT_TRACE/states.tsv.
+# kit_trace_state STATE [MS]: append "MS<tab>STATE" to $KIT_TRACE/states.tsv.
+# MS is the time of the state. With no MS, the time is now.
 # STATE is start, idle, prompt, busy, dialog, answer, idle-after or stop.
 # It does nothing when KIT_TRACE is empty or not set.
 kit_trace_state() {
   [ -n "${KIT_TRACE:-}" ] || return 0
-  printf '%s\t%s\n' "$(kit_ms)" "$1" >>"$KIT_TRACE/states.tsv"
+  printf '%s\t%s\n' "${2:-$(kit_ms)}" "$1" >>"$KIT_TRACE/states.tsv"
 }
 
 # kit_pid_runs PID: true when the process runs.
