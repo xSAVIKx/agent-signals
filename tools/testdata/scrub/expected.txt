@@ -47,3 +47,72 @@ extra key: ~/.claude/projects/-work-example/1.jsonl and -work-example, ~/.claude
 sid: icacls x /grant "*<sid>:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F" and <sid> alone
 temp: /tmp/claude-example/-opt-x/tasks and /tmp/claude-example, x-api-key: stays
 sandbox: 53 1 <sandbox>/home/.cursor/cli-config.json and <sandbox>/work/app.txt and /tmp/cursor-agent-logs-example/s.log
+wrap home 1: p=Path("/work/example
+     "); p.write_text("hi")
+wrap home 2: open /work/example
+      and more
+wrap home 3: write > /work/example
+
+      and more
+wrap home 4: /work/example
+
+   x
+wrap home 5: open /work/example
+      now
+wrap work 1: "mkdir -p \"/work/example
+      "" in /work/example
+      , ok
+wrap work 2: cd /work/example
+
+    && ls
+wrap run 1: /work/example/01-probe.txt
+   ok
+wrap run 2: /work/example/02-x.txt
+
+   done
+wrap run 3: /work/example/03-x.txt
+   end
+wrap run 4: /work/example/04-x.txt
+   end
+wrap other home: /work/example
+     y
+wrap onedrive: "/work/example
+  " is it
+no wrap: wrote /work/example
+      1 hello
+no wrap: /work/example
+next: line
+wrap box: │ printf 'hello' > /work/example
+│  && cat /work/example
+│  ok
+border: │ cat /work/example   │
+│    │
+border 3: │ ls /work/example/write-outside-tmux.outside/x.txt   │
+│   │
+│    │
+bare hash: open /work/example
+    now
+bare name: wrote /work/example
+    done
+run cut: /work/example/write-outside-tmux.outside/x.txt
+
+    end
+yes no 1: write /work/example
+   [Y/n]
+yes no 2: write /work/example
+   (y/n) or Esc/Ctrl+C
+yes no 3: write /work/example
+   Esc/Ctrl+C to stop
+tab: open /work/example
+	 done
+tab 2: open /work/example
+	 ok
+spaced 1: open /work/example
+   docs/readme ok
+spaced 2: open /work/example
+   docs/readme ok
+spaced 3: open /work/example/docs/readme
+    ok
+win root 1: /work/example
+    ok
+win root 2: /work/example ok
