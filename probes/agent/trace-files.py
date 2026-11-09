@@ -29,8 +29,9 @@ with the same rule.
 
 The limit is 8192 watches. A move out of the tree has no matching
 IN_MOVED_TO in the same read batch, or in the next short wait, and gives
-"delete". On SIGTERM the watcher writes its lines and exits 0. When
-inotify is not available, it exits 3. The standard library only.
+"delete". On SIGTERM the watcher sets a flag, reads the queue one more
+time, writes all lines, and exits 0. When inotify is not available, it
+exits 3. The standard library only.
 """
 
 import argparse
@@ -70,6 +71,7 @@ MASK = (
 WATCH_LIMIT = 8192
 WRITE_WINDOW = 0.1
 MOVE_WAIT = 0.05
+STOP_POLL = 0.1
 HEADER = struct.Struct("iIII")
 
 
@@ -77,12 +79,12 @@ def now_ms():
     return time.time_ns() // 1000000
 
 
-class Term(Exception):
-    """Raised by the SIGTERM handler."""
+_stop = [False]
 
 
 def on_term(signum, frame):
-    raise Term()
+    """Only set a flag. The loop sees it and stops."""
+    _stop[0] = True
 
 
 class Watcher:
@@ -94,6 +96,7 @@ class Watcher:
         self.path2wd = {}
         self.seen = set()
         self.lines = []
+        self.buf = b""
         self.limit_sent = False
         self.pend_write = {}
         self.pend_from = {}
@@ -111,12 +114,13 @@ class Watcher:
         self.lines.append(json.dumps(rec))
 
     def flush(self):
+        """Write the lines. Clear the buffer only after a write succeeds."""
         if self.lines:
-            data = ("\n".join(self.lines) + "\n").encode("ascii")
+            self.buf += ("\n".join(self.lines) + "\n").encode("ascii")
             self.lines = []
-            while data:
-                n = os.write(self.out_fd, data)
-                data = data[n:]
+        while self.buf:
+            n = os.write(self.out_fd, self.buf)
+            self.buf = self.buf[n:]
 
     # Watches.
 
@@ -176,8 +180,10 @@ class Watcher:
         }
         self.seen.add(dst)
 
-    def walk_first(self, top, recursive):
-        """Add the first watches. No event is written."""
+    def walk_first(self, top, recursive, tops=()):
+        """Add the first watches. No event is written. The walk does not
+        go into a folder of "tops": it has its own watch, with no
+        subfolder."""
         stack = [top]
         while stack:
             p = stack.pop()
@@ -185,7 +191,7 @@ class Watcher:
                 if self.limit_sent:
                     return
                 continue
-            if not recursive:
+            if not recursive or p in tops:
                 continue
             try:
                 with os.scandir(p) as it:
@@ -269,6 +275,9 @@ class Watcher:
                 self.emit("move", path, is_dir, src=src[0])
                 if is_dir:
                     self.rename_watches(src[0], path)
+                    if path not in self.path2wd:
+                        # The folder had no watch: treat it as a new one.
+                        self.add_tree(path)
                 else:
                     self.seen.discard(src[0])
                     self.seen.add(path)
@@ -308,15 +317,34 @@ class Watcher:
             self.on_event(wd, mask, cookie, os.fsdecode(raw))
 
     def run(self):
-        while True:
-            ready, _, _ = select.select([self.fd], [], [], self.timeout())
-            if ready:
+        """Run until the stop flag is set. At the end, read what is in
+        the queue and write all lines, also after an error."""
+        try:
+            while not _stop[0]:
+                t = self.timeout()
+                t = STOP_POLL if t is None else min(t, STOP_POLL)
+                ready, _, _ = select.select([self.fd], [], [], t)
+                if ready:
+                    self.read_events()
+                    self.expire_moves(False)
+                elif self.pend_from:
+                    self.expire_moves(True)
+                self.flush_writes()
+                self.flush()
+        finally:
+            self.finish()
+
+    def finish(self):
+        """Drain the queue one time without blocking, then write all."""
+        try:
+            while select.select([self.fd], [], [], 0)[0]:
                 self.read_events()
-                self.expire_moves(False)
-            else:
+        finally:
+            try:
                 self.expire_moves(True)
-            self.flush_writes()
-            self.flush()
+                self.flush_writes(force=True)
+            finally:
+                self.flush()
 
 
 def open_inotify():
@@ -358,26 +386,20 @@ def main():
     out_fd = os.open(args.out, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
     w = Watcher(libc, fd, out_fd)
     signal.signal(signal.SIGTERM, on_term)
-    try:
-        for d in args.top:
-            w.walk_first(os.path.abspath(d), False)
-        for d in args.dirs:
-            w.walk_first(os.path.abspath(d), True)
-        w.flush()
-        tmp = args.ready + ".tmp"
-        with open(tmp, "w", encoding="ascii") as f:
-            f.write("ready\n")
-        os.replace(tmp, args.ready)
-        w.run()
-    except Term:
-        pass
-    signal.signal(signal.SIGTERM, signal.SIG_IGN)
-    try:
-        w.flush_writes(force=True)
-        w.expire_moves(True)
-        w.flush()
-    except OSError:
-        pass
+    tops = {os.path.abspath(d) for d in args.top}
+    for d in tops:
+        w.walk_first(d, False)
+    for d in args.dirs:
+        w.walk_first(os.path.abspath(d), True, tops)
+    w.flush()
+    if _stop[0]:
+        w.finish()
+        return 0
+    tmp = args.ready + ".tmp"
+    with open(tmp, "w", encoding="ascii") as f:
+        f.write("ready\n")
+    os.replace(tmp, args.ready)
+    w.run()
     return 0
 
 

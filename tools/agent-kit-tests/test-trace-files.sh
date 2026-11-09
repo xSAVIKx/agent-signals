@@ -36,7 +36,7 @@ while True:
     except (OSError, ValueError):
         rows = []
     for r in rows:
-        if r["kind"] == kind and r.get("path", "") == path and (src == "-" or r.get("from") == src):
+        if r["kind"] == kind and (path == "*" or r.get("path", "") == path) and (src == "-" or r.get("from") == src):
             n += 1
     if n or time.time() >= end:
         print(n)
@@ -101,6 +101,8 @@ if [ ! -e "$T/n.ready" ]; then pass "no inotify: no ready file"; else fail "no i
 mkdir -p "$T/w" "$T/t/old" "$T/outside/m/n/o"
 : >"$T/t/old/x"
 : >"$T/outside/m/n/o/deep.txt"
+mkdir -p "$T/outside/tgt"
+ln -s "$T/outside/tgt" "$T/w/lnk0"
 python3 -I "$watch" --out "$T/f1.jsonl" --ready "$T/f1.ready" --top "$T/t" "$T/w" &
 wpid=$!
 bg_pid "$wpid"
@@ -140,6 +142,27 @@ check_has "top: create new/y" "$f" create "$T/t/new/y"
 check_has "top: write new/y" "$f" write "$T/t/new/y"
 check_none "top: no line for old/x" "$f" write "$T/t/old/x"
 check_none "top: no create for old/x" "$f" create "$T/t/old/x"
+
+# A top folder that moves: it had no watch, so it is a new folder.
+mv "$T/t/old" "$T/t/old2"
+check_has "top move: move line" "$f" move "$T/t/old2" "$T/t/old"
+check_has "top move: scan creates the old entry" "$f" create "$T/t/old2/x"
+echo late >>"$T/t/old2/x"
+check_has "top move: the folder has a watch" "$f" write "$T/t/old2/x"
+
+# A symlink to a folder is not followed, before the start or after it.
+ln -s "$T/outside/tgt" "$T/w/lnk1"
+echo s >"$T/outside/tgt/sf"
+echo s >"$T/w/lnk0/sf2"
+echo s >"$T/w/lnk1/sf3"
+: >"$T/w/sentinel"
+has_ev "$f" create "$T/w/sentinel" >/dev/null
+sleep 0.3
+for p in "$T/outside/tgt/sf" "$T/w/lnk0/sf" "$T/w/lnk0/sf2" "$T/w/lnk1/sf3"; do
+  check_none "symlink: no create for $p" "$f" create "$p"
+  check_none "symlink: no write for $p" "$f" write "$p"
+done
+check_one "symlink: create of the link itself" "$f" create "$T/w/lnk1"
 
 # A tree from one mkdir -p, and files at once in a fast loop.
 mkdir -p "$T/w/r/s/t/u"
@@ -202,6 +225,39 @@ wait "$wpid"
 expect_code "term: the watch exits 0" 0 $?
 if kill -0 "$wpid" 2>/dev/null; then fail "term: the watch stopped" "pid runs"; else pass "term: the watch stopped"; fi
 
+# TERM at once after a write: the line is not lost.
+mkdir "$T/w3"
+python3 -I "$watch" --out "$T/f3.jsonl" --ready "$T/f3.ready" "$T/w3" &
+wpid=$!
+bg_pid "$wpid"
+wait_file "$T/f3.ready" || fail "term: the ready file is written" "no file"
+echo x >"$T/w3/q"
+kill -TERM "$wpid"
+wait "$wpid"
+expect_code "term at once: the watch exits 0" 0 $?
+n=$(count_ev "$T/f3.jsonl" write "$T/w3/q")
+if [ "$n" -eq 1 ]; then pass "term at once: one write line"; else fail "term at once: one write line" "$n"; fi
+n=$(count_ev "$T/f3.jsonl" create "$T/w3/q")
+if [ "$n" -eq 1 ]; then pass "term at once: one create line"; else fail "term at once: one create line" "$n"; fi
+
+# A DIR that holds a --top DIR: no watch for the old subfolders of the top.
+mkdir -p "$T/c/top/sub" "$T/c/other/sub"
+python3 -I "$watch" --out "$T/f4.jsonl" --ready "$T/f4.ready" --top "$T/c/top" "$T/c" &
+wpid=$!
+bg_pid "$wpid"
+wait_file "$T/f4.ready" || fail "nested top: the ready file is written" "no file"
+echo x >"$T/c/top/sub/f"
+echo x >"$T/c/other/sub/g"
+check_has "nested top: the other folder has a watch" "$T/f4.jsonl" create "$T/c/other/sub/g"
+sleep 0.3
+check_none "nested top: no create in the old subfolder" "$T/f4.jsonl" create "$T/c/top/sub/f"
+check_none "nested top: no write in the old subfolder" "$T/f4.jsonl" write "$T/c/top/sub/f"
+echo x >"$T/c/top/direct"
+check_has "nested top: the top itself has a watch" "$T/f4.jsonl" create "$T/c/top/direct"
+kill -TERM "$wpid"
+wait "$wpid"
+expect_code "nested top: the watch exits 0" 0 $?
+
 # The limit: 8200 folders before the start.
 python3 -I "$H/many.py" "$T/w2/many"
 python3 -I "$watch" --out "$T/f2.jsonl" --ready "$T/f2.ready" "$T/w2" &
@@ -214,7 +270,7 @@ while [ ! -s "$T/f2.ready" ] && [ "$_n" -lt 600 ]; do
 done
 if [ -s "$T/f2.ready" ]; then pass "limit: the ready file is written"; else fail "limit: the ready file is written" "no file"; fi
 f=$T/f2.jsonl
-check_one "limit: one limit line" "$f" limit ""
+check_one "limit: one limit line" "$f" limit "*"
 echo z >"$T/w2/z"
 mkdir "$T/w2/n1" "$T/w2/n2" "$T/w2/n3"
 check_has "limit: events still come" "$f" create "$T/w2/z"
