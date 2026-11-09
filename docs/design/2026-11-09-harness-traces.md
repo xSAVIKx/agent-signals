@@ -46,8 +46,6 @@ and version, so that people can see and share them.
 - Reading the content of encrypted traffic with our own certificate
   authority. Maybe later, as a separate design.
 - eBPF on macOS or Windows. The runners do not allow it.
-- Tracing on the machines of operators. The tracer needs root for eBPF.
-  The terminal, network and file checks could run there later.
 - An alert for each change. The first use is to find signals by hand.
 
 ## Anti-goals
@@ -80,6 +78,9 @@ These would make the work a failure even if it works:
 7. The recording proxy forwards the traffic that is not model traffic
    (telemetry, update checks, error reports) to its host. The trace then
    shows the behaviour of the agent as it ships.
+8. The tracer also runs on a real machine, when an operator starts it.
+   The eBPF check runs there only on Linux, and only when the operator
+   allows `sudo`.
 
 ## The four checks
 
@@ -128,6 +129,27 @@ time in milliseconds from the start of the step, on one clock.
   follows fork events, so a daemon that leaves its parent (the Codex
   app-server, fact 067) stays in the tree.
 - A process that stays after the step is a result.
+
+### Real machines
+
+- One kit command starts a trace on the machine of the operator, for
+  example `kit trace STEP --checks terminal,network,files[,ebpf]`. The
+  workflows call the same command. There is no second code path for the
+  runners.
+- Terminal, network and file checks need no root. They run on Linux,
+  macOS and Windows.
+- The eBPF check runs only on Linux, only with the option `ebpf`. The
+  kit asks `sudo` for the bpftrace process only, and tells the operator
+  the command before it runs. The agent itself never runs as root.
+- If bpftrace or `sudo` is not available, the kit skips the eBPF check,
+  says so, and writes the skip into `meta`.
+- The trace stays in the run folder of the kit. Nothing is uploaded and
+  no issue is opened. To share a trace, the operator adds it with a pull
+  request, as for the site.
+- The home can be the fixture home (the default) or the real home of the
+  operator (`--home real`). With the real home, the trace has the real
+  paths and file names. The scrub runs before a trace leaves the run
+  folder, and `meta` records `machine: real` and the home mode.
 
 ## The trace format
 
@@ -248,7 +270,8 @@ keeps the site small and keeps the "work by hand" decision.
 5. The Replay view and the `/traces/` grid on the site, from one chosen
    trace.
 6. The other views.
-7. The macOS and Windows jobs (terminal, network and files).
+7. The macOS and Windows jobs (terminal, network and files), and the
+   checks on a real machine with `kit trace`.
 8. `traces-login.yml`, written and checked with `actionlint`, not run.
 
 Each item is one pull request or more.
