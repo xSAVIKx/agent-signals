@@ -175,6 +175,18 @@ mkraw routes
 run_build routes "$H/meta.json"
 want "routes: userinfo, parameters, fragment and query are cut" routes 'sorted(e["route"] for e in ev if e["kind"] == "model")[:4] == ["/v1/b", "/v1/c", "/v1/messages", "/v1/models"] and any(e.get("route") == "http://h.example.com/v1/a" for e in ev) and "secret" not in json.dumps(d) and "pw" not in json.dumps(ev)'
 
+# A Cursor line has no request id: "MS POST RPC KIND".
+mkraw cursor
+printf '1700000002400 POST /agent.v1.AgentService/Run start\n' >"$T/cursor/.trace/model-b.log"
+run_build cursor "$H/meta.json"
+want "cursor: the kind is the fourth word" cursor 'any(e["kind"] == "model" and e["route"] == "/agent.v1.AgentService/Run" and e["model_kind"] == "start" for e in ev)'
+
+# A time that is not finite is a bad line, not a crash.
+mkraw inf
+printf '{"t": 1e999, "kind": "create", "path": "/work/example/proj/inf.txt", "dir": false}\n' >>"$T/inf/.trace/files.jsonl"
+run_build inf "$H/meta.json"
+want "inf: the build gives a document" inf 'isinstance(ev, list)'
+
 # The account name has no case. An empty SCRUB_USER is no variable.
 mkraw case
 printf '{"t": 1700000001700, "kind": "create", "path": "/home/example/.cache/ALICE-x/a", "dir": false}\n' >>"$T/case/.trace/files.jsonl"

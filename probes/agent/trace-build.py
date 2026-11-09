@@ -100,7 +100,7 @@ def read_json_lines(path):
 def to_int(value, default=0):
     try:
         return int(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return default
 
 
@@ -373,7 +373,14 @@ def model_events(raw, t0, paths):
                 continue
             route = clean_route(words[2])
             route = clean_name(paths.scrub.text(route))
-            kind = words[4] if len(words) > 4 else "-"
+            # Most fake model lines are "MS METHOD PATH RID KIND". The
+            # Cursor lines have no RID: "MS POST RPC KIND".
+            if len(words) > 4:
+                kind = words[4]
+            elif len(words) == 4:
+                kind = words[3]
+            else:
+                kind = "-"
             if not re.fullmatch(r"[A-Za-z0-9_.-]+", kind):
                 kind = "-"
             out.append(
