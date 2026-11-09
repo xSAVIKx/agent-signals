@@ -51,6 +51,17 @@
 # session (resume) adds a second line. The fake model then gets --log-times
 # and writes its log to $KIT_TRACE/model-NAME.log.
 #
+# The terminal check: with KIT_TRACE set, and KIT_TRACE_CHECKS empty or a
+# comma list that has the word "terminal", the tmux backend records the
+# output of the pane as asciicast v2 in $KIT_TRACE/terminal.cast. The pane
+# command first waits for the file "gate" in the state folder (a loop of
+# sleep 0.05, 10 seconds at most). "start" runs "tmux pipe-pane" with
+# trace-cast.py, and then makes the gate. So the recording has the first
+# byte of the agent, and the pid of the agent is still the pid of the
+# pane. A start again of the same session continues the same cast file.
+# The pty backend has no recording yet: "start" writes the line
+# "terminal<tab>pty-not-yet" to $KIT_TRACE/skipped.tsv.
+#
 # Each started pid is also in RUN/pids/, with the label "session NAME
 # ROLE". "stop" stops only these pids, never a process found by its name.
 set -u
@@ -100,6 +111,16 @@ client() {
 }
 
 tm() { tmux -S "$sock" "$@"; }
+
+# trace_terminal: true when the terminal check is on: KIT_TRACE is set, and
+# KIT_TRACE_CHECKS is empty or a comma list that has "terminal".
+trace_terminal() {
+  [ -n "${KIT_TRACE:-}" ] || return 1
+  case ",${KIT_TRACE_CHECKS:-}," in
+    ,, | *,terminal,*) return 0 ;;
+  esac
+  return 1
+}
 
 # add_pid PID LABEL: record a pid of the session in RUN/pids/ and in the
 # pids file of the session.
@@ -464,6 +485,8 @@ do_start() {
     cmd="$cmd$_rest"
   fi
   write_conditions "$@"
+  trace_term=
+  trace_terminal && trace_term=1
   sockdir=$(mktemp -d /tmp/as.XXXXXX) || kit_die 1 "mktemp failed"
   chmod 700 "$sockdir"
   # The agent starts with "exec", so that its pid is the pid of the pane
@@ -478,15 +501,25 @@ do_start() {
       # remain-on-exit keeps the last screen after the agent ends. The
       # pane gets the TERM of the pty backend.
       printf 'set -g remain-on-exit on\nset -g default-terminal %s\n' "$term" >"$sdir/tmux.conf"
+      # With the terminal check, the pane waits for the gate file first.
+      rm -f "$sdir/gate"
+      gate_wait=
+      gate_arg=
+      [ -n "$trace_term" ] && gate_arg=$sdir/gate && gate_wait='i=0; while [ ! -e "$1" ] && [ "$i" -lt 200 ]; do sleep 0.05; i=$((i+1)); done; '
       env -i "$@" \
         tmux -S "$sock" -f "$sdir/tmux.conf" new-session -d -s kit \
         -x "$COLS" -y "$ROWS" -c "$work" \
-        sh -c 'eval "exec $0"' "$cmd" </dev/null >"$sdir/server.log" 2>&1 \
+        sh -c "${gate_wait}"'eval "exec $0"' "$cmd" ${gate_arg:+"$gate_arg"} </dev/null >"$sdir/server.log" 2>&1 \
         3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- ||
         kit_die 1 "tmux did not start: $(cat "$sdir/server.log")"
       server=$(tm display -p -t kit '#{pid}' 2>/dev/null)
       a=$(tm display -p -t kit '#{pane_pid}' 2>/dev/null)
       [ -n "$server" ] && add_pid "$server" "session $name server"
+      if [ -n "$trace_term" ]; then
+        tm pipe-pane -t kit -O "exec python3 -I '$KIT_DIR/trace-cast.py' --t0 '$KIT_TRACE/t0' --out '$KIT_TRACE/terminal.cast' --width $COLS --height $ROWS" ||
+          kit_die 1 "pipe-pane failed"
+        : >"$sdir/gate"
+      fi
       ;;
     pty)
       sock=$sockdir/pty.sock
@@ -500,6 +533,7 @@ do_start() {
       a=$(awk '$1 == "agent" { print $2 }' "$start_f")
       rm -f "$start_f"
       [ -n "$server" ] && add_pid "$server" "session $name driver"
+      [ -n "$trace_term" ] && printf 'terminal\tpty-not-yet\n' >>"$KIT_TRACE/skipped.tsv"
       ;;
   esac
   [ -n "${a:-}" ] || kit_die 1 "no agent pid"

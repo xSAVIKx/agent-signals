@@ -1,0 +1,120 @@
+# shellcheck shell=sh
+# The terminal check: trace-cast.py (asciicast v2) and the recording of a
+# traced tmux session in "kit session start".
+. "$ROOT/tools/agent-kit-tests/lib.sh"
+. "$ROOT/tools/agent-kit-tests/core-lib.sh"
+. "$ROOT/tools/agent-kit-tests/steps-lib.sh"
+
+cast=$ROOT/probes/agent/trace-cast.py
+stub=$ROOT/tools/testdata/agent-kit/stub-agent.sh
+
+# Unit: a character split over two writes stays whole.
+printf '1700000000123\n' >"$T/t0"
+{
+  printf 'a\342\224'
+  sleep 0.2
+  printf '\200b'
+} | python3 -I "$cast" --t0 "$T/t0" --out "$T/u.cast" --width 120 --height 40
+expect_code "unit: trace-cast.py exits 0" 0 $?
+want='{"version": 2, "width": 120, "height": 40, "timestamp": 1700000000, "env": {"TERM": "xterm-256color"}}'
+if [ "$(head -n 1 "$T/u.cast")" = "$want" ]; then pass "unit: the header"; else fail "unit: the header" "$(head -n 1 "$T/u.cast")"; fi
+text=$(python3 -I -c '
+import json, sys
+ev = [json.loads(l) for l in open(sys.argv[1], encoding="utf-8")][1:]
+assert all(e[1] == "o" for e in ev)
+sys.stdout.write("".join(e[2] for e in ev))' "$T/u.cast")
+if [ "$text" = "a─b" ]; then pass "unit: the joined text is a─b"; else fail "unit: the joined text is a─b" "$text"; fi
+# A second run on the same file adds no second header.
+printf 'c' | python3 -I "$cast" --t0 "$T/t0" --out "$T/u.cast" --width 120 --height 40
+n=$(grep -c '"version"' "$T/u.cast")
+if [ "$n" = 1 ]; then pass "unit: a second run adds no header"; else fail "unit: a second run adds no header" "$n headers"; fi
+
+if ! command -v tmux >/dev/null 2>&1; then
+  echo "skip: tmux is not installed"
+  done_tests
+fi
+
+mkdir -m 700 "$T/run1"
+raw=$T/raw
+mkdir -m 0700 "$raw"
+date +%s%3N >"$raw/t0" 2>/dev/null
+case $(cat "$raw/t0") in *[!0-9]* | '') python3 -I -c 'import time; print(time.time_ns() // 1000000)' >"$raw/t0" ;; esac
+
+# Session: the stub on tmux with KIT_TRACE. A subshell sets the variables
+# for one call only: macOS sh keeps a variable that is set before a
+# function call.
+export AGENT_SIGNALS_RUN="$T/run1"
+(KIT_TRACE=$raw; KIT_TRACE_CHECKS=; export KIT_TRACE KIT_TRACE_CHECKS
+ kit session start s1 stub --via tmux --cmd "sh '$stub'") >"$T/o" 2>&1
+expect_code "session: start exits 0" 0 $?
+kit session wait s1 'stub idle' 30 >"$T/o" 2>&1
+expect_code "session: wait for idle" 0 $?
+sdir=$T/run1/sessions/s1
+agent_pid=$(awk -F '\t' '$1 == "s1" { print $4 }' "$raw/sessions.tsv")
+if [ -n "$agent_pid" ] && [ "$(cat "$sdir/pid")" = "$agent_pid" ]; then
+  pass "session: the pid file equals the AGENT_PID of sessions.tsv"
+else
+  fail "session: the pid file equals the AGENT_PID of sessions.tsv" "$(cat "$sdir/pid") / $agent_pid"
+fi
+# The pane pid is the agent pid: the gate loop ended with exec.
+if [ -e "$sdir/gate" ]; then pass "session: the gate file exists"; else fail "session: the gate file exists" "no file"; fi
+kit session stop s1 --keep >"$T/o" 2>&1
+expect_code "session: stop --keep exits 0" 0 $?
+if grep -q 'stub idle' "$raw/terminal.cast"; then pass "session: the cast holds stub idle"; else fail "session: the cast holds stub idle" "$(head -c 300 "$raw/terminal.cast")"; fi
+# A second start of the same session (resume) continues the same file.
+(KIT_TRACE=$raw; KIT_TRACE_CHECKS=terminal,network; export KIT_TRACE KIT_TRACE_CHECKS
+ kit session start s1 stub --via tmux --cmd "sh '$stub'") >"$T/o" 2>&1
+expect_code "session: the second start exits 0" 0 $?
+kit session wait s1 'stub idle' 30 >"$T/o" 2>&1
+expect_code "session: the second wait for idle" 0 $?
+kit session stop s1 >"$T/o" 2>&1
+expect_code "session: the second stop exits 0" 0 $?
+n=$(grep -c '"version"' "$raw/terminal.cast")
+if [ "$n" = 1 ]; then pass "session: one header line after a second start"; else fail "session: one header line after a second start" "$n headers"; fi
+n=$(grep -c 'stub idle' "$raw/terminal.cast")
+if [ "$n" -ge 2 ]; then pass "session: the second start adds events"; else fail "session: the second start adds events" "$n"; fi
+
+# KIT_TRACE_CHECKS=network: no cast and no gate wait.
+rm -f "$raw/terminal.cast"
+(KIT_TRACE=$raw; KIT_TRACE_CHECKS=network; export KIT_TRACE KIT_TRACE_CHECKS
+ kit session start s2 stub --via tmux --cmd "sh '$stub'") >"$T/o" 2>&1
+expect_code "network only: start exits 0" 0 $?
+kit session wait s2 'stub idle' 30 >"$T/o" 2>&1
+expect_code "network only: wait for idle" 0 $?
+sock=$(cat "$T/run1/sessions/s2/socket")
+pane=$(tmux -S "$sock" display -p -t kit '#{pane_start_command}' 2>/dev/null)
+kit session stop s2 >"$T/o" 2>&1
+if [ ! -e "$raw/terminal.cast" ]; then pass "network only: no cast file"; else fail "network only: no cast file" "file exists"; fi
+case $pane in
+  *gate*) fail "network only: no gate wait in the pane command" "$pane" ;;
+  *) pass "network only: no gate wait in the pane command" ;;
+esac
+
+# Step with the states: the first event comes before the idle state.
+stub_set STUB_TRUST=yes
+rm -f "$raw/terminal.cast" "$raw/states.tsv" "$raw/sessions.tsv"
+(KIT_TRACE=$raw; KIT_TRACE_CHECKS=; export KIT_TRACE KIT_TRACE_CHECKS; kitx step "permission-claude@tmux") >"$T/step" 2>&1
+expect_code "step: exits 0" 0 $?
+t0=$(cat "$raw/t0")
+idle=$(awk -F '\t' '$2 == "idle" { print $1; exit }' "$raw/states.tsv")
+first=$(sed -n 2p "$raw/terminal.cast" | python3 -I -c 'import json,sys; print(json.loads(sys.stdin.read())[0])')
+if [ -n "$idle" ] && [ -n "$first" ] && awk -v f="$first" -v i="$idle" -v t="$t0" 'BEGIN { exit !(f * 1000 < i - t) }'; then
+  pass "step: the first event is before the idle state"
+else
+  fail "step: the first event is before the idle state" "first=$first idle=$idle t0=$t0"
+fi
+
+# pty: a skip line, no cast.
+if have pty; then
+  rm -f "$raw/terminal.cast" "$raw/skipped.tsv"
+  (KIT_TRACE=$raw; KIT_TRACE_CHECKS=; export KIT_TRACE KIT_TRACE_CHECKS
+   kit session start s3 stub --via pty --cmd "sh '$stub'") >"$T/o" 2>&1
+  expect_code "pty: start exits 0" 0 $?
+  kit session stop s3 >"$T/o" 2>&1
+  expect_line "pty: the skip line" '^terminal	pty-not-yet$' "$raw/skipped.tsv"
+  if [ ! -e "$raw/terminal.cast" ]; then pass "pty: no cast file"; else fail "pty: no cast file" "file exists"; fi
+else
+  echo "skip: pty: the backend tool is missing"
+fi
+
+done_tests
