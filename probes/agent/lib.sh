@@ -112,14 +112,52 @@ kit_pid_ours() {
   [ "$_want" = "$(kit_pid_start "$2")" ]
 }
 
+# kit_trace_young RUN: true when RUN/.trace changed in the last minute.
+kit_trace_young() {
+  [ -n "$(find "$1/.trace" -prune -mmin -1 2>/dev/null)" ]
+}
+
 # kit_trace_owner_runs RUN: true when the "kit trace" that made RUN/.trace
-# still runs. RUN/.trace/owner holds its pid and its start time.
+# still runs. RUN/.trace/owner holds its pid and its start time. The check
+# fails closed: when the owner file is missing or bad, or when its pid runs
+# but it has no start time, the trace counts as running while RUN/.trace
+# is younger than one minute. A new trace writes the owner file just after
+# it makes the folder.
 kit_trace_owner_runs() {
-  [ -r "$1/.trace/owner" ] || return 1
-  _op=$(awk -F '\t' 'NR == 1 { print $1 }' "$1/.trace/owner")
-  _os=$(awk -F '\t' 'NR == 1 { print $2 }' "$1/.trace/owner")
-  case $_op in '' | *[!0-9]*) return 1 ;; esac
-  kit_pid_runs "$_op" && [ -n "$_os" ] && [ "$_os" = "$(kit_pid_start "$_op")" ]
+  _op=
+  _os=
+  if [ -r "$1/.trace/owner" ]; then
+    _op=$(awk -F '\t' 'NR == 1 { print $1 }' "$1/.trace/owner")
+    _os=$(awk -F '\t' 'NR == 1 { print $2 }' "$1/.trace/owner")
+  fi
+  case $_op in
+    '' | *[!0-9]*) kit_trace_young "$1"; return ;;
+  esac
+  kit_pid_runs "$_op" || return 1
+  [ -n "$_os" ] || { kit_trace_young "$1"; return; }
+  [ "$_os" = "$(kit_pid_start "$_op")" ]
+}
+
+# kit_trace_end_step RUN: stop the "kit step" of a stopped trace. The file
+# RUN/.trace/step holds its pid and its start time. It gets TERM (its trap
+# stops its session), then KILL after 10 s. A pid with another start time
+# is not the step, and it gets no signal.
+kit_trace_end_step() {
+  [ -r "$1/.trace/step" ] || return 0
+  _sp=$(awk -F '\t' 'NR == 1 { print $1 }' "$1/.trace/step")
+  _ss=$(awk -F '\t' 'NR == 1 { print $2 }' "$1/.trace/step")
+  case $_sp in '' | *[!0-9]*) return 0 ;; esac
+  [ -n "$_ss" ] || return 0
+  _step_ours() { kit_pid_runs "$_sp" && [ "$_ss" = "$(kit_pid_start "$_sp")" ]; }
+  _step_ours || return 0
+  kill "$_sp" 2>/dev/null
+  _n=0
+  while _step_ours && [ "$_n" -lt 100 ]; do
+    sleep 0.1
+    _n=$((_n + 1))
+  done
+  _step_ours && kill -9 "$_sp" 2>/dev/null
+  return 0
 }
 
 # kit_trace_end_recorders RUN: stop the pids of RUN/pids/ with a trace
@@ -153,7 +191,8 @@ kit_trace_end_recorders() {
 
 # kit_trace_leftover RUN: remove what a stopped "kit trace" left in RUN, for
 # example after a KILL. It does nothing when there is no RUN/.trace. It
-# returns 1 when the owner of RUN/.trace still runs. Else it stops each
+# returns 1 when the owner of RUN/.trace still runs. Else it stops the
+# step of that trace (kit_trace_end_step), stops each
 # session of RUN/.trace/sessions.tsv that is not stopped, stops the
 # recorders by their pids in RUN/pids/, deletes the folder of the file
 # watcher (RUN/.trace/files-dir names it; only a folder /tmp/as-trace.*
@@ -162,6 +201,7 @@ kit_trace_leftover() {
   _lr=$1
   [ -d "$_lr/.trace" ] || return 0
   kit_trace_owner_runs "$_lr" && return 1
+  kit_trace_end_step "$_lr"
   if [ -f "$_lr/.trace/sessions.tsv" ]; then
     cut -f1 "$_lr/.trace/sessions.tsv" | sort -u | while IFS= read -r _s; do
       [ -n "$_s" ] && [ -f "$_lr/sessions/$_s/backend" ] || continue

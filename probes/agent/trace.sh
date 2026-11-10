@@ -9,9 +9,11 @@
 #
 # The order:
 #   1. Find the run. When RUN/.trace exists and the "kit trace" in
-#      RUN/.trace/owner still runs, another trace runs: exit 2. When that
-#      trace does not run (for example after a KILL), remove what it left
-#      (kit_trace_leftover in lib.sh) and go on.
+#      RUN/.trace/owner still runs, another trace runs: exit 2. A missing
+#      or bad owner file counts as running for one minute
+#      (kit_trace_owner_runs). When that trace does not run (for example
+#      after a KILL), remove what it left (kit_trace_leftover in lib.sh):
+#      its step (RUN/.trace/step), its sessions and its recorders.
 #   2. Make RUN/.trace (the raw folder). Write the file "owner" (the pid
 #      and the start time of this script), t0 (the start in epoch
 #      milliseconds) and the file "checks" (LIST).
@@ -143,7 +145,9 @@ kit_trace_leftover "$run" || kit_die "$KIT_USAGE" "another trace runs in this ru
 # mkdir is the lock: only one trace runs in a run.
 mkdir "$raw" 2>/dev/null || kit_die "$KIT_USAGE" "another trace runs in this run ($raw exists)"
 chmod 700 "$raw"
-printf '%s\t%s\n' "$$" "$(kit_pid_start "$$")" >"$raw/owner"
+# The owner file comes in one step (a rename), so that no other trace
+# reads a half file.
+printf '%s\t%s\n' "$$" "$(kit_pid_start "$$")" >"$raw/.owner.tmp" && mv "$raw/.owner.tmp" "$raw/owner"
 
 home=$(kit_manifest_value "$run" home)
 work=$(kit_work_root "$run")
@@ -313,6 +317,9 @@ mkdir "$raw/tmp" || fail no-temp-folder
   exec sh "$KIT_DIR/step.sh" "$name@$backend" "$@"
 ) </dev/null >"$raw/step.out" &
 step_pid=$!
+# The step file: after a KILL of this script, the next trace or
+# "kit session stop --all" stops the step by its pid (kit_trace_end_step).
+printf '%s\t%s\n' "$step_pid" "$(kit_pid_start "$step_pid")" >"$raw/.step.tmp" && mv "$raw/.step.tmp" "$raw/step"
 wait "$step_pid"
 code=$?
 step_pid=

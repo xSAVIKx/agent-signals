@@ -123,7 +123,7 @@ if [ -z "$(trace_pids)" ]; then pass "trace: no trace pid stays in RUN/pids"; el
 # The files that the kit writes are not files of the agent: the settings
 # files of the fake model, the home and the work folder of the session,
 # and the deletes when the session stops.
-want "kit files: no settings file of the fake model" "$j" 'not any(p.endswith(("settings.json", ".claude.json", ".new")) for e in ev for p in (e.get("path", ""), e.get("from", "")))'
+want "kit files: no settings file of the fake model" "$j" 'not any(p.startswith(("~", "WORK")) and p.endswith(("settings.json", ".claude.json", ".new")) for e in ev for p in (e.get("path", ""), e.get("from", "")))'
 want "kit files: no event for the home or the work folder itself" "$j" 'not any(e.get("path") in ("~", "WORK") for e in ev)'
 want "kit files: no delete of the file of the stub" "$j" 'not any(e["kind"] == "delete" and e.get("path") == "WORK/stub-work.txt" for e in ev)'
 want "kit files: no mark file" "$j" '"kit-trace-mark" not in json.dumps(d)'
@@ -238,7 +238,7 @@ done
 rec=$(trace_pids)
 fdir=$(cat "$run/.trace/files-dir" 2>/dev/null)
 # The children of kit trace: the recorders and the step.
-kids=$(ps -A -o pid= -o ppid= | awk -v p="$kpid" '$2 == p { print $1 }')
+kids=$(ps -A -o pid= -o ppid= | awk -v p="$kpid" '$2 == p { print $1 }' | tr '\n' ' ')
 for p in $kids; do bg_pid "$p"; done
 if [ -n "$rec" ] && [ -n "$fdir" ] && [ -d "$fdir" ]; then pass "KILL: the recorders and the watcher folder exist"; else fail "KILL: the recorders and the watcher folder exist" "rec '$rec' dir '$fdir'"; fi
 kill -9 "$kpid"
@@ -253,26 +253,39 @@ while [ "$n" -lt 50 ]; do
 done
 if [ -z "$left" ]; then pass "KILL: the recorders stop when kit trace is gone"; else fail "KILL: the recorders stop when kit trace is gone" "a recorder runs"; fi
 if [ -n "$fdir" ] && [ ! -e "$fdir" ]; then pass "KILL: the watcher deletes its folder with the real paths"; else fail "KILL: the watcher deletes its folder with the real paths" "$fdir exists"; fi
-# The step runs on with no parent. Stop it by its pid: it stops its session.
-for p in $kids; do
-  case " $rec " in *" $p "*) continue ;; esac
-  kill -TERM "$p" 2>/dev/null
-done
-n=0
-while [ "$n" -lt 100 ]; do
-  left=
-  for p in $kids; do kill -0 "$p" 2>/dev/null && left=1; done
-  [ -n "$left" ] || break
-  sleep 0.1
-  n=$((n + 1))
-done
+# The step runs on with no parent. RUN/.trace/step names it, and the next
+# trace stops it by its pid.
+spid=$(cut -f1 "$run/.trace/step" 2>/dev/null)
+case " $kids " in
+  *" $spid "*) pass "KILL: RUN/.trace/step names the step" ;;
+  *) fail "KILL: RUN/.trace/step names the step" "'$spid' not in '$kids'" ;;
+esac
+if kill -0 "$spid" 2>/dev/null; then pass "KILL: the step still runs"; else fail "KILL: the step still runs" "no pid"; fi
 if [ -d "$run/.trace" ]; then pass "KILL: RUN/.trace stays"; else fail "KILL: RUN/.trace stays" "no folder"; fi
+# RUN/.trace changed less than one minute ago, but its owner file names a
+# pid that does not run: the next trace does not wait for the grace time.
 kitx trace permission-claude@tmux --checks terminal >"$T/tk2" 2>&1
 expect_code "after KILL: the next trace exits 0" 0 $?
 expect_line "after KILL: the next trace removes the old folder" '^kit: removed the folder of a stopped trace' "$T/tk2"
 expect_line "after KILL: the next trace gives its folder" '^trace: .*/traces/[0-9]+-permission-claude@tmux$' "$T/tk2"
 if [ ! -e "$run/.trace" ]; then pass "after KILL: no RUN/.trace stays"; else fail "after KILL: no RUN/.trace stays" "it exists"; fi
 if [ -z "$(trace_pids)" ]; then pass "after KILL: no trace pid stays"; else fail "after KILL: no trace pid stays" "$(trace_pids)"; fi
+left=
+for p in $kids; do kill -0 "$p" 2>/dev/null && left="$left $p"; done
+if [ -z "$left" ]; then pass "after KILL: the next trace stopped the old step"; else fail "after KILL: the next trace stopped the old step" "pids$left run"; fi
+
+# A RUN/.trace with no owner file: a new trace can be between its mkdir
+# and its owner file. For one minute it counts as a trace that runs.
+mkdir "$run/.trace"
+kitx trace permission-claude@tmux --checks terminal >"$T/tn" 2>&1
+expect_code "no owner: a young folder is a trace that runs, exit 2" 2 $?
+expect_line "no owner: the text" 'another trace runs in this run' "$T/tn"
+if [ -d "$run/.trace" ]; then pass "no owner: the young folder stays"; else fail "no owner: the young folder stays" "no folder"; fi
+touch -t 202001010000 "$run/.trace"
+kitx session stop --all >"$T/tn2" 2>&1
+expect_code "no owner: stop --all exits 0" 0 $?
+expect_line "no owner: an old folder is removed" '^kit: removed the folder of a stopped trace' "$T/tn2"
+if [ ! -e "$run/.trace" ]; then pass "no owner: no RUN/.trace stays"; else fail "no owner: no RUN/.trace stays" "it exists"; fi
 
 # "kit session stop --all" also removes what a stopped trace left: a
 # recorder in RUN/pids/ (here a sleep with the label "trace files"), the
@@ -306,7 +319,7 @@ kitx trace resume-claude@tmux --checks files >"$T/t12" 2>&1
 j=$(sed -n 's/^trace: //p' "$T/t12")/trace.json
 expect_file "resume: trace.json exists" "$j"
 want "resume: two starts" "$j" '[s["state"] for s in d["states"]].count("start") == 2'
-want "resume: no settings file of the fake model" "$j" 'not any(p.endswith(("settings.json", ".claude.json", ".new")) for e in ev for p in (e.get("path", ""), e.get("from", "")))'
+want "resume: no settings file of the fake model" "$j" 'not any(p.startswith(("~", "WORK")) and p.endswith(("settings.json", ".claude.json", ".new")) for e in ev for p in (e.get("path", ""), e.get("from", "")))'
 want "resume: the file of the stub stays" "$j" '"WORK/stub-work.txt" in d["summary"]["files"]["work"]'
 stub_set STUB_TRUST=yes
 

@@ -178,7 +178,9 @@ three checks on one clock:
   itself writes (the work folder and the home of a session, the settings
   files of the fake model, also on a resume step, and the deletes when a
   session stops) are not in the trace. The kit marks its own work with a
-  file `.kit-trace-mark.NAME.begin` and `.end` in the work root.
+  file `.kit-trace-mark.NAME.begin` and `.end` in the work root. When the
+  file watch is very late, the trace can drop a file that the agent
+  writes just at its start.
 
 A trace also records the states of the step (`start`, `idle`, `prompt`,
 `busy`, `dialog`, `answer`, `idle-after`, `stop`). It holds no prompt text
@@ -224,13 +226,15 @@ A trace that gets KILL cannot stop its recorders. The proxy and the file
 watcher check two times each second, or more, that `kit trace` is still
 their parent, and stop when it is gone. The file watcher then deletes its
 record in `/tmp/as-trace.*`, because that record holds the real paths.
-The killed trace leaves the folder `RUN/.trace`. The next `kit trace` in the run, or
-`kit session stop --all`, sees that the trace in `RUN/.trace/owner` does
-not run. Then it stops the sessions of that trace and the recorders by
-their pids in `RUN/pids/`, deletes the folder of the file watcher, and
-deletes `RUN/.trace`. It writes the line
-`kit: removed the folder of a stopped trace: RUN/.trace`. To do it by
-hand, do these steps:
+The killed trace leaves the folder `RUN/.trace`, and its step can still
+run. The next `kit trace` in the run, or `kit session stop --all`, sees
+that the trace in `RUN/.trace/owner` does not run. Then it stops the step
+of that trace (`RUN/.trace/step` holds its pid and its start time), the
+sessions of that trace, and the recorders by their pids in `RUN/pids/`.
+It deletes the folder of the file watcher and `RUN/.trace`, and writes
+the line `kit: removed the folder of a stopped trace: RUN/.trace`. A
+`RUN/.trace` with no owner file counts as a trace that runs for one
+minute after its last change. To do it by hand, do these steps:
 
 1. Run `kit session stop --all`.
 2. When `RUN/.trace` still exists and no trace runs, delete it.
