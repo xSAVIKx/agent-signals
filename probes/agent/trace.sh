@@ -160,26 +160,12 @@ fdir=
 made_work=
 made_home=
 
-# tree PID: PID and each process below it, one pid on each line.
-tree() {
-  ps -A -o pid= -o ppid= 2>/dev/null | awk -v r="$1" '
-    { kid[$2] = kid[$2] " " $1 }
-    END {
-      q[1] = r; n = 1
-      for (i = 1; i <= n; i++) {
-        print q[i]
-        m = split(kid[q[i]], k, " ")
-        for (j = 1; j <= m; j++) q[++n] = k[j]
-      }
-    }'
-}
-
 # end_step: stop the step, when it runs, and each process below it. The
 # step script stops its own session when it gets TERM.
 end_step() {
   [ -n "$step_pid" ] || return 0
   kit_pid_runs "$step_pid" || return 0
-  _t=$(tree "$step_pid")
+  _t=$(kit_pid_tree "$step_pid")
   # shellcheck disable=SC2086
   kill $_t 2>/dev/null
   _n=0

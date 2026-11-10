@@ -262,6 +262,12 @@ case " $kids " in
 esac
 if kill -0 "$spid" 2>/dev/null; then pass "KILL: the step still runs"; else fail "KILL: the step still runs" "no pid"; fi
 if [ -d "$run/.trace" ]; then pass "KILL: RUN/.trace stays"; else fail "KILL: RUN/.trace stays" "no folder"; fi
+# The processes below the step, for example the step script, must stop too.
+stree=$(ps -A -o pid= -o ppid= | awk -v r="$spid" '
+  { kid[$2] = kid[$2] " " $1 }
+  END { q[1] = r; n = 1
+        for (i = 1; i <= n; i++) { if (i > 1) print q[i]; m = split(kid[q[i]], k, " "); for (j = 1; j <= m; j++) q[++n] = k[j] } }')
+if [ -n "$stree" ]; then pass "KILL: the step has processes below it"; else fail "KILL: the step has processes below it" "none"; fi
 # RUN/.trace changed less than one minute ago, but its owner file names a
 # pid that does not run: the next trace does not wait for the grace time.
 kitx trace permission-claude@tmux --checks terminal >"$T/tk2" 2>&1
@@ -273,6 +279,9 @@ if [ -z "$(trace_pids)" ]; then pass "after KILL: no trace pid stays"; else fail
 left=
 for p in $kids; do kill -0 "$p" 2>/dev/null && left="$left $p"; done
 if [ -z "$left" ]; then pass "after KILL: the next trace stopped the old step"; else fail "after KILL: the next trace stopped the old step" "pids$left run"; fi
+left=
+for p in $stree; do kill -0 "$p" 2>/dev/null && left="$left $p"; done
+if [ -z "$left" ]; then pass "after KILL: no process below the old step stays"; else fail "after KILL: no process below the old step stays" "pids$left run"; fi
 
 # A RUN/.trace with no owner file: a new trace can be between its mkdir
 # and its owner file. For one minute it counts as a trace that runs.

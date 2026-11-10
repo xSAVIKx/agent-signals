@@ -119,9 +119,9 @@ kit_trace_young() {
 
 # kit_trace_owner_runs RUN: true when the "kit trace" that made RUN/.trace
 # still runs. RUN/.trace/owner holds its pid and its start time. The check
-# fails closed: when the owner file is missing or bad, or when its pid runs
-# but it has no start time, the trace counts as running while RUN/.trace
-# is younger than one minute. A new trace writes the owner file just after
+# fails closed: when the owner file is missing or bad, the trace counts as
+# running while RUN/.trace is younger than one minute. When its pid runs
+# but it has no start time, the trace counts as running. A new trace writes the owner file just after
 # it makes the folder.
 kit_trace_owner_runs() {
   _op=
@@ -134,14 +134,30 @@ kit_trace_owner_runs() {
     '' | *[!0-9]*) kit_trace_young "$1"; return ;;
   esac
   kit_pid_runs "$_op" || return 1
-  [ -n "$_os" ] || { kit_trace_young "$1"; return; }
+  # A live pid with no start time (ps with no lstart) counts as running.
+  [ -n "$_os" ] || return 0
   [ "$_os" = "$(kit_pid_start "$_op")" ]
 }
 
-# kit_trace_end_step RUN: stop the "kit step" of a stopped trace. The file
-# RUN/.trace/step holds its pid and its start time. It gets TERM (its trap
-# stops its session), then KILL after 10 s. A pid with another start time
-# is not the step, and it gets no signal.
+# kit_pid_tree PID: PID and each process below it, one pid on each line.
+kit_pid_tree() {
+  ps -A -o pid= -o ppid= 2>/dev/null | awk -v r="$1" '
+    { kid[$2] = kid[$2] " " $1 }
+    END {
+      q[1] = r; n = 1
+      for (i = 1; i <= n; i++) {
+        print q[i]
+        m = split(kid[q[i]], k, " ")
+        for (j = 1; j <= m; j++) q[++n] = k[j]
+      }
+    }'
+}
+
+# kit_trace_end_step RUN: stop the "kit step" of a stopped trace and each
+# process below it. The file RUN/.trace/step holds the pid and the start
+# time of the step. The step script below step.sh stops its session when it
+# gets TERM. Each process gets TERM, then KILL after 10 s. A pid with
+# another start time is not the step, and nothing gets a signal.
 kit_trace_end_step() {
   [ -r "$1/.trace/step" ] || return 0
   _sp=$(awk -F '\t' 'NR == 1 { print $1 }' "$1/.trace/step")
@@ -150,13 +166,18 @@ kit_trace_end_step() {
   [ -n "$_ss" ] || return 0
   _step_ours() { kit_pid_runs "$_sp" && [ "$_ss" = "$(kit_pid_start "$_sp")" ]; }
   _step_ours || return 0
-  kill "$_sp" 2>/dev/null
+  _st=$(kit_pid_tree "$_sp")
+  # shellcheck disable=SC2086
+  kill $_st 2>/dev/null
   _n=0
-  while _step_ours && [ "$_n" -lt 100 ]; do
+  while [ "$_n" -lt 100 ]; do
+    _left=
+    for _p in $_st; do kit_pid_runs "$_p" && _left=1 && break; done
+    [ -n "$_left" ] || break
     sleep 0.1
     _n=$((_n + 1))
   done
-  _step_ours && kill -9 "$_sp" 2>/dev/null
+  for _p in $_st; do kit_pid_runs "$_p" && kill -9 "$_p" 2>/dev/null; done
   return 0
 }
 
