@@ -278,4 +278,60 @@ else
   echo "skip: pty: the backend tool is missing"
 fi
 
+# The scrub of a cast: trace-cast-scrub.py gives the scrub the text of each
+# event, so that a path rule does not take an escape of the JSON line.
+# Each output line must be valid JSON.
+python3 -I -c '
+import json, sys
+lines = [
+    {"version": 2, "width": 120, "height": 40, "timestamp": 1700000000},
+    [0.1, "o", "Read \"/srv/work/proj/a.go\" ok"],
+    [0.2, "o", "in /srv/x/y\u001b[0m ok\r\n"],
+    [0.3, "o", "home /Users/alice/code/app/b.go\r\nnext\u0007 /work/shop/c.txt\tz"],
+    [0.4, "o", "plain text, no path"],
+    [0.5, "i", "\u001b[A"],
+]
+with open(sys.argv[1], "w", encoding="utf-8") as f:
+    for x in lines:
+        f.write(json.dumps(x, ensure_ascii=False) + "\n")
+' "$T/raw.cast"
+(
+  SCRUB_HOME=/Users/alice SCRUB_USER=alice SCRUB_HOST=alice-box
+  export SCRUB_HOME SCRUB_USER SCRUB_HOST
+  python3 -I "$ROOT/probes/agent/trace-cast-scrub.py" --scrub "$ROOT/tools/scrub.sh" "$T/raw.cast" "$T/clean.cast"
+) >"$T/cs.log" 2>&1
+expect_code "cast scrub: exit 0" 0 $?
+if python3 -I -c '
+import json, sys
+rows = [json.loads(l) for l in open(sys.argv[1], encoding="utf-8")]
+assert len(rows) == 6, len(rows)
+assert rows[0] == {"version": 2, "width": 120, "height": 40, "timestamp": 1700000000}
+assert all(isinstance(r, list) and len(r) == 3 for r in rows[1:])' "$T/clean.cast" 2>"$T/cs.err"; then
+  pass "cast scrub: each line is valid JSON"
+else
+  fail "cast scrub: each line is valid JSON" "$(head -c 300 "$T/cs.err")"
+fi
+if python3 -I -c '
+import json, sys
+rows = [json.loads(l) for l in open(sys.argv[1], encoding="utf-8")]
+t = [r[2] for r in rows[1:]]
+assert t[0] == "Read \"/work/example\" ok", t[0]
+assert t[1] == "in /work/example\u001b[0m ok\r\n", t[1]
+assert t[2] == "home /work/example\r\nnext\u0007 /work/example\tz", t[2]
+assert t[3] == "plain text, no path", t[3]
+assert t[4] == "\u001b[A", t[4]
+assert [r[:2] for r in rows[1:]] == [[0.1, "o"], [0.2, "o"], [0.3, "o"], [0.4, "o"], [0.5, "i"]]' "$T/clean.cast" 2>"$T/cs.err"; then
+  pass "cast scrub: the paths are scrubbed, the escapes and the times stay"
+else
+  fail "cast scrub: the paths are scrubbed, the escapes and the times stay" "$(head -c 300 "$T/cs.err")"
+fi
+left=
+for f in "$T"/.cast-scrub.*; do [ -e "$f" ] && left=1; done
+if [ -n "$left" ]; then fail "cast scrub: no temp file stays" "a file stays"; else pass "cast scrub: no temp file stays"; fi
+# A scrub that fails gives exit 1 and no output file.
+printf '#!/bin/sh\nexit 1\n' >"$T/bad-scrub.sh"
+python3 -I "$ROOT/probes/agent/trace-cast-scrub.py" --scrub "$T/bad-scrub.sh" "$T/raw.cast" "$T/bad.cast" >/dev/null 2>&1
+expect_code "cast scrub: a failed scrub gives exit 1" 1 $?
+if [ ! -e "$T/bad.cast" ]; then pass "cast scrub: no output after a failed scrub"; else fail "cast scrub: no output after a failed scrub" "file exists"; fi
+
 done_tests
