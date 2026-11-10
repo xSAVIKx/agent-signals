@@ -278,6 +278,10 @@ def file_events(rows, t0, paths):
             continue
         if kind not in FILE_KINDS:
             continue
+        t = to_int(row.get("t"), None)
+        if t is None:
+            # A row with no time or a time that is not finite is a bad line.
+            continue
         raw_path = row.get("path")
         if not isinstance(raw_path, str) or not raw_path:
             continue
@@ -291,7 +295,7 @@ def file_events(rows, t0, paths):
                     live.discard(src_raw)
                     events.append(
                         {
-                            "t": max(to_int(row.get("t")) - t0, 0),
+                            "t": max(t - t0, 0),
                             "kind": "delete",
                             "pid": None,
                             "ppid": None,
@@ -300,7 +304,7 @@ def file_events(rows, t0, paths):
                     )
             continue
         ev = {
-            "t": max(to_int(row.get("t")) - t0, 0),
+            "t": max(t - t0, 0),
             "kind": kind,
             "pid": None,
             "ppid": None,
@@ -332,8 +336,10 @@ def proxy_events(rows, t0, scrub):
         host = row.get("host")
         if not isinstance(host, str) or not host:
             continue
+        start = to_int(row.get("start"), None)
+        if start is None:
+            continue
         host = scrub.text(host)
-        start = to_int(row.get("start"))
         end = row.get("end")
         status = row.get("status")
         out.append(

@@ -186,6 +186,7 @@ mkraw inf
 printf '{"t": 1e999, "kind": "create", "path": "/work/example/proj/inf.txt", "dir": false}\n' >>"$T/inf/.trace/files.jsonl"
 run_build inf "$H/meta.json"
 want "inf: the build gives a document" inf 'isinstance(ev, list)'
+want "inf: the row is not an event and not in the summary" inf 'not any(e.get("path") == "WORK/inf.txt" for e in ev) and "WORK/inf.txt" not in [p for v in d["summary"]["files"].values() for p in v]'
 
 # The account name has no case. An empty SCRUB_USER is no variable.
 mkraw case
