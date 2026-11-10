@@ -157,6 +157,61 @@ curl -fsSL https://xsavikx.github.io/agent-signals/kit.sh | sh -s -- --get ~/kit
 $env:AGENT_SIGNALS_GET = "$HOME\kits"; irm https://xsavikx.github.io/agent-signals/kit.ps1 | iex
 ```
 
+## Traces
+
+A trace records one step of the agent kit. It records three checks on one
+clock:
+
+- `terminal`: the output of the tmux pane, as an asciicast v2 file.
+- `network`: each connection of the agent through a local proxy: the host,
+  the port, the byte counts and the times. The proxy does not read the
+  encrypted content. With the fake model, the trace also gets the method
+  and the route of each model request.
+- `files` (Linux only): each file that the agent makes, writes, moves or
+  deletes in its home, its work folder and `/tmp`. The agent starts with no
+  `TMPDIR`, so `/tmp` is its temp folder. On other systems, the trace
+  skips this check with the reason `not-linux`.
+
+A trace also records the states of the step (`start`, `idle`, `prompt`,
+`busy`, `dialog`, `answer`, `idle-after`, `stop`). It holds no prompt text
+of a person, no reply, no file content, no request body and no URL query.
+The terminal record of a fixture run shows the fixed prompt of the kit.
+
+CAUTION: With `--home real`, the file check watches your real home
+folder. The raw record holds the real file names before the scrub. The
+trace changes each path in a folder that is not hidden to `~/<private>`,
+and it keeps no terminal record. Read `trace.json` before you send it.
+
+Make a run, then trace one step of it:
+
+```sh
+sh probes/agent/kit.sh start --home fixture --unattended --out DIR
+export AGENT_SIGNALS_RUN=DIR/agent-signals-run-linux-<time>
+sh probes/agent/kit.sh trace permission-claude@tmux
+sh probes/agent/kit.sh trace permission-claude@tmux --checks terminal,files
+```
+
+`--checks` selects the checks. The default is all three. Put `--checks`
+before the step or just after it. The words after the step go to
+`kit step`, so a `--checks` after them goes to the step too. The command
+prints the line of the step, then `trace: RUN/traces/NN-NAME@BACKEND`. It
+exits with the code of the step. When the build or the scrub fails, it
+prints `trace: NAME@BACKEND fail REASON` and exits 1. Only one trace can
+run in a run at a time. A trace that was killed can leave the folder
+`RUN/.trace`. When no trace runs, delete that folder.
+
+The output folder `RUN/traces/NN-NAME@BACKEND/` holds `trace.json` (the
+format is `schema/trace.schema.json`) and, with the fixture home only,
+`terminal.cast`. NN is one more than the highest number in `RUN/traces/`.
+The kit scrubs each file. In `trace.json`, the home of the session is
+`~`, the work folder is `WORK`, and `/tmp` is `TMP`. A step that fails or
+skips also gets a trace.
+
+The file check watches only the top level of `/tmp`, but there it sees the
+items of all processes. On a shared machine, the TMP list can show items
+of other processes and other accounts. The kit cannot tell them from the
+items of the agent.
+
 ## How a probe becomes a fact
 
 1. The operator runs the kit on the real machine and sends the file.
