@@ -126,6 +126,12 @@ if [ "$n" = 1 ]; then pass "session: one header line after a second start"; else
 n=$(grep -c 'stub idle' "$raw/terminal.cast")
 if [ "$n" -ge 2 ]; then pass "session: the second start adds events"; else fail "session: the second start adds events" "$n"; fi
 
+# sock_gone NAME TEXT: a failed start leaves no socket folder.
+sock_gone() {
+  _s=$(cat "$T/run1/sessions/$1/socket" 2>/dev/null)
+  if [ -n "$_s" ] && [ ! -e "$(dirname "$_s")" ]; then pass "$2"; else fail "$2" "${_s:-no socket file}"; fi
+}
+
 # The cast cannot be opened (a folder): the recorder is not ready, the
 # start exits 1, and no pid of the run stays.
 mkdir "$T/raw-bad"
@@ -137,6 +143,7 @@ expect_code "no recorder: start exits 1" 1 $?
 expect_line "no recorder: the reason" 'the recorder did not start|the gate wait ended' "$T/o"
 left=$(pids_run "$T/run1")
 if [ -z "$left" ]; then pass "no recorder: no pid of the run stays"; else fail "no recorder: no pid of the run stays" "$left"; fi
+sock_gone s7 "no recorder: no socket folder stays"
 
 # The recorder fails after the start: a file size limit (ulimit -f) of the
 # server lets the recorder open the cast and make "ready", but the first
@@ -242,6 +249,16 @@ expect_code "pipe-pane fails: start exits 1" 1 $?
 expect_line "pipe-pane fails: the reason" 'pipe-pane failed' "$T/o"
 left=$(pids_run "$T/run1")
 if [ -z "$left" ]; then pass "pipe-pane fails: no pid of the run stays"; else fail "pipe-pane fails: no pid of the run stays" "$left"; fi
+sock_gone s4 "pipe-pane fails: no socket folder stays"
+
+# pipe-pane fails with a fixture home: the fake model of the session stops
+# too.
+(PATH="$T/wrap:$PATH"; KIT_TRACE=$raw; KIT_TRACE_CHECKS=; WRAP_MODE=fail; export PATH KIT_TRACE KIT_TRACE_CHECKS WRAP_MODE
+ kit session start s6 claude --via tmux --cmd "sh '$stub'" --home fixture) >"$T/o" 2>&1
+expect_code "fixture, pipe-pane fails: start exits 1" 1 $?
+left=$(pids_run "$T/run1")
+if [ -z "$left" ]; then pass "fixture, pipe-pane fails: no pid of the run stays"; else fail "fixture, pipe-pane fails: no pid of the run stays" "$left"; fi
+sock_gone s6 "fixture, pipe-pane fails: no socket folder stays"
 
 # The gate wait ends before the recorder starts: the start exits 1.
 (PATH="$T/wrap:$PATH"; KIT_TRACE=$raw; KIT_TRACE_CHECKS=; WRAP_MODE=slow; KIT_TRACE_GATE_TURNS=4; export PATH KIT_TRACE KIT_TRACE_CHECKS WRAP_MODE KIT_TRACE_GATE_TURNS
@@ -250,6 +267,7 @@ expect_code "gate timeout: start exits 1" 1 $?
 expect_line "gate timeout: the reason" "gate wait ended" "$T/o"
 left=$(pids_run "$T/run1")
 if [ -z "$left" ]; then pass "gate timeout: no pid of the run stays"; else fail "gate timeout: no pid of the run stays" "$left"; fi
+sock_gone s5 "gate timeout: no socket folder stays"
 
 # Step with the states: the first event comes before the idle state.
 stub_set STUB_TRUST=yes

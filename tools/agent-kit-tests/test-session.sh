@@ -165,6 +165,9 @@ for via in tmux pty; do
   mkdir -p "$run/home/s2/.codex/app-server-control" "$T/codex-daemon-1"
   : >"$T/codex-daemon-1/sock1"
   : >"$T/codex-daemon-1/sock1.lock"
+  # The socket of another daemon in the same folder stays.
+  : >"$T/codex-daemon-1/sock2"
+  s2sock=$(cat "$run/sessions/s2/socket")
   ln -s "$T/codex-daemon-1/sock1" "$run/home/s2/.codex/app-server-control/app-server-control.sock"
   in_new_shell stop s2 >"$T/out" 2>&1
   expect_code "$via: stop across shells" 0 $?
@@ -183,6 +186,16 @@ for via in tmux pty; do
     fail "$via: stop deletes the control socket of the daemon" "$(ls "$T/codex-daemon-1")"
   else
     pass "$via: stop deletes the control socket of the daemon"
+  fi
+  if [ -e "$T/codex-daemon-1/sock2" ]; then
+    pass "$via: stop keeps the socket of another daemon"
+  else
+    fail "$via: stop keeps the socket of another daemon" "the folder is gone"
+  fi
+  if [ -e "$(dirname "$s2sock")" ]; then
+    fail "$via: stop deletes the socket folder of the session" "$s2sock"
+  else
+    pass "$via: stop deletes the socket folder of the session"
   fi
   rm -rf "$T/codex-daemon-1"
 

@@ -404,6 +404,16 @@ pty_serve() {
   fi
 }
 
+# start_die CODE TEXT: a start that fails after the socket folder exists
+# stops the pids of the session that still run (for example the fake
+# model), deletes the socket folder, then ends like kit_die.
+start_die() {
+  # shellcheck disable=SC2046
+  end_pids $(session_pids) >/dev/null
+  [ -n "${sockdir:-}" ] && rm -rf "$sockdir"
+  kit_die "$@"
+}
+
 do_start() {
   [ "$#" -ge 2 ] || usage
   check_name "$1"
@@ -571,7 +581,7 @@ do_start() {
         -x "$COLS" -y "$ROWS" -c "$work" \
         sh -c "${gate_wait}"'eval "exec $0"' "$cmd" ${gate_arg:+"$gate_arg"} ${gate_turns:+"$gate_turns"} </dev/null >"$sdir/server.log" 2>&1 \
         3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- ||
-        kit_die 1 "tmux did not start: $(cat "$sdir/server.log")"
+        start_die 1 "tmux did not start: $(cat "$sdir/server.log")"
       server=$(tm display -p -t kit '#{pid}' 2>/dev/null)
       a=$(tm display -p -t kit '#{pane_pid}' 2>/dev/null)
       [ -n "$server" ] && add_pid "$server" "session $name server"
@@ -584,7 +594,7 @@ do_start() {
             _why="the gate wait ended before the recorder started: the agent did not run"
           tm kill-server >/dev/null 2>&1
           [ -n "$server" ] && rm -f "$run/pids/$server"
-          kit_die 1 "$_why"
+          start_die 1 "$_why"
         fi
         # The recorder makes "ready" after it opened the cast.
         _n=0
@@ -599,7 +609,7 @@ do_start() {
             _why="the gate wait ended before the recorder started: the agent did not run"
           tm kill-server >/dev/null 2>&1
           [ -n "$server" ] && rm -f "$run/pids/$server"
-          kit_die 1 "$_why"
+          start_die 1 "$_why"
         fi
         # The start time of the recorder, so that "stop" does not wait for
         # a new process that got the same pid.
@@ -610,17 +620,19 @@ do_start() {
         if [ "$(tm display -p -t kit '#{pane_dead_status}' 2>/dev/null)" = 125 ]; then
           tm kill-server >/dev/null 2>&1
           [ -n "$server" ] && rm -f "$run/pids/$server"
-          kit_die 1 "the gate wait ended before the recorder started: the agent did not run"
+          start_die 1 "the gate wait ended before the recorder started: the agent did not run"
         fi
       fi
       ;;
     pty)
       sock=$sockdir/pty.sock
       echo "$sock" >"$sdir/socket"
+      start_f=$(mktemp "$sdir/pids.XXXXXX") || start_die 1 "mktemp failed"
       pty_serve "$@" </dev/null >"$sdir/server.log" 2>&1 \
-        3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- ||
-        kit_die 1 "ptydrive did not start: $(cat "$sdir/server.log")"
-      start_f=$(mktemp "$sdir/pids.XXXXXX") || kit_die 1 "mktemp failed"
+        3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- || {
+        rm -f "$start_f"
+        start_die 1 "ptydrive did not start: $(cat "$sdir/server.log")"
+      }
       client pids >"$start_f" 2>/dev/null
       server=$(awk '$1 == "driver" { print $2 }' "$start_f")
       a=$(awk '$1 == "agent" { print $2 }' "$start_f")
@@ -777,9 +789,10 @@ end_home_daemons() {
   fi
   link=${hd}.codex/app-server-control/app-server-control.sock
   if [ -L "$link" ]; then
-    sock=$(readlink "$link")
-    case ${sock%/*} in
-      */codex-daemon-*) rm -f "$sock" "$sock.lock" ;;
+    # Not "sock": stop_session deletes the folder of $sock after this.
+    csock=$(readlink "$link")
+    case ${csock%/*} in
+      */codex-daemon-*) rm -f "$csock" "$csock.lock" ;;
     esac
   fi
   return 0
