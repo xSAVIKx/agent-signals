@@ -10,10 +10,13 @@ The watcher writes the --ready file when it has added all first watches.
 
 The order of the first watches: each --top DIR, then each DIR in the
 order of the command line. So the caller puts the most important folder
-first. Below a folder, the hidden folders (a name that starts with ".")
-get their watches before the other folders. The first walk stops at the
-walk limit, one eighth below the watch limit. The rest of the watches are
-kept for the folders that come later, for example a new work folder.
+first. Below a DIR, the folders of the kit agents (AGENT_DIRS, for
+example .claude and .codex) get their watches first. Then the walk goes
+breadth first: at each level, the hidden folders (a name that starts
+with ".") come before the other folders, each in alphabetical order.
+The first walk stops at the walk limit, one eighth below the watch
+limit. The rest of the watches are kept for the folders that come later,
+for example a new work folder.
 
 In a --top DIR, the watcher records only the items of this account: an
 item that another account owns gets no line and no watch. An item that is
@@ -62,6 +65,7 @@ exits 3. The standard library only.
 """
 
 import argparse
+import collections
 import ctypes
 import errno
 import json
@@ -96,6 +100,21 @@ MASK = (
     | IN_DONT_FOLLOW
 )
 WATCH_LIMIT = 8192
+# The folders of the agents of the kit below a home. The first walk of a
+# DIR walks these first, so that a large folder of another program cannot
+# use the watches before them.
+AGENT_DIRS = (
+    ".claude",
+    ".codex",
+    ".gemini",
+    ".cursor",
+    ".copilot",
+    ".config/opencode",
+    ".local/share/opencode",
+    ".local/state/opencode",
+    ".cache/opencode",
+    ".local/share/cursor-agent",
+)
 MARK_PREFIX = ".kit-trace-mark."
 WRITE_WINDOW = 0.1
 MOVE_WAIT = 0.05
@@ -221,29 +240,53 @@ class Watcher:
     def walk_first(self, top, recursive, tops=()):
         """Add the first watches. No event is written. The walk does not
         go into a folder of "tops": it has its own watch, with no
-        subfolder."""
-        stack = [top]
-        while stack:
-            p = stack.pop()
-            if self.add_watch(p, self.walk_limit) is None:
-                if self.limit_sent:
+        subfolder. A recursive walk first walks each folder of AGENT_DIRS
+        below "top" that exists, in the order of the list. Then it walks
+        the rest of "top" breadth first. At each level, the hidden folders
+        come first, in alphabetical order, then the other folders."""
+        if not self.add_watch_first(top):
+            return
+        if not recursive or top in tops:
+            return
+        done = set()
+        for rel in AGENT_DIRS:
+            p = os.path.join(top, rel)
+            if os.path.isdir(p) and not os.path.islink(p):
+                if not self.walk_tree(p, tops, done):
                     return
+        self.walk_tree(top, tops, done)
+
+    def add_watch_first(self, p):
+        """Add a first watch. Return False when the walk must stop."""
+        if self.add_watch(p, self.walk_limit) is None:
+            return not self.limit_sent
+        return True
+
+    def walk_tree(self, root, tops, done):
+        """Walk the folders below root breadth first. Return False when
+        the walk limit is reached. A folder in "done" is not walked again."""
+        queue = collections.deque([root])
+        while queue:
+            p = queue.popleft()
+            if p in done:
                 continue
-            if not recursive or p in tops:
+            done.add(p)
+            if not self.add_watch_first(p):
+                return False
+            if p not in self.path2wd or p in tops:
                 continue
             try:
                 with os.scandir(p) as it:
                     kids = [
-                        (e.name.startswith("."), e.path)
+                        (not e.name.startswith("."), e.name, e.path)
                         for e in it
                         if e.is_dir(follow_symlinks=False)
                     ]
             except OSError:
                 continue
-            # The stack is last in, first out: the hidden folders go on
-            # last, so that their trees get watches first.
             kids.sort()
-            stack.extend(k[1] for k in kids)
+            queue.extend(k[2] for k in kids if k[2] not in done)
+        return True
 
     def read_owners(self, top):
         """Keep the owner of each item at the top level of a --top folder

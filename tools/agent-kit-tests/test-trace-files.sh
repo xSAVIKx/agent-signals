@@ -286,6 +286,33 @@ kill -TERM "$wpid"
 wait "$wpid"
 expect_code "small limit: the watch exits 0" 0 $?
 
+# A large hidden folder of another program does not use the watches of
+# the agent folders. .vscode-server comes after .claude in the alphabet,
+# and .aaa-big before it: the agent folders are walked first in all cases.
+for big in .vscode-server .aaa-big; do
+  rm -rf "$T/lw2"
+  mkdir -p "$T/lw2/work" "$T/lw2/home/.claude/sub" "$T/lw2/home/.codex/s2"
+  _k=0
+  while [ "$_k" -lt 40 ]; do
+    mkdir -p "$T/lw2/home/$big/d$_k"
+    _k=$((_k + 1))
+  done
+  python3 -I "$watch" --out "$T/f9.jsonl" --ready "$T/f9.ready" --watch-limit 16 \
+    "$T/lw2/work" "$T/lw2/home" &
+  wpid=$!
+  bg_pid "$wpid"
+  wait_file "$T/f9.ready" || fail "agent folders first ($big): the ready file is written" "no file"
+  echo x >"$T/lw2/home/.claude/sub/s.json"
+  echo x >"$T/lw2/home/.codex/s2/c.toml"
+  check_has "agent folders first ($big): .claude/sub has a watch" "$T/f9.jsonl" create "$T/lw2/home/.claude/sub/s.json"
+  check_has "agent folders first ($big): .codex/s2 has a watch" "$T/f9.jsonl" create "$T/lw2/home/.codex/s2/c.toml"
+  check_one "agent folders first ($big): one limit line" "$T/f9.jsonl" limit "*"
+  kill -TERM "$wpid"
+  wait "$wpid"
+  expect_code "agent folders first ($big): the watch exits 0" 0 $?
+  rm -f "$T/f9.jsonl" "$T/f9.ready"
+done
+
 # The order of the command line: with the home first, the home uses the
 # walk limit, and the work root gets no first watch.
 python3 -I "$watch" --out "$T/f6.jsonl" --ready "$T/f6.ready" --watch-limit 16 \
