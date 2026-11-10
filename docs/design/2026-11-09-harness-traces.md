@@ -205,7 +205,7 @@ runner user name and no runner path stays.
   `summary` parts of the artifacts.
 - For each agent version it looks for an open issue with the title
   `trace: AGENT VERSION`. If there is none, it opens one, with labels
-  `trace` and the mode (`fixture` or `login`).
+  `trace` and the mode (`fixture`, `login` or `none`).
 - The issue body: the summary, the timeline near each state change, a
   section "new since VERSION" (compared with the issue of the version
   before), and a link to the run and its artifact.
