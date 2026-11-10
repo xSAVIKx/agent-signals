@@ -28,11 +28,26 @@ Rules:
   /tmp) becomes TMP. A file event under the run folder, but not under a
   home or a work folder, is dropped. A file event under a SOCKDIR is
   dropped. The kit writes there.
+- The kit marks its own file work with the file
+  WORKROOT/.kit-trace-mark.NAME.begin and .end (session.sh). In the order
+  of files.jsonl, a file event between "begin" and "end" of the session
+  NAME is work of the kit when its path (or its "from") is under the home
+  or the work folder of NAME, or under the Claude Code temp folder of that
+  work folder (TMP/claude-UID/KEY). The program drops these events, and
+  the events of the mark files. A "begin" with no "end" holds until the
+  end of the file.
 - In each path, the account name and the host name become dev and host.
   In each name, a UUID becomes <uuid>, a run of 16 or more hex digits
   becomes <hex>, and a run of 5 or more digits becomes <n>.
 - With a real home, a path under ~ whose first folder is not hidden
   becomes ~/<private>. The folders of a person are private.
+- A host of a proxy event that names a private network becomes
+  <private-host>: a name with one label (except localhost), a name that
+  ends with .ts.net, .internal, .local, .lan, .home.arpa, .localdomain,
+  .localhost, .intranet, .corp, .home or .private,
+  an IPv4 address that is not global (private, loopback, link-local,
+  shared, reserved), and each IPv6 address. A public name, for example
+  api.anthropic.com, stays.
 - A model event holds the method, the route (with no query), and the
   model kind. It holds no text of the request. The program reads the model
   logs only when the network check is selected and ran.
@@ -70,6 +85,21 @@ UUID_RE = re.compile(
 )
 HEX_RE = re.compile("[0-9A-Fa-f]{16,}")
 DIGITS_RE = re.compile("[0-9]{5,}")
+MARK_RE = re.compile(r"/\.kit-trace-mark\.([A-Za-z0-9_-]+)\.(begin|end)$")
+PRIVATE_HOST = "<private-host>"
+PRIVATE_SUFFIXES = (
+    ".ts.net",
+    ".internal",
+    ".local",
+    ".lan",
+    ".home.arpa",
+    ".localdomain",
+    ".localhost",
+    ".intranet",
+    ".corp",
+    ".home",
+    ".private",
+)
 
 
 def read_lines(path):
@@ -265,6 +295,58 @@ def read_states(raw, t0):
     return out
 
 
+def under(path, prefixes):
+    return any(path == p or path.startswith(p + "/") for p in prefixes)
+
+
+def kit_prefixes(sessions, tmp):
+    """For each session name, the raw folders where the kit writes."""
+    uid = os.getuid() if hasattr(os, "getuid") else None
+    out = {}
+    for row in sessions:
+        name, home, work = row[0], row[1], row[2]
+        pre = out.setdefault(name, set())
+        for p in (home, work):
+            if p:
+                pre.add(p.rstrip("/"))
+        if work and uid is not None:
+            for w in {work.rstrip("/"), os.path.realpath(work)}:
+                key = re.sub("[^A-Za-z0-9]", "-", w)
+                pre.add("%s/claude-%d/%s" % (tmp.rstrip("/"), uid, key))
+    return out
+
+
+def drop_kit_rows(rows, sessions, tmp):
+    """Drop the rows of the kit marks, and the rows of the file work of
+    the kit between the marks. The rows are in the order of the file."""
+    prefixes = kit_prefixes(sessions, tmp)
+    active = set()
+    out = []
+    for row in rows:
+        path = row.get("path")
+        m = MARK_RE.search(path) if isinstance(path, str) else None
+        if m:
+            if row.get("kind") == "create":
+                if m.group(2) == "begin":
+                    active.add(m.group(1))
+                else:
+                    active.discard(m.group(1))
+            continue
+        if active:
+            pre = set()
+            for name in active:
+                pre |= prefixes.get(name, set())
+            hit = False
+            for key in ("path", "from"):
+                v = row.get(key)
+                if isinstance(v, str) and under(v, pre):
+                    hit = True
+            if hit:
+                continue
+        out.append(row)
+    return out
+
+
 def file_events(rows, t0, paths):
     """Return (events, limit_seen). Raw paths come in; events go out."""
     events = []
@@ -330,6 +412,29 @@ def file_events(rows, t0, paths):
     return events, limit
 
 
+def private_host(host):
+    """True when the host names a private network (read the header)."""
+    import ipaddress
+
+    h = host.strip().strip("[]").rstrip(".").lower()
+    if "%" in h:
+        # An IPv6 zone, for example fe80::1%eth0.
+        h = h.split("%", 1)[0]
+    try:
+        ip = ipaddress.ip_address(h)
+    except ValueError:
+        ip = None
+    if ip is not None:
+        return ip.version == 6 or not ip.is_global
+    if h == "localhost":
+        return False
+    if "." not in h:
+        return True
+    return h.endswith(PRIVATE_SUFFIXES) or h in tuple(
+        s[1:] for s in PRIVATE_SUFFIXES
+    )
+
+
 def proxy_events(rows, t0, scrub):
     out = []
     for row in rows:
@@ -339,7 +444,7 @@ def proxy_events(rows, t0, scrub):
         start = to_int(row.get("start"), None)
         if start is None:
             continue
-        host = scrub.text(host)
+        host = PRIVATE_HOST if private_host(host) else scrub.text(host)
         end = row.get("end")
         status = row.get("status")
         out.append(
@@ -541,6 +646,9 @@ def main():
     rows = read_json_lines(os.path.join(raw, "files.jsonl"))
     if rows is not None and "files" not in skipped_checks:
         checks.append("files")
+        rows = drop_kit_rows(
+            rows, read_sessions(raw), os.environ.get("TMPDIR") or "/tmp"
+        )
         fev, files_limit = file_events(rows, t0, paths)
         events += fev
         summary_files = summarize_files(fev)

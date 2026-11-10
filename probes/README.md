@@ -159,18 +159,26 @@ $env:AGENT_SIGNALS_GET = "$HOME\kits"; irm https://xsavikx.github.io/agent-signa
 
 ## Traces
 
-A trace records one step of the agent kit. It records three checks on one
-clock:
+A trace records one step of the agent kit. Traces run on Linux and macOS.
+They are not on Windows yet: `kit.ps1 trace` exits 2. A trace records
+three checks on one clock:
 
 - `terminal`: the output of the tmux pane, as an asciicast v2 file.
 - `network`: each connection of the agent through a local proxy: the host,
   the port, the byte counts and the times. The proxy does not read the
   encrypted content. With the fake model, the trace also gets the method
-  and the route of each model request.
+  and the route of each model request. A host of a private network (a
+  tailnet name, a name below `.internal`, `.local`, `.lan` or
+  `.home.arpa`, a name with one label, a private IPv4 address, an IPv6
+  address) becomes `<private-host>`.
 - `files` (Linux only): each file that the agent makes, writes, moves or
   deletes in its home, its work folder and `/tmp`. The agent starts with no
   `TMPDIR`, so `/tmp` is its temp folder. On other systems, the trace
-  skips this check with the reason `not-linux`.
+  skips this check with the reason `not-linux`. The files that the kit
+  itself writes (the work folder and the home of a session, the settings
+  files of the fake model, also on a resume step, and the deletes when a
+  session stops) are not in the trace. The kit marks its own work with a
+  file `.kit-trace-mark.NAME.begin` and `.end` in the work root.
 
 A trace also records the states of the step (`start`, `idle`, `prompt`,
 `busy`, `dialog`, `answer`, `idle-after`, `stop`). It holds no prompt text
@@ -181,6 +189,19 @@ CAUTION: With `--home real`, the file check watches your real home
 folder. The raw record holds the real file names before the scrub. The
 trace changes each path in a folder that is not hidden to `~/<private>`,
 and it keeps no terminal record. Read `trace.json` before you send it.
+
+CAUTION: With `--home real`, the trace records the writes of each process
+of your account in the hidden folders of your home, not only the writes
+of the agent. Other agent sessions, editors and tools that run during the
+step show in the trace as if the agent wrote the files. Stop them before
+the trace, or read the home list of `trace.json` with care.
+
+The file check watches the work root first, then the homes. With a real
+home, the hidden folders of the home get their watches before the other
+folders. The watcher has 8192 watches, and keeps one eighth of them for
+the folders that come during the step. When a large home uses all the
+other watches, `meta.files_limit` is `true`, and some folders of the home
+have no watch.
 
 Make a run, then trace one step of it:
 
@@ -197,8 +218,22 @@ before the step or just after it. The words after the step go to
 prints the line of the step, then `trace: RUN/traces/NN-NAME@BACKEND`. It
 exits with the code of the step. When the build or the scrub fails, it
 prints `trace: NAME@BACKEND fail REASON` and exits 1. Only one trace can
-run in a run at a time. A trace that was killed can leave the folder
-`RUN/.trace`. When no trace runs, delete that folder.
+run in a run at a time.
+
+A trace that gets KILL cannot stop its recorders. The proxy and the file
+watcher check two times each second, or more, that `kit trace` is still
+their parent, and stop when it is gone. The file watcher then deletes its
+record in `/tmp/as-trace.*`, because that record holds the real paths.
+The killed trace leaves the folder `RUN/.trace`. The next `kit trace` in the run, or
+`kit session stop --all`, sees that the trace in `RUN/.trace/owner` does
+not run. Then it stops the sessions of that trace and the recorders by
+their pids in `RUN/pids/`, deletes the folder of the file watcher, and
+deletes `RUN/.trace`. It writes the line
+`kit: removed the folder of a stopped trace: RUN/.trace`. To do it by
+hand, do these steps:
+
+1. Run `kit session stop --all`.
+2. When `RUN/.trace` still exists and no trace runs, delete it.
 
 The output folder `RUN/traces/NN-NAME@BACKEND/` holds `trace.json` (the
 format is `schema/trace.schema.json`) and, with the fixture home only,
@@ -208,9 +243,14 @@ The kit scrubs each file. In `trace.json`, the home of the session is
 skips also gets a trace.
 
 The file check watches only the top level of `/tmp`, but there it sees the
-items of all processes. On a shared machine, the TMP list can show items
-of other processes and other accounts. The kit cannot tell them from the
-items of the agent.
+items of all processes of your account. The TMP list can show items of
+other processes. The kit cannot tell them from the items of the agent. It
+records no item that another account owns, and no item that is gone
+before the watcher can read its owner.
+
+The mode in `meta.mode` is `fixture` with the fixture home, `login` with
+the real home, and `none` with a throwaway home, which has no login and
+no fake model.
 
 ## How a probe becomes a fact
 

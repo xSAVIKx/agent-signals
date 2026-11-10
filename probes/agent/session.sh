@@ -10,6 +10,10 @@
 #   kit session stop NAME --keep   the work folder and the home stay
 #   kit session stop --all
 #
+# "stop --all" stops each session and each pid of RUN/pids/. Then, when a
+# "kit trace" that does not run left RUN/.trace, it removes that folder and
+# the folder of the file watcher of that trace (kit_trace_leftover).
+#
 # CMD is one simple command, for example "env NAME=VALUE prog arg". The
 # agent starts as "exec CMD", so that its pid is the pid of the pane or of
 # the pty. ARGS is a list of words, separated by spaces: the NAME=VALUE
@@ -87,6 +91,19 @@
 # The pty backend has no recording yet: "start" writes the line
 # "terminal<tab>pty-not-yet" to $KIT_TRACE/skipped.tsv.
 #
+# The file check: with KIT_TRACE set, and KIT_TRACE_CHECKS empty or a comma
+# list that has "files", the kit marks its own file work, so that
+# trace-build.py does not show it as work of the agent. A mark is the file
+# WORKROOT/.kit-trace-mark.NAME.begin or .end (WORKROOT is the work root,
+# kit_work_root in lib.sh), which the kit makes and deletes at once. The
+# file watcher sees it, because it watches the work root from the start.
+# "start" marks "begin" before it makes the work folder and the home, and
+# "end" just before the agent starts. So the settings files of the fake
+# model, also on a start again, are between the two marks. "start" writes
+# the file "trace-files" in the state folder. When that file exists,
+# "stop" marks "begin" after the agent and its daemons are stopped, and
+# "end" after it deleted the work folder and the home.
+#
 # Each started pid is also in RUN/pids/, with the label "session NAME
 # ROLE". "stop" stops only these pids, never a process found by its name.
 set -u
@@ -155,6 +172,27 @@ trace_network() {
     ,, | *,network,*) return 0 ;;
   esac
   return 1
+}
+
+# trace_files: true when the file check is on: KIT_TRACE is set, and
+# KIT_TRACE_CHECKS is empty or a comma list that has "files".
+trace_files() {
+  [ -n "${KIT_TRACE:-}" ] || return 1
+  case ",${KIT_TRACE_CHECKS:-}," in
+    ,, | *,files,*) return 0 ;;
+  esac
+  return 1
+}
+
+# trace_mark WHAT: make and delete the mark file of the kit for this
+# session in the work root (read the header). WHAT is begin or end. It
+# does nothing when the work root does not exist.
+trace_mark() {
+  _mr=$(kit_work_root "$run")
+  [ -d "$_mr" ] || return 0
+  _mf=$_mr/.kit-trace-mark.$name.$1
+  : >"$_mf" 2>/dev/null && rm -f "$_mf"
+  return 0
 }
 
 # add_pid PID LABEL: record a pid of the session in RUN/pids/ and in the
@@ -453,11 +491,14 @@ do_start() {
     rm -rf "$sdir"
   fi
   work=$(kit_work_root "$run")/$name
+  trace_files && trace_mark begin
   # --keep: the resume step starts a session again. The new start needs the
   # work folder and the home of the old session.
   [ -n "$keep" ] || rm -rf "$work"
   mkdir -p "$sdir" "$work" || kit_die 1 "cannot make $sdir"
   chmod 700 "$sdir"
+  rm -f "$sdir/trace-files"
+  trace_files && : >"$sdir/trace-files"
   backend=$via
   echo "$via" >"$sdir/backend"
   echo "$agent" >"$sdir/agent"
@@ -542,6 +583,9 @@ do_start() {
       *"'"*) kit_die 2 "a path with a single quote is not supported when the terminal is recorded" ;;
     esac
   fi
+  # The kit writes no more in the work folder or the home before the agent
+  # starts.
+  [ -f "$sdir/trace-files" ] && trace_mark end
   sockdir=$(mktemp -d /tmp/as.XXXXXX) || kit_die 1 "mktemp failed"
   chmod 700 "$sockdir"
   # The agent starts with "exec", so that its pid is the pid of the pane
@@ -786,7 +830,9 @@ end_home_daemons() {
 }
 
 # remove_folders: delete the work folder and the home of the session in sdir.
+# With the file check, the marks "begin" and "end" hold the deletes.
 remove_folders() {
+  [ -f "$sdir/trace-files" ] && trace_mark begin
   # Claude Code keeps task output outside HOME, in
   # /tmp/claude-<uid>/<key>/. The key is the work folder path with each
   # character that is not a letter or a digit changed to "-". On macOS the
@@ -803,9 +849,12 @@ remove_folders() {
       done
     done
     rm -rf "$work"
-    kit_work_tidy "$(dirname "$work")"
   fi
   rm -rf "${run:?}/home/$name"
+  # The mark comes before the tidy, which can delete the work root.
+  [ -f "$sdir/trace-files" ] && trace_mark end
+  [ -n "$work" ] && kit_work_tidy "$(dirname "$work")"
+  return 0
 }
 
 # recorder_runs PID: true when PID runs and has the start time in
@@ -890,6 +939,10 @@ do_stop() {
       [ -f "$f" ] && set -- "$@" "${f##*/}"
     done
     [ "$#" -eq 0 ] || end_pids "$@"
+    # A "kit trace" that got KILL left RUN/.trace and the folder of its
+    # file watcher. Its recorders were in RUN/pids/, so they are stopped.
+    kit_trace_leftover "$run" ||
+      echo "kit: a trace runs in this run, so $run/.trace stays" >&2
     return 0
   fi
   open_session "$1"

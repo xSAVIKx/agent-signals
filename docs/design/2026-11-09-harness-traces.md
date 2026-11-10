@@ -157,7 +157,8 @@ One file for each step: `trace.json`. The schema goes in
 `schema/trace.schema.json`. It holds:
 
 - `meta`: agent, agent version, kit version, OS, runner image, backend,
-  mode (`fixture` or `login`), step, date. No host name, no user name.
+  mode (`fixture`, `login`, or `none` for a throwaway home with no login),
+  step, date. No host name, no user name.
 - `states`: the kit states of the step with their times (start, idle,
   prompt sent, busy, dialog, answer, idle again, stop).
 - `events`: one item for each event, with `t`, `kind` (`exec`, `exit`,

@@ -112,6 +112,73 @@ kit_pid_ours() {
   [ "$_want" = "$(kit_pid_start "$2")" ]
 }
 
+# kit_trace_owner_runs RUN: true when the "kit trace" that made RUN/.trace
+# still runs. RUN/.trace/owner holds its pid and its start time.
+kit_trace_owner_runs() {
+  [ -r "$1/.trace/owner" ] || return 1
+  _op=$(awk -F '\t' 'NR == 1 { print $1 }' "$1/.trace/owner")
+  _os=$(awk -F '\t' 'NR == 1 { print $2 }' "$1/.trace/owner")
+  case $_op in '' | *[!0-9]*) return 1 ;; esac
+  kit_pid_runs "$_op" && [ -n "$_os" ] && [ "$_os" = "$(kit_pid_start "$_op")" ]
+}
+
+# kit_trace_end_recorders RUN: stop the pids of RUN/pids/ with a trace
+# label (TERM, then KILL after 5 s), and remove their pid files.
+kit_trace_end_recorders() {
+  _er=$1
+  set --
+  for _f in "$_er"/pids/*; do
+    [ -f "$_f" ] || continue
+    case $(awk -F '\t' 'NR == 1 { print $1 }' "$_f") in
+      "trace proxy" | "trace files") set -- "$@" "${_f##*/}" ;;
+    esac
+  done
+  [ "$#" -gt 0 ] || return 0
+  for _p in "$@"; do kit_pid_ours "$_er" "$_p" && kill "$_p" 2>/dev/null; done
+  _n=0
+  while [ "$_n" -lt 50 ]; do
+    _left=
+    for _p in "$@"; do kit_pid_ours "$_er" "$_p" && _left=1 && break; done
+    [ -n "$_left" ] || break
+    sleep 0.1
+    _n=$((_n + 1))
+  done
+  for _p in "$@"; do
+    kit_pid_ours "$_er" "$_p" && kill -9 "$_p" 2>/dev/null
+    wait "$_p" 2>/dev/null
+    rm -f "$_er/pids/$_p"
+  done
+  return 0
+}
+
+# kit_trace_leftover RUN: remove what a stopped "kit trace" left in RUN, for
+# example after a KILL. It does nothing when there is no RUN/.trace. It
+# returns 1 when the owner of RUN/.trace still runs. Else it stops each
+# session of RUN/.trace/sessions.tsv that is not stopped, stops the
+# recorders by their pids in RUN/pids/, deletes the folder of the file
+# watcher (RUN/.trace/files-dir names it; only a folder /tmp/as-trace.*
+# of this account) and deletes RUN/.trace. It prints one line to stderr.
+kit_trace_leftover() {
+  _lr=$1
+  [ -d "$_lr/.trace" ] || return 0
+  kit_trace_owner_runs "$_lr" && return 1
+  if [ -f "$_lr/.trace/sessions.tsv" ]; then
+    cut -f1 "$_lr/.trace/sessions.tsv" | sort -u | while IFS= read -r _s; do
+      [ -n "$_s" ] && [ -f "$_lr/sessions/$_s/backend" ] || continue
+      [ -f "$_lr/sessions/$_s/stopped" ] && continue
+      (AGENT_SIGNALS_RUN=$_lr && export AGENT_SIGNALS_RUN && sh "$KIT_DIR/session.sh" stop "$_s") >/dev/null 2>&1
+    done
+  fi
+  kit_trace_end_recorders "$_lr"
+  _fd=$(head -n 1 "$_lr/.trace/files-dir" 2>/dev/null)
+  case $_fd in
+    /tmp/as-trace.*) [ -d "$_fd" ] && [ -O "$_fd" ] && rm -rf "$_fd" ;;
+  esac
+  rm -rf "$_lr/.trace"
+  echo "kit: removed the folder of a stopped trace: $_lr/.trace" >&2
+  return 0
+}
+
 # kit_now: the time now, in UTC, as 2026-11-01T12:00:00Z.
 kit_now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 

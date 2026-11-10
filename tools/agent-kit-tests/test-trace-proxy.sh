@@ -338,6 +338,27 @@ got=$(jfield "$after" up)
 if [ "$got" = 5 ]; then pass "term: the open line has up 5"; else fail "term: the open line has up 5" "$got"; fi
 if kill -0 "$ppid" 2>/dev/null; then fail "term: the proxy stopped" "pid runs"; else pass "term: the proxy stopped"; fi
 
+# The parent: when the --parent process is gone, the proxy stops as on
+# TERM. "sh -c" is the parent; it gets KILL.
+mkdir -p "$T/pp"
+sh -c 'python3 -I "$1" --log "$2/proxy.jsonl" --port-file "$2/port" --parent "$$" &
+echo "$!" >"$2/pid"
+wait' sh "$proxy" "$T/pp" &
+psh=$!
+bg_pid "$psh"
+wait_file "$T/pp/port" && wait_file "$T/pp/pid"
+cpid=$(cat "$T/pp/pid")
+bg_pid "$cpid"
+if kill -0 "$cpid" 2>/dev/null; then pass "parent: the proxy runs"; else fail "parent: the proxy runs" "no pid"; fi
+kill -9 "$psh"
+wait "$psh" 2>/dev/null
+_n=0
+while kill -0 "$cpid" 2>/dev/null && [ "$_n" -lt 50 ]; do
+  sleep 0.1
+  _n=$((_n + 1))
+done
+if kill -0 "$cpid" 2>/dev/null; then fail "parent: the proxy stops when its parent is gone" "pid runs"; else pass "parent: the proxy stops when its parent is gone"; fi
+
 # The session cases need a backend: tmux, else pty.
 if have tmux; then
   via=tmux

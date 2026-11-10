@@ -136,11 +136,24 @@ run_build skip "$H/meta.json"
 want "skipped terminal: terminal is null" skip 'd["terminal"] is None and "terminal" not in d["meta"]["checks"] and {"check": "terminal", "reason": "recorder-failed"} in d["meta"]["skipped"]'
 if [ ! -e "$T/skip/out/terminal.cast" ]; then pass "skipped terminal: no cast in the output"; else fail "skipped terminal: no cast in the output" "file exists"; fi
 
-# A throwaway home and a missing home do not keep the cast.
+# A throwaway home and a missing home do not keep the cast. A throwaway
+# home has the mode none.
 mkraw throwaway
-sed 's/"home": "fixture"/"home": "throwaway"/' "$H/meta.json" >"$H/meta-throw.json"
+sed 's/"home": "fixture"/"home": "throwaway"/; s/"mode": "fixture"/"mode": "none"/' "$H/meta.json" >"$H/meta-throw.json"
 run_build throwaway "$H/meta-throw.json"
 want "throwaway home: no terminal" throwaway 'd["terminal"] is None and "terminal" not in d["meta"]["checks"]'
+want "throwaway home: the mode none stays" throwaway 'd["meta"]["mode"] == "none"'
+if command -v go >/dev/null 2>&1; then
+  R=$T/root2
+  mkdir -p "$R/schema" "$R/corpus" "$R/facts" "$R/traces/claude/2.1.319/01-permission@tmux"
+  for _f in "$ROOT"/schema/*; do cp "$_f" "$R/schema/"; done
+  cp "$T/throwaway/out/trace.json" "$R/traces/claude/2.1.319/01-permission@tmux/"
+  if (cd "$ROOT/tools" && go run ./cmd/validate "$R") >"$T/validate2.log" 2>&1; then
+    pass "throwaway home: the mode none passes the schema check"
+  else
+    fail "throwaway home: the mode none passes the schema check" "$(head -c 400 "$T/validate2.log")"
+  fi
+fi
 if [ ! -e "$T/throwaway/out/terminal.cast" ]; then pass "throwaway home: no cast in the output"; else fail "throwaway home: no cast in the output" "file exists"; fi
 mkraw nohome
 sed 's/"home": "fixture",//' "$H/meta.json" >"$H/meta-nohome.json"
@@ -150,11 +163,61 @@ if [ ! -e "$T/nohome/out/terminal.cast" ]; then pass "missing home: no cast in t
 
 # A proxy host that is the host name of the machine is scrubbed.
 mkraw phost
-for _h in build01.corp.internal build01 BUILD01.lan; do
+for _h in build01.example.net BUILD01.example.net; do
   printf '{"start": 1700000001000, "end": 1700000001100, "host": "%s", "port": 443, "up": 1, "down": 2, "status": "ok", "method": "CONNECT"}\n' "$_h" >>"$T/phost/.trace/proxy.jsonl"
 done
-run_build phost "$H/meta.json"
-want "proxy host: the machine name becomes host" phost 'not any("build01" in h["host"].lower() for h in d["summary"]["hosts"]) and [h for h in d["summary"]["hosts"] if h["host"] == "host"][0]["connections"] == 3 and "build01" not in json.dumps(ev).lower()'
+run_build phost "$H/meta.json" build01.example.net
+want "proxy host: the machine name becomes host" phost 'not any("build01" in h["host"].lower() for h in d["summary"]["hosts"]) and [h for h in d["summary"]["hosts"] if h["host"] == "host"][0]["connections"] == 2 and "build01" not in json.dumps(ev).lower()'
+
+# A host of a private network becomes <private-host>. A public host stays.
+mkraw private
+for _h in build01.corp.internal build01 BUILD01.lan box.tail0000.ts.net printer.local nas.home.arpa \
+  10.1.2.3 172.16.5.4 192.168.1.20 100.100.10.10 127.0.0.1 169.254.3.3 '[::1]' 'fe80::1%eth0' fd00::5 2001:db8::7; do
+  printf '{"start": 1700000001000, "end": 1700000001100, "host": "%s", "port": 443, "up": 1, "down": 2, "status": "ok", "method": "CONNECT"}\n' "$_h" >>"$T/private/.trace/proxy.jsonl"
+done
+for _h in api.anthropic.com chatgpt.com; do
+  printf '{"start": 1700000001000, "end": 1700000001100, "host": "%s", "port": 443, "up": 1, "down": 2, "status": "ok", "method": "CONNECT"}\n' "$_h" >>"$T/private/.trace/proxy.jsonl"
+done
+run_build private "$H/meta.json" ci-box
+want "private host: each private host is <private-host>" private '[h for h in d["summary"]["hosts"] if h["host"] == "<private-host>"][0]["connections"] == 16'
+want "private host: no private name or address stays" private 'not any(w in json.dumps([d["summary"]["hosts"], [e for e in ev if e["kind"] == "proxy"], [n for x in d["summary"]["timeline"] for n in x["near"] if n["kind"] == "proxy"]]).lower() for w in ("build01", "internal", ".lan", "ts.net", "tail0000", "printer", "home.arpa", "10.1.2.3", "172.16", "192.168", "100.100", "169.254", "::1", "fe80", "fd00", "2001:db8"))'
+want "private host: a public model host stays" private '{"api.anthropic.com", "chatgpt.com", "api.example.com"} <= {h["host"] for h in d["summary"]["hosts"]}'
+want "private host: the timeline text has the placeholder" private 'any(n["text"] == "proxy <private-host>:443" for x in d["summary"]["timeline"] for n in x["near"])'
+
+# The file work of the kit: the events between the marks of a session.
+# The session a has the home /home/example and the work folder
+# /work/example/proj. The work root is /work/example.
+mkraw marks
+mark() { printf '{"t": %s, "kind": "%s", "path": "/work/example/.kit-trace-mark.%s", "dir": false}\n' "$1" "$2" "$3" >>"$T/marks/.trace/files.jsonl"; }
+ev_line() { printf '{"t": %s, "kind": "%s", "path": "%s", "dir": false}\n' "$1" "$2" "$3" >>"$T/marks/.trace/files.jsonl"; }
+mark 1700000005000 create a.begin
+mark 1700000005000 delete a.begin
+ev_line 1700000005001 create /home/example/.claude/settings.json.new
+printf '{"t": 1700000005002, "kind": "move", "path": "/home/example/.claude/settings.json", "from": "/home/example/.claude/settings.json.new", "dir": false}\n' >>"$T/marks/.trace/files.jsonl"
+ev_line 1700000005003 create /work/example/proj/kit-made
+ev_line 1700000005004 write "/tmp/example/claude-$(id -u)/-work-example-proj/task.out"
+# Another process writes in the temp folder in the same time: it stays.
+ev_line 1700000005004 create /tmp/example/other-proc.lock
+# A write line of the kit can come late in the file, with an older time.
+mark 1700000005010 create a.end
+mark 1700000005010 delete a.end
+ev_line 1700000005020 create /work/example/proj/agent-made
+ev_line 1700000005030 write /home/example/.claude/settings.json
+# The stop: the deletes of the kit.
+mark 1700000006000 create a.begin
+ev_line 1700000006001 delete /work/example/proj/agent-made
+ev_line 1700000006002 delete /home/example/.claude/settings.json
+mark 1700000006003 create a.end
+# A mark of a session that has no line in sessions.tsv drops nothing.
+mark 1700000006100 create zz.begin
+ev_line 1700000006101 create /work/example/proj/after-zz
+run_build marks "$H/meta.json"
+expect_code "kit marks: exit 0" 0 $?
+want "kit marks: the files of the kit are not events" marks 'not any(e.get("path") in ("~/.claude/settings.json.new", "WORK/kit-made") or e.get("from") == "~/.claude/settings.json.new" for e in ev) and not any(e.get("path", "").startswith("TMP/claude-") for e in ev)'
+want "kit marks: the deletes of the stop are not events" marks 'not any(e["kind"] == "delete" and e.get("path") in ("WORK/agent-made", "~/.claude/settings.json") for e in ev)'
+want "kit marks: the files of the agent stay" marks 'any(e.get("path") == "WORK/agent-made" and e["kind"] == "create" for e in ev) and any(e.get("path") == "~/.claude/settings.json" and e["kind"] == "write" for e in ev) and any(e.get("path") == "WORK/after-zz" for e in ev)'
+want "kit marks: another file in the temp folder stays" marks 'any(e.get("path") == "TMP/other-proc.lock" for e in ev)'
+want "kit marks: no mark file is an event" marks 'not any("kit-trace-mark" in e.get("path", "") + e.get("from", "") for e in ev) and not any("kit-trace-mark" in p for v in d["summary"]["files"].values() for p in v)'
 
 # Moves out of the watched folders, and a source that was dropped.
 mkraw moves
