@@ -1,6 +1,6 @@
 """A recording proxy for a traced session (the network check).
 
-Run: python3 -I trace-proxy.py --log FILE --port-file FILE
+Run: python3 -I trace-proxy.py --log FILE --port-file FILE [--parent PID]
 
 The proxy listens on 127.0.0.1 and a free port. It writes the port to the
 port file when it is ready to take connections. It takes "CONNECT host:port"
@@ -32,7 +32,10 @@ digits, two Content-Length headers with different values, or both a
 Content-Length and a chunked Transfer-Encoding. A host that refuses or
 fails gives "502" to the client. On SIGTERM the proxy writes each open
 connection with the status "open" and "end" set to the time of the signal,
-and exits 0. Each connection has its own thread. The standard library only.
+and exits 0. With --parent PID, the proxy checks each 0.5 s that PID is
+still its parent. When the parent is gone (for example "kit trace" got
+KILL), the proxy does the same as on SIGTERM. Each connection has its own
+thread. The standard library only.
 """
 
 import argparse
@@ -338,10 +341,20 @@ def on_term(signum, frame):
         os._exit(0)
 
 
+def watch_parent(parent):
+    """Send SIGTERM to this process when PARENT is no longer the parent."""
+    while os.getppid() == parent:
+        time.sleep(0.5)
+    # The main thread waits in accept(). The signal must go to it, so
+    # that accept() ends and the handler runs.
+    signal.pthread_kill(threading.main_thread().ident, signal.SIGTERM)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--log", required=True)
     ap.add_argument("--port-file", required=True)
+    ap.add_argument("--parent", type=int)
     args = ap.parse_args()
     _log_fd[0] = os.open(args.log, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
     srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -349,6 +362,8 @@ def main():
     srv.bind(("127.0.0.1", 0))
     srv.listen(128)
     signal.signal(signal.SIGTERM, on_term)
+    if args.parent is not None:
+        threading.Thread(target=watch_parent, args=(args.parent,), daemon=True).start()
     tmp = args.port_file + ".tmp"
     with open(tmp, "w", encoding="ascii") as f:
         f.write("%d\n" % srv.getsockname()[1])

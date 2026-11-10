@@ -259,6 +259,152 @@ kill -TERM "$wpid"
 wait "$wpid"
 expect_code "nested top: the watch exits 0" 0 $?
 
+# A small watch limit: the work root comes first on the command line, so
+# a large home cannot use its watches. In the home, the hidden folders
+# get their watches before the other folders. One eighth of the limit
+# stays for the folders that come later.
+mkdir -p "$T/lw/top" "$T/lw/work" "$T/lw/home/.claude/sub"
+_k=0
+while [ "$_k" -lt 40 ]; do
+  mkdir "$T/lw/home/d$_k"
+  _k=$((_k + 1))
+done
+python3 -I "$watch" --out "$T/f5.jsonl" --ready "$T/f5.ready" --watch-limit 16 \
+  --top "$T/lw/top" "$T/lw/work" "$T/lw/home" &
+wpid=$!
+bg_pid "$wpid"
+wait_file "$T/f5.ready" || fail "small limit: the ready file is written" "no file"
+f=$T/f5.jsonl
+check_one "small limit: one limit line" "$f" limit "*"
+echo x >"$T/lw/home/.claude/sub/s.json"
+check_has "small limit: a hidden folder of the home has a watch" "$f" create "$T/lw/home/.claude/sub/s.json"
+mkdir "$T/lw/work/sess"
+check_has "small limit: a new work folder" "$f" create "$T/lw/work/sess"
+echo x >"$T/lw/work/sess/a.txt"
+check_has "small limit: a file in the new work folder" "$f" create "$T/lw/work/sess/a.txt"
+kill -TERM "$wpid"
+wait "$wpid"
+expect_code "small limit: the watch exits 0" 0 $?
+
+# A large hidden folder of another program does not use the watches of
+# the agent folders. .vscode-server comes after .claude in the alphabet,
+# and .aaa-big before it: the agent folders are walked first in all cases.
+for big in .vscode-server .aaa-big; do
+  rm -rf "$T/lw2"
+  mkdir -p "$T/lw2/work" "$T/lw2/home/.claude/sub" "$T/lw2/home/.codex/s2"
+  _k=0
+  while [ "$_k" -lt 40 ]; do
+    mkdir -p "$T/lw2/home/$big/d$_k"
+    _k=$((_k + 1))
+  done
+  python3 -I "$watch" --out "$T/f9.jsonl" --ready "$T/f9.ready" --watch-limit 16 \
+    "$T/lw2/work" "$T/lw2/home" &
+  wpid=$!
+  bg_pid "$wpid"
+  wait_file "$T/f9.ready" || fail "agent folders first ($big): the ready file is written" "no file"
+  echo x >"$T/lw2/home/.claude/sub/s.json"
+  echo x >"$T/lw2/home/.codex/s2/c.toml"
+  check_has "agent folders first ($big): .claude/sub has a watch" "$T/f9.jsonl" create "$T/lw2/home/.claude/sub/s.json"
+  check_has "agent folders first ($big): .codex/s2 has a watch" "$T/f9.jsonl" create "$T/lw2/home/.codex/s2/c.toml"
+  check_one "agent folders first ($big): one limit line" "$T/f9.jsonl" limit "*"
+  kill -TERM "$wpid"
+  wait "$wpid"
+  expect_code "agent folders first ($big): the watch exits 0" 0 $?
+  rm -f "$T/f9.jsonl" "$T/f9.ready"
+done
+
+# The order of the command line: with the home first, the home uses the
+# walk limit, and the work root gets no first watch.
+python3 -I "$watch" --out "$T/f6.jsonl" --ready "$T/f6.ready" --watch-limit 16 \
+  "$T/lw/home" "$T/lw/work" &
+wpid=$!
+bg_pid "$wpid"
+wait_file "$T/f6.ready" || fail "home first: the ready file is written" "no file"
+echo y >"$T/lw/work/b.txt"
+: >"$T/lw/home/.claude/sentinel"
+has_ev "$T/f6.jsonl" create "$T/lw/home/.claude/sentinel" >/dev/null
+sleep 0.3
+check_none "home first: the work root has no watch" "$T/f6.jsonl" create "$T/lw/work/b.txt"
+kill -TERM "$wpid"
+wait "$wpid"
+expect_code "home first: the watch exits 0" 0 $?
+
+# The owner of an item in a --top folder. --uid makes the watcher take
+# another account as its own, so the items of this account are foreign.
+other=$(($(id -u) + 1))
+mkdir -p "$T/ow/top" "$T/ow/dir"
+python3 -I "$watch" --out "$T/f7.jsonl" --ready "$T/f7.ready" --uid "$other" \
+  --top "$T/ow/top" "$T/ow/dir" &
+wpid=$!
+bg_pid "$wpid"
+wait_file "$T/f7.ready" || fail "owner: the ready file is written" "no file"
+echo x >"$T/ow/top/foreign.txt"
+mkdir "$T/ow/top/foreign-dir"
+echo x >"$T/ow/top/foreign-dir/in.txt"
+echo x >>"$T/ow/top/foreign.txt"
+rm "$T/ow/top/foreign.txt"
+echo x >"$T/ow/dir/below.txt"
+check_has "owner: an item below a DIR is recorded" "$T/f7.jsonl" create "$T/ow/dir/below.txt"
+sleep 0.3
+for p in "$T/ow/top/foreign.txt" "$T/ow/top/foreign-dir" "$T/ow/top/foreign-dir/in.txt"; do
+  for k in create write delete; do
+    check_none "owner: no $k line for ${p##*/} of another account" "$T/f7.jsonl" "$k" "$p"
+  done
+done
+kill -TERM "$wpid"
+wait "$wpid"
+expect_code "owner: the watch exits 0" 0 $?
+
+# A mark of the kit: the pending write lines come before its create line.
+mkdir -p "$T/mk"
+python3 -I "$watch" --out "$T/f8.jsonl" --ready "$T/f8.ready" "$T/mk" &
+wpid=$!
+bg_pid "$wpid"
+wait_file "$T/f8.ready" || fail "mark: the ready file is written" "no file"
+: >"$T/mk/settings.json"
+check_has "mark: create of the settings file" "$T/f8.jsonl" create "$T/mk/settings.json"
+echo x >"$T/mk/settings.json"
+: >"$T/mk/.kit-trace-mark.s1.end"
+rm -f "$T/mk/.kit-trace-mark.s1.end"
+check_has "mark: create of the mark" "$T/f8.jsonl" create "$T/mk/.kit-trace-mark.s1.end"
+if python3 -I -c '
+import json, sys
+rows = [json.loads(l) for l in open(sys.argv[1])]
+w = [i for i, r in enumerate(rows) if r["kind"] == "write" and r["path"].endswith("/settings.json")]
+m = [i for i, r in enumerate(rows) if r["kind"] == "create" and r["path"].endswith("/.kit-trace-mark.s1.end")]
+sys.exit(0 if w and m and w[0] < m[0] else 1)' "$T/f8.jsonl"; then
+  pass "mark: the write line comes before the mark"
+else
+  fail "mark: the write line comes before the mark" "bad order"
+fi
+kill -TERM "$wpid"
+wait "$wpid"
+expect_code "mark: the watch exits 0" 0 $?
+
+# The parent: when the --parent process is gone, the watcher stops and
+# deletes its lines and its folder. "sh -c" is the parent; it gets KILL.
+mkdir -p "$T/pw/w" "$T/pw/rec"
+sh -c 'python3 -I "$1" --out "$2/files.jsonl" --ready "$2/ready" --parent "$$" "$3" &
+echo "$!" >"$4"
+wait' sh "$watch" "$T/pw/rec" "$T/pw/w" "$T/pw/pid" &
+ppid_sh=$!
+bg_pid "$ppid_sh"
+wait_file "$T/pw/rec/ready" || fail "parent: the ready file is written" "no file"
+wait_file "$T/pw/pid"
+cpid=$(cat "$T/pw/pid")
+bg_pid "$cpid"
+echo x >"$T/pw/w/real-path.txt"
+check_has "parent: the watcher records" "$T/pw/rec/files.jsonl" create "$T/pw/w/real-path.txt"
+kill -9 "$ppid_sh"
+wait "$ppid_sh" 2>/dev/null
+_n=0
+while kill -0 "$cpid" 2>/dev/null && [ "$_n" -lt 50 ]; do
+  sleep 0.1
+  _n=$((_n + 1))
+done
+if kill -0 "$cpid" 2>/dev/null; then fail "parent: the watcher stops when its parent is gone" "pid runs"; else pass "parent: the watcher stops when its parent is gone"; fi
+if [ ! -e "$T/pw/rec" ]; then pass "parent: the lines and their folder are deleted"; else fail "parent: the lines and their folder are deleted" "$(ls -A "$T/pw/rec")"; fi
+
 # The limit: 8200 folders before the start.
 python3 -I "$H/many.py" "$T/w2/many"
 python3 -I "$watch" --out "$T/f2.jsonl" --ready "$T/f2.ready" "$T/w2" &

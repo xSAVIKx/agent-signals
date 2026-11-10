@@ -8,20 +8,30 @@
 # ARGS go to "kit step".
 #
 # The order:
-#   1. Find the run. When RUN/.trace exists, another trace runs: exit 2.
-#   2. Make RUN/.trace (the raw folder). Write t0 (the start in epoch
+#   1. Find the run. When RUN/.trace exists and the "kit trace" in
+#      RUN/.trace/owner still runs, another trace runs: exit 2. A missing
+#      or bad owner file counts as running for one minute
+#      (kit_trace_owner_runs). When that trace does not run (for example
+#      after a KILL), remove what it left (kit_trace_leftover in lib.sh):
+#      its step (RUN/.trace/step), its sessions and its recorders.
+#   2. Make RUN/.trace (the raw folder). Write the file "owner" (the pid
+#      and the start time of this script), t0 (the start in epoch
 #      milliseconds) and the file "checks" (LIST).
 #   3. network: start trace-proxy.py (the pid label "trace proxy"), and
 #      wait 10 s at most for proxy.port.
 #   4. files, on Linux: make the work root (kit_work_root RUN) and the
 #      home root (RUN/home, or HOME with the home "real"). Start
 #      trace-files.py (the pid label "trace files") on these two folders,
-#      with --top /tmp (the temp folder of the agent), and wait 30 s at
-#      most for its ready file. The watcher writes its events in a new
-#      folder in the temp folder. A folder that exists before the watch
-#      starts is not watched there, so the watcher does not see its own
-#      writes. Not on Linux, or with no inotify, the file
-#      skipped.tsv gets a line for files.
+#      the work root first, with --top /tmp (the temp folder of the
+#      agent), and wait 30 s at most for its ready file. The work root
+#      comes first, so that a large real home cannot use all the watches
+#      before it. The watcher writes its events in a new folder in the
+#      temp folder, and RUN/.trace/files-dir names that folder. A folder
+#      that exists before the watch starts is not watched there, so the
+#      watcher does not see its own writes. Not on Linux, or with no
+#      inotify, the file skipped.tsv gets a line for files.
+#      Both recorders get --parent with the pid of this script. They stop
+#      when this script is gone, also after a KILL.
 #   5. Run "kit step NAME@BACKEND ARGS" with KIT_TRACE (the raw folder) and
 #      KIT_TRACE_CHECKS (LIST) in the environment, and TMPDIR set to a
 #      folder in the raw folder. Keep its exit code and its output lines.
@@ -30,9 +40,13 @@
 #   7. Write the meta file: the run facts of manifest.tsv, the agent and
 #      the step of the step line, the agent version from "kit doctor"
 #      (which never runs the agent), the runner image, the machine and
-#      the mode.
+#      the mode. The mode is fixture with the home "fixture", login with
+#      the home "real", and none with the home "throwaway": a throwaway
+#      home has no login and no fake model.
 #   8. Run trace-build.py into RUN/.trace/out. Scrub each output file with
-#      tools/scrub.sh into RUN/traces/NN-NAME@BACKEND/. NN is one more than
+#      tools/scrub.sh into RUN/traces/NN-NAME@BACKEND/. The cast goes
+#      through trace-cast-scrub.py, which scrubs the text of each event
+#      and keeps each line valid JSON. NN is one more than
 #      the highest number in RUN/traces/. Delete RUN/.trace. A build or a
 #      scrub that fails gives the line "trace: NAME@BACKEND fail REASON"
 #      and exit 1.
@@ -126,9 +140,14 @@ run=$(kit_run_dir) || exit "$KIT_USAGE"
 why=$(kit_run_problem "$run")
 [ -z "$why" ] || kit_die "$KIT_USAGE" "the run folder cannot take a trace: $why"
 raw=$run/.trace
+# A trace that got KILL left RUN/.trace: remove it, and stop its recorders.
+kit_trace_leftover "$run" || kit_die "$KIT_USAGE" "another trace runs in this run ($raw exists)"
 # mkdir is the lock: only one trace runs in a run.
-mkdir "$raw" 2>/dev/null || kit_die "$KIT_USAGE" "another trace runs in this run ($raw exists). When no trace runs, a stopped trace left the folder: delete it, then try again"
+mkdir "$raw" 2>/dev/null || kit_die "$KIT_USAGE" "another trace runs in this run ($raw exists)"
 chmod 700 "$raw"
+# The owner file comes in one step (a rename), so that no other trace
+# reads a half file.
+printf '%s\t%s\n' "$$" "$(kit_pid_start "$$")" >"$raw/.owner.tmp" && mv "$raw/.owner.tmp" "$raw/owner"
 
 home=$(kit_manifest_value "$run" home)
 work=$(kit_work_root "$run")
@@ -141,26 +160,12 @@ fdir=
 made_work=
 made_home=
 
-# tree PID: PID and each process below it, one pid on each line.
-tree() {
-  ps -A -o pid= -o ppid= 2>/dev/null | awk -v r="$1" '
-    { kid[$2] = kid[$2] " " $1 }
-    END {
-      q[1] = r; n = 1
-      for (i = 1; i <= n; i++) {
-        print q[i]
-        m = split(kid[q[i]], k, " ")
-        for (j = 1; j <= m; j++) q[++n] = k[j]
-      }
-    }'
-}
-
 # end_step: stop the step, when it runs, and each process below it. The
 # step script stops its own session when it gets TERM.
 end_step() {
   [ -n "$step_pid" ] || return 0
   kit_pid_runs "$step_pid" || return 0
-  _t=$(tree "$step_pid")
+  _t=$(kit_pid_tree "$step_pid")
   # shellcheck disable=SC2086
   kill $_t 2>/dev/null
   _n=0
@@ -188,33 +193,8 @@ end_sessions() {
   return 0
 }
 
-# end_recorders: stop the pids of RUN/pids/ with a trace label (TERM, then
-# KILL after 5 s), and remove their pid files.
-end_recorders() {
-  set --
-  for _f in "$run"/pids/*; do
-    [ -f "$_f" ] || continue
-    case $(awk -F '\t' 'NR == 1 { print $1 }' "$_f") in
-      "trace proxy" | "trace files") set -- "$@" "${_f##*/}" ;;
-    esac
-  done
-  [ "$#" -gt 0 ] || return 0
-  for _p in "$@"; do kit_pid_ours "$run" "$_p" && kill "$_p" 2>/dev/null; done
-  _n=0
-  while [ "$_n" -lt 50 ]; do
-    _left=
-    for _p in "$@"; do kit_pid_ours "$run" "$_p" && _left=1 && break; done
-    [ -n "$_left" ] || break
-    sleep 0.1
-    _n=$((_n + 1))
-  done
-  for _p in "$@"; do
-    kit_pid_ours "$run" "$_p" && kill -9 "$_p" 2>/dev/null
-    wait "$_p" 2>/dev/null
-    rm -f "$run/pids/$_p"
-  done
-  return 0
-}
+# end_recorders: stop the recorders by their pids.
+end_recorders() { kit_trace_end_recorders "$run"; }
 
 # tidy: delete the folders that this trace made and that stay empty.
 tidy() {
@@ -256,7 +236,7 @@ printf '%s\n' "$checks" >"$raw/checks"
 # 3. The network check.
 if kit_has_word "$checks" network; then
   python3 -I "$KIT_DIR/trace-proxy.py" --log "$raw/proxy.jsonl" --port-file "$raw/proxy.port" \
-    </dev/null >/dev/null 2>"$raw/proxy.err" &
+    --parent "$$" </dev/null >/dev/null 2>"$raw/proxy.err" &
   kit_add_pid "$run" "$!" "trace proxy"
   _n=0
   while [ ! -s "$raw/proxy.port" ] && [ "$_n" -lt 100 ]; do
@@ -280,8 +260,12 @@ if kit_has_word "$checks" files; then
     [ -d "$work" ] || made_work=1
     mkdir -p "$hroot" "$work" || fail no-folder
     fdir=$(mktemp -d "$top/as-trace.XXXXXX") || fail no-temp-folder
+    printf '%s\n' "$fdir" >"$raw/files-dir"
+    # The order of the first watches: the work root, then the home root.
+    # A test can set KIT_TRACE_WATCH_LIMIT to a small limit.
     python3 -I "$KIT_DIR/trace-files.py" --out "$fdir/files.jsonl" --ready "$fdir/ready" \
-      --top "$top" "$hroot" "$work" </dev/null >/dev/null 2>"$raw/files.err" &
+      --parent "$$" ${KIT_TRACE_WATCH_LIMIT:+--watch-limit "$KIT_TRACE_WATCH_LIMIT"} \
+      --top "$top" "$work" "$hroot" </dev/null >/dev/null 2>"$raw/files.err" &
     fpid=$!
     kit_add_pid "$run" "$fpid" "trace files"
     _n=0
@@ -319,6 +303,9 @@ mkdir "$raw/tmp" || fail no-temp-folder
   exec sh "$KIT_DIR/step.sh" "$name@$backend" "$@"
 ) </dev/null >"$raw/step.out" &
 step_pid=$!
+# The step file: after a KILL of this script, the next trace or
+# "kit session stop --all" stops the step by its pid (kit_trace_end_step).
+printf '%s\t%s\n' "$step_pid" "$(kit_pid_start "$step_pid")" >"$raw/.step.tmp" && mv "$raw/.step.tmp" "$raw/step"
 wait "$step_pid"
 code=$?
 step_pid=
@@ -362,8 +349,11 @@ if [ "${GITHUB_ACTIONS:-}" = true ]; then
   machine=runner
   image=$(printf '%s %s' "${ImageOS:-}" "${ImageVersion:-}" | sed 's/^ *//; s/ *$//')
 fi
-mode=login
-[ "$home" = fixture ] && mode=fixture
+case $home in
+  fixture) mode=fixture ;;
+  real) mode=login ;;
+  *) mode=none ;;
+esac
 python3 -I -c '
 import json, sys
 keys = ["agent", "agent_version", "kit", "os", "os_version", "cpu",
@@ -437,16 +427,24 @@ with open(path, "w", encoding="utf-8") as f:
 fi
 mkdir -p "$raw/scrubbed"
 : >"$raw/scrub.log"
+# The run folder, the kit folder and the work root can hold names.
+SCRUB_EXTRA="$run
+$KIT_ROOT
+$work"
+export SCRUB_EXTRA
 for f in "$raw"/out/*; do
   [ -f "$f" ] || continue
-  # The run folder, the kit folder and the work root can hold names.
-  if ! SCRUB_EXTRA="$run
-$KIT_ROOT
-$work" sh "$KIT_ROOT/tools/scrub.sh" "$f" >"$raw/scrubbed/${f##*/}" 2>>"$raw/scrub.log"; then
+  case ${f##*/} in
+    # The scrub reads text, not JSON: it gets the text of each event.
+    *.cast) python3 -I "$KIT_DIR/trace-cast-scrub.py" --scrub "$KIT_ROOT/tools/scrub.sh" \
+      "$f" "$raw/scrubbed/${f##*/}" 2>>"$raw/scrub.log" ;;
+    *) sh "$KIT_ROOT/tools/scrub.sh" "$f" >"$raw/scrubbed/${f##*/}" 2>>"$raw/scrub.log" ;;
+  esac || {
     sed 's/^/kit: /' "$raw/scrub.log" >&2
     fail scrub
-  fi
+  }
 done
+unset SCRUB_EXTRA
 # The scrub can change a word of the meta, for example the machine
 # "runner" when the account name is "runner". So the meta keys with a
 # fixed set of words come back from the meta of the kit. The keys with

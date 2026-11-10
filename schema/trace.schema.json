@@ -31,7 +31,7 @@
         "runner_image": {"description": "The image of the CI runner, or null when the machine is not a runner.", "type": ["string", "null"]},
         "machine": {"description": "runner: a CI runner. real: a machine of a person.", "enum": ["runner", "real"]},
         "backend": {"description": "The terminal backend that ran the agent.", "type": "string", "minLength": 1},
-        "mode": {"description": "fixture: the agent talks to the fake model. login: the agent uses a real login.", "enum": ["fixture", "login"]},
+        "mode": {"description": "fixture: the agent talks to the fake model. login: the agent uses a real login (the home real). none: the agent has no login and no fake model (the home throwaway).", "enum": ["fixture", "login", "none"]},
         "home": {"description": "fixture: a prepared home. throwaway: a new empty home. real: the home of the person.", "enum": ["fixture", "throwaway", "real"]},
         "step": {"description": "The name of the step file that the kit ran.", "type": "string", "minLength": 1},
         "date": {"description": "The day of the run.", "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", "format": "date"},
@@ -71,7 +71,7 @@
       }
     },
     "events": {
-      "description": "The events that the recorders saw, in time order.",
+      "description": "The events that the recorders saw, in time order. The file events of the kit itself (the work folder and the home that it makes, the settings files of the fake model, the deletes when a session stops) are not in the list.",
       "type": "array",
       "items": {"$ref": "#/$defs/event"}
     },
@@ -105,7 +105,7 @@
             "additionalProperties": false,
             "required": ["host", "port", "connections", "up", "down"],
             "properties": {
-              "host": {"type": "string", "minLength": 1},
+              "host": {"description": "The host name, or <private-host> for a host of a private network.", "type": "string", "minLength": 1},
               "port": {"type": "integer", "minimum": 0, "maximum": 65535},
               "connections": {"type": "integer", "minimum": 0},
               "up": {"description": "Bytes sent to the host.", "type": "integer", "minimum": 0},

@@ -6,6 +6,8 @@ Expect-Line 'the help lists the commands' '^commands:$' (Join-Path $T 'out')
 Expect-Code 'an unknown command is bad use' 2 (Invoke-Kit 'no-such')
 Expect-Code 'a path is not a command' 2 (Invoke-Kit '..\lib')
 Expect-Code 'version exits 0' 0 (Invoke-Kit 'version')
+Expect-Code 'trace is bad use on Windows' 2 (Invoke-Kit 'trace' 'permission-claude@tmux')
+Expect-Line 'trace says that traces are not on Windows' 'kit trace is not on Windows yet' (Join-Path $T 'out')
 
 # A command gets its arguments as an array, also with one or no argument.
 $cmdFile = Join-Path $env:ROOT 'probes/agent/zz-args.ps1'

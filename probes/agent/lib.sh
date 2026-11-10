@@ -112,6 +112,135 @@ kit_pid_ours() {
   [ "$_want" = "$(kit_pid_start "$2")" ]
 }
 
+# kit_trace_young RUN: true when RUN/.trace changed in the last minute.
+kit_trace_young() {
+  [ -n "$(find "$1/.trace" -prune -mmin -1 2>/dev/null)" ]
+}
+
+# kit_trace_owner_runs RUN: true when the "kit trace" that made RUN/.trace
+# still runs. RUN/.trace/owner holds its pid and its start time. The check
+# fails closed: when the owner file is missing or bad, the trace counts as
+# running while RUN/.trace is younger than one minute. When its pid runs
+# but it has no start time, the trace counts as running. A new trace writes the owner file just after
+# it makes the folder.
+kit_trace_owner_runs() {
+  _op=
+  _os=
+  if [ -r "$1/.trace/owner" ]; then
+    _op=$(awk -F '\t' 'NR == 1 { print $1 }' "$1/.trace/owner")
+    _os=$(awk -F '\t' 'NR == 1 { print $2 }' "$1/.trace/owner")
+  fi
+  case $_op in
+    # pid 0 is the process group of the caller: kill -0 0 always works.
+    '' | 0* | *[!0-9]*) kit_trace_young "$1"; return ;;
+  esac
+  kit_pid_runs "$_op" || return 1
+  # A live pid with no start time (ps with no lstart) counts as running.
+  [ -n "$_os" ] || return 0
+  [ "$_os" = "$(kit_pid_start "$_op")" ]
+}
+
+# kit_pid_tree PID: PID and each process below it, one pid on each line.
+kit_pid_tree() {
+  ps -A -o pid= -o ppid= 2>/dev/null | awk -v r="$1" '
+    { kid[$2] = kid[$2] " " $1 }
+    END {
+      q[1] = r; n = 1
+      for (i = 1; i <= n; i++) {
+        print q[i]
+        m = split(kid[q[i]], k, " ")
+        for (j = 1; j <= m; j++) q[++n] = k[j]
+      }
+    }'
+}
+
+# kit_trace_end_step RUN: stop the "kit step" of a stopped trace and each
+# process below it. The file RUN/.trace/step holds the pid and the start
+# time of the step. The step script below step.sh stops its session when it
+# gets TERM. Each process gets TERM, then KILL after 10 s. A pid with
+# another start time is not the step, and nothing gets a signal.
+kit_trace_end_step() {
+  [ -r "$1/.trace/step" ] || return 0
+  _sp=$(awk -F '\t' 'NR == 1 { print $1 }' "$1/.trace/step")
+  _ss=$(awk -F '\t' 'NR == 1 { print $2 }' "$1/.trace/step")
+  case $_sp in '' | 0* | *[!0-9]*) return 0 ;; esac
+  [ -n "$_ss" ] || return 0
+  _step_ours() { kit_pid_runs "$_sp" && [ "$_ss" = "$(kit_pid_start "$_sp")" ]; }
+  _step_ours || return 0
+  _st=$(kit_pid_tree "$_sp")
+  # shellcheck disable=SC2086
+  kill $_st 2>/dev/null
+  _n=0
+  while [ "$_n" -lt 100 ]; do
+    _left=
+    for _p in $_st; do kit_pid_runs "$_p" && _left=1 && break; done
+    [ -n "$_left" ] || break
+    sleep 0.1
+    _n=$((_n + 1))
+  done
+  for _p in $_st; do kit_pid_runs "$_p" && kill -9 "$_p" 2>/dev/null; done
+  return 0
+}
+
+# kit_trace_end_recorders RUN: stop the pids of RUN/pids/ with a trace
+# label (TERM, then KILL after 5 s), and remove their pid files.
+kit_trace_end_recorders() {
+  _er=$1
+  set --
+  for _f in "$_er"/pids/*; do
+    [ -f "$_f" ] || continue
+    case $(awk -F '\t' 'NR == 1 { print $1 }' "$_f") in
+      "trace proxy" | "trace files") set -- "$@" "${_f##*/}" ;;
+    esac
+  done
+  [ "$#" -gt 0 ] || return 0
+  for _p in "$@"; do kit_pid_ours "$_er" "$_p" && kill "$_p" 2>/dev/null; done
+  _n=0
+  while [ "$_n" -lt 50 ]; do
+    _left=
+    for _p in "$@"; do kit_pid_ours "$_er" "$_p" && _left=1 && break; done
+    [ -n "$_left" ] || break
+    sleep 0.1
+    _n=$((_n + 1))
+  done
+  for _p in "$@"; do
+    kit_pid_ours "$_er" "$_p" && kill -9 "$_p" 2>/dev/null
+    wait "$_p" 2>/dev/null
+    rm -f "$_er/pids/$_p"
+  done
+  return 0
+}
+
+# kit_trace_leftover RUN: remove what a stopped "kit trace" left in RUN, for
+# example after a KILL. It does nothing when there is no RUN/.trace. It
+# returns 1 when the owner of RUN/.trace still runs. Else it stops the
+# step of that trace (kit_trace_end_step), stops each
+# session of RUN/.trace/sessions.tsv that is not stopped, stops the
+# recorders by their pids in RUN/pids/, deletes the folder of the file
+# watcher (RUN/.trace/files-dir names it; only a folder /tmp/as-trace.*
+# of this account) and deletes RUN/.trace. It prints one line to stderr.
+kit_trace_leftover() {
+  _lr=$1
+  [ -d "$_lr/.trace" ] || return 0
+  kit_trace_owner_runs "$_lr" && return 1
+  kit_trace_end_step "$_lr"
+  if [ -f "$_lr/.trace/sessions.tsv" ]; then
+    cut -f1 "$_lr/.trace/sessions.tsv" | sort -u | while IFS= read -r _s; do
+      [ -n "$_s" ] && [ -f "$_lr/sessions/$_s/backend" ] || continue
+      [ -f "$_lr/sessions/$_s/stopped" ] && continue
+      (AGENT_SIGNALS_RUN=$_lr && export AGENT_SIGNALS_RUN && sh "$KIT_DIR/session.sh" stop "$_s") >/dev/null 2>&1
+    done
+  fi
+  kit_trace_end_recorders "$_lr"
+  _fd=$(head -n 1 "$_lr/.trace/files-dir" 2>/dev/null)
+  case $_fd in
+    /tmp/as-trace.*) [ -d "$_fd" ] && [ -O "$_fd" ] && rm -rf "$_fd" ;;
+  esac
+  rm -rf "$_lr/.trace"
+  echo "kit: removed the folder of a stopped trace: $_lr/.trace" >&2
+  return 0
+}
+
 # kit_now: the time now, in UTC, as 2026-11-01T12:00:00Z.
 kit_now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 

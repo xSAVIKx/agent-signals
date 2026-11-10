@@ -157,7 +157,8 @@ One file for each step: `trace.json`. The schema goes in
 `schema/trace.schema.json`. It holds:
 
 - `meta`: agent, agent version, kit version, OS, runner image, backend,
-  mode (`fixture` or `login`), step, date. No host name, no user name.
+  mode (`fixture`, `login`, or `none` for a throwaway home with no login),
+  step, date. No host name, no user name.
 - `states`: the kit states of the step with their times (start, idle,
   prompt sent, busy, dialog, answer, idle again, stop).
 - `events`: one item for each event, with `t`, `kind` (`exec`, `exit`,
@@ -204,7 +205,7 @@ runner user name and no runner path stays.
   `summary` parts of the artifacts.
 - For each agent version it looks for an open issue with the title
   `trace: AGENT VERSION`. If there is none, it opens one, with labels
-  `trace` and the mode (`fixture` or `login`).
+  `trace` and the mode (`fixture`, `login` or `none`).
 - The issue body: the summary, the timeline near each state change, a
   section "new since VERSION" (compared with the issue of the version
   before), and a link to the run and its artifact.
