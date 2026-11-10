@@ -405,8 +405,11 @@ pty_serve() {
 }
 
 # start_die CODE TEXT: a start that fails after the socket folder exists
-# deletes that folder, then ends like kit_die. The server is already gone.
+# stops the pids of the session that still run (for example the fake
+# model), deletes the socket folder, then ends like kit_die.
 start_die() {
+  # shellcheck disable=SC2046
+  end_pids $(session_pids) >/dev/null
   [ -n "${sockdir:-}" ] && rm -rf "$sockdir"
   kit_die "$@"
 }
@@ -624,10 +627,12 @@ do_start() {
     pty)
       sock=$sockdir/pty.sock
       echo "$sock" >"$sdir/socket"
+      start_f=$(mktemp "$sdir/pids.XXXXXX") || start_die 1 "mktemp failed"
       pty_serve "$@" </dev/null >"$sdir/server.log" 2>&1 \
-        3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- ||
+        3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- || {
+        rm -f "$start_f"
         start_die 1 "ptydrive did not start: $(cat "$sdir/server.log")"
-      start_f=$(mktemp "$sdir/pids.XXXXXX") || kit_die 1 "mktemp failed"
+      }
       client pids >"$start_f" 2>/dev/null
       server=$(awk '$1 == "driver" { print $2 }' "$start_f")
       a=$(awk '$1 == "agent" { print $2 }' "$start_f")

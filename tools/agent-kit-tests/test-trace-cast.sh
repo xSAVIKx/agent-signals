@@ -251,6 +251,15 @@ left=$(pids_run "$T/run1")
 if [ -z "$left" ]; then pass "pipe-pane fails: no pid of the run stays"; else fail "pipe-pane fails: no pid of the run stays" "$left"; fi
 sock_gone s4 "pipe-pane fails: no socket folder stays"
 
+# pipe-pane fails with a fixture home: the fake model of the session stops
+# too.
+(PATH="$T/wrap:$PATH"; KIT_TRACE=$raw; KIT_TRACE_CHECKS=; WRAP_MODE=fail; export PATH KIT_TRACE KIT_TRACE_CHECKS WRAP_MODE
+ kit session start s6 claude --via tmux --cmd "sh '$stub'" --home fixture) >"$T/o" 2>&1
+expect_code "fixture, pipe-pane fails: start exits 1" 1 $?
+left=$(pids_run "$T/run1")
+if [ -z "$left" ]; then pass "fixture, pipe-pane fails: no pid of the run stays"; else fail "fixture, pipe-pane fails: no pid of the run stays" "$left"; fi
+sock_gone s6 "fixture, pipe-pane fails: no socket folder stays"
+
 # The gate wait ends before the recorder starts: the start exits 1.
 (PATH="$T/wrap:$PATH"; KIT_TRACE=$raw; KIT_TRACE_CHECKS=; WRAP_MODE=slow; KIT_TRACE_GATE_TURNS=4; export PATH KIT_TRACE KIT_TRACE_CHECKS WRAP_MODE KIT_TRACE_GATE_TURNS
  kit session start s5 stub --via tmux --cmd "sh '$stub'") >"$T/o" 2>&1
