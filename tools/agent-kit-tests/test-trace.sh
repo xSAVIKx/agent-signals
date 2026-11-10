@@ -27,31 +27,33 @@ want() {
   if python3 -I "$T/q.py" "$2" "$3" 2>/dev/null; then pass "$1"; else fail "$1" "false: $3"; fi
 }
 
-# private NAME DIR: pass when no file in DIR holds $T, and no file holds
-# the account name or the host name as a word. The meta of trace.json is
-# not read for the names: on a CI runner, the account name is "runner",
-# and the meta value "machine" is "runner" too.
+# private NAME DIR: pass when no file below DIR holds $T, and no file holds
+# the account name or the host name as a word. The meta keys with a fixed
+# set of words are not read for the names: on a CI runner, the account
+# name is "runner", and the meta value "machine" is "runner" too. The meta
+# keys with free text are read.
 me=$(id -un)
 host=$(hostname 2>/dev/null || uname -n)
 private() {
   _bad=
   if grep -rlF -- "$T" "$2" >/dev/null 2>&1; then _bad="the test folder"; fi
-  for _f in "$2"/*; do
-    [ -f "$_f" ] || continue
+  find "$2" -type f >"$T/files.list"
+  while IFS= read -r _f; do
     if ! python3 -I -c '
 import json, re, sys
 path, names = sys.argv[1], sys.argv[2:]
 text = open(path, encoding="utf-8", errors="replace").read()
 if path.endswith(".json"):
     d = json.loads(text)
-    d.pop("meta", None)
+    for k in ("machine", "mode", "home", "backend", "agent", "os"):
+        d["meta"].pop(k, None)
     text = json.dumps(d)
 for n in names:
     if n and re.search(r"(^|[^A-Za-z0-9_-])" + re.escape(n) + r"([^A-Za-z0-9_-]|$)", text, re.I):
         sys.exit(1)' "$_f" "$me" "$host" "${host%%.*}"; then
       _bad="${_bad:+$_bad, }a name in ${_f##*/}"
     fi
-  done
+  done <"$T/files.list"
   if [ -z "$_bad" ]; then pass "$1"; else fail "$1" "$_bad"; fi
 }
 
@@ -90,7 +92,8 @@ kitx start --home fixture --out "$D" >"$T/log" 2>&1
 expect_code "kit start exits 0" 0 $?
 run=$(run_of "$D")
 # The stub shows its current folder, as the welcome box of an agent does.
-stub_set STUB_TRUST=yes 'STUB_WELCOME="cwd $PWD"'
+# It also shows a cut form "/…/TAIL", as Claude Code draws a long folder.
+stub_set STUB_TRUST=yes 'STUB_WELCOME="cwd $PWD cut /…/${PWD#*/out/}"'
 kitx trace permission-claude@tmux >"$T/t1" 2>"$T/t1.err"
 expect_code "trace: exit 0" 0 $?
 tr1=$run/traces/01-permission-claude@tmux
@@ -108,7 +111,13 @@ want "trace: summary.hosts is a list" "$j" 'isinstance(d["summary"]["hosts"], li
 want "trace: terminal is the cast" "$j" 'd["terminal"] == "terminal.cast"'
 if grep -F 'stub idle' "$tr1/terminal.cast" >/dev/null 2>&1; then pass "trace: the cast holds stub idle"; else fail "trace: the cast holds stub idle" "no text"; fi
 if grep -F 'cwd /work/example' "$tr1/terminal.cast" >/dev/null 2>&1; then pass "trace: the cwd in the cast is scrubbed"; else fail "trace: the cwd in the cast is scrubbed" "no text cwd /work/example"; fi
-private "trace: no file holds the test folder, the account name or the host name" "$tr1"
+if grep -F 'cut /work/example/permission-claude-tmux' "$tr1/terminal.cast" >/dev/null 2>&1 &&
+  ! grep -F 'agent-signals-run-' "$tr1/terminal.cast" >/dev/null 2>&1; then
+  pass "trace: the cut cwd in the cast is scrubbed"
+else
+  fail "trace: the cut cwd in the cast is scrubbed" "$(grep -o 'cut [^ ]*' "$tr1/terminal.cast" | head -n 1)"
+fi
+want "trace: summary.files.tmp holds the temp file of the stub" "$j" 'len(d["summary"]["files"]["tmp"]) > 0 and all(p.startswith("TMP/") for p in d["summary"]["files"]["tmp"])'
 if [ ! -e "$run/.trace" ]; then pass "trace: no RUN/.trace stays"; else fail "trace: no RUN/.trace stays" "it exists"; fi
 if [ -z "$(trace_pids)" ]; then pass "trace: no trace pid stays in RUN/pids"; else fail "trace: no trace pid stays in RUN/pids" "$(trace_pids)"; fi
 
@@ -119,6 +128,15 @@ j=$run/traces/02-permission-claude@tmux/trace.json
 expect_file "terminal only: the folder number is 02" "$j"
 want "terminal only: summary.hosts is null" "$j" 'd["summary"]["hosts"] is None and d["summary"]["files"] is None and d["summary"]["model_requests"] is None'
 want "terminal only: meta.checks is terminal" "$j" 'd["meta"]["checks"] == ["terminal"]'
+
+# The TMPDIR of the operator does not change the temp folder of the
+# agent: the agent starts with no TMPDIR and writes to /tmp.
+mkdir -p "$T/optmp"
+(TMPDIR=$T/optmp && export TMPDIR && kitx trace permission-claude@tmux --checks files) >"$T/t2b" 2>&1
+expect_code "operator TMPDIR: exit 0" 0 $?
+j=$run/traces/03-permission-claude@tmux/trace.json
+want "operator TMPDIR: summary.files.tmp holds the temp file of the stub" "$j" 'len(d["summary"]["files"]["tmp"]) > 0 and all(p.startswith("TMP/") for p in d["summary"]["files"]["tmp"])'
+want "operator TMPDIR: no path names the folder" "$j" '"optmp" not in json.dumps(d)'
 
 # Bad use.
 kitx trace permission-claude@tmux --checks ebpf >"$T/t3" 2>&1
@@ -132,7 +150,7 @@ kitx trace >"$T/t3" 2>&1
 expect_code "no step: exit 2" 2 $?
 kitx trace no-such-step@tmux >"$T/t3" 2>&1
 expect_code "an unknown step: exit 2" 2 $?
-if [ ! -e "$run/.trace" ] && [ ! -e "$run/traces/03-permission-claude@tmux" ]; then pass "bad use: no trace folder"; else fail "bad use: no trace folder" "a folder exists"; fi
+if [ ! -e "$run/.trace" ] && [ ! -e "$run/traces/04-permission-claude@tmux" ]; then pass "bad use: no trace folder"; else fail "bad use: no trace folder" "a folder exists"; fi
 
 # A step that fails: the agent shows no idle screen.
 cp "$B/claude" "$T/stub-claude"
@@ -141,7 +159,7 @@ kitx trace permission-claude@tmux >"$T/t4" 2>&1
 expect_code "failed step: exit 1" 1 $?
 cp "$T/stub-claude" "$B/claude"
 expect_line "failed step: the step line" '^step: permission-claude@tmux fail no-idle' "$T/t4"
-j=$run/traces/03-permission-claude@tmux/trace.json
+j=$run/traces/04-permission-claude@tmux/trace.json
 expect_file "failed step: trace.json exists" "$j"
 want "failed step: the state start" "$j" '"start" in [s["state"] for s in d["states"]]'
 if [ -z "$(trace_pids)" ]; then pass "failed step: no trace pid stays"; else fail "failed step: no trace pid stays" "$(trace_pids)"; fi
@@ -151,7 +169,7 @@ if [ -z "$(trace_pids)" ]; then pass "failed step: no trace pid stays"; else fai
 if [ -z "$(PATH="$B:$SYS_PATH" command -v codex)" ]; then
   (cd "$D" && HOME=$H PATH="$B:$SYS_PATH" AGENT_SIGNALS_WATCH=3 sh "$ROOT/probes/agent/kit.sh" trace permission-codex@tmux </dev/null) >"$T/t5" 2>&1
   expect_code "skipped step: exit 3" 3 $?
-  j=$run/traces/04-permission-codex@tmux/trace.json
+  j=$run/traces/05-permission-codex@tmux/trace.json
   want "skipped step: terminal no-cast" "$j" '{"check": "terminal", "reason": "no-cast"} in d["meta"]["skipped"] and d["terminal"] is None'
   want "skipped step: the step name is the meta step" "$j" 'd["meta"]["step"] == "permission-codex@tmux"'
 else
@@ -190,6 +208,7 @@ if [ ! -e "$run/.trace" ]; then pass "TERM: no RUN/.trace stays"; else fail "TER
 if [ -z "$(trace_pids)" ]; then pass "TERM: no trace pid stays"; else fail "TERM: no trace pid stays" "$(trace_pids)"; fi
 if [ -z "$(pids_run)" ]; then pass "TERM: no pid of RUN/pids runs"; else fail "TERM: no pid of RUN/pids runs" "$(pids_run)"; fi
 if [ -f "$run/sessions/permission-claude-tmux/stopped" ]; then pass "TERM: the session is stopped"; else fail "TERM: the session is stopped" "no file stopped"; fi
+private "fixture run: no file in RUN/traces holds the test folder or a name" "$run/traces"
 
 # The real home: HOME is a folder of the test.
 R=$T/realhome
@@ -209,8 +228,9 @@ tr8=$run/traces/01-permission-claude@tmux
 j=$tr8/trace.json
 want "real home: home paths start with ~" "$j" 'any(e.get("path", "").startswith("~/.claude/") for e in ev) and all(not e.get("path", "").startswith("/") for e in ev if e["kind"] != "proxy")'
 want "real home: no terminal" "$j" 'd["terminal"] is None and "terminal" not in d["meta"]["checks"]'
+want "real home: login mode, the terminal is skipped" "$j" 'd["meta"]["mode"] == "login" and {"check": "terminal", "reason": "not-fixture-home"} in d["meta"]["skipped"]'
 if [ ! -e "$tr8/terminal.cast" ]; then pass "real home: no cast"; else fail "real home: no cast" "file exists"; fi
 if grep -rlF -- "$R" "$tr8" >/dev/null 2>&1; then fail "real home: the home path is in no file" "found"; else pass "real home: the home path is in no file"; fi
-private "real home: no file holds the test folder or a name" "$tr8"
+private "real home: no file in RUN/traces holds the test folder or a name" "$run/traces"
 
 done_tests

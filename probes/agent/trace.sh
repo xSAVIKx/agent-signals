@@ -16,7 +16,7 @@
 #   4. files, on Linux: make the work root (kit_work_root RUN) and the
 #      home root (RUN/home, or HOME with the home "real"). Start
 #      trace-files.py (the pid label "trace files") on these two folders,
-#      with --top the temp folder (TMPDIR, else /tmp), and wait 30 s at
+#      with --top /tmp (the temp folder of the agent), and wait 30 s at
 #      most for its ready file. The watcher writes its events in a new
 #      folder in the temp folder. A folder that exists before the watch
 #      starts is not watched there, so the watcher does not see its own
@@ -127,14 +127,15 @@ why=$(kit_run_problem "$run")
 [ -z "$why" ] || kit_die "$KIT_USAGE" "the run folder cannot take a trace: $why"
 raw=$run/.trace
 # mkdir is the lock: only one trace runs in a run.
-mkdir "$raw" 2>/dev/null || kit_die "$KIT_USAGE" "another trace runs in this run ($raw exists)"
+mkdir "$raw" 2>/dev/null || kit_die "$KIT_USAGE" "another trace runs in this run ($raw exists). When no trace runs, a stopped trace left the folder: delete it, then try again"
 chmod 700 "$raw"
 
 home=$(kit_manifest_value "$run" home)
 work=$(kit_work_root "$run")
-top=${TMPDIR:-/tmp}
-top=${top%/}
-[ -n "$top" ] || top=/
+# The temp folder of the agent. "kit session start" starts the agent with
+# a clean environment and no TMPDIR, so the agent uses /tmp. The TMPDIR of
+# the operator does not count. The watch and the build both use /tmp.
+top=/tmp
 step_pid=
 fdir=
 made_work=
@@ -377,7 +378,7 @@ with open(sys.argv[1], "w", encoding="utf-8") as f:
   "$step" "$(date -u +%Y-%m-%d)" || fail meta
 
 # 8. The build and the scrub.
-python3 -I "$KIT_DIR/trace-build.py" --raw "$raw" --meta "$raw/meta.json" --out "$raw/out" \
+TMPDIR=$top python3 -I "$KIT_DIR/trace-build.py" --raw "$raw" --meta "$raw/meta.json" --out "$raw/out" \
   >"$raw/build.log" 2>&1 || {
   sed 's/^/kit: /' "$raw/build.log" >&2
   fail build
@@ -395,17 +396,62 @@ with open(sys.argv[1], "w", encoding="utf-8") as f:
     json.dump(d, f, indent=0, ensure_ascii=False)
     f.write("\n")
 ' "$raw/out/trace.json" || fail build
+# A cut path in the cast. An agent can draw a long folder as "/…/TAIL",
+# for example the cwd in a welcome box. The scrub knows only full paths,
+# so TAIL can keep a part of the run folder or of the work root, with its
+# hash. Each "/…/TAIL" whose TAIL holds the name of the run folder or of
+# the work root, or a start of these names that the kit sets
+# (agent-signals-run-, agent-signals-work), or ends with the name of a
+# session, becomes
+# "/work/example/LAST", with LAST the last folder of TAIL.
+if [ -f "$raw/out/terminal.cast" ]; then
+  # Session names have only letters, digits, "_" and "-".
+  # shellcheck disable=SC2046
+  python3 -I -c '
+import json, re, sys
+path, names, ends = sys.argv[1], sys.argv[2:6], sys.argv[6:]
+cut = re.compile("/\u2026/[^\\s\x1b\"\x27\u2502]*")
+def fix(m):
+    tail = m.group(0)[3:]
+    last = tail.rstrip("/").rsplit("/", 1)[-1]
+    if any(n and n in tail for n in names) or any(e and last == e for e in ends):
+        return "/work/example/" + last
+    return m.group(0)
+with open(path, encoding="utf-8") as f:
+    lines = f.read().splitlines()
+out = lines[:1]
+for line in lines[1:]:
+    try:
+        ev = json.loads(line)
+    except ValueError:
+        out.append(line)
+        continue
+    if isinstance(ev, list) and len(ev) == 3 and isinstance(ev[2], str) and "/\u2026/" in ev[2]:
+        ev[2] = cut.sub(fix, ev[2])
+        line = json.dumps(ev, ensure_ascii=False)
+    out.append(line)
+with open(path, "w", encoding="utf-8") as f:
+    f.write("\n".join(out) + "\n")
+' "$raw/out/terminal.cast" "${run##*/}" "${work##*/}" agent-signals-run- agent-signals-work \
+    $(cut -f1 "$raw/sessions.tsv" 2>/dev/null | sort -u) || fail scrub
+fi
 mkdir -p "$raw/scrubbed"
+: >"$raw/scrub.log"
 for f in "$raw"/out/*; do
   [ -f "$f" ] || continue
   # The run folder, the kit folder and the work root can hold names.
-  SCRUB_EXTRA="$run
+  if ! SCRUB_EXTRA="$run
 $KIT_ROOT
-$work" sh "$KIT_ROOT/tools/scrub.sh" "$f" >"$raw/scrubbed/${f##*/}" 2>"$raw/scrub.log" || fail scrub
+$work" sh "$KIT_ROOT/tools/scrub.sh" "$f" >"$raw/scrubbed/${f##*/}" 2>>"$raw/scrub.log"; then
+    sed 's/^/kit: /' "$raw/scrub.log" >&2
+    fail scrub
+  fi
 done
 # The scrub can change a word of the meta, for example the machine
-# "runner" when the account name is "runner". The kit wrote the meta, and
-# manifest.json holds the same facts, so the meta of the build stays.
+# "runner" when the account name is "runner". So the meta keys with a
+# fixed set of words come back from the meta of the kit. The keys with
+# free text (os_version, cpu, runner_image, agent_version, step) keep the
+# scrub.
 python3 -I -c '
 import json, sys
 path, meta_path = sys.argv[1], sys.argv[2]
@@ -413,7 +459,8 @@ with open(path, encoding="utf-8") as f:
     d = json.load(f)
 with open(meta_path, encoding="utf-8") as f:
     meta = json.load(f)
-d["meta"].update(meta)
+for k in ("machine", "mode", "home", "backend", "agent", "os"):
+    d["meta"][k] = meta[k]
 with open(path, "w", encoding="utf-8") as f:
     json.dump(d, f, indent=2, ensure_ascii=False)
     f.write("\n")
