@@ -116,3 +116,10 @@ spaced 3: open C:\Users\alice\Box - Fabrikam Org
 win root 1: c:/windows/Pri
    vate ok
 win root 2: C:/WINDOWS\private ok
+private 1: open ~/<private>
+private 2: open ~/<private>/x.txt
+private 3: │ ~/<private> │
+private 4: open ~/<private>
+   src/a/b.go done
+private 5: "~/<private>" and (~/<private>) and ~/<private>, ok
+private 6: open ~/code/app/y.txt

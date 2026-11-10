@@ -116,3 +116,10 @@ spaced 3: open /work/example/docs/readme
 win root 1: /work/example
     ok
 win root 2: /work/example ok
+private 1: open ~/<private>
+private 2: open /work/example
+private 3: │ ~/<private> │
+private 4: open ~/<private>
+   src/a/b.go done
+private 5: "~/<private>" and (~/<private>) and ~/<private>, ok
+private 6: open /work/example

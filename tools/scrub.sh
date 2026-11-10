@@ -39,6 +39,8 @@
 #  10. e-mail addresses                              -> <email>
 #  11. IPv4 addresses, except 127.0.0.1 and 0.0.0.0  -> <ip>
 #      (not a version number: after v or version, or before a letter, - or +)
+#      The exact placeholder ~/<private> (a private folder under a home, from
+#      the trace build) stays. See the comment after the first sed.
 #  A path can hold spaces. After a space, a word that holds a / (or a \ in
 #  a drive path) and does not start a new path continues the path. So
 #  ~/My Projects/Client Acme/a.go is one path. A last folder with a space
@@ -69,6 +71,16 @@ trap 'rm -rf "$tmp"' EXIT
 # is <sandbox>/home/, and no home rule may read the next word as an account
 # name. So the "/" after <sandbox> is @S@ until all rules are done.
 sed 's#<sandbox>/#<sandbox>@S@#g' "${1:--}" >"$tmp/a"
+# The build of a trace writes the placeholder ~/<private> for a private
+# folder under a home. It is not a home path, so it stays. Its ~ is @P@
+# until all rules are done. A suffix (~/<private>/x) is not the placeholder:
+# the rules change it like any other path under ~. The placeholder is
+# hidden before the wrapped path pass, so that a line end after it does not
+# join the next line.
+pv_ws=$(printf ' \t\r')
+pv="s#(^|[^A-Za-z0-9_.~-])~/<private>(\$|[$pv_ws\"',:;()])#\\1@P@/<private>\\2#g"
+sed -E "$pv; $pv" "$tmp/a" >"$tmp/b"
+mv "$tmp/b" "$tmp/a"
 
 count() {
   # $1: kind. Count the changed lines between a and b, then keep b.
@@ -490,4 +502,4 @@ sed -E "s#([vV]|[Vv]ersion[^0-9]{0,4})$q4#\1\2@D@\3@D@\4@D@\5#g; s#$q4([-+A-Za-z
   sed 's#@LOOPBACK@#127.0.0.1#g; s#@ANY@#0.0.0.0#g; s#@D@#.#g' >"$tmp/b"
 count "ip"
 
-sed 's#<sandbox>@S@#<sandbox>/#g' "$tmp/a"
+sed 's#<sandbox>@S@#<sandbox>/#g; s#@P@/<private>#~/<private>#g' "$tmp/a"
