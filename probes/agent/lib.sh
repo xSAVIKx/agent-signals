@@ -131,7 +131,8 @@ kit_trace_owner_runs() {
     _os=$(awk -F '\t' 'NR == 1 { print $2 }' "$1/.trace/owner")
   fi
   case $_op in
-    '' | *[!0-9]*) kit_trace_young "$1"; return ;;
+    # pid 0 is the process group of the caller: kill -0 0 always works.
+    '' | 0* | *[!0-9]*) kit_trace_young "$1"; return ;;
   esac
   kit_pid_runs "$_op" || return 1
   # A live pid with no start time (ps with no lstart) counts as running.
@@ -162,7 +163,7 @@ kit_trace_end_step() {
   [ -r "$1/.trace/step" ] || return 0
   _sp=$(awk -F '\t' 'NR == 1 { print $1 }' "$1/.trace/step")
   _ss=$(awk -F '\t' 'NR == 1 { print $2 }' "$1/.trace/step")
-  case $_sp in '' | *[!0-9]*) return 0 ;; esac
+  case $_sp in '' | 0* | *[!0-9]*) return 0 ;; esac
   [ -n "$_ss" ] || return 0
   _step_ours() { kit_pid_runs "$_sp" && [ "$_ss" = "$(kit_pid_start "$_sp")" ]; }
   _step_ours || return 0

@@ -296,6 +296,16 @@ expect_code "no owner: stop --all exits 0" 0 $?
 expect_line "no owner: an old folder is removed" '^kit: removed the folder of a stopped trace' "$T/tn2"
 if [ ! -e "$run/.trace" ]; then pass "no owner: no RUN/.trace stays"; else fail "no owner: no RUN/.trace stays" "it exists"; fi
 
+# An owner file with the pid 0 and no start time is a bad owner file: an
+# old folder is removed (kill -0 0 always works).
+mkdir "$run/.trace"
+printf '0\t\n' >"$run/.trace/owner"
+touch -t 202001010000 "$run/.trace"
+kitx session stop --all >"$T/tz" 2>&1
+expect_code "owner pid 0: stop --all exits 0" 0 $?
+if [ ! -e "$run/.trace" ]; then pass "owner pid 0: an old folder is removed"; else fail "owner pid 0: an old folder is removed" "it exists"; fi
+rm -rf "$run/.trace"
+
 # "kit session stop --all" also removes what a stopped trace left: a
 # recorder in RUN/pids/ (here a sleep with the label "trace files"), the
 # watcher folder and RUN/.trace.
