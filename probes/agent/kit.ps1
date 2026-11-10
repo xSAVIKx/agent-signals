@@ -26,6 +26,8 @@ if ($cmd -in '', '-h', '--help', 'help') {
 }
 if ($cmd -eq 'version') { Write-Output (Get-KitVersion); exit 0 }
 if ($cmd -cnotmatch '^[a-z-]+$') { Stop-Kit 2 "unknown command: $cmd" }
+# Traces (kit trace) run on Linux and macOS only.
+if ($cmd -eq 'trace') { Stop-Kit 2 'kit trace is not on Windows yet. Run traces on Linux or macOS' }
 $file = Join-Path $here "$cmd.ps1"
 if (-not (Test-Path -LiteralPath $file)) { Stop-Kit 2 "unknown command: $cmd" }
 & $file @rest
