@@ -346,7 +346,8 @@ Make a trace only when the prompt of the operator asks for a trace. A
 trace records one step of the plan: the network hosts and, on Linux, the
 files that the agent writes. Do not trace a `real-session` step. The
 operator starts the agent of that step, so its trace has no network hosts
-and can miss its files. Only the home mode `fixture` keeps a
+and can miss its files. When the prompt names a `real-session` step, run
+it with `kit step`, and tell the operator that it has no trace. Only the home mode `fixture` keeps a
 terminal record, so a run with the home mode `real` or `throwaway` has
 none. The section "Traces" of `probes/README.md` in the kit folder tells
 what a trace holds. Traces run on Linux and macOS, not on Windows.
@@ -384,8 +385,9 @@ Do the task as written, with these changes in step 5:
 
 3. When a trace stops before its end, run `kit session stop --all`.
    Then compare the `step` lines of `manifest.tsv` with the lines that
-   you read before the trace. When the trace added no line for the step,
-   the step has no result. Then run the same command with `kit step` in
+   you read before the trace. When the trace added a line for the step,
+   use the result of that line as in step 5. When the trace added no
+   line for the step, the step has no result. Then run the same command with `kit step` in
    place of `kit trace`, with the same arguments, and use its result as
    in step 5. Tell the operator the reason of the trace failure.
 4. Read `trace.json` in each trace folder. When it holds a name, a path or
