@@ -340,6 +340,40 @@ different source.
    delete the run folder. Tell the operator that `DIR` holds the kit, and
    that the operator can delete it.
 
+## Traces
+
+Make a trace only when the prompt of the operator asks for a trace. A
+trace records one step of the plan: the terminal, the network hosts, and
+the files that the agent writes. The section "Traces" of
+`probes/README.md` in the kit folder tells what a trace holds. Traces run
+on Linux and macOS, not on Windows. The file check runs on Linux only.
+
+CAUTION: With `--home real`, the trace records the writes of each process
+of the account in the hidden folders of the home. Before you ask the
+question of rule 3, also tell the operator this fact. Ask the operator to
+stop the other agent sessions, editors and tools for the time of the
+trace. In an unattended run, the prompt must name the home mode and ask
+for traces.
+
+1. Do steps 1 to 4 of the task, so that the run folder exists.
+2. Trace each step that the operator names. Do not trace a step that
+   needs the operator in an unattended run.
+
+   ```sh
+   kit trace NAME@BACKEND
+   ```
+
+   Give your shell tool a time limit of 10 minutes, as in step 5. Only
+   one trace can run in a run at a time. The command prints the line
+   of the step, then `trace: RUN/traces/NN-NAME@BACKEND`.
+3. When a trace stops before its end, run `kit session stop --all`. Then
+   go to the next trace.
+4. Read `trace.json` in each trace folder. When it holds a name, a path or
+   a host of the operator, tell the operator.
+5. Do steps 6 and 7 of the task. The archive does not hold the
+   `traces` folder. Give the operator the path of each trace folder. Do
+   not post a trace.
+
 ## Done when
 
 `kit check` prints `check: ok`. You read every file in the run folder. The

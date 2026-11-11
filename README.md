@@ -65,6 +65,11 @@ that need you at a terminal, and the archive records each skip. To answer
 the questions of these steps, replace the last two sentences of the prompt
 with "Ask me before each step that needs me."
 
+To also record a trace of some steps on Linux or macOS, add "Trace the
+steps NAME@BACKEND." to the prompt. The section "Traces" of the task tells
+the agent what to do. The section "Traces" of
+[probes/README.md](probes/README.md) tells what a trace holds.
+
 The task of the agent is [the task for an agent that runs the kit](tasks/run-the-kit-as-an-agent.md).
 
 ## Run the probe kit by hand
