@@ -340,6 +340,61 @@ different source.
    delete the run folder. Tell the operator that `DIR` holds the kit, and
    that the operator can delete it.
 
+## Traces
+
+Make a trace only when the prompt of the operator asks for a trace. A
+trace records one step of the plan: the network hosts and, on Linux, the
+files that the agent writes. Do not trace a `real-session` step. The
+operator starts the agent of that step, so its trace has no network hosts
+and can miss its files. When the prompt names a `real-session` step, run
+it with `kit step`, and tell the operator that it has no trace. Only the home mode `fixture` keeps a
+terminal record, so a run with the home mode `real` or `throwaway` has
+none. The section "Traces" of `probes/README.md` in the kit folder tells
+what a trace holds. Traces run on Linux and macOS, not on Windows.
+
+CAUTION: With `--home real`, the trace records the writes of each process
+of the account in the hidden folders of the home. Before you ask the
+question of rule 3, also tell the operator this fact. Ask the operator to
+stop the other agent sessions, editors and tools for the time of the
+trace. In an unattended run, the prompt must name the home mode and ask
+for traces. Then the prompt is the yes of the operator.
+
+Do the task as written, with these changes in step 5:
+
+1. For each step that the prompt names, run `kit trace` in place of
+   `kit step`. Run the other steps with `kit step`, as step 5 tells: the
+   accepted steps in a run with a person, and all the steps of the plan
+   in an unattended run. Keep the order of the plan.
+
+   ```sh
+   kit trace NAME@BACKEND
+   ```
+
+   Before each trace, read the `step` lines of `manifest.tsv` in the run
+   folder. Give your shell tool a time limit of 10 minutes, as for
+   `kit step`. Only one trace can run in a run at a time. The command prints the line
+   of the step, then `trace: RUN/traces/NN-NAME@BACKEND`. It exits with
+   the code of the step.
+2. When the trace prints `operator` (exit code 4), do as for `kit step`.
+   Tell the operator each action, and wait until the operator says that
+   the action is done. Then run the same trace again with `--ready`:
+
+   ```sh
+   kit trace NAME@BACKEND --ready
+   ```
+
+3. When a trace stops before its end, run `kit session stop --all`.
+   Then compare the `step` lines of `manifest.tsv` with the lines that
+   you read before the trace. When the trace added a line for the step,
+   use the result of that line as in step 5. When the trace added no
+   line for the step, the step has no result. Then run the same command with `kit step` in
+   place of `kit trace`, with the same arguments, and use its result as
+   in step 5. Tell the operator the reason of the trace failure.
+4. Read `trace.json` in each trace folder. When it holds a name, a path or
+   a host of the operator, tell the operator.
+5. In step 7, also give the operator the path of each trace folder. The
+   archive does not hold the `traces` folder. Do not post a trace.
+
 ## Done when
 
 `kit check` prints `check: ok`. You read every file in the run folder. The
