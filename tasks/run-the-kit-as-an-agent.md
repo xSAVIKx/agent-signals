@@ -344,7 +344,9 @@ different source.
 
 Make a trace only when the prompt of the operator asks for a trace. A
 trace records one step of the plan: the network hosts and, on Linux, the
-files that the agent writes. Only the home mode `fixture` keeps a
+files that the agent writes. The network check records the hosts of a
+test session that the kit starts. A `real-session` step watches an agent
+that the operator starts, so its trace has no network hosts. Only the home mode `fixture` keeps a
 terminal record, so a run with the home mode `real` or `throwaway` has
 none. The section "Traces" of `probes/README.md` in the kit folder tells
 what a trace holds. Traces run on Linux and macOS, not on Windows.
@@ -359,8 +361,9 @@ for traces. Then the prompt is the yes of the operator.
 Do the task as written, with these changes in step 5:
 
 1. For each step that the prompt names, run `kit trace` in place of
-   `kit step`. Run all the other steps of the plan with `kit step`, in the
-   order of the plan.
+   `kit step`. Run the other steps with `kit step`, as step 5 tells: the
+   accepted steps in a run with a person, and all the steps of the plan
+   in an unattended run. Keep the order of the plan.
 
    ```sh
    kit trace NAME@BACKEND
@@ -378,8 +381,10 @@ Do the task as written, with these changes in step 5:
    kit trace NAME@BACKEND --ready
    ```
 
-3. When a trace stops before its end, run `kit session stop --all`. Then
-   go to the next step of the plan.
+3. When a trace stops before its end, run `kit session stop --all`.
+   When its output has no `step:` line, the step did not run. Then run
+   the step with `kit step`, and tell the operator the reason of the
+   trace failure. Then go to the next step.
 4. Read `trace.json` in each trace folder. When it holds a name, a path or
    a host of the operator, tell the operator.
 5. In step 7, also give the operator the path of each trace folder. The
