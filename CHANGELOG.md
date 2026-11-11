@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.21.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.20.0...corpus-v0.21.0) (2026-11-11)
+
+
+### Features
+
+* **kit:** add a recording proxy for traced sessions ([#133](https://github.com/xSAVIKx/agent-signals/issues/133)) ([c6f7aa5](https://github.com/xSAVIKx/agent-signals/commit/c6f7aa57cf97fc7585441c7e12f8c00fb54215db))
+* **kit:** add kit trace for terminal, network and file traces ([#141](https://github.com/xSAVIKx/agent-signals/issues/141)) ([77d9993](https://github.com/xSAVIKx/agent-signals/commit/77d9993056dbdc81c72a952357c54faa3150c03f))
+* **kit:** build trace.json from the raw trace files ([#138](https://github.com/xSAVIKx/agent-signals/issues/138)) ([a924292](https://github.com/xSAVIKx/agent-signals/commit/a924292f3d43177836684ac3ac3d834d054fe31c))
+* **kit:** record the states of a step on one clock for traces ([#130](https://github.com/xSAVIKx/agent-signals/issues/130)) ([7f79061](https://github.com/xSAVIKx/agent-signals/commit/7f7906107967adcfbb50842106719c57c6bc6cd6))
+* **kit:** record the terminal of a traced session as asciicast ([#132](https://github.com/xSAVIKx/agent-signals/issues/132)) ([9fe73c0](https://github.com/xSAVIKx/agent-signals/commit/9fe73c0caa63aad725efd4e25705ea247d053a53))
+* **kit:** watch the files of a traced session with inotify ([#134](https://github.com/xSAVIKx/agent-signals/issues/134)) ([15a03fe](https://github.com/xSAVIKx/agent-signals/commit/15a03fe3ea970cf311d73b8e364b2eace9200513))
+* **schema:** add the trace format and validate traces/ ([#128](https://github.com/xSAVIKx/agent-signals/issues/128)) ([4b97bb7](https://github.com/xSAVIKx/agent-signals/commit/4b97bb78a2898c979ec104928ace6b8832f7bf46))
+
+
+### Bug Fixes
+
+* **kit:** count the Claude plan approval dialog in write-claude-plan ([#139](https://github.com/xSAVIKx/agent-signals/issues/139)) ([8c28622](https://github.com/xSAVIKx/agent-signals/commit/8c286226d9e0367b76f573e9e507366524d213fe))
+* **kit:** delete the session socket folder, not the Codex daemon folder ([#142](https://github.com/xSAVIKx/agent-signals/issues/142)) ([9758b72](https://github.com/xSAVIKx/agent-signals/commit/9758b7220860e8bb53fb48da152bcd42f03cd7eb))
+* **kit:** detect a sleeping machine and a busy agent in a session step ([#136](https://github.com/xSAVIKx/agent-signals/issues/136)) ([d406f3e](https://github.com/xSAVIKx/agent-signals/commit/d406f3ef17c20301cb4e5b286e6cee4dcc205c73))
+* **kit:** make kit trace safe on a real machine ([#143](https://github.com/xSAVIKx/agent-signals/issues/143)) ([3fef0c5](https://github.com/xSAVIKx/agent-signals/commit/3fef0c5e2c35f3759d8dd13d5d0822790fcef0de))
+* **kit:** pin the permission mode of the Claude and Codex permission steps ([#140](https://github.com/xSAVIKx/agent-signals/issues/140)) ([0db0d62](https://github.com/xSAVIKx/agent-signals/commit/0db0d62d68fcac4b098be5cb3bc9dc7d9acf7981))
+* **kit:** scrub a path that wraps across screen lines ([#135](https://github.com/xSAVIKx/agent-signals/issues/135)) ([4fc44f7](https://github.com/xSAVIKx/agent-signals/commit/4fc44f700da99a4a4694cf87aa02ebe15f505bd9))
+
 ## [0.20.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.19.0...corpus-v0.20.0) (2026-11-09)
 
 
