@@ -66,9 +66,15 @@ the questions of these steps, replace the last two sentences of the prompt
 with "Ask me before each step that needs me."
 
 To also record a trace of some steps on Linux or macOS, add "Trace the
-steps NAME@BACKEND." to the prompt. The section "Traces" of the task tells
-the agent what to do. The section "Traces" of
-[probes/README.md](probes/README.md) tells what a trace holds.
+steps NAME@BACKEND." to the prompt. Replace `NAME@BACKEND` with the steps
+of `kit plan`, for example `permission-claude@tmux`. The section "Traces"
+of the task tells the agent what to do. The section "Traces" of
+[probes/README.md](probes/README.md) tells what a trace holds. Traces
+need the kit of release corpus 0.21.0 or later.
+
+Caution: with the home mode `real`, a trace records the writes of each
+process of your account in the hidden folders of your home. Before an
+unattended run, stop your other agent sessions, editors and tools.
 
 The task of the agent is [the task for an agent that runs the kit](tasks/run-the-kit-as-an-agent.md).
 
