@@ -344,9 +344,9 @@ different source.
 
 Make a trace only when the prompt of the operator asks for a trace. A
 trace records one step of the plan: the network hosts and, on Linux, the
-files that the agent writes. The network check records the hosts of a
-test session that the kit starts. A `real-session` step watches an agent
-that the operator starts, so its trace has no network hosts. Only the home mode `fixture` keeps a
+files that the agent writes. Do not trace a `real-session` step. The
+operator starts the agent of that step, so its trace has no network hosts
+and can miss its files. Only the home mode `fixture` keeps a
 terminal record, so a run with the home mode `real` or `throwaway` has
 none. The section "Traces" of `probes/README.md` in the kit folder tells
 what a trace holds. Traces run on Linux and macOS, not on Windows.
@@ -369,8 +369,9 @@ Do the task as written, with these changes in step 5:
    kit trace NAME@BACKEND
    ```
 
-   Give your shell tool a time limit of 10 minutes, as for `kit step`.
-   Only one trace can run in a run at a time. The command prints the line
+   Before each trace, read the `step` lines of `manifest.tsv` in the run
+   folder. Give your shell tool a time limit of 10 minutes, as for
+   `kit step`. Only one trace can run in a run at a time. The command prints the line
    of the step, then `trace: RUN/traces/NN-NAME@BACKEND`. It exits with
    the code of the step.
 2. When the trace prints `operator` (exit code 4), do as for `kit step`.
@@ -382,9 +383,11 @@ Do the task as written, with these changes in step 5:
    ```
 
 3. When a trace stops before its end, run `kit session stop --all`.
-   When its output has no `step:` line, the step did not run. Then run
-   the step with `kit step`, and tell the operator the reason of the
-   trace failure. Then go to the next step.
+   Then compare the `step` lines of `manifest.tsv` with the lines that
+   you read before the trace. When the trace added no line for the step,
+   the step has no result. Then run the same command with `kit step` in
+   place of `kit trace`, with the same arguments, and use its result as
+   in step 5. Tell the operator the reason of the trace failure.
 4. Read `trace.json` in each trace folder. When it holds a name, a path or
    a host of the operator, tell the operator.
 5. In step 7, also give the operator the path of each trace folder. The
