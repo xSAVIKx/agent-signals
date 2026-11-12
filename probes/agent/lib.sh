@@ -249,6 +249,9 @@ kit_trace_wait_ebpf() {
         for _wq in $_wt; do kit_pid_live "$_wq" && _wl="$_wl $_wq"; done
         # shellcheck disable=SC2086
         [ -z "$_wl" ] || sudo -n kill -KILL $_wl </dev/null >/dev/null 2>&1
+        _wl=
+        for _wq in $_wt; do kit_pid_live "$_wq" && _wl="$_wl $_wq"; done
+        [ -z "$_wl" ] || echo "kit: bpftrace still runs as root, stop it by hand: sudo kill$_wl" >&2
       fi
     fi
     wait "$_wp" 2>/dev/null

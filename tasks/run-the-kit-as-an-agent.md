@@ -382,7 +382,9 @@ Do the task as written, with these changes in step 5:
    the code of the step.
 2. When the trace prints `operator` (exit code 4), do as for `kit step`.
    Tell the operator each action, and wait until the operator says that
-   the action is done. Then run the same trace again with `--ready`:
+   the action is done. Then run the same trace again with `--ready`. When
+   the first trace had a `--checks` argument, give the same argument
+   again:
 
    ```sh
    kit trace NAME@BACKEND --ready

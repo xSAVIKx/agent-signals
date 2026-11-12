@@ -387,6 +387,12 @@ printf '%s\t%s\n' "$step_pid" "$(kit_pid_start "$step_pid")" >"$raw/.step.tmp" &
 wait "$step_pid"
 code=$?
 step_pid=
+# bpftrace must run until the stop. When it ended during the step, the
+# record can miss the events of the end of the step: say so.
+if [ "${ready:-}" = 1 ] && ! kit_pid_live "$ebpid"; then
+  echo "kit: bpftrace ended before the end of the step, so the ebpf record can be incomplete" >&2
+  sed -n '1,5s/^/kit: /p' "$raw/ebpf.err" >&2
+fi
 
 # 6. Stop the sessions that stay, and the recorders.
 end_sessions
