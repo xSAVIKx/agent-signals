@@ -57,10 +57,16 @@ exists. After the watch is added, the watcher reads the folder, writes
 "create" for each entry that it did not see yet, and adds watches below it
 with the same rule.
 
-The watch limit is 8192 watches. A move out of the tree has no matching
-IN_MOVED_TO in the same read batch, or in the next short wait, and gives
-"delete". On SIGTERM the watcher sets a flag, reads the queue one more
-time, writes all lines, and exits 0. When inotify is not available, it
+The watch limit is 8192 watches. The watcher keeps each IN_MOVED_FROM
+with its cookie for a short wait (MOVE_WAIT, 0.1 s), over as many reads
+as come in that time. An IN_MOVED_TO with the same cookie in that time
+gives "move". A move out of the tree has no IN_MOVED_TO and gives
+"delete" when the wait ends. The "delete" has the time of the
+IN_MOVED_FROM. In the wait, the moved paths and their watches are not in
+the index of the watcher, so a new item at the same path gets its own
+watch. A new item at that path also ends the wait at once, so the
+"delete" comes before its "create". On SIGTERM the watcher sets a flag, reads the queue one
+more time, writes all lines, and exits 0. When inotify is not available, it
 exits 3. The standard library only.
 """
 
@@ -117,7 +123,7 @@ AGENT_DIRS = (
 )
 MARK_PREFIX = ".kit-trace-mark."
 WRITE_WINDOW = 0.1
-MOVE_WAIT = 0.05
+MOVE_WAIT = 0.1
 STOP_POLL = 0.1
 DRAIN_READS = 64
 HEADER = struct.Struct("iIII")
@@ -135,6 +141,103 @@ def on_term(signum, frame):
     _stop[0] = True
 
 
+def parent_of(path):
+    i = path.rfind("/")
+    return path[:i] if i > 0 else "/"
+
+
+class PathMap:
+    """A dict of paths with an index of the children of each folder.
+
+    pop_tree removes a path and all paths below it in a time that grows
+    with the number of these paths only, not with the size of the map.
+    The index also holds the folders between a path and the paths below
+    it that are not in the map.
+    """
+
+    def __init__(self):
+        self.data = {}
+        self.kids = {}
+        self.nodes = set()
+
+    def __contains__(self, path):
+        return path in self.data
+
+    def __len__(self):
+        return len(self.data)
+
+    def __iter__(self):
+        return iter(self.data)
+
+    def __getitem__(self, path):
+        return self.data[path]
+
+    def __setitem__(self, path, value):
+        self.data[path] = value
+        q = path
+        while q not in self.nodes and q != "/":
+            self.nodes.add(q)
+            par = parent_of(q)
+            self.kids.setdefault(par, set()).add(q)
+            q = par
+
+    def __delitem__(self, path):
+        del self.data[path]
+        self.prune(path)
+
+    def get(self, path, default=None):
+        return self.data.get(path, default)
+
+    def pop(self, path, default=None):
+        value = self.data.pop(path, default)
+        self.prune(path)
+        return value
+
+    def prune(self, path):
+        """Remove PATH and then each folder above it from the index while
+        it has no value and no child, so that the index does not grow
+        with each deleted file."""
+        q = path
+        while q != "/" and q in self.nodes and q not in self.data and not self.kids.get(q):
+            self.nodes.discard(q)
+            self.kids.pop(q, None)
+            par = parent_of(q)
+            s = self.kids.get(par)
+            if s is not None:
+                s.discard(q)
+                if not s:
+                    del self.kids[par]
+            q = par
+
+    def pop_tree(self, path):
+        """Remove PATH and each path below it. Return the (path, value)
+        pairs that were in the map."""
+        out = []
+        if path in self.nodes:
+            s = self.kids.get(parent_of(path))
+            if s is not None:
+                s.discard(path)
+        stack = [path]
+        while stack:
+            q = stack.pop()
+            self.nodes.discard(q)
+            if q in self.data:
+                out.append((q, self.data.pop(q)))
+            stack.extend(self.kids.pop(q, ()))
+        self.prune(parent_of(path))
+        return out
+
+
+class PathSet(PathMap):
+    """A set of paths with the same index (PathMap)."""
+
+    def add(self, path):
+        self[path] = True
+
+    def discard(self, path):
+        self.pop(path, None)
+
+
 class Watcher:
     def __init__(self, libc, fd, out_fd, limit=WATCH_LIMIT, tops=(), uid=None, parent=None):
         self.libc = libc
@@ -150,14 +253,16 @@ class Watcher:
         self.orphan = False
         self.unknown_from = set()
         self.wd2path = {}
-        self.path2wd = {}
-        self.seen = set()
+        self.path2wd = PathMap()
+        self.seen = PathSet()
         self.lines = []
         self.buf = b""
         self.limit_sent = False
         self.pend_write = {}
+        # cookie -> (path, is_dir, due, t, watches, seen): read detach().
         self.pend_from = {}
-        self.batch = 0
+        # The number of watches in pend_from. The kernel still has them.
+        self.held = 0
 
     # Output.
 
@@ -190,7 +295,7 @@ class Watcher:
         """Add a watch. Return the wd, or None when there is no watch."""
         if path in self.path2wd:
             return self.path2wd[path]
-        if len(self.wd2path) >= (self.limit if limit is None else limit):
+        if len(self.wd2path) + self.held >= (self.limit if limit is None else limit):
             self.send_limit()
             return None
         wd = self.libc.inotify_add_watch(self.fd, os.fsencode(path), MASK)
@@ -208,9 +313,7 @@ class Watcher:
     def drop_watches(self, path, remove):
         """Forget the watches of a folder and of the folders below it.
         With remove, also remove them in the kernel."""
-        prefix = path + "/"
-        for p in [p for p in self.path2wd if p == path or p.startswith(prefix)]:
-            wd = self.path2wd.pop(p)
+        for _, wd in self.path2wd.pop_tree(path):
             self.wd2path.pop(wd, None)
             if remove:
                 self.libc.inotify_rm_watch(self.fd, wd)
@@ -218,24 +321,48 @@ class Watcher:
     def forget(self, path, is_dir, remove):
         self.seen.discard(path)
         if is_dir:
-            prefix = path + "/"
-            self.seen = {p for p in self.seen if not p.startswith(prefix)}
+            self.seen.pop_tree(path)
             self.drop_watches(path, remove)
 
-    def rename_watches(self, src, dst):
-        prefix = src + "/"
-        for wd, p in list(self.wd2path.items()):
-            if p == src or p.startswith(prefix):
-                new = dst + p[len(src):]
-                del self.path2wd[p]
-                self.wd2path[wd] = new
-                self.path2wd[new] = wd
-        self.seen = {
-            (dst + p[len(src):]) if p.startswith(prefix) else p
-            for p in self.seen
-            if p != src
-        }
+    def detach(self, path, is_dir):
+        """Take PATH, and for a folder each path below it, out of the
+        index of the watches and of the seen paths. Return the
+        (path, wd) pairs and the seen paths. The kernel keeps the watches,
+        but their events are not read. So a new item at PATH gets its own
+        watch, and the end of a move wait does not touch it."""
+        seen = [p for p, _ in self.seen.pop_tree(path)] if is_dir else []
+        if path in self.seen:
+            self.seen.discard(path)
+            seen.append(path)
+        watches = self.path2wd.pop_tree(path) if is_dir else []
+        for _, wd in watches:
+            self.wd2path.pop(wd, None)
+        return watches, seen
+
+    def attach(self, src, dst, watches, seen):
+        """Put the paths of detach() back, with SRC changed to DST."""
+        for p, wd in watches:
+            new = dst + p[len(src):]
+            self.wd2path[wd] = new
+            self.path2wd[new] = wd
+        for p in seen:
+            self.seen.add(dst + p[len(src):])
         self.seen.add(dst)
+
+    def rename_watches(self, src, dst):
+        self.attach(src, dst, *self.detach(src, True))
+
+    def drop_pending(self, cookie):
+        """End the wait of a move: remove its watches in the kernel and
+        write "delete" (not for a --top item with no known owner)."""
+        path, is_dir, _, t, watches, _ = self.pend_from.pop(cookie)
+        self.held -= len(watches)
+        if cookie in self.unknown_from:
+            self.unknown_from.discard(cookie)
+        else:
+            self.emit("delete", path, is_dir, t=t)
+        for _, wd in watches:
+            self.libc.inotify_rm_watch(self.fd, wd)
 
     def walk_first(self, top, recursive, tops=()):
         """Add the first watches. No event is written. The walk does not
@@ -385,15 +512,19 @@ class Watcher:
                     if mask & IN_DELETE:
                         self.owner.pop(path, None)
                     elif mask & IN_MOVED_TO:
-                        src = self.pend_from.pop(cookie, None)
-                        if src is not None and cookie not in self.unknown_from:
+                        if cookie in self.pend_from:
                             # It left the part of the tree that is recorded.
-                            self.emit("delete", src[0], src[1])
-                            self.forget(src[0], src[1], True)
+                            self.drop_pending(cookie)
                         self.unknown_from.discard(cookie)
                     return
                 if mask & IN_DELETE:
                     self.owner.pop(path, None)
+        if mask & (IN_CREATE | IN_MOVED_TO):
+            # A new item at the path of a move out that still waits: the
+            # move out ends first, so its "delete" comes before the
+            # "create" of the new item.
+            for c in [c for c, v in self.pend_from.items() if v[0] == path and c != cookie]:
+                self.drop_pending(c)
         if mask & IN_CREATE:
             if name.startswith(MARK_PREFIX):
                 # A mark of the kit: the lines before it come first.
@@ -415,20 +546,25 @@ class Watcher:
             self.forget(path, is_dir, False)
         elif mask & IN_MOVED_FROM:
             self.flush_writes(path)
-            self.pend_from[cookie] = (path, is_dir, self.batch)
+            # The time of the move-from: a "delete" at the end of the wait
+            # has this time, not the time when the wait ends. The paths
+            # leave the index now, so a new item at the same path in the
+            # wait is a new item.
+            watches, seen = self.detach(path, is_dir)
+            self.held += len(watches)
+            self.pend_from[cookie] = (
+                path, is_dir, time.monotonic() + MOVE_WAIT, now_ms(), watches, seen
+            )
         elif mask & IN_MOVED_TO:
             self.unknown_from.discard(cookie)
             src = self.pend_from.pop(cookie, None)
             if src is not None:
+                self.held -= len(src[4])
                 self.emit("move", path, is_dir, src=src[0])
-                if is_dir:
-                    self.rename_watches(src[0], path)
-                    if path not in self.path2wd:
-                        # The folder had no watch: treat it as a new one.
-                        self.add_tree(path)
-                else:
-                    self.seen.discard(src[0])
-                    self.seen.add(path)
+                self.attach(src[0], path, src[4], src[5])
+                if is_dir and path not in self.path2wd:
+                    # The folder had no watch: treat it as a new one.
+                    self.add_tree(path)
             else:
                 self.seen.add(path)
                 self.emit("create", path, is_dir)
@@ -436,21 +572,18 @@ class Watcher:
                     self.add_tree(path)
 
     def expire_moves(self, everything):
-        """A move out of the tree has no IN_MOVED_TO: write "delete"."""
-        for cookie, (path, is_dir, batch) in list(self.pend_from.items()):
-            if everything or batch < self.batch:
-                del self.pend_from[cookie]
-                if cookie in self.unknown_from:
-                    # A --top item with no known owner left the tree.
-                    self.unknown_from.discard(cookie)
-                else:
-                    self.emit("delete", path, is_dir)
-                self.forget(path, is_dir, True)
+        """A move out of the tree has no IN_MOVED_TO: write "delete" when
+        the wait of the move ends (all with everything)."""
+        now = time.monotonic()
+        for cookie, v in list(self.pend_from.items()):
+            if everything or v[2] <= now:
+                self.drop_pending(cookie)
 
     def timeout(self):
         t = None
         if self.pend_from:
-            t = MOVE_WAIT
+            due = min(v[2] for v in self.pend_from.values())
+            t = max(0.0, due - time.monotonic())
         if self.pend_write:
             due = min(d for d, _ in self.pend_write.values())
             w = max(0.0, due - time.monotonic())
@@ -459,7 +592,6 @@ class Watcher:
 
     def read_events(self):
         data = os.read(self.fd, 65536)
-        self.batch += 1
         pos = 0
         while pos + HEADER.size <= len(data):
             wd, mask, cookie, n = HEADER.unpack_from(data, pos)
@@ -481,9 +613,7 @@ class Watcher:
                 ready, _, _ = select.select([self.fd], [], [], t)
                 if ready:
                     self.read_events()
-                    self.expire_moves(False)
-                elif self.pend_from:
-                    self.expire_moves(True)
+                self.expire_moves(False)
                 self.flush_writes()
                 self.flush()
         finally:

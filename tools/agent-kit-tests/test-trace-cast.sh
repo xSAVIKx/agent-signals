@@ -107,9 +107,18 @@ fi
 # The pane pid is the agent pid: the gate loop ended with exec.
 if [ -e "$sdir/gate" ]; then pass "session: the gate file exists"; else fail "session: the gate file exists" "no file"; fi
 cp "$sdir/recorder.pid" "$T/s1.rec.pid" 2>/dev/null
+# The recorder is in RUN/pids/, so the checks of the run and "stop --all"
+# see it.
+_rp=$(cat "$T/s1.rec.pid" 2>/dev/null)
+if [ -n "$_rp" ] && [ "$(cut -f1 "$T/run1/pids/$_rp" 2>/dev/null)" = "recorder s1" ]; then
+  pass "session: the recorder pid is in RUN/pids"
+else
+  fail "session: the recorder pid is in RUN/pids" "no file $T/run1/pids/$_rp"
+fi
 kit session stop s1 --keep >"$T/o" 2>&1
 expect_code "session: stop --keep exits 0" 0 $?
 rec_gone "$T/s1.rec.pid" "session: no recorder stays after stop"
+if [ -n "$_rp" ] && [ ! -e "$T/run1/pids/$_rp" ]; then pass "session: stop removes the recorder pid file"; else fail "session: stop removes the recorder pid file" "file stays"; fi
 if grep -q 'stub idle' "$raw/terminal.cast"; then pass "session: the cast holds stub idle"; else fail "session: the cast holds stub idle" "$(head -c 300 "$raw/terminal.cast")"; fi
 # A second start of the same session (resume) continues the same file.
 (KIT_TRACE=$raw; KIT_TRACE_CHECKS=terminal,network; export KIT_TRACE KIT_TRACE_CHECKS
@@ -211,6 +220,27 @@ if [ -n "$sp_pid" ] && [ "$sp_pid" = "$sp_want" ]; then pass "space: the pid mat
 expect_code "space: stop exits 0" 0 $?
 if grep -q 'stub idle' "$raws/terminal.cast"; then pass "space: the cast holds stub idle"; else fail "space: the cast holds stub idle" "no text"; fi
 
+# A run folder and a trace folder with a single quote, a "#" (a format of
+# tmux) and a "$" in the path. The pipe-pane command quotes each path.
+rq="$T/run it's #{S} \$HOME"
+mkdir -m 700 "$rq"
+rawq="$T/raw it's #S"
+mkdir -m 0700 "$rawq"
+cp "$raw/t0" "$rawq/t0"
+(AGENT_SIGNALS_RUN=$rq; KIT_TRACE=$rawq; KIT_TRACE_CHECKS=; export AGENT_SIGNALS_RUN KIT_TRACE KIT_TRACE_CHECKS
+ kit session start s9 stub --via tmux --cmd "sh '$stub'") >"$T/o" 2>&1
+expect_code "quote: start exits 0" 0 $?
+(AGENT_SIGNALS_RUN=$rq; export AGENT_SIGNALS_RUN
+ kit session wait s9 'stub idle' 30) >"$T/o" 2>&1
+expect_code "quote: the agent started and shows idle" 0 $?
+cp "$rq/sessions/s9/recorder.pid" "$T/s9.rec.pid" 2>/dev/null
+(AGENT_SIGNALS_RUN=$rq; export AGENT_SIGNALS_RUN
+ kit session stop s9) >"$T/o" 2>&1
+expect_code "quote: stop exits 0" 0 $?
+rec_gone "$T/s9.rec.pid" "quote: no recorder stays after stop"
+if grep -q 'stub idle' "$rawq/terminal.cast" 2>/dev/null; then pass "quote: the cast holds stub idle"; else fail "quote: the cast holds stub idle" "no text"; fi
+if [ -e "$rq/sessions/s9/ready" ]; then pass "quote: the recorder made the ready file"; else fail "quote: the recorder made the ready file" "no file"; fi
+
 # KIT_TRACE_CHECKS=network: no cast and no gate wait.
 rm -f "$raw/terminal.cast"
 (KIT_TRACE=$raw; KIT_TRACE_CHECKS=network; export KIT_TRACE KIT_TRACE_CHECKS
@@ -268,6 +298,57 @@ expect_line "gate timeout: the reason" "gate wait ended" "$T/o"
 left=$(pids_run "$T/run1")
 if [ -z "$left" ]; then pass "gate timeout: no pid of the run stays"; else fail "gate timeout: no pid of the run stays" "$left"; fi
 sock_gone s5 "gate timeout: no socket folder stays"
+
+# The gate wait ends while pipe-pane works, but the recorder is slow to
+# start: a python3 wrapper runs trace-cast.py only after the test makes
+# the file "go", after the start ended. So the recorder cannot start in
+# the wait, also on a slow machine. The start exits 1.
+real_py=$(command -v python3)
+mkdir "$T/slowpy"
+cat >"$T/slowpy/python3" <<PYWEOF
+#!/bin/sh
+case "\$*" in
+  *trace-cast.py*)
+    i=0
+    while [ ! -e '$T/slowpy/go' ] && [ "\$i" -lt 600 ]; do sleep 0.05; i=\$((i + 1)); done ;;
+esac
+exec "$real_py" "\$@"
+PYWEOF
+chmod +x "$T/slowpy/python3"
+(PATH="$T/slowpy:$PATH"; KIT_TRACE=$raw; KIT_TRACE_CHECKS=; KIT_TRACE_GATE_TURNS=4; export PATH KIT_TRACE KIT_TRACE_CHECKS KIT_TRACE_GATE_TURNS
+ kit session start s10 stub --via tmux --cmd "sh '$stub'") >"$T/o" 2>&1
+expect_code "gate timeout, slow recorder: start exits 1" 1 $?
+: >"$T/slowpy/go"
+expect_line "gate timeout, slow recorder: the reason" "gate wait ended before the recorder started" "$T/o"
+if [ ! -e "$T/run1/sessions/s10/pid" ]; then pass "gate timeout, slow recorder: the agent did not run"; else fail "gate timeout, slow recorder: the agent did not run" "a pid file exists"; fi
+sock_gone s10 "gate timeout, slow recorder: no socket folder stays"
+# The slow recorder starts after the start failed. It gets the end of its
+# input and ends.
+_n=0
+while [ ! -s "$T/run1/sessions/s10/recorder.pid" ] && [ "$_n" -lt 60 ]; do
+  sleep 0.05
+  _n=$((_n + 1))
+done
+if [ -s "$T/run1/sessions/s10/recorder.pid" ]; then pass "gate timeout, slow recorder: the recorder started late"; else fail "gate timeout, slow recorder: the recorder started late" "no recorder.pid"; fi
+_n=0
+while kill -0 "$(cat "$T/run1/sessions/s10/recorder.pid" 2>/dev/null)" 2>/dev/null && [ "$_n" -lt 60 ]; do
+  sleep 0.05
+  _n=$((_n + 1))
+done
+rec_gone "$T/run1/sessions/s10/recorder.pid" "gate timeout, slow recorder: the late recorder ends"
+left=$(pids_run "$T/run1")
+if [ -z "$left" ]; then pass "gate timeout, slow recorder: no pid of the run stays"; else fail "gate timeout, slow recorder: no pid of the run stays" "$left"; fi
+
+# "kit session stop --all" stops the recorder by its pid in RUN/pids/.
+(KIT_TRACE=$raw; KIT_TRACE_CHECKS=; export KIT_TRACE KIT_TRACE_CHECKS
+ kit session start s11 stub --via tmux --cmd "sh '$stub'") >"$T/o" 2>&1
+expect_code "stop --all: start exits 0" 0 $?
+cp "$T/run1/sessions/s11/recorder.pid" "$T/s11.rec.pid" 2>/dev/null
+kit session stop --all >"$T/o" 2>&1
+expect_code "stop --all: exit 0" 0 $?
+rec_gone "$T/s11.rec.pid" "stop --all: no recorder stays"
+left=$(pids_run "$T/run1")
+if [ -z "$left" ]; then pass "stop --all: no pid of the run stays"; else fail "stop --all: no pid of the run stays" "$left"; fi
 
 # Step with the states: the first event comes before the idle state.
 stub_set STUB_TRUST=yes
@@ -346,6 +427,47 @@ fi
 left=
 for f in "$T"/.cast-scrub.*; do [ -e "$f" ] && left=1; done
 if [ -n "$left" ]; then fail "cast scrub: no temp file stays" "a file stays"; else pass "cast scrub: no temp file stays"; fi
+# A cut path "/…/TAIL" (--cut-name, --cut-end): in one event, split over
+# two events, and with a color sequence inside. The cut paths that name
+# no run folder and no session stay.
+python3 -I -c '
+import json, sys
+lines = [
+    {"version": 2, "width": 120, "height": 40, "timestamp": 1700000000},
+    [0.1, "o", "cwd /…/agent-signals-run-x1/work/s1 ok"],
+    [0.2, "o", "cwd /…/agent-signals-r"],
+    [0.3, "o", "un-x2/work/s2 done"],
+    [0.4, "o", "cwd /…/agent-signals-\u001b[1mrun-x3/s3\u001b[0m end"],
+    [0.5, "o", "cwd /"],
+    [0.6, "o", "…/agent-signals-run-x4/s4 z"],
+    [0.7, "o", "keep /…/other/place q"],
+    [0.8, "o", "sess /…/x/y/permission-claude-tmux w"],
+]
+with open(sys.argv[1], "w", encoding="utf-8") as f:
+    for x in lines:
+        f.write(json.dumps(x, ensure_ascii=False) + "\n")
+' "$T/cut.cast"
+printf '#!/bin/sh\ncat "$1"\n' >"$T/cat-scrub.sh"
+python3 -I "$ROOT/probes/agent/trace-cast-scrub.py" --scrub "$T/cat-scrub.sh" \
+  --cut-name agent-signals-run- --cut-end permission-claude-tmux "$T/cut.cast" "$T/cut.out" >"$T/cut.err" 2>&1
+expect_code "cut path: exit 0" 0 $?
+if python3 -I -c '
+import json, sys
+rows = [json.loads(l) for l in open(sys.argv[1], encoding="utf-8")]
+t = [r[2] for r in rows[1:]]
+assert t[0] == "cwd /work/example/s1 ok", t[0]
+assert t[1] + t[2] == "cwd /work/example/s2 done", (t[1], t[2])
+assert t[3] == "cwd /work/example/s3\u001b[1m\u001b[0m end", t[3]
+assert t[4] + t[5] == "cwd /work/example/s4 z", (t[4], t[5])
+assert t[6] == "keep /…/other/place q", t[6]
+assert t[7] == "sess /work/example/permission-claude-tmux w", t[7]
+assert [r[0] for r in rows[1:]] == [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+assert "agent-signals-run" not in json.dumps(rows)' "$T/cut.out" 2>"$T/cut.err"; then
+  pass "cut path: one event, two events and a color inside"
+else
+  fail "cut path: one event, two events and a color inside" "$(tail -n 1 "$T/cut.err")"
+fi
+
 # A scrub that fails gives exit 1 and no output file.
 printf '#!/bin/sh\nexit 1\n' >"$T/bad-scrub.sh"
 python3 -I "$ROOT/probes/agent/trace-cast-scrub.py" --scrub "$T/bad-scrub.sh" "$T/raw.cast" "$T/bad.cast" >/dev/null 2>&1

@@ -6,6 +6,8 @@
   "type": "object",
   "additionalProperties": false,
   "required": ["meta", "states", "events", "terminal", "summary"],
+  "if": {"properties": {"provenance": {"const": "derived"}}, "required": ["provenance"]},
+  "then": {"required": ["derived_from"]},
   "properties": {
     "provenance": {
       "description": "How the trace was made. The kit writes measured. A file under traces/ must have this key. The validator checks that, not this schema.",
@@ -15,6 +17,11 @@
       "description": "One line for each edit of a measured-edited trace.",
       "type": "array",
       "items": {"type": "string", "minLength": 1}
+    },
+    "derived_from": {
+      "description": "For a derived trace: the source step and what changed.",
+      "type": "string",
+      "minLength": 1
     },
     "meta": {
       "description": "Where, when and how the kit made the trace.",
