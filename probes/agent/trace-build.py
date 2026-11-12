@@ -44,9 +44,12 @@ Rules:
 - A host of a proxy event that names a private network becomes
   <private-host>: a name with one label (except localhost), a name that
   ends with .ts.net, .internal, .local, .lan, .home.arpa, .localdomain,
-  .localhost, .intranet, .corp, .home or .private,
+  .localhost, .intranet, .corp, .home, .private, .box, .lxd or .test,
   an IPv4 address that is not global (private, loopback, link-local,
-  shared, reserved), and each IPv6 address. A public name, for example
+  shared, reserved), and each IPv6 address. A host of numbers only is
+  read as the C resolver reads it: 10.1 is 10.0.0.1, 0x7f.1 and
+  2130706433 are 127.0.0.1. A host of numbers that is not an address is
+  private. A public name, for example
   api.anthropic.com, stays.
 - A model event holds the method, the route (with no query), and the
   model kind. It holds no text of the request. The program reads the model
@@ -99,7 +102,13 @@ PRIVATE_SUFFIXES = (
     ".corp",
     ".home",
     ".private",
+    ".box",
+    ".lxd",
+    ".test",
 )
+# A host whose labels are all numbers (decimal, octal or hex). The C
+# resolver reads it as an IPv4 address, for example 10.1 or 0x7f.1.
+NUMERIC_HOST_RE = re.compile(r"^(0x[0-9a-f]*|[0-9]+)(\.(0x[0-9a-f]*|[0-9]+)){0,3}$")
 
 
 def read_lines(path):
@@ -424,6 +433,13 @@ def private_host(host):
         ip = ipaddress.ip_address(h)
     except ValueError:
         ip = None
+    if ip is None and NUMERIC_HOST_RE.match(h):
+        # A short or integer IPv4 form. A form that the resolver does not
+        # read is private too: the program does not know the address.
+        try:
+            ip = ipaddress.IPv4Address(socket.inet_aton(h))
+        except (OSError, ValueError):
+            return True
     if ip is not None:
         return ip.version == 6 or not ip.is_global
     if h == "localhost":

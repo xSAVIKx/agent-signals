@@ -168,9 +168,11 @@ three checks on one clock:
   the port, the byte counts and the times. The proxy does not read the
   encrypted content. With the fake model, the trace also gets the method
   and the route of each model request. A host of a private network (a
-  tailnet name, a name below `.internal`, `.local`, `.lan` or
-  `.home.arpa`, a name with one label, a private IPv4 address, an IPv6
-  address) becomes `<private-host>`.
+  tailnet name, a name below `.internal`, `.local`, `.lan`,
+  `.home.arpa`, `.localhost`, `.intranet`, `.corp`, `.home`, `.box`,
+  `.lxd` or `.test`, a name with one label, a private IPv4 address also
+  in a short form such as `10.1` or `0x7f.1`, an IPv6 address) becomes
+  `<private-host>`.
 - `files` (Linux only): each file that the agent makes, writes, moves or
   deletes in its home, its work folder and `/tmp`. The agent starts with no
   `TMPDIR`, so `/tmp` is its temp folder. On other systems, the trace
