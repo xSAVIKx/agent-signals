@@ -405,6 +405,105 @@ done
 if kill -0 "$cpid" 2>/dev/null; then fail "parent: the watcher stops when its parent is gone" "pid runs"; else pass "parent: the watcher stops when its parent is gone"; fi
 if [ ! -e "$T/pw/rec" ]; then pass "parent: the lines and their folder are deleted"; else fail "parent: the lines and their folder are deleted" "$(ls -A "$T/pw/rec")"; fi
 
+# Unit tests of the Watcher class with a fake libc: no kernel events, so
+# the batches and the times are exact.
+cat >"$H/unit.py" <<'PYEOF'
+import json, os, runpy, sys, time
+mod = runpy.run_path(sys.argv[1], run_name="trace_files")
+W = mod["Watcher"]
+out = sys.argv[2]
+case = sys.argv[3]
+
+class Libc:
+    n = 0
+    def inotify_add_watch(self, fd, path, mask):
+        Libc.n += 1
+        return Libc.n
+    def inotify_rm_watch(self, fd, wd):
+        return 0
+
+fd = os.open(out, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+w = W(Libc(), -1, fd)
+root = "/nowhere/w"
+w.add_watch(root)
+wd = w.path2wd[root]
+
+def batch(*events):
+    for mask, cookie, name in events:
+        w.on_event(wd, mask, cookie, name)
+    w.expire_moves(False)
+    w.flush()
+
+if case == "move-batches":
+    # The move-from is the last event of a read, the move-to comes two
+    # reads later. The watcher pairs them by the cookie.
+    batch((mod["IN_CREATE"], 0, "a.txt"))
+    batch((mod["IN_MOVED_FROM"], 77, "a.txt"))
+    batch((mod["IN_CREATE"], 0, "other.txt"))
+    batch((mod["IN_MOVED_TO"], 77, "b.txt"))
+    w.expire_moves(True)
+    w.flush()
+    rows = [json.loads(l) for l in open(out)]
+    kinds = [(r["kind"], r.get("path", "").rsplit("/", 1)[-1], r.get("from", "").rsplit("/", 1)[-1]) for r in rows]
+    want = [("create", "a.txt", ""), ("create", "other.txt", ""), ("move", "b.txt", "a.txt")]
+    sys.exit(0 if kinds == want else "got %r" % kinds)
+elif case == "move-out":
+    # A move-from with no move-to before the wait ends: a delete.
+    batch((mod["IN_CREATE"], 0, "c.txt"))
+    batch((mod["IN_MOVED_FROM"], 78, "c.txt"))
+    time.sleep(mod["MOVE_WAIT"] + 0.05)
+    w.expire_moves(False)
+    w.flush()
+    rows = [json.loads(l) for l in open(out)]
+    kinds = [(r["kind"], r["path"].rsplit("/", 1)[-1]) for r in rows]
+    sys.exit(0 if kinds == [("create", "c.txt"), ("delete", "c.txt")] else "got %r" % kinds)
+elif case == "forget":
+    # A large tree: forget each folder from the bottom, as a delete of the
+    # tree does. The time must grow linearly with the size of the tree.
+    n = 20000
+    dirs = ["%s/d%d" % (root, i) for i in range(n)]
+    for d in dirs:
+        w.seen.add(d)
+        w.seen.add(d + "/f")
+        w.add_watch(d)
+    t = time.monotonic()
+    for d in dirs:
+        w.forget(d + "/f", False, False)
+        w.forget(d, True, False)
+    took = time.monotonic() - t
+    left = [p for p in dirs if p in w.seen or p in w.path2wd]
+    sys.exit(0 if took < 5 and not left else "took %.1f s, %d left" % (took, len(left)))
+elif case == "forget-deep":
+    # A folder with seen entries below a folder that is not seen: a move
+    # out of the tree forgets all of them, and their watches.
+    w.add_watch(root + "/x")
+    w.add_watch(root + "/x/y")
+    w.seen.add(root + "/x/y/new")
+    w.seen.add(root + "/xx")
+    w.forget(root + "/x", True, True)
+    bad = [p for p in (root + "/x/y/new", root + "/x/y", root + "/x") if p in w.seen or p in w.path2wd]
+    ok = not bad and root + "/xx" in w.seen and root in w.path2wd
+    sys.exit(0 if ok else "left %r" % bad)
+elif case == "rename":
+    w.add_watch(root + "/m")
+    w.add_watch(root + "/m/n")
+    w.seen.add(root + "/m")
+    w.seen.add(root + "/m/n/f")
+    w.rename_watches(root + "/m", root + "/r")
+    ok = (root + "/r/n" in w.path2wd and root + "/m/n" not in w.path2wd
+          and w.wd2path[w.path2wd[root + "/r/n"]] == root + "/r/n"
+          and root + "/r/n/f" in w.seen and root + "/m/n/f" not in w.seen
+          and root + "/r" in w.seen and root + "/m" not in w.seen)
+    sys.exit(0 if ok else "bad rename")
+PYEOF
+for c in move-batches move-out forget forget-deep rename; do
+  if python3 -I "$H/unit.py" "$watch" "$T/unit-$c.jsonl" "$c" >"$T/unit.err" 2>&1; then
+    pass "unit: $c"
+  else
+    fail "unit: $c" "$(tail -n 1 "$T/unit.err")"
+  fi
+done
+
 # The limit: 8200 folders before the start.
 python3 -I "$H/many.py" "$T/w2/many"
 python3 -I "$watch" --out "$T/f2.jsonl" --ready "$T/f2.ready" "$T/w2" &
