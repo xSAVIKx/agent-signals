@@ -601,6 +601,12 @@ END { clear(@in); clear(@path); clear(@flags); clear(@open); }
     (with `KIT_TRACE_KEEP_RAW=1` when `inputs.raw` is true), then
     `kit session stop --all`, then
     `sh tools/check-traces.sh RUN --passed "$RUNNER_TEMP/passed.txt"`.
+    The run step uses `shell: bash {0}` (no `-e`). A failed `kit trace`
+    sets `fail=1` and the loop goes on to the next step. The
+    `check-traces.sh` line runs after the loop in all cases. The step
+    then ends with `exit "$fail"`, after `check-traces.sh` wrote
+    `passed.txt`. When `passed.txt` is missing, `collect` writes a
+    summary with no traces and the line `no passed list`.
   - Each input goes to a `run:` line through `env` (for example
     `AGENTS: ${{ inputs.agents }}`), never as `${{ }}` in the script.
     The script accepts only words of `[a-z0-9-]`; another word is bad
@@ -758,9 +764,14 @@ a job of `traces.yml`. Do not use `workflow_run`. Do not make
   7. A table with more than 100 rows shows 100 and a line
      `N more in the artifact`. When the body without the DATA line is
      longer than 24000 characters, drop the timeline first, then cut the
-     tables to 20 rows, then to 5 rows. With rule 6 (200 characters for
-     each item) and the 40000 characters of DATA, the body stays below
-     the GitHub limit of 65536 characters.
+     tables and the section `new since VERSION` to 20 rows, then to 5
+     rows. The section `new since VERSION` has 100 rows at most, also
+     before these cuts, and a line `N more in the artifact`. After the
+     last cut, when the body without DATA is still longer than 24000
+     characters, cut it at 24000 characters at a line end and add the
+     line `cut: see the artifact`. With rule 6 (200 characters for each
+     item), the 24000 characters of the body and the 40000 characters
+     of DATA, the body stays below the GitHub limit of 65536 characters.
 - Produces: `traces.yml` runs `collect` in its own step after the run,
   with `if: always() && steps.pick.outputs.run == 'yes'`, also when
   `check-traces.sh` or a step failed. It reads
