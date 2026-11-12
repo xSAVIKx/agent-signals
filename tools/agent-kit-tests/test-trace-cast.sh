@@ -419,6 +419,47 @@ fi
 left=
 for f in "$T"/.cast-scrub.*; do [ -e "$f" ] && left=1; done
 if [ -n "$left" ]; then fail "cast scrub: no temp file stays" "a file stays"; else pass "cast scrub: no temp file stays"; fi
+# A cut path "/…/TAIL" (--cut-name, --cut-end): in one event, split over
+# two events, and with a color sequence inside. The cut paths that name
+# no run folder and no session stay.
+python3 -I -c '
+import json, sys
+lines = [
+    {"version": 2, "width": 120, "height": 40, "timestamp": 1700000000},
+    [0.1, "o", "cwd /…/agent-signals-run-x1/work/s1 ok"],
+    [0.2, "o", "cwd /…/agent-signals-r"],
+    [0.3, "o", "un-x2/work/s2 done"],
+    [0.4, "o", "cwd /…/agent-signals-\u001b[1mrun-x3/s3\u001b[0m end"],
+    [0.5, "o", "cwd /"],
+    [0.6, "o", "…/agent-signals-run-x4/s4 z"],
+    [0.7, "o", "keep /…/other/place q"],
+    [0.8, "o", "sess /…/x/y/permission-claude-tmux w"],
+]
+with open(sys.argv[1], "w", encoding="utf-8") as f:
+    for x in lines:
+        f.write(json.dumps(x, ensure_ascii=False) + "\n")
+' "$T/cut.cast"
+printf '#!/bin/sh\ncat "$1"\n' >"$T/cat-scrub.sh"
+python3 -I "$ROOT/probes/agent/trace-cast-scrub.py" --scrub "$T/cat-scrub.sh" \
+  --cut-name agent-signals-run- --cut-end permission-claude-tmux "$T/cut.cast" "$T/cut.out" >"$T/cut.err" 2>&1
+expect_code "cut path: exit 0" 0 $?
+if python3 -I -c '
+import json, sys
+rows = [json.loads(l) for l in open(sys.argv[1], encoding="utf-8")]
+t = [r[2] for r in rows[1:]]
+assert t[0] == "cwd /work/example/s1 ok", t[0]
+assert t[1] + t[2] == "cwd /work/example/s2 done", (t[1], t[2])
+assert t[3] == "cwd /work/example/s3\u001b[1m\u001b[0m end", t[3]
+assert t[4] + t[5] == "cwd /work/example/s4 z", (t[4], t[5])
+assert t[6] == "keep /…/other/place q", t[6]
+assert t[7] == "sess /work/example/permission-claude-tmux w", t[7]
+assert [r[0] for r in rows[1:]] == [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+assert "agent-signals-run" not in json.dumps(rows)' "$T/cut.out" 2>"$T/cut.err"; then
+  pass "cut path: one event, two events and a color inside"
+else
+  fail "cut path: one event, two events and a color inside" "$(tail -n 1 "$T/cut.err")"
+fi
+
 # A scrub that fails gives exit 1 and no output file.
 printf '#!/bin/sh\nexit 1\n' >"$T/bad-scrub.sh"
 python3 -I "$ROOT/probes/agent/trace-cast-scrub.py" --scrub "$T/bad-scrub.sh" "$T/raw.cast" "$T/bad.cast" >/dev/null 2>&1
