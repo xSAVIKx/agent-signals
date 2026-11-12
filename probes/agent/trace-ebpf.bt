@@ -25,7 +25,7 @@ tracepoint:syscalls:sys_exit_openat /@open[tid]/ {
   delete(@path[tid]); delete(@flags[tid]); delete(@open[tid]);
 }
 tracepoint:syscalls:sys_enter_connect /@in[(uint64)pid]/ {
-  $p = (uint8 *)args.uservaddr;
+  $p = (uint8 *)uptr(args.uservaddr);
   $fam = *(uint16 *)$p;
   if ($fam == 2) {
     printf("%llu\tconnect4\t%d\t%d\t%s\n", nsecs, pid, (*($p + 2) << 8) | *($p + 3), ntop(2, *(uint32 *)($p + 4)));

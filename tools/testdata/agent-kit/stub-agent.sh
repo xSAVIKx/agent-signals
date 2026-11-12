@@ -121,7 +121,8 @@ draw() {
 held=
 record() {
   [ "${STUB_RECORDS:-}" = no ] && return 0
-  echo stub >stub-work.txt
+  # An absolute path, so that the open of the ebpf check is in WORK.
+  echo stub >"$(pwd)/stub-work.txt"
   if [ -z "$held" ]; then
     held=${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects/$(printf '%s' "$(pwd -P)" | tr -c 'A-Za-z0-9' '-')
     mkdir -p "$held"
