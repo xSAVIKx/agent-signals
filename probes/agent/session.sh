@@ -667,7 +667,16 @@ do_start() {
         _pc=$(printf '%s' "$_pc" | sed 's/#/##/g')
         if ! tm pipe-pane -t kit -O "$_pc"; then
           _why="pipe-pane failed: the terminal is not recorded"
-          [ "$(tm display -p -t kit '#{pane_dead_status}' 2>/dev/null)" = 125 ] &&
+          # tmux refuses pipe-pane when the pane process ended, but it can
+          # give the exit status some time later. Wait 1 s at most for it.
+          _n=0
+          _ds=$(tm display -p -t kit '#{pane_dead_status}' 2>/dev/null)
+          while [ -z "$_ds" ] && [ "$_n" -lt 20 ]; do
+            sleep 0.05
+            _n=$((_n + 1))
+            _ds=$(tm display -p -t kit '#{pane_dead_status}' 2>/dev/null)
+          done
+          [ "$_ds" = 125 ] &&
             _why="the gate wait ended before the recorder started: the agent did not run"
           tm kill-server >/dev/null 2>&1
           [ -n "$server" ] && rm -f "$run/pids/$server"
