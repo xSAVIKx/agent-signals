@@ -51,6 +51,9 @@
     "model_requests": 1,
     "programs": null,
     "processes_left": null,
+    "opened": null,
+    "direct": null,
+    "dns": null,
     "timeline": [
       {"state": "start", "t": 0, "near": [{"t": 300, "kind": "create", "text": "~/.config/agent/state.json"}]},
       {"state": "busy", "t": 1800, "near": [{"t": 1900, "kind": "proxy", "text": "api.example.com:443"}]},

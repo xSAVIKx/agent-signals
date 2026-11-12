@@ -733,6 +733,9 @@ def main():
             "model_requests": model_requests,
             "programs": None,
             "processes_left": None,
+            "opened": None,
+            "direct": None,
+            "dns": None,
             "timeline": timeline(states, events),
         },
     }

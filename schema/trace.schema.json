@@ -61,7 +61,8 @@
             }
           }
         },
-        "files_limit": {"description": "True when the file recorder reached its limit and dropped events.", "type": "boolean"}
+        "files_limit": {"description": "True when the file recorder reached its limit and dropped events.", "type": "boolean"},
+        "ebpf_lost": {"description": "The number of events that the ebpf recorder lost, or null when the ebpf check did not run. Optional.", "type": ["integer", "null"], "minimum": 0}
       }
     },
     "states": {
@@ -90,7 +91,7 @@
       "description": "The totals of the events. A key is null when its check did not run.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["files", "hosts", "model_requests", "programs", "processes_left", "timeline"],
+      "required": ["files", "hosts", "model_requests", "programs", "processes_left", "opened", "direct", "dns", "timeline"],
       "properties": {
         "files": {
           "description": "The paths that the agent touched, sorted, for each area. Null when the files check did not run.",
@@ -121,8 +122,65 @@
           }
         },
         "model_requests": {"description": "The number of requests to the fake model. Null when the network check did not run.", "type": ["integer", "null"], "minimum": 0},
-        "programs": {"description": "The programs that the agent started. Null until the ebpf check exists.", "type": ["array", "null"]},
-        "processes_left": {"description": "The processes that stayed after the stop. Null until the ebpf check exists.", "type": ["array", "null"]},
+        "programs": {
+          "description": "The programs that the agent started, with the number of runs. Null when the ebpf check did not run.",
+          "type": ["array", "null"],
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "runs"],
+            "properties": {
+              "path": {"type": "string", "minLength": 1},
+              "runs": {"type": "integer", "minimum": 1}
+            }
+          }
+        },
+        "processes_left": {
+          "description": "The processes that stayed after the stop. Null when the ebpf check did not run.",
+          "type": ["array", "null"],
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["pid", "ppid", "program", "session"],
+            "properties": {
+              "pid": {"type": "integer"},
+              "ppid": {"type": ["integer", "null"]},
+              "program": {"type": "string", "minLength": 1},
+              "session": {"description": "The name of the session that the process belongs to.", "type": "string", "minLength": 1}
+            }
+          }
+        },
+        "opened": {
+          "description": "The paths that the agent opened with success, sorted, for each area. Null when the ebpf check did not run.",
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": ["home", "work", "tmp", "other"],
+          "properties": {
+            "home": {"$ref": "#/$defs/paths"},
+            "work": {"$ref": "#/$defs/paths"},
+            "tmp": {"$ref": "#/$defs/paths"},
+            "other": {"$ref": "#/$defs/paths"}
+          }
+        },
+        "direct": {
+          "description": "The hosts that the agent connected to without the proxy. Null when the ebpf check did not run.",
+          "type": ["array", "null"],
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["host", "port", "connections"],
+            "properties": {
+              "host": {"type": "string", "minLength": 1},
+              "port": {"type": "integer", "minimum": 0, "maximum": 65535},
+              "connections": {"type": "integer", "minimum": 1}
+            }
+          }
+        },
+        "dns": {
+          "description": "The names that the agent looked up. Null when the ebpf check did not run.",
+          "type": ["array", "null"],
+          "items": {"type": "string", "minLength": 1}
+        },
         "timeline": {
           "description": "For each state, the events near its start.",
           "type": "array",
@@ -160,13 +218,13 @@
     },
     "pid": {"description": "A process number, or null when the recorder cannot know it.", "type": ["integer", "null"]},
     "event": {
-      "description": "One event. The fields that the kind needs are listed in allOf. The kinds exec, exit, open, connect and dns are for the ebpf check and may hold more fields.",
+      "description": "One event. The fields that the kind needs are listed in allOf. The kinds exec, exit, open, connect, dns and signal are for the ebpf check and may hold more fields.",
       "type": "object",
       "additionalProperties": true,
       "required": ["t", "kind", "pid", "ppid"],
       "properties": {
         "t": {"description": "Milliseconds from the start of the run.", "type": "integer"},
-        "kind": {"enum": ["exec", "exit", "open", "create", "write", "delete", "move", "connect", "dns", "proxy", "model"]},
+        "kind": {"enum": ["exec", "exit", "open", "create", "write", "delete", "move", "connect", "dns", "proxy", "model", "signal"]},
         "pid": {"$ref": "#/$defs/pid"},
         "ppid": {"$ref": "#/$defs/pid"}
       },
@@ -178,6 +236,51 @@
         {
           "if": {"properties": {"kind": {"const": "move"}}},
           "then": {"required": ["from"], "properties": {"from": {"type": "string", "minLength": 1}}}
+        },
+        {
+          "if": {"properties": {"kind": {"const": "exec"}}},
+          "then": {
+            "required": ["path", "comm"],
+            "properties": {
+              "path": {"type": "string", "minLength": 1},
+              "comm": {"type": "string"}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"kind": {"const": "open"}}},
+          "then": {
+            "required": ["path", "mode", "ok"],
+            "properties": {
+              "path": {"type": "string", "minLength": 1},
+              "mode": {"enum": ["r", "w", "rw"]},
+              "ok": {"type": "boolean"},
+              "create": {"type": "boolean"},
+              "cut": {"type": "boolean"}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"kind": {"const": "connect"}}},
+          "then": {
+            "required": ["family", "host", "port"],
+            "properties": {
+              "family": {"enum": ["ipv4", "ipv6", "unix"]},
+              "host": {"description": "The address, <private-host>, a normalized socket path, or @ for an abstract socket.", "type": "string", "minLength": 1},
+              "port": {"description": "0 for a unix socket.", "type": "integer", "minimum": 0, "maximum": 65535}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"kind": {"const": "dns"}}},
+          "then": {"required": ["name"], "properties": {"name": {"type": "string", "minLength": 1}}}
+        },
+        {
+          "if": {"properties": {"kind": {"const": "signal"}}},
+          "then": {
+            "required": ["target", "sig"],
+            "properties": {"target": {"type": "integer"}, "sig": {"type": "integer"}}
+          }
         },
         {
           "if": {"properties": {"kind": {"const": "proxy"}}},

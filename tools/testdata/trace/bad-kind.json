@@ -146,6 +146,9 @@
     "model_requests": 1,
     "programs": null,
     "processes_left": null,
+    "opened": null,
+    "direct": null,
+    "dns": null,
     "timeline": [
       {
         "state": "start",
