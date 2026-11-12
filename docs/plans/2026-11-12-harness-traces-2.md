@@ -603,8 +603,9 @@ END { clear(@in); clear(@path); clear(@flags); clear(@open); }
     `sh tools/check-traces.sh RUN --passed "$RUNNER_TEMP/passed.txt"`.
     The run step uses `shell: bash {0}` (no `-e`). A failed `kit trace`
     sets `fail=1` and the loop goes on to the next step. The
-    `check-traces.sh` line runs after the loop in all cases. The step
-    then ends with `exit "$fail"`, after `check-traces.sh` wrote
+    `check-traces.sh` line runs after the loop in all cases, and a
+    non-zero exit of it also sets `fail=1`. The step then ends with
+    `exit "$fail"`, after `check-traces.sh` wrote
     `passed.txt`. When `passed.txt` is missing, `collect` writes a
     summary with no traces and the line `no passed list`.
   - Each input goes to a `run:` line through `env` (for example
