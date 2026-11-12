@@ -388,10 +388,13 @@ wait "$step_pid"
 code=$?
 step_pid=
 # bpftrace must run until the stop. When it ended during the step, the
-# record can miss the events of the end of the step: say so.
+# record misses the events of the end of the step: skip the check with
+# the reason tracer-ended, so that no trace shows an incomplete record as
+# a full one.
 if [ "${ready:-}" = 1 ] && ! kit_pid_live "$ebpid"; then
-  echo "kit: bpftrace ended before the end of the step, so the ebpf record can be incomplete" >&2
+  echo "kit: bpftrace ended before the end of the step, so the trace skips the ebpf check" >&2
   sed -n '1,5s/^/kit: /p' "$raw/ebpf.err" >&2
+  printf 'ebpf\ttracer-ended\n' >>"$raw/skipped.tsv"
 fi
 
 # 6. Stop the sessions that stay, and the recorders.

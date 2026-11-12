@@ -22,6 +22,8 @@ ends (a zombie counts as ended).
 
 FAKE_BPFTRACE=fail: write "ERROR: test" to stderr and exit 1 at once.
 FAKE_BPFTRACE=silent: write nothing until the end.
+FAKE_BPFTRACE=short: exit 4 s after the start, as a tracer that ends
+during the step.
 """
 
 import os
@@ -116,13 +118,22 @@ def main():
     uid = os.getuid()
     seen = {pid: read("/proc/%d/cmdline" % pid) for pid in ours(uid)}
     first = set(seen)
+    start = time.monotonic()
     while not ended(root) and not ended(stop):
+        if mode == "short" and time.monotonic() - start > 4:
+            sys.stderr.write("ERROR: short\n")
+            return 1
         time.sleep(0.02)
         if mode == "silent":
             continue
-        pids = ours(uid)
-        for pid in pids:
+        live = set()
+        for pid in ours(uid):
             cmd = read("/proc/%d/cmdline" % pid)
+            # A zombie has an empty cmdline. It has ended, as for the
+            # kernel, so it is not live.
+            if not cmd and ended(pid):
+                continue
+            live.add(pid)
             if pid not in seen:
                 got = facts(pid)
                 if got is None:
@@ -136,7 +147,6 @@ def main():
                 got = facts(pid)
                 if got is not None:
                     out("exec\t%d\t%s\t%s" % (pid, got[1], got[2]))
-        live = set(pids)
         for pid in list(seen):
             if pid not in live:
                 del seen[pid]

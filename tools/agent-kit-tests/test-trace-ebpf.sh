@@ -156,6 +156,7 @@ stub_set STUB_TRUST=yes STUB_SPAWN=yes STUB_LEAVE=yes
 kitx trace permission-claude@tmux --checks terminal,network,files,ebpf >"$T/t1" 2>"$T/t1.err"
 rc=$?
 expect_code "ebpf: exit 0" 0 "$rc"
+[ "$rc" = 0 ] || { sed "s/^/  out| /" "$T/t1"; sh "$ROOT/tools/scrub.sh" "$T/t1.err" 2>/dev/null | tail -n 20 | sed "s/^/  err| /"; }
 tr1=$(folder_of "$T/t1")
 j=$tr1/trace.json
 expect_file "ebpf: trace.json exists" "$j"
@@ -220,6 +221,49 @@ if [ -z "$(ebpf_pids)" ]; then pass "bpftrace fails: no ebpf pid stays"; else fa
 expect_code "no ready: exit 0" 0 $?
 skip_case "no ready" "$T/t5" no-ready
 if [ -z "$(ebpf_pids)" ]; then pass "no ready: no ebpf pid stays"; else fail "no ready: no ebpf pid stays" "$(ebpf_pids)"; fi
+
+# bpftrace ends after the ready check and before the end of the step: a
+# skip, so that the trace does not show an incomplete record as a full one.
+(FAKE_BPFTRACE=short && export FAKE_BPFTRACE && kitf trace permission-claude@tmux --checks terminal,ebpf) >"$T/t6" 2>"$T/t6.err"
+expect_code "tracer ends early: exit 0" 0 $?
+skip_case "tracer ends early" "$T/t6" tracer-ended
+expect_line "tracer ends early: stderr says so" '^kit: bpftrace ended before the end of the step' "$T/t6.err"
+expect_line "tracer ends early: stderr holds its error" '^kit: ERROR: short$' "$T/t6.err"
+if [ -z "$(ebpf_pids)" ]; then pass "tracer ends early: no ebpf pid stays"; else fail "tracer ends early: no ebpf pid stays" "$(ebpf_pids)"; fi
+
+# The fake tracer: a zombie has ended. The parent of the zombie does not
+# wait for it, so the pid stays in /proc with the state Z.
+sleep 300 &
+zstop=$!
+bg_pid "$zstop"
+python3 -I "$T/fake-bpftrace.py" -B line none "$$" "$zstop" >"$T/z.txt" 2>"$T/z.err" &
+zfake=$!
+bg_pid "$zfake"
+sleep 1
+# The child lives 0.3 s, then stays a zombie until its parent ends at 3 s.
+# The fake stops at 1.5 s, while the zombie is still in /proc.
+python3 -I -c '
+import os, sys, time
+kid = os.fork()
+if kid == 0:
+    time.sleep(0.3)
+    os._exit(0)
+with open(sys.argv[1], "w") as f:
+    f.write("%d\n" % kid)
+time.sleep(3)' "$T/z.pid" &
+zpar=$!
+bg_pid "$zpar"
+sleep 1.5
+kill "$zstop"
+wait "$zstop" 2>/dev/null
+wait "$zfake" 2>/dev/null
+wait "$zpar" 2>/dev/null
+zpid=$(cat "$T/z.pid" 2>/dev/null)
+if [ -n "$zpid" ] && awk -F '\t' -v p="$zpid" '$2 == "exit" && $3 == p { f = 1 } END { exit f ? 0 : 1 }' "$T/z.txt"; then
+  pass "fake tracer: a zombie gives an exit line"
+else
+  fail "fake tracer: a zombie gives an exit line" "pid '$zpid'"
+fi
 
 # KILL of "kit trace" while the check runs. bpftrace stops when the pid of
 # trace.sh ends. The next trace stops the sentinel. "exec" makes $! the
