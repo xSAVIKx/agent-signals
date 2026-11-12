@@ -67,6 +67,27 @@ else
   fail "interrupt: prompt, busy, answer" "$(tr '\t' ' ' <"$st" | tr '\n' ',')"
 fi
 
+# KIT_TRACE names a folder that does not exist: a state is skipped with
+# one clear line, and "kit session start" fails with exit 2 before it
+# starts the agent. No shell redirect error.
+miss=$T/no-such-trace
+(KIT_TRACE=$miss; KIT_DIR=$ROOT/probes/agent; export KIT_TRACE KIT_DIR
+ . "$ROOT/probes/agent/lib.sh"; kit_trace_state stop) >"$T/ms.out" 2>"$T/ms.err"
+expect_code "missing KIT_TRACE: kit_trace_state exits 0" 0 $?
+expect_line "missing KIT_TRACE: the skip line" '^kit: KIT_TRACE is not a folder, the state stop is not recorded: ' "$T/ms.err"
+expect_no_line "missing KIT_TRACE: no redirect error" 'cannot create|No such file|nonexistent' "$T/ms.err"
+run=$(run_of "$D")
+(KIT_TRACE=$miss; KIT_TRACE_CHECKS=; AGENT_SIGNALS_RUN=$run; export KIT_TRACE KIT_TRACE_CHECKS AGENT_SIGNALS_RUN
+ kit session start miss1 stub --via "$via" --cmd "sh '$ROOT/tools/testdata/agent-kit/stub-agent.sh'") >"$T/ms.out" 2>"$T/ms.err"
+expect_code "missing KIT_TRACE: session start exits 2" 2 $?
+expect_line "missing KIT_TRACE: the start text" 'KIT_TRACE is not a folder' "$T/ms.err"
+expect_no_line "missing KIT_TRACE: no redirect error at the start" 'cannot create|No such file|nonexistent' "$T/ms.err"
+if [ ! -e "$miss" ] && [ ! -e "$run/sessions/miss1" ]; then pass "missing KIT_TRACE: no folder is made"; else fail "missing KIT_TRACE: no folder is made" "a folder exists"; fi
+# The kit_ms helper leaves no variable in the shell.
+(KIT_DIR=$ROOT/probes/agent; export KIT_DIR
+ . "$ROOT/probes/agent/lib.sh"; kit_ms >/dev/null; [ -z "${_ms+x}" ]) 2>/dev/null
+expect_code "kit_ms: no global _ms" 0 $?
+
 # No KIT_TRACE: no states.tsv anywhere.
 stub_set STUB_TRUST=yes
 rm -f "$st" "$ss"

@@ -296,6 +296,19 @@ func TestTraces(t *testing.T) {
 		root, path := tracesRoot(t, "permission", "bad-exec.json")
 		wantOne(t, check(t, root), path, "schema:")
 	})
+	t.Run("a derived trace without derived_from fails the schema", func(t *testing.T) {
+		root, path := tracesRoot(t, "permission", "derived-no-source.json")
+		wantOne(t, check(t, root), path, "derived_from")
+	})
+	t.Run("a derived trace with derived_from has no problem", func(t *testing.T) {
+		root, path := tracesRoot(t, "permission", "derived-no-source.json")
+		data, _ := os.ReadFile(filepath.Join(root, path))
+		write(t, root, path, strings.Replace(string(data), `"provenance": "derived"`,
+			`"provenance": "derived", "derived_from": "permission: the times are scaled"`, 1))
+		if p := check(t, root); len(p) != 0 {
+			t.Fatalf("want no problem, got %v", p)
+		}
+	})
 	t.Run("a measured-edited trace needs one edits line", func(t *testing.T) {
 		root, path := tracesRoot(t, "permission", "valid.json")
 		data, _ := os.ReadFile(filepath.Join(root, path))

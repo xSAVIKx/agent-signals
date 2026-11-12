@@ -86,8 +86,13 @@
 # file "trace" in the state folder, and "stop" reads it from there, so a
 # stop with no KIT_TRACE also writes the line. The recorder writes its pid
 # to "recorder.pid" (option --pid-file), and "start" writes its start time
-# to "recorder.start". "stop" waits for this pid (5 s at most) before it
-# reads "recorder-failed", then sends TERM to it.
+# to "recorder.start". "start" also records the pid in RUN/pids/ with the
+# label "recorder NAME", so that "stop --all" and the checks of the run
+# see it. "stop" waits for this pid (5 s at most) before it reads
+# "recorder-failed", then sends TERM to it, and removes its pid file. The
+# pipe-pane command holds each path in single quotes, with each single
+# quote of a path escaped and each "#" doubled (tmux reads "#" as the start
+# of a format). So a path can hold spaces, quotes and "#".
 # The pty backend has no recording yet: "start" writes the line
 # "terminal<tab>pty-not-yet" to $KIT_TRACE/skipped.tsv.
 #
@@ -184,14 +189,41 @@ trace_files() {
   return 1
 }
 
+# shq TEXT: TEXT in single quotes for sh, with each single quote escaped.
+shq() {
+  printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"
+}
+
 # trace_mark WHAT: make and delete the mark file of the kit for this
 # session in the work root (read the header). WHAT is begin or end. It
-# does nothing when the work root does not exist.
+# does nothing when the work root does not exist. A "begin" sets a trap:
+# when the command exits (also with kit_die, or on HUP, INT, QUIT or TERM)
+# before its "end", the trap makes the "end" mark. So an unmatched
+# "begin" holds only until the end of this kit command. A KILL of the
+# command runs no trap.
+mark_open=
 trace_mark() {
+  case $1 in
+    begin)
+      mark_open=1
+      trap 'trace_mark_close' EXIT
+      trap 'trace_mark_close; trap - HUP; kill -HUP $$' HUP
+      trap 'trace_mark_close; trap - INT; kill -INT $$' INT
+      trap 'trace_mark_close; trap - TERM; kill -TERM $$' TERM
+      trap 'trace_mark_close; trap - QUIT; kill -QUIT $$' QUIT
+      ;;
+    end) mark_open= ;;
+  esac
   _mr=$(kit_work_root "$run")
   [ -d "$_mr" ] || return 0
   _mf=$_mr/.kit-trace-mark.$name.$1
   : >"$_mf" 2>/dev/null && rm -f "$_mf"
+  return 0
+}
+
+# trace_mark_close: make the "end" mark when a "begin" has no "end".
+trace_mark_close() {
+  [ -n "$mark_open" ] && trace_mark end
   return 0
 }
 
@@ -447,7 +479,7 @@ pty_serve() {
 # model), deletes the socket folder, then ends like kit_die.
 start_die() {
   # shellcheck disable=SC2046
-  end_pids $(session_pids) >/dev/null
+  end_pids $(session_pids) $(recorder_pids) >/dev/null
   [ -n "${sockdir:-}" ] && rm -rf "$sockdir"
   kit_die "$@"
 }
@@ -495,6 +527,10 @@ do_start() {
     tmux) command -v tmux >/dev/null 2>&1 || kit_die 3 "needs tmux" ;;
     pty) pty_python ;;
   esac
+  # A trace folder that does not exist: fail before any change.
+  if [ -n "${KIT_TRACE:-}" ] && [ ! -d "$KIT_TRACE" ]; then
+    kit_die 2 "KIT_TRACE is not a folder: $KIT_TRACE"
+  fi
   sdir=$run/sessions/$name
   if [ -d "$sdir" ]; then
     [ -f "$sdir/stopped" ] || kit_die 2 "the session exists: $name"
@@ -587,12 +623,6 @@ do_start() {
   write_conditions "$@"
   trace_term=
   trace_terminal && trace_term=1
-  # The pipe-pane command holds these paths in single quotes.
-  if [ -n "$trace_term" ] && [ "$via" = tmux ]; then
-    case $sdir$KIT_DIR$KIT_TRACE in
-      *"'"*) kit_die 2 "a path with a single quote is not supported when the terminal is recorded" ;;
-    esac
-  fi
   # The kit writes no more in the work folder or the home before the agent
   # starts.
   [ -f "$sdir/trace-files" ] && trace_mark end
@@ -632,7 +662,10 @@ do_start() {
       if [ -n "$trace_term" ]; then
         # No recorder: stop the server, so that the pane never runs the
         # agent unrecorded and no process stays.
-        if ! tm pipe-pane -t kit -O "exec python3 -I '$KIT_DIR/trace-cast.py' --t0 '$KIT_TRACE/t0' --out '$KIT_TRACE/terminal.cast' --ready '$sdir/ready' --failed '$sdir/recorder-failed' --pid-file '$sdir/recorder.pid' --width $COLS --height $ROWS"; then
+        _pc="exec python3 -I $(shq "$KIT_DIR/trace-cast.py") --t0 $(shq "$KIT_TRACE/t0") --out $(shq "$KIT_TRACE/terminal.cast") --ready $(shq "$sdir/ready") --failed $(shq "$sdir/recorder-failed") --pid-file $(shq "$sdir/recorder.pid") --width $COLS --height $ROWS"
+        # tmux expands formats in the command: "##" gives one "#".
+        _pc=$(printf '%s' "$_pc" | sed 's/#/##/g')
+        if ! tm pipe-pane -t kit -O "$_pc"; then
           _why="pipe-pane failed: the terminal is not recorded"
           [ "$(tm display -p -t kit '#{pane_dead_status}' 2>/dev/null)" = 125 ] &&
             _why="the gate wait ended before the recorder started: the agent did not run"
@@ -647,10 +680,15 @@ do_start() {
           _n=$((_n + 1))
         done
         if [ ! -e "$sdir/ready" ]; then
-          _why="the recorder did not start: the terminal is not recorded"
-          # A pane that ended with 125 gave up at the gate first.
-          [ "$(tm display -p -t kit '#{pane_dead_status}' 2>/dev/null)" = 125 ] &&
+          # The kit makes no gate now, so the agent does not run. The
+          # reason comes from the recorder, not from the pane: the pane can
+          # still be in its gate wait at this time. The recorder writes its
+          # pid file first, before it opens the cast.
+          if [ -s "$sdir/recorder.pid" ]; then
+            _why="the recorder did not start: the terminal is not recorded"
+          else
             _why="the gate wait ended before the recorder started: the agent did not run"
+          fi
           tm kill-server >/dev/null 2>&1
           [ -n "$server" ] && rm -f "$run/pids/$server"
           start_die 1 "$_why"
@@ -658,7 +696,13 @@ do_start() {
         # The start time of the recorder, so that "stop" does not wait for
         # a new process that got the same pid.
         _rp=$(cat "$sdir/recorder.pid" 2>/dev/null)
-        [ -n "$_rp" ] && kit_pid_start "$_rp" >"$sdir/recorder.start"
+        case $_rp in
+          '' | *[!0-9]*) ;;
+          *)
+            kit_pid_start "$_rp" >"$sdir/recorder.start"
+            kit_add_pid "$run" "$_rp" "recorder $name"
+            ;;
+        esac
         : >"$sdir/gate"
         # A pane that ended with 125 gave up at the gate (10 s at most).
         if [ "$(tm display -p -t kit '#{pane_dead_status}' 2>/dev/null)" = 125 ]; then
@@ -797,6 +841,15 @@ end_pids() {
   done
 }
 
+# recorder_pids: the pids of RUN/pids/ with the label "recorder NAME".
+recorder_pids() {
+  for f in "$run"/pids/*; do
+    [ -f "$f" ] || continue
+    [ "$(label "$f")" = "recorder $name" ] && echo "${f##*/}"
+  done
+  return 0
+}
+
 # session_pids: the pids of RUN/pids/ with the label "session NAME ...".
 session_pids() {
   for f in "$run"/pids/*; do
@@ -890,7 +943,10 @@ end_recorder() {
     sleep 0.05
     _n=$((_n + 1))
   done
-  recorder_runs "$_rp" || return 0
+  if ! recorder_runs "$_rp"; then
+    [ "$(label "$run/pids/$_rp")" = "recorder $name" ] && rm -f "$run/pids/$_rp"
+    return 0
+  fi
   echo "stop: $_rp recorder"
   kill "$_rp" 2>/dev/null
   _n=0
@@ -899,6 +955,7 @@ end_recorder() {
     _n=$((_n + 1))
   done
   recorder_runs "$_rp" && kill -9 "$_rp" 2>/dev/null
+  [ "$(label "$run/pids/$_rp")" = "recorder $name" ] && rm -f "$run/pids/$_rp"
   return 0
 }
 
@@ -923,7 +980,8 @@ stop_session() {
   # shellcheck disable=SC2046
   end_pids $(session_pids)
   # The server is stopped. The recorder gets the end of its input and
-  # does its last flush. It is not in RUN/pids/, so wait for its pid here.
+  # does its last flush. Its label in RUN/pids/ is not "session NAME", so
+  # end_pids does not stop it before the flush. Wait for its pid here.
   end_recorder
   if [ -f "$sdir/trace" ] && [ -e "$sdir/recorder-failed" ]; then
     printf 'terminal\trecorder-failed\n' >>"$(cat "$sdir/trace")/skipped.tsv"
