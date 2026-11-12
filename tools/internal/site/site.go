@@ -686,6 +686,5 @@ func (b *builder) sitemap() error {
 	}
 	s.WriteString("</urlset>\n")
 	b.files = append(b.files, File{Path: "sitemap.xml", Data: []byte(s.String())})
-	b.files = append(b.files, File{Path: "robots.txt", Data: []byte("User-agent: *\nAllow: /\nSitemap: " + BaseURL + "sitemap.xml\n")})
 	return nil
 }
