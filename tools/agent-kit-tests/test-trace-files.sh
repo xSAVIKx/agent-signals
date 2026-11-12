@@ -381,6 +381,29 @@ kill -TERM "$wpid"
 wait "$wpid"
 expect_code "mark: the watch exits 0" 0 $?
 
+# N4: a "kit session start" that fails after the mark "begin" still makes
+# the mark "end" when it exits. Here the work folder of the session is a
+# file, so the start fails at its mkdir, after "begin".
+if command -v tmux >/dev/null 2>&1; then
+  mkdir -p "$T/n4run/work" "$T/n4raw"
+  : >"$T/n4run/work/n4"
+  python3 -I "$watch" --out "$T/f9.jsonl" --ready "$T/f9.ready" "$T/n4run/work" &
+  wpid=$!
+  bg_pid "$wpid"
+  wait_file "$T/f9.ready" || fail "unmatched begin: the ready file is written" "no file"
+  (AGENT_SIGNALS_RUN=$T/n4run; KIT_TRACE=$T/n4raw; KIT_TRACE_CHECKS=files
+   export AGENT_SIGNALS_RUN KIT_TRACE KIT_TRACE_CHECKS
+   kit session start n4 stub --via tmux --cmd true --keep) >"$T/n4.out" 2>&1
+  _rc=$?
+  if [ "$_rc" -ne 0 ]; then pass "unmatched begin: the start fails"; else fail "unmatched begin: the start fails" "exit 0"; fi
+  check_has "unmatched begin: the begin mark" "$T/f9.jsonl" create "$T/n4run/work/.kit-trace-mark.n4.begin"
+  check_has "unmatched begin: the exit makes the end mark" "$T/f9.jsonl" create "$T/n4run/work/.kit-trace-mark.n4.end"
+  kill -TERM "$wpid"
+  wait "$wpid"
+else
+  echo "skip: unmatched begin: tmux is not installed"
+fi
+
 # The parent: when the --parent process is gone, the watcher stops and
 # deletes its lines and its folder. "sh -c" is the parent; it gets KILL.
 mkdir -p "$T/pw/w" "$T/pw/rec"
@@ -404,6 +427,168 @@ while kill -0 "$cpid" 2>/dev/null && [ "$_n" -lt 50 ]; do
 done
 if kill -0 "$cpid" 2>/dev/null; then fail "parent: the watcher stops when its parent is gone" "pid runs"; else pass "parent: the watcher stops when its parent is gone"; fi
 if [ ! -e "$T/pw/rec" ]; then pass "parent: the lines and their folder are deleted"; else fail "parent: the lines and their folder are deleted" "$(ls -A "$T/pw/rec")"; fi
+
+# Unit tests of the Watcher class with a fake libc: no kernel events, so
+# the batches and the times are exact.
+cat >"$H/unit.py" <<'PYEOF'
+import json, os, runpy, sys, time
+mod = runpy.run_path(sys.argv[1], run_name="trace_files")
+W = mod["Watcher"]
+out = sys.argv[2]
+case = sys.argv[3]
+
+class Libc:
+    n = 0
+    def inotify_add_watch(self, fd, path, mask):
+        Libc.n += 1
+        return Libc.n
+    removed = []
+    def inotify_rm_watch(self, fd, wd):
+        Libc.removed.append(wd)
+        return 0
+
+fd = os.open(out, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+w = W(Libc(), -1, fd)
+root = "/nowhere/w"
+w.add_watch(root)
+wd = w.path2wd[root]
+
+def batch(*events):
+    for mask, cookie, name in events:
+        w.on_event(wd, mask, cookie, name)
+    w.expire_moves(False)
+    w.flush()
+
+if case == "move-batches":
+    # The move-from is the last event of a read, the move-to comes two
+    # reads later. The watcher pairs them by the cookie.
+    batch((mod["IN_CREATE"], 0, "a.txt"))
+    batch((mod["IN_MOVED_FROM"], 77, "a.txt"))
+    batch((mod["IN_CREATE"], 0, "other.txt"))
+    batch((mod["IN_MOVED_TO"], 77, "b.txt"))
+    w.expire_moves(True)
+    w.flush()
+    rows = [json.loads(l) for l in open(out)]
+    kinds = [(r["kind"], r.get("path", "").rsplit("/", 1)[-1], r.get("from", "").rsplit("/", 1)[-1]) for r in rows]
+    want = [("create", "a.txt", ""), ("create", "other.txt", ""), ("move", "b.txt", "a.txt")]
+    sys.exit(0 if kinds == want else "got %r" % kinds)
+elif case == "move-out":
+    # A move-from with no move-to before the wait ends: a delete.
+    batch((mod["IN_CREATE"], 0, "c.txt"))
+    batch((mod["IN_MOVED_FROM"], 78, "c.txt"))
+    time.sleep(mod["MOVE_WAIT"] + 0.05)
+    w.expire_moves(False)
+    w.flush()
+    rows = [json.loads(l) for l in open(out)]
+    kinds = [(r["kind"], r["path"].rsplit("/", 1)[-1]) for r in rows]
+    sys.exit(0 if kinds == [("create", "c.txt"), ("delete", "c.txt")] else "got %r" % kinds)
+elif case == "move-out-time":
+    # A move out, then a new file with the same name before the wait
+    # ends. The delete has the time of the move-from, so it comes before
+    # the new create in the order of the times.
+    batch((mod["IN_MOVED_FROM"], 79, "d.txt"))
+    time.sleep(0.02)
+    batch((mod["IN_CREATE"], 0, "d.txt"))
+    time.sleep(mod["MOVE_WAIT"] + 0.05)
+    w.expire_moves(False)
+    w.flush()
+    rows = [json.loads(l) for l in open(out)]
+    rows.sort(key=lambda r: r["t"])
+    kinds = [(r["kind"], r["path"].rsplit("/", 1)[-1]) for r in rows]
+    sys.exit(0 if kinds == [("delete", "d.txt"), ("create", "d.txt")] else "got %r" % kinds)
+elif case == "move-out-replace":
+    # A folder moves out, and a new folder with the same name comes before
+    # the wait ends. The new folder keeps its own watch after the wait.
+    # Only the watches of the old folder are removed.
+    d = root + "/d"
+    old_wd = w.add_watch(d)
+    old_kid = w.add_watch(d + "/k")
+    w.seen.add(d)
+    w.seen.add(d + "/k")
+    isdir = mod["IN_ISDIR"]
+    batch((mod["IN_MOVED_FROM"] | isdir, 80, "d"))
+    batch((mod["IN_CREATE"] | isdir, 0, "d"))
+    new_wd = w.path2wd.get(d)
+    time.sleep(mod["MOVE_WAIT"] + 0.05)
+    w.expire_moves(False)
+    w.flush()
+    # The order of the lines, not only of the times (the times can be
+    # the same millisecond).
+    rows = [json.loads(l) for l in open(out)]
+    kinds = [(r["kind"], r["path"].rsplit("/", 1)[-1]) for r in rows]
+    ok = (kinds == [("delete", "d"), ("create", "d")]
+          and new_wd is not None and new_wd != old_wd
+          and w.path2wd.get(d) == new_wd and w.wd2path.get(new_wd) == d
+          and d in w.seen and d + "/k" not in w.seen
+          and d + "/k" not in w.path2wd
+          and sorted(Libc.removed) == sorted([old_wd, old_kid])
+          and old_wd not in w.wd2path and old_kid not in w.wd2path
+          and w.held == 0)
+    sys.exit(0 if ok else "kinds %r, wd %r -> %r, path2wd %r, removed %r" % (
+        kinds, old_wd, new_wd, dict(w.path2wd.data), Libc.removed))
+elif case == "move-dir-pair":
+    # A folder moves in the tree over two reads: its watches follow it.
+    d = root + "/e"
+    e_wd = w.add_watch(d)
+    k_wd = w.add_watch(d + "/k")
+    w.seen.add(d + "/k/f")
+    isdir = mod["IN_ISDIR"]
+    batch((mod["IN_MOVED_FROM"] | isdir, 81, "e"))
+    batch((mod["IN_MOVED_TO"] | isdir, 81, "g"))
+    g = root + "/g"
+    ok = (w.path2wd.get(g) == e_wd and w.path2wd.get(g + "/k") == k_wd
+          and w.wd2path.get(k_wd) == g + "/k" and d not in w.path2wd
+          and g + "/k/f" in w.seen and d + "/k/f" not in w.seen
+          and not Libc.removed and w.held == 0)
+    sys.exit(0 if ok else "path2wd %r" % dict(w.path2wd.data))
+elif case == "forget":
+    # A large tree: forget each folder from the bottom, as a delete of the
+    # tree does. The time must grow linearly with the size of the tree.
+    n = 20000
+    dirs = ["%s/d%d" % (root, i) for i in range(n)]
+    for d in dirs:
+        w.seen.add(d)
+        w.seen.add(d + "/f")
+        w.add_watch(d)
+    t = time.monotonic()
+    for d in dirs:
+        w.forget(d + "/f", False, False)
+        w.forget(d, True, False)
+    took = time.monotonic() - t
+    left = [p for p in dirs if p in w.seen or p in w.path2wd]
+    # The index of the paths does not keep the forgotten paths.
+    idx = len(w.seen.nodes) + len(w.seen.kids)
+    sys.exit(0 if took < 5 and not left and idx == 0 else "took %.1f s, %d left, index %d" % (took, len(left), idx))
+elif case == "forget-deep":
+    # A folder with seen entries below a folder that is not seen: a move
+    # out of the tree forgets all of them, and their watches.
+    w.add_watch(root + "/x")
+    w.add_watch(root + "/x/y")
+    w.seen.add(root + "/x/y/new")
+    w.seen.add(root + "/xx")
+    w.forget(root + "/x", True, True)
+    bad = [p for p in (root + "/x/y/new", root + "/x/y", root + "/x") if p in w.seen or p in w.path2wd]
+    ok = not bad and root + "/xx" in w.seen and root in w.path2wd
+    sys.exit(0 if ok else "left %r" % bad)
+elif case == "rename":
+    w.add_watch(root + "/m")
+    w.add_watch(root + "/m/n")
+    w.seen.add(root + "/m")
+    w.seen.add(root + "/m/n/f")
+    w.rename_watches(root + "/m", root + "/r")
+    ok = (root + "/r/n" in w.path2wd and root + "/m/n" not in w.path2wd
+          and w.wd2path[w.path2wd[root + "/r/n"]] == root + "/r/n"
+          and root + "/r/n/f" in w.seen and root + "/m/n/f" not in w.seen
+          and root + "/r" in w.seen and root + "/m" not in w.seen)
+    sys.exit(0 if ok else "bad rename")
+PYEOF
+for c in move-batches move-out move-out-time move-out-replace move-dir-pair forget forget-deep rename; do
+  if python3 -I "$H/unit.py" "$watch" "$T/unit-$c.jsonl" "$c" >"$T/unit.err" 2>&1; then
+    pass "unit: $c"
+  else
+    fail "unit: $c" "$(tail -n 1 "$T/unit.err")"
+  fi
+done
 
 # The limit: 8200 folders before the start.
 python3 -I "$H/many.py" "$T/w2/many"

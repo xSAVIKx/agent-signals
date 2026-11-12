@@ -25,7 +25,9 @@ Rules:
   by time.
 - A path is normalized. The longest known prefix wins: a session home
   becomes ~, a work folder becomes WORK, the temp folder (TMPDIR, else
-  /tmp) becomes TMP. A file event under the run folder, but not under a
+  /tmp) becomes TMP. Each known folder counts in all its forms: its real
+  path, and on macOS the form below /private (/tmp is a link to
+  /private/tmp, /var is a link to /private/var). A file event under the run folder, but not under a
   home or a work folder, is dropped. A file event under a SOCKDIR is
   dropped. The kit writes there.
 - The kit marks its own file work with the file
@@ -34,8 +36,10 @@ Rules:
   NAME is work of the kit when its path (or its "from") is under the home
   or the work folder of NAME, or under the Claude Code temp folder of that
   work folder (TMP/claude-UID/KEY). The program drops these events, and
-  the events of the mark files. A "begin" with no "end" holds until the
-  end of the file.
+  the events of the mark files. session.sh makes the "end" mark also
+  when its command fails or gets HUP, INT or TERM after "begin". Only a
+  KILL of that command leaves a "begin" with no "end". That "begin"
+  holds until the next "end" of NAME, or until the end of the file.
 - In each path, the account name and the host name become dev and host.
   In each name, a UUID becomes <uuid>, a run of 16 or more hex digits
   becomes <hex>, and a run of 5 or more digits becomes <n>.
@@ -44,9 +48,12 @@ Rules:
 - A host of a proxy event that names a private network becomes
   <private-host>: a name with one label (except localhost), a name that
   ends with .ts.net, .internal, .local, .lan, .home.arpa, .localdomain,
-  .localhost, .intranet, .corp, .home or .private,
+  .localhost, .intranet, .corp, .home, .private, .box, .lxd or .test,
   an IPv4 address that is not global (private, loopback, link-local,
-  shared, reserved), and each IPv6 address. A public name, for example
+  shared, reserved), and each IPv6 address. A host of numbers only is
+  read as the C resolver reads it: 10.1 is 10.0.0.1, 0x7f.1 and
+  2130706433 are 127.0.0.1. A host of numbers that is not an address is
+  private, also with more than four labels. A public name, for example
   api.anthropic.com, stays.
 - A model event holds the method, the route (with no query), and the
   model kind. It holds no text of the request. The program reads the model
@@ -99,7 +106,13 @@ PRIVATE_SUFFIXES = (
     ".corp",
     ".home",
     ".private",
+    ".box",
+    ".lxd",
+    ".test",
 )
+# A host whose labels are all numbers (decimal, octal or hex). The C
+# resolver reads it as an IPv4 address, for example 10.1 or 0x7f.1.
+NUMERIC_HOST_RE = re.compile(r"^(0x[0-9a-f]*|[0-9]+)(\.(0x[0-9a-f]*|[0-9]+))*$")
 
 
 def read_lines(path):
@@ -192,6 +205,34 @@ class Scrub:
         return text
 
 
+# macOS: /tmp is a link to /private/tmp, and /var to /private/var. A
+# program can see a path in either form.
+LINK_FORMS = (("/tmp", "/private/tmp"), ("/var", "/private/var"))
+
+
+def forms(path):
+    """The forms of a folder path: the path, its form on the other side of
+    a link of LINK_FORMS, and its real path. A form on the other side is
+    not added when both sides exist on this machine as two different
+    folders (on Linux, /private/tmp can be a real folder)."""
+    path = path.rstrip("/") or "/"
+    out = {path}
+    for a, b in LINK_FORMS:
+        for x, y in ((a, b), (b, a)):
+            if path == x or path.startswith(x + "/"):
+                if (
+                    os.path.isdir(x)
+                    and os.path.isdir(y)
+                    and os.path.realpath(x) != os.path.realpath(y)
+                ):
+                    continue
+                out.add(y + path[len(x) :])
+    real = os.path.realpath(path)
+    if real != path:
+        out.add(real)
+    return out
+
+
 class Paths:
     """Map an absolute path to a normalized path, or drop it."""
 
@@ -200,17 +241,18 @@ class Paths:
         self.scrub = Scrub()
         tmp = os.environ.get("TMPDIR") or "/tmp"
         # Each entry is (prefix, replacement). None means drop.
+        # Each folder is in all its forms (forms()).
         self.rules = []
-        self.rules.append((tmp.rstrip("/") or "/", "TMP"))
-        self.rules.append((run_dir.rstrip("/"), None))
+        self.rules.extend((f, "TMP") for f in forms(tmp))
+        self.rules.extend((f, None) for f in forms(run_dir))
         for row in sessions:
             home, work, sock = row[1], row[2], row[4]
             if home:
-                self.rules.append((home.rstrip("/"), "~"))
+                self.rules.extend((f, "~") for f in forms(home))
             if work:
-                self.rules.append((work.rstrip("/"), "WORK"))
+                self.rules.extend((f, "WORK") for f in forms(work))
             if sock:
-                self.rules.append((sock.rstrip("/"), None))
+                self.rules.extend((f, None) for f in forms(sock))
         # The longest prefix wins. At the same length a drop wins.
         self.rules.sort(key=lambda r: (-len(r[0]), r[1] is not None))
 
@@ -308,11 +350,12 @@ def kit_prefixes(sessions, tmp):
         pre = out.setdefault(name, set())
         for p in (home, work):
             if p:
-                pre.add(p.rstrip("/"))
+                pre |= forms(p)
         if work and uid is not None:
-            for w in {work.rstrip("/"), os.path.realpath(work)}:
+            for w in forms(work):
                 key = re.sub("[^A-Za-z0-9]", "-", w)
-                pre.add("%s/claude-%d/%s" % (tmp.rstrip("/"), uid, key))
+                for t in forms(tmp):
+                    pre.add("%s/claude-%d/%s" % (t.rstrip("/"), uid, key))
     return out
 
 
@@ -424,6 +467,13 @@ def private_host(host):
         ip = ipaddress.ip_address(h)
     except ValueError:
         ip = None
+    if ip is None and NUMERIC_HOST_RE.match(h):
+        # A short or integer IPv4 form. A form that the resolver does not
+        # read is private too: the program does not know the address.
+        try:
+            ip = ipaddress.IPv4Address(socket.inet_aton(h))
+        except (OSError, ValueError):
+            return True
     if ip is not None:
         return ip.version == 6 or not ip.is_global
     if h == "localhost":
