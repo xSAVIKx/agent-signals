@@ -25,7 +25,9 @@ Rules:
   by time.
 - A path is normalized. The longest known prefix wins: a session home
   becomes ~, a work folder becomes WORK, the temp folder (TMPDIR, else
-  /tmp) becomes TMP. A file event under the run folder, but not under a
+  /tmp) becomes TMP. Each known folder counts in all its forms: its real
+  path, and on macOS the form below /private (/tmp is a link to
+  /private/tmp, /var is a link to /private/var). A file event under the run folder, but not under a
   home or a work folder, is dropped. A file event under a SOCKDIR is
   dropped. The kit writes there.
 - The kit marks its own file work with the file
@@ -201,6 +203,26 @@ class Scrub:
         return text
 
 
+# macOS: /tmp is a link to /private/tmp, and /var to /private/var. A
+# program can see a path in either form.
+LINK_FORMS = (("/tmp", "/private/tmp"), ("/var", "/private/var"))
+
+
+def forms(path):
+    """The forms of a folder path: the path, its form on the other side of
+    a link of LINK_FORMS, and its real path."""
+    path = path.rstrip("/") or "/"
+    out = {path}
+    for a, b in LINK_FORMS:
+        for x, y in ((a, b), (b, a)):
+            if path == x or path.startswith(x + "/"):
+                out.add(y + path[len(x) :])
+    real = os.path.realpath(path)
+    if real != path:
+        out.add(real)
+    return out
+
+
 class Paths:
     """Map an absolute path to a normalized path, or drop it."""
 
@@ -209,17 +231,18 @@ class Paths:
         self.scrub = Scrub()
         tmp = os.environ.get("TMPDIR") or "/tmp"
         # Each entry is (prefix, replacement). None means drop.
+        # Each folder is in all its forms (forms()).
         self.rules = []
-        self.rules.append((tmp.rstrip("/") or "/", "TMP"))
-        self.rules.append((run_dir.rstrip("/"), None))
+        self.rules.extend((f, "TMP") for f in forms(tmp))
+        self.rules.extend((f, None) for f in forms(run_dir))
         for row in sessions:
             home, work, sock = row[1], row[2], row[4]
             if home:
-                self.rules.append((home.rstrip("/"), "~"))
+                self.rules.extend((f, "~") for f in forms(home))
             if work:
-                self.rules.append((work.rstrip("/"), "WORK"))
+                self.rules.extend((f, "WORK") for f in forms(work))
             if sock:
-                self.rules.append((sock.rstrip("/"), None))
+                self.rules.extend((f, None) for f in forms(sock))
         # The longest prefix wins. At the same length a drop wins.
         self.rules.sort(key=lambda r: (-len(r[0]), r[1] is not None))
 
@@ -317,11 +340,12 @@ def kit_prefixes(sessions, tmp):
         pre = out.setdefault(name, set())
         for p in (home, work):
             if p:
-                pre.add(p.rstrip("/"))
+                pre |= forms(p)
         if work and uid is not None:
-            for w in {work.rstrip("/"), os.path.realpath(work)}:
+            for w in forms(work):
                 key = re.sub("[^A-Za-z0-9]", "-", w)
-                pre.add("%s/claude-%d/%s" % (tmp.rstrip("/"), uid, key))
+                for t in forms(tmp):
+                    pre.add("%s/claude-%d/%s" % (t.rstrip("/"), uid, key))
     return out
 
 

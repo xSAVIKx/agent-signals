@@ -33,7 +33,7 @@ mkraw() {
 # run_build NAME META [HOST]: build into $T/NAME/out, the names are fixed.
 run_build() {
   (
-    TMPDIR=/tmp/example
+    TMPDIR=${RB_TMPDIR:-/tmp/example}
     SCRUB_USER=alice
     SCRUB_HOST=${3-build01.corp.internal}
     export TMPDIR SCRUB_USER SCRUB_HOST
@@ -231,6 +231,27 @@ want "kit marks: the deletes of the stop are not events" marks 'not any(e["kind"
 want "kit marks: the files of the agent stay" marks 'any(e.get("path") == "WORK/agent-made" and e["kind"] == "create" for e in ev) and any(e.get("path") == "~/.claude/settings.json" and e["kind"] == "write" for e in ev) and any(e.get("path") == "WORK/after-zz" for e in ev)'
 want "kit marks: another file in the temp folder stays" marks 'any(e.get("path") == "TMP/other-proc.lock" for e in ev)'
 want "kit marks: no mark file is an event" marks 'not any("kit-trace-mark" in e.get("path", "") + e.get("from", "") for e in ev) and not any("kit-trace-mark" in p for v in d["summary"]["files"].values() for p in v)'
+
+# macOS: /tmp is a link to /private/tmp, and /var/folders is a link to
+# /private/var/folders. A path in the real form is a TMP path too, and the
+# kit work in the Claude Code temp folder in the real form is dropped.
+mkraw privtmp
+ev_p() { printf '{"t": %s, "kind": "%s", "path": "%s", "dir": false}\n' "$1" "$2" "$3" >>"$T/privtmp/.trace/files.jsonl"; }
+ev_p 1700000005000 create /private/tmp/example/agent-a.txt
+ev_p 1700000005001 create /private/tmp/example/sock-a/kit-sock
+ev_p 1700000005100 create /work/example/.kit-trace-mark.a.begin
+ev_p 1700000005101 write "/private/tmp/example/claude-$(id -u)/-work-example-proj/task.out"
+ev_p 1700000005102 create /work/example/.kit-trace-mark.a.end
+run_build privtmp "$H/meta.json"
+want "private tmp: /private/tmp is TMP" privtmp 'any(e.get("path") == "TMP/agent-a.txt" for e in ev)'
+want "private tmp: no path starts with /private" privtmp 'not any(e.get("path", "").startswith("/private") for e in ev)'
+want "private tmp: the socket folder in the real form is dropped" privtmp 'not any("kit-sock" in e.get("path", "") for e in ev)'
+want "private tmp: the kit work in the real form is dropped" privtmp 'not any("task.out" in e.get("path", "") for e in ev)'
+mkraw varf
+printf '{"t": 1700000005000, "kind": "create", "path": "/private/var/folders/ab/cd/T/agent-b.txt", "dir": false}\n' >>"$T/varf/.trace/files.jsonl"
+printf '{"t": 1700000005001, "kind": "create", "path": "/var/folders/ab/cd/T/agent-c.txt", "dir": false}\n' >>"$T/varf/.trace/files.jsonl"
+(RB_TMPDIR=/var/folders/ab/cd/T && run_build varf "$H/meta.json")
+want "private var folders: both forms are TMP" varf '{"TMP/agent-b.txt", "TMP/agent-c.txt"} <= {e.get("path") for e in ev}'
 
 # Moves out of the watched folders, and a source that was dropped.
 mkraw moves
