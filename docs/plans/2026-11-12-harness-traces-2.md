@@ -278,7 +278,8 @@ line before it splits the line.
     {"path": "/usr/bin/python3", "runs": 1}, {"path":
     "/usr/local/bin/claude", "runs": 1}]`;
   - `summary.processes_left` is one item with pid 4260, ppid 4242,
-    program `/usr/bin/python3`, session `a`;
+    program `/usr/bin/python3`, session `a`. No item has pid 4242: its
+    exit comes before the time in `hangup.tsv` (rule 11);
   - one `open` event for `~/.claude/settings.json`; one with `ok` false
     for `~/.claude/missing.json`; none under `/proc`; one with `cut`
     true; the tab path is whole;
@@ -570,7 +571,10 @@ END { clear(@in); clear(@path); clear(@flags); clear(@open); }
   validator stops with exit 2 without them, as the `validate` helper of
   `test-trace.sh` shows), and runs `cd tools && go run ./cmd/validate ROOT`. It prints one line
   `check: NN-NAME@BACKEND ok` or `check: NN-NAME@BACKEND fail REASON`
-  for each trace, and deletes the temp root. No trace: exit 1.
+  for each trace, and deletes the temp root. No trace: exit 1. With
+  `--passed FILE`, it writes the name `NN-NAME@BACKEND` of each trace
+  that passed to FILE, one on each line (an empty file when none
+  passed), also when it exits 1.
 - Produces: `traces.yml`:
   - `on`: `workflow_dispatch` with the inputs `agents` (string, default
     `claude codex agy`), `steps` (string, default empty) and `raw`
@@ -595,7 +599,8 @@ END { clear(@in); clear(@path); clear(@flags); clear(@open); }
     `kit start --home fixture --unattended --out /work/runs`, and for
     each step `kit trace STEP@tmux --checks terminal,network,files,ebpf`
     (with `KIT_TRACE_KEEP_RAW=1` when `inputs.raw` is true), then
-    `kit session stop --all`, then `sh tools/check-traces.sh RUN`.
+    `kit session stop --all`, then
+    `sh tools/check-traces.sh RUN --passed "$RUNNER_TEMP/passed.txt"`.
   - Each input goes to a `run:` line through `env` (for example
     `AGENTS: ${{ inputs.agents }}`), never as `${{ }}` in the script.
     The script accepts only words of `[a-z0-9-]`; another word is bad
@@ -618,9 +623,11 @@ END { clear(@in); clear(@path); clear(@flags); clear(@open); }
   `$T`, and `trace-build.py` on a copy of that `raw/` folder (as
   `X/.trace`, with `--meta` a file that holds the `meta` object of the
   `trace.json` of the same folder) exits 0. Without the variable, no `raw/` folder.
-  `sh tools/check-traces.sh RUN` exits 0 on the run of the first case
-  (skip that case when `go` is not on `PATH`), and exits 1 on a run whose
-  trace has the skip `no-sudo`.
+  `sh tools/check-traces.sh RUN --passed F` exits 0 on the run of the
+  first case and writes its trace name to F (skip that case when `go` is
+  not on `PATH`). On a run with that trace and one more trace with the
+  skip `no-sudo`, it exits 1 and F holds only the name of the first
+  trace.
 - [ ] **Step 2: Run** `sh tools/test-agent-kit.sh tools/agent-kit-tests/test-trace-ebpf.sh`. Expected: FAIL.
 - [ ] **Step 3: Implement** `KIT_TRACE_KEEP_RAW`, `check-traces.sh` and
   `traces.yml`. Write a header comment in `traces.yml` as in
@@ -697,10 +704,13 @@ a job of `traces.yml`. Do not use `workflow_run`. Do not make
 
 **Interfaces:**
 - Consumes: `trace.json` (Tasks 1 and 2).
-- Produces: `python3 -I tools/trace-issues.py collect RUN --out FILE`:
-  writes a JSON list with one item for each `RUN/traces/*/trace.json`:
-  `{agent, agent_version, mode, runner_image, step, checks, skipped,
-  summary}`. Nothing else of the trace goes in.
+- Produces: `python3 -I tools/trace-issues.py collect RUN --only LIST --out FILE`:
+  writes a JSON list with one item for each `RUN/traces/NAME/trace.json`
+  whose NAME is a line of LIST (the `--passed` file of
+  `check-traces.sh`): `{agent, agent_version, mode, runner_image, step,
+  checks, skipped, summary}`. A trace that failed the check does not go
+  in. A missing LIST gives an empty list. Nothing else of the trace goes
+  in.
 - Produces: `python3 -I tools/trace-issues.py plan --summaries DIR
   --issues FILE --run-url URL --out FILE`. DIR holds the files of
   `collect`. FILE of `--issues` is the output of
@@ -712,9 +722,14 @@ a job of `traces.yml`. Do not use `workflow_run`. Do not make
   1. Key: `trace: AGENT VERSION (MODE)`. One issue for each key. An
      open issue with that title is the issue of the key; a closed one
      counts too, so that a closed issue is not opened again.
-  2. The items of a key: `programs` (paths), `files` and `opened` (by
-     area), `hosts` (`host:port`), `direct`, `dns`, `processes_left`
-     (programs), each with the set of runner images that saw it.
+  2. The items of a key: `programs` (paths), `files` and `opened`
+     (folders, below), `hosts` (`host:port`), `direct`, `dns`,
+     `processes_left` (programs), each with the set of runner images that
+     saw it. An item of `files` or `opened` is the folder of a path, cut
+     after the area and two more parts (`~/.claude/projects`,
+     `WORK/src`, `/usr/lib`). The full paths stay in the artifact. This
+     keeps the number of items small when an agent opens thousands of
+     files.
   3. The body: a first line with the key, the run link and the names of
      the artifacts of the run; one table
      for each kind of item with one column for each runner image
@@ -722,7 +737,13 @@ a job of `traces.yml`. Do not use `workflow_run`. Do not make
      `permission` step of each image (the `near` texts); a section
      `new since VERSION` with the items that the issue of the version
      before does not have; a last line `<!-- trace-data: DATA -->`, with
-     DATA the base64 of the JSON of the items and their images.
+     DATA the base64 of the JSON of the items and their images,
+     compressed with `zlib` level 9. DATA has 40000 characters at most.
+     When it is longer, remove the kinds from DATA in this order until it
+     fits: `opened`, `files`, `hosts`, `dns`, `direct`, `programs`,
+     `processes_left`. DATA then holds `"dropped": [KINDS]`. Rules 3
+     ("new since") and 5 do not compare a dropped kind, and the body
+     says `KIND: not compared (too large)` for it.
   4. The version before: the issue with the same agent and mode and the
      highest version below this version. A version sorts by its runs of
      digits as integers, then by the text. No version before: the
@@ -735,12 +756,19 @@ a job of `traces.yml`. Do not use `workflow_run`. Do not make
      Control characters are removed. An item longer than 200 characters
      is cut and ends with `...`.
   7. A table with more than 100 rows shows 100 and a line
-     `N more in the artifact`. A body longer than 60000 characters drops
-     the timeline first, then cuts the tables to 20 rows.
-- Produces: `traces.yml` runs `collect` after `check-traces.sh` into
-  `$RUNNER_TEMP/summary/summary-AGENT-OS.json` and uploads that file as
-  the artifact `trace-summary-AGENT-OS` (`if: always()`, `retention-days:
-  14`).
+     `N more in the artifact`. When the body without the DATA line is
+     longer than 24000 characters, drop the timeline first, then cut the
+     tables to 20 rows, then to 5 rows. With rule 6 (200 characters for
+     each item) and the 40000 characters of DATA, the body stays below
+     the GitHub limit of 65536 characters.
+- Produces: `traces.yml` runs `collect` in its own step after the run,
+  with `if: always() && steps.pick.outputs.run == 'yes'`, also when
+  `check-traces.sh` or a step failed. It reads
+  `$RUNNER_TEMP/passed.txt` as LIST and writes
+  `$RUNNER_TEMP/summary/summary-AGENT-OS.json`. The upload of that file as
+  the artifact `trace-summary-AGENT-OS` has the same `if`
+  (`retention-days: 14`). The job still fails after the uploads when the
+  run step failed.
 - Produces: the job `issues` in `traces.yml`:
   - `needs: trace`. `if: ${{ !cancelled() && (github.event_name ==
     'schedule' || github.event_name == 'workflow_dispatch') &&
@@ -776,7 +804,8 @@ a job of `traces.yml`. Do not use `workflow_run`. Do not make
   `claude 2.1.320 fixture` (images `ubuntu-24.04` and `ubuntu-24.04-arm`,
   different hosts), one for `claude 2.1.319 fixture` in the issue list
   (its body made by `plan`, with DATA), an item with a backtick and an
-  item that starts with `@`, and one summary with 150 opened files.
+  item that starts with `@`, and one summary with 150 opened files in
+  150 different folders.
 - [ ] **Step 2: Write the failing tests** in `tools/test-trace-issues.sh`
   (`pass:` and `fail:` lines as the other tools tests):
   - `collect` on a run folder with a trace from `raw-ebpf` (built in the
@@ -792,6 +821,9 @@ a job of `traces.yml`. Do not use `workflow_run`. Do not make
     whose comment names that program;
   - the backtick item shows as `'`, the `@` item is in a code span;
   - the 150-row table shows 100 rows and `50 more in the artifact`;
+  - a summary with 5000 opened paths in 5000 different folders gives a
+    body shorter than 65536 characters and a DATA of 40000 characters at
+    most; when DATA dropped a kind, the body names it as not compared;
   - versions `2.1.9` and `2.1.10`: `2.1.10` sorts above;
   - no output holds a key of `trace.json` other than the summary keys
     and the meta keys of `collect`.
