@@ -248,8 +248,12 @@ The output folder `RUN/traces/NN-NAME@BACKEND/` holds `trace.json` (the
 format is `schema/trace.schema.json`) and, with the fixture home only,
 `terminal.cast`. NN is one more than the highest number in `RUN/traces/`.
 The kit scrubs each file. In `trace.json`, the home of the session is
-`~`, the work folder is `WORK`, and `/tmp` is `TMP`. A step that fails or
-skips also gets a trace.
+`~`, the work folder is `WORK`, and `/tmp` is `TMP` (also in its macOS
+form `/private/tmp`, and a `TMPDIR` below `/private/var/folders`). In
+`terminal.cast`, a cut path `/…/TAIL` that names the run folder, the work
+root or a session becomes `/work/example/LAST`, also when the agent drew
+it in two parts or with a color inside it. A cut path with a space in it
+stays. A step that fails or skips also gets a trace.
 
 The file check watches only the top level of `/tmp`, but there it sees the
 items of all processes of your account. The TMP list can show items of
