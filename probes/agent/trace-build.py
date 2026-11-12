@@ -19,6 +19,15 @@ Raw files (a missing file means that its check did not run):
   skipped.tsv   CHECK<tab>REASON.
   checks        the selected checks, as a comma list. No file or an empty
                 file means all checks.
+  ebpf.txt      NS<tab>WORD<tab>FIELDS, one line for each event of the
+                kernel (bpftrace). NS is the boot clock in ns. The last
+                field can hold a tab. The words: fork PARENT CHILD COMM,
+                exec PID COMM PATH, exit PID, open PID FLAGS RET PATH,
+                connect4 PID PORT ADDR, connect6 PID PORT HI LO (hex),
+                connectu PID PATH, dns PID NAME, signal PID TARGET SIG.
+  ebpf.err      the stderr of bpftrace and sudo.
+  ebpf-clock    epoch ms minus boot ms, one integer.
+  hangup.tsv    MS<tab>NAME: the time after the hang-up wait of a session.
 
 Rules:
 - Each time is MS - t0, as an integer, never below 0. Events are sorted
@@ -54,6 +63,41 @@ Rules:
 - Only a fixture home, and not the login mode, keeps the terminal record.
   With any other home, "terminal" is null and the cast is deleted. A terminal line in skipped.tsv also gives null.
 
+The rules of the eBPF check. The check runs when ebpf.txt exists and
+skipped.tsv has no ebpf line. Without the check, the summary keys
+programs, processes_left, opened, direct and dns, and meta.ebpf_lost, are
+null.
+- With no ebpf-clock, the check is skipped with the reason no-clock. The
+  time of a line is NS // 1000000 + CLOCK - t0.
+- A line that holds "Lost N events", in ebpf.txt or in ebpf.err, adds N
+  to meta.ebpf_lost. A line that does not parse is skipped. A \\r at the
+  end of a line is removed.
+- The fork lines give the parent of each pid. The tree of a session is
+  its AGENT_PID and each pid below it. The lines of the other pids (the
+  kit, the tmux server, the fake model) are dropped.
+- The agent starts at the first exec of AGENT_PID whose path is not
+  /bin/sh, /usr/bin/sh, /bin/dash or /usr/bin/dash (the gate of the
+  pane). The lines of AGENT_PID before it, and the pids that it forked
+  before it, are dropped. With no such exec, the full tree stays.
+- The ppid of AGENT_PID is null.
+- open: mode from FLAGS & 3, create when FLAGS & 0o100, ok when RET is 0
+  or more, cut when the path has 199 characters or more. The paths under
+  /proc and /sys are dropped. One event for each (path, mode, ok): the
+  first one stays.
+- connect: loopback stays. Each other address goes through the host
+  rules above. An IPv4-mapped IPv6 address gets the rules of its IPv4
+  address. An address that does not parse becomes <private-host>. A unix
+  socket has the normalized path, or @ for an abstract socket.
+- dns: the name goes through the host rules and the scrub.
+- summary.programs counts the exec paths. summary.processes_left holds
+  each pid of a tree that started before the hang-up time of its session
+  and has no exit at or before that time. With no hang-up line, it holds
+  each pid with no exit. summary.opened holds the paths of the open
+  events that worked. summary.direct holds the IPv4 and IPv6 connections
+  that are not loopback and not to port 53: they did not use the proxy
+  of the kit. summary.dns holds the names, and is an empty list when the
+  check ran and saw no name.
+
 It uses the standard library only.
 """
 import argparse
@@ -87,6 +131,35 @@ HEX_RE = re.compile("[0-9A-Fa-f]{16,}")
 DIGITS_RE = re.compile("[0-9]{5,}")
 MARK_RE = re.compile(r"/\.kit-trace-mark\.([A-Za-z0-9_-]+)\.(begin|end)$")
 PRIVATE_HOST = "<private-host>"
+# The number of fields after the word of each line of ebpf.txt, and the
+# fields that are integers.
+EBPF_FIELDS = {
+    "fork": 3,
+    "exec": 3,
+    "exit": 1,
+    "open": 4,
+    "connect4": 3,
+    "connect6": 4,
+    "connectu": 2,
+    "dns": 2,
+    "signal": 3,
+}
+EBPF_INTS = {
+    "fork": (0, 1),
+    "exec": (0,),
+    "exit": (0,),
+    "open": (0, 1, 2),
+    "connect4": (0, 1),
+    "connect6": (0, 1),
+    "connectu": (0,),
+    "dns": (0,),
+    "signal": (0, 1, 2),
+}
+# The shell of the gate of the pane runs before the agent.
+GATE_SHELLS = ("/bin/sh", "/usr/bin/sh", "/bin/dash", "/usr/bin/dash")
+# bpftrace cuts a string at this length.
+EBPF_MAX_PATH = 199
+LOST_RE = re.compile(r"Lost ([0-9]+) events")
 PRIVATE_SUFFIXES = (
     ".ts.net",
     ".internal",
@@ -521,8 +594,299 @@ def clean_route(route):
     return route or "/"
 
 
+def parse_ebpf_line(line):
+    """Return (ns, word, fields) of an event line, or None."""
+    cols = line.split("\t", 1)
+    if len(cols) < 2 or not cols[0].isdigit():
+        return None
+    word, _, rest = cols[1].partition("\t")
+    want = EBPF_FIELDS.get(word)
+    if want is None:
+        return None
+    # The last field can hold a tab, so it takes the rest of the line.
+    fields = rest.split("\t", want - 1)
+    if len(fields) < want:
+        return None
+    try:
+        for i in EBPF_INTS[word]:
+            fields[i] = int(fields[i])
+    except ValueError:
+        return None
+    return int(cols[0]), word, fields
+
+
+def read_ebpf_lines(raw):
+    """Return (rows, lost). Each row is (ns, word, fields). A line that
+    does not parse is skipped. A "Lost N events" line, in ebpf.txt or in
+    ebpf.err, adds N to lost."""
+    rows = []
+    lost = 0
+    for name in ("ebpf.txt", "ebpf.err"):
+        try:
+            with open(
+                os.path.join(raw, name), encoding="utf-8", errors="replace"
+            ) as f:
+                # Only a new line ends a line: a path can hold other
+                # control characters.
+                lines = f.read().split("\n")
+        except OSError:
+            continue
+        for line in lines:
+            line = line.rstrip("\r")
+            row = parse_ebpf_line(line) if name == "ebpf.txt" else None
+            if row is not None:
+                rows.append(row)
+                continue
+            m = LOST_RE.search(line)
+            if m:
+                lost += int(m.group(1))
+    # The lines of the CPUs can come out of order.
+    rows.sort(key=lambda r: r[0])
+    return rows, lost
+
+
+def loopback(host):
+    """True when the host is a loopback address."""
+    import ipaddress
+
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def ebpf_host(ip):
+    """The host of an IP address object. An IPv4-mapped IPv6 address gets
+    the rules of its IPv4 address."""
+    if ip.version == 6 and ip.ipv4_mapped is not None:
+        ip = ip.ipv4_mapped
+    # private_host() is true for loopback, so loopback comes first.
+    if ip.is_loopback:
+        return str(ip)
+    if private_host(str(ip)):
+        return PRIVATE_HOST
+    return str(ip)
+
+
+def ebpf_connect(word, fields, paths):
+    """Return the fields of a connect event, or None to drop it."""
+    import ipaddress
+    import struct
+
+    if word == "connectu":
+        path = fields[1]
+        if not path:
+            # An abstract socket.
+            return {"family": "unix", "host": "@", "port": 0}
+        host = paths.normalize(path)
+        if host is None:
+            return None
+        return {"family": "unix", "host": host, "port": 0}
+    port = min(max(fields[1], 0), 65535)
+    ip = None
+    if word == "connect4":
+        family = "ipv4"
+        try:
+            ip = ipaddress.IPv4Address(fields[2].strip())
+        except ValueError:
+            pass
+    else:
+        family = "ipv6"
+        try:
+            hi = int(fields[2], 16)
+            lo = int(fields[3], 16)
+            ip = ipaddress.IPv6Address(struct.pack("<QQ", hi, lo))
+        except (ValueError, struct.error, OverflowError):
+            pass
+    # An address that does not parse (for example <ip> of the scrub) is
+    # not shown.
+    host = PRIVATE_HOST if ip is None else ebpf_host(ip)
+    return {"family": family, "host": host, "port": port}
+
+
+def ebpf_events(raw, t0, sessions, hangups, paths):
+    """Return (events, summary_parts, lost) of the eBPF check.
+
+    sessions holds the rows of sessions.tsv. hangups maps a session name
+    to the epoch ms of its line in hangup.tsv. Returns None when there is
+    no ebpf-clock."""
+    try:
+        clock = int((read_lines(os.path.join(raw, "ebpf-clock")) or [""])[0])
+    except ValueError:
+        return None
+    rows, lost = read_ebpf_lines(raw)
+
+    agents = {}
+    for row in sessions:
+        pid = to_int(row[3], None)
+        if pid is not None and pid > 0:
+            agents[pid] = row[0]
+    # The start of each agent: the first exec of its pid that is not the
+    # gate of the pane. Before it, the agent pid is not in its tree.
+    start = {}
+    for i, (_, word, fields) in enumerate(rows):
+        if word == "exec" and fields[0] in agents and fields[0] not in start:
+            if fields[2] not in GATE_SHELLS:
+                start[fields[0]] = i
+    member = {}  # pid -> session name, for each live pid of a tree
+    parent = {}
+    for pid, name in agents.items():
+        if pid not in start:
+            member[pid] = name
+    since = {}  # pid -> epoch ms of its first line in a tree
+    ended = {}  # pid -> epoch ms of its exit
+    last_exec = {}  # pid -> normalized path of its last exec
+    tree = {}  # pid -> (session name, ppid), in order of appearance
+    events = []
+    opened = set()
+
+    def note(pid, ms):
+        if pid not in tree:
+            tree[pid] = (member[pid], parent.get(pid))
+            since[pid] = ms
+
+    for i, (ns, word, fields) in enumerate(rows):
+        ms = ns // 1000000 + clock
+        pid = fields[0]
+        if word == "exec" and start.get(pid) == i:
+            member[pid] = agents[pid]
+        if word == "fork":
+            child = fields[1]
+            if pid in member and child not in agents:
+                note(pid, ms)
+                member[child] = member[pid]
+                parent[child] = pid
+                note(child, ms)
+            elif child not in agents:
+                # A pid that the kernel gives again is not in a tree.
+                member.pop(child, None)
+            continue
+        if pid not in member:
+            continue
+        note(pid, ms)
+        ev = {
+            "t": max(ms - t0, 0),
+            "kind": word,
+            "pid": pid,
+            "ppid": None if pid in agents else parent.get(pid),
+        }
+        if word == "exec":
+            path = paths.normalize(fields[2])
+            if path is None:
+                continue
+            last_exec[pid] = path
+            ev["path"] = path
+            ev["comm"] = fields[1]
+        elif word == "exit":
+            ended[pid] = ms
+            member.pop(pid, None)
+        elif word == "open":
+            flags, ret, raw_path = fields[1], fields[2], fields[3]
+            if not raw_path or under(raw_path, ("/proc", "/sys")):
+                continue
+            path = paths.normalize(raw_path)
+            if path is None:
+                continue
+            mode = {0: "r", 1: "w"}.get(flags & 3, "rw")
+            ok = ret >= 0
+            if (path, mode, ok) in opened:
+                continue
+            opened.add((path, mode, ok))
+            ev.update({"path": path, "mode": mode, "ok": ok})
+            if flags & 0o100:
+                ev["create"] = True
+            if len(raw_path) >= EBPF_MAX_PATH:
+                ev["cut"] = True
+        elif word in ("connect4", "connect6", "connectu"):
+            got = ebpf_connect(word, fields, paths)
+            if got is None:
+                continue
+            ev["kind"] = "connect"
+            ev.update(got)
+        elif word == "dns":
+            name = fields[1].strip()
+            if not name:
+                continue
+            ev["name"] = (
+                PRIVATE_HOST if private_host(name) else paths.scrub.text(name)
+            )
+        elif word == "signal":
+            ev["target"] = fields[1]
+            ev["sig"] = fields[2]
+        events.append(ev)
+
+    runs = {}
+    for ev in events:
+        if ev["kind"] == "exec":
+            runs[ev["path"]] = runs.get(ev["path"], 0) + 1
+    left = []
+    for pid, (name, ppid) in tree.items():
+        stop = hangups.get(name)
+        if stop is None:
+            if pid in ended:
+                continue
+        elif since[pid] >= stop or ended.get(pid, stop + 1) <= stop:
+            continue
+        program = None
+        p = pid
+        while p is not None and program is None:
+            program = last_exec.get(p)
+            p = parent.get(p) if p not in agents else None
+        left.append(
+            {
+                "pid": pid,
+                "ppid": None if pid in agents else ppid,
+                "program": program or "?",
+                "session": name,
+            }
+        )
+    left.sort(key=lambda x: (x["session"], x["pid"]))
+    direct = {}
+    for ev in events:
+        if ev["kind"] != "connect" or ev["family"] == "unix":
+            continue
+        if loopback(ev["host"]) or ev["port"] == 53:
+            continue
+        key = (ev["host"], ev["port"])
+        direct[key] = direct.get(key, 0) + 1
+    parts = {
+        "programs": [{"path": k, "runs": runs[k]} for k in sorted(runs)],
+        "processes_left": left,
+        "opened": summarize_paths(
+            ev["path"] for ev in events if ev["kind"] == "open" and ev["ok"]
+        ),
+        "direct": [
+            {"host": h, "port": p, "connections": direct[(h, p)]}
+            for h, p in sorted(direct)
+        ],
+        "dns": sorted({ev["name"] for ev in events if ev["kind"] == "dns"}),
+    }
+    return events, parts, lost
+
+
+def read_hangups(raw):
+    """Map each session name to the epoch ms of its hang-up line."""
+    out = {}
+    for line in read_lines(os.path.join(raw, "hangup.tsv")) or []:
+        cols = line.rstrip("\r").split("\t")
+        if len(cols) < 2:
+            continue
+        ms = to_int(cols[0], None)
+        if ms is not None and cols[1]:
+            out[cols[1]] = ms
+    return out
+
+
 def event_text(ev):
     kind = ev["kind"]
+    if kind == "exit":
+        return "exit %d" % ev["pid"]
+    if kind == "connect":
+        return "connect %s:%d" % (ev["host"], ev["port"])
+    if kind == "dns":
+        return "dns %s" % ev["name"]
+    if kind == "signal":
+        return "signal %d %d" % (ev["sig"], ev["target"])
     if kind == "proxy":
         return "proxy %s:%d" % (ev["host"], ev["port"])
     if kind == "model":
@@ -534,13 +898,21 @@ def event_text(ev):
     return kind
 
 
-def summarize_files(events):
+def summarize_paths(paths):
     sets = {"home": set(), "work": set(), "tmp": set(), "other": set()}
-    for ev in events:
-        for key in ("path", "from"):
-            if ev.get(key) and ev[key] != "?" and ev["kind"] in FILE_KINDS:
-                sets[area(ev[key])].add(ev[key])
+    for path in paths:
+        sets[area(path)].add(path)
     return {k: sorted(v) for k, v in sets.items()}
+
+
+def summarize_files(events):
+    return summarize_paths(
+        ev[key]
+        for ev in events
+        if ev["kind"] in FILE_KINDS
+        for key in ("path", "from")
+        if ev.get(key) and ev[key] != "?"
+    )
 
 
 def summarize_hosts(events):
@@ -664,6 +1036,24 @@ def main():
             events += mev
             model_requests = len(mev)
 
+    ebpf_parts = dict.fromkeys(
+        ("programs", "processes_left", "opened", "direct", "dns")
+    )
+    ebpf_lost = None
+    if (
+        os.path.isfile(os.path.join(raw, "ebpf.txt"))
+        and "ebpf" not in skipped_checks
+    ):
+        got = ebpf_events(
+            raw, t0, read_sessions(raw), read_hangups(raw), paths
+        )
+        if got is None:
+            skipped.append({"check": "ebpf", "reason": "no-clock"})
+        else:
+            eev, ebpf_parts, ebpf_lost = got
+            checks.append("ebpf")
+            events += eev
+
     events.sort(key=lambda e: e["t"])
     order = {c: i for i, c in enumerate(CHECKS)}
     checks.sort(key=lambda c: order[c])
@@ -671,6 +1061,7 @@ def main():
     meta["checks"] = checks
     meta["skipped"] = skipped
     meta["files_limit"] = files_limit
+    meta["ebpf_lost"] = ebpf_lost
     result = {
         "provenance": "measured",
         "meta": meta,
@@ -681,11 +1072,11 @@ def main():
             "files": summary_files,
             "hosts": summary_hosts,
             "model_requests": model_requests,
-            "programs": None,
-            "processes_left": None,
-            "opened": None,
-            "direct": None,
-            "dns": None,
+            "programs": ebpf_parts["programs"],
+            "processes_left": ebpf_parts["processes_left"],
+            "opened": ebpf_parts["opened"],
+            "direct": ebpf_parts["direct"],
+            "dns": ebpf_parts["dns"],
             "timeline": timeline(states, events),
         },
     }

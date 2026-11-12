@@ -1,0 +1,16 @@
+{"t": 1700000001300, "kind": "write", "path": "/home/example/.claude/x-0123456789abcdef0.json", "dir": false}
+{"t": 1700000000300, "kind": "create", "path": "/home/example/.config/agent/state.json", "dir": false}
+{"t": 1700000003200, "kind": "create", "path": "/work/example/proj/before.txt", "dir": false}
+{"t": 1700000003300, "kind": "create", "path": "/home/example/Documents/plan.txt", "dir": false}
+{"t": 1700000003400, "kind": "create", "path": "/home/example/.cache/alice-notes/a.txt", "dir": false}
+{"t": 1700000003500, "kind": "create", "path": "/home/example/.cache/build01.corp.internal/b.txt", "dir": false}
+{"t": 1700000003600, "kind": "create", "path": "/home/example/.cache/BUILD01.lan/c.txt", "dir": false}
+{"t": 1700000003700, "kind": "create", "path": "/tmp/example/sock-a/ready", "dir": false}
+{"t": 1700000004300, "kind": "create", "path": "/work/example/proj/note.txt", "dir": false}
+{"t": 1700000004300, "kind": "create", "path": "/work/example/proj/note.txt", "dir": false}
+{"t": 1700000005200, "kind": "move", "path": "/work/example/proj/note.md", "from": "/work/example/proj/note.txt", "dir": false}
+{"t": 1700000005300, "kind": "overflow"}
+{"t": 1700000005800, "kind": "delete", "path": "/tmp/example/agent.lock", "dir": false}
+{"t": 1700000005900, "kind": "write", "path": "/home/example/.cache/agent-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee-12345/s", "dir": false}
+{"t": 1700000007200, "kind": "write", "path": "/work/example/proj/late.txt", "dir": false}
+{"t": 1700000007300, "kind": "limit"}

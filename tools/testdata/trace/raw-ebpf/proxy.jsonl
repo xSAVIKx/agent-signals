@@ -1,0 +1,3 @@
+{"start": 1700000001900, "end": 1700000006000, "host": "api.example.com", "port": 443, "up": 2048, "down": 8192, "status": "ok", "method": "CONNECT"}
+{"start": 1700000002500, "end": 1700000002600, "host": "api.example.com", "port": 443, "up": 100, "down": 200, "status": "ok", "method": "CONNECT"}
+{"start": 1700000003000, "end": 1700000003001, "host": "other.example.org", "port": 8080, "up": 0, "down": 0, "status": "refused", "method": "CONNECT"}

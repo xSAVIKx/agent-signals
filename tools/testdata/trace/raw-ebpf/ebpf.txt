@@ -1,0 +1,32 @@
+1000100000123	fork	4100	4150	bash
+1000110000123	open	4150	0	3	/etc/passwd
+1000150000123	fork	4150	4242	sh
+1000200000123	exec	4242	sh	/usr/bin/sh
+1000210000123	fork	4242	4243	sh
+1000220000123	exec	4243	sleep	/usr/bin/sleep
+1000230000123	exit	4243
+1000300000123	exec	4242	claude	/usr/local/bin/claude
+1000400000123	open	4242	0	3	/home/example/.claude/settings.json
+1000410000123	open	4242	0	3	/home/example/.claude/settings.json
+1000420000123	open	4242	0	-2	/home/example/.claude/missing.json
+1000430000123	open	4242	0	3	/proc/self/stat
+1000440000123	open	4242	577	3	/work/example/proj/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+1000450000123	open	4242	2	3	/work/example/proj/a	b.txt
+1000500000123	fork	4242	4250	claude
+1000510000123	exec	4250	git	/usr/bin/git
+1000520000123	open	4250	0	3	/work/example/proj/.git/config
+1000530000123	signal	4242	4250	15
+1000540000123	exit	4250
+1000600000123	connect4	4242	8080	127.0.0.1
+1000610000123	connect4	4242	443	1.1.1.1
+1000620000123	connect4	4242	443	10.0.0.5
+1000630000123	connect6	4242	443	0	100000000000000
+1000640000123	connectu	4242	/run/systemd/resolve/io.systemd.Resolve
+1000650000123	connectu	4242	
+1000700000123	dns	4242	api.anthropic.com
+1000710000123	dns	4242	build01
+1000800000123	fork	4242	4260	claude
+1000810000123	exec	4260	python3	/usr/bin/python3
+Lost 3 events
+garbage
+1001000000123	exit	4242

@@ -323,4 +323,91 @@ run_build not0 "$H/meta.json"
 expect_code "no t0: exit 1" 1 $?
 if [ ! -e "$T/not0/out/trace.json" ]; then pass "no t0: no trace.json"; else fail "no t0: no trace.json" "file exists"; fi
 
+# The eBPF check. The raw folder raw-ebpf has ebpf.txt, ebpf-clock and
+# hangup.tsv. AGENT_PID is 4242. The pid of trace.sh is 4100.
+rawe=$ROOT/tools/testdata/trace/raw-ebpf
+# mkrawe NAME: copy the raw eBPF test folder to $T/NAME/.trace.
+mkrawe() {
+  mkdir -p "$T/$1/.trace"
+  for _f in "$rawe"/*; do cp "$_f" "$T/$1/.trace/"; done
+}
+mkrawe ebpf
+run_build ebpf "$H/meta.json"
+expect_code "ebpf: exit 0" 0 $?
+if command -v go >/dev/null 2>&1; then
+  R=$T/root3
+  mkdir -p "$R/schema" "$R/corpus" "$R/facts" "$R/traces/claude/2.1.319/01-permission@tmux"
+  for _f in "$ROOT"/schema/*; do cp "$_f" "$R/schema/"; done
+  cp "$T/ebpf/out/trace.json" "$T/ebpf/out/terminal.cast" "$R/traces/claude/2.1.319/01-permission@tmux/"
+  if (cd "$ROOT/tools" && go run ./cmd/validate "$R") >"$T/validate3.log" 2>&1; then
+    pass "ebpf: the trace passes the schema check"
+  else
+    fail "ebpf: the trace passes the schema check" "$(head -c 400 "$T/validate3.log")"
+  fi
+fi
+want "ebpf: checks hold ebpf" ebpf 'd["meta"]["checks"] == ["terminal", "network", "files", "ebpf"] and d["meta"]["skipped"] == []'
+want "ebpf: ebpf_lost is 3" ebpf 'd["meta"]["ebpf_lost"] == 3'
+want "ebpf: no event of the kit or of the gate" ebpf 'not any(e["pid"] in (4100, 4150, 4243) for e in ev) and not any(e["kind"] == "exec" and e["path"] == "/usr/bin/sleep" for e in ev)'
+want "ebpf: the exec of the gate is dropped" ebpf 'not any(e["kind"] == "exec" and e["path"] == "/usr/bin/sh" for e in ev)'
+want "ebpf: the agent exec has ppid null" ebpf 'any(e["kind"] == "exec" and e["pid"] == 4242 and e["ppid"] is None and e["path"] == "/usr/local/bin/claude" and e["comm"] == "claude" for e in ev)'
+want "ebpf: programs" ebpf 'd["summary"]["programs"] == [{"path": "/usr/bin/git", "runs": 1}, {"path": "/usr/bin/python3", "runs": 1}, {"path": "/usr/local/bin/claude", "runs": 1}]'
+want "ebpf: processes_left" ebpf 'd["summary"]["processes_left"] == [{"pid": 4260, "ppid": 4242, "program": "/usr/bin/python3", "session": "a"}]'
+want "ebpf: one open for each path, mode and result" ebpf 'sum(1 for e in ev if e["kind"] == "open" and e["path"] == "~/.claude/settings.json") == 1'
+want "ebpf: a failed open has ok false" ebpf 'any(e["kind"] == "open" and e["path"] == "~/.claude/missing.json" and e["ok"] is False and e["mode"] == "r" for e in ev)'
+want "ebpf: no open under /proc" ebpf 'not any(e["kind"] == "open" and e["path"].startswith("/proc") for e in ev)'
+want "ebpf: a long path has cut true" ebpf 'sum(1 for e in ev if e["kind"] == "open" and e.get("cut") is True) == 1 and any(e["kind"] == "open" and e.get("cut") and e["mode"] == "w" and e.get("create") is True for e in ev)'
+want "ebpf: the tab path is whole" ebpf 'any(e["kind"] == "open" and e["path"] == "WORK/a\tb.txt" and e["mode"] == "rw" for e in ev)'
+want "ebpf: the git open is under WORK" ebpf 'any(e["kind"] == "open" and e["pid"] == 4250 and e["path"] == "WORK/.git/config" for e in ev)'
+want "ebpf: direct" ebpf 'd["summary"]["direct"] == [{"host": "1.1.1.1", "port": 443, "connections": 1}, {"host": "<private-host>", "port": 443, "connections": 1}]'
+want "ebpf: loopback stays" ebpf '{(e["family"], e["host"], e["port"]) for e in ev if e["kind"] == "connect" and e["family"] != "unix"} == {("ipv4", "127.0.0.1", 8080), ("ipv4", "1.1.1.1", 443), ("ipv4", "<private-host>", 443), ("ipv6", "::1", 443)}'
+want "ebpf: unix sockets" ebpf '{e["host"] for e in ev if e["kind"] == "connect" and e["family"] == "unix" and e["port"] == 0} == {"/run/systemd/resolve/io.systemd.Resolve", "@"}'
+want "ebpf: dns" ebpf 'd["summary"]["dns"] == ["<private-host>", "api.anthropic.com"]'
+want "ebpf: signal and ppid of a child" ebpf 'any(e["kind"] == "signal" and e["pid"] == 4242 and e["target"] == 4250 and e["sig"] == 15 for e in ev) and any(e["kind"] == "exec" and e["path"] == "/usr/bin/git" and e["ppid"] == 4242 for e in ev)'
+want "ebpf: exit events" ebpf '{e["pid"] for e in ev if e["kind"] == "exit"} == {4250, 4242}'
+want "ebpf: opened holds the open paths that worked" ebpf 'd["summary"]["opened"]["home"] == ["~/.claude/settings.json"] and "WORK/.git/config" in d["summary"]["opened"]["work"] and d["summary"]["opened"]["other"] == []'
+want "ebpf: times from ebpf-clock" ebpf '[e["t"] for e in ev if e["kind"] == "exec" and e["pid"] == 4242] == [300]'
+want "ebpf: timeline texts" ebpf '{"exec /usr/local/bin/claude", "dns api.anthropic.com", "connect 1.1.1.1:443", "signal 15 4250", "exit 4250", "open ~/.claude/settings.json"} <= {n["text"] for x in d["summary"]["timeline"] for n in x["near"]}'
+want "ebpf: no host name stays" ebpf '"build01" not in json.dumps(d).lower()'
+
+# No eBPF check: the five keys are null.
+want "no ebpf: the eBPF keys are null" main 'all(d["summary"][k] is None for k in ("programs", "processes_left", "opened", "direct", "dns")) and d["meta"].get("ebpf_lost") is None and "ebpf" not in d["meta"]["checks"]'
+
+# No dns line: an empty list.
+mkrawe nodns
+grep -v "$(printf '\tdns\t')" "$rawe/ebpf.txt" >"$T/nodns/.trace/ebpf.txt"
+run_build nodns "$H/meta.json"
+want "ebpf: no dns line gives an empty list" nodns 'd["summary"]["dns"] == [] and any(e["kind"] == "connect" for e in ev)'
+
+# No ebpf-clock: the check is skipped.
+mkrawe noclock
+rm "$T/noclock/.trace/ebpf-clock"
+run_build noclock "$H/meta.json"
+expect_code "no ebpf-clock: exit 0" 0 $?
+want "no ebpf-clock: skipped with no-clock" noclock '{"check": "ebpf", "reason": "no-clock"} in d["meta"]["skipped"] and "ebpf" not in d["meta"]["checks"] and d["summary"]["programs"] is None and d["meta"].get("ebpf_lost") is None'
+
+# A skip line of ebpf: no eBPF event.
+mkrawe skipebpf
+printf 'ebpf\tno-sudo\n' >>"$T/skipebpf/.trace/skipped.tsv"
+run_build skipebpf "$H/meta.json"
+want "skipped ebpf: no eBPF event" skipebpf 'not any(e["kind"] in ("exec", "exit", "open", "connect", "dns", "signal") for e in ev) and d["summary"]["dns"] is None and "ebpf" not in d["meta"]["checks"]'
+
+# A pane with no gate exec keeps the full tree. A connect4 with an
+# address that is not IPv4, an IPv4-mapped IPv6 address, and a lost line
+# in ebpf.err.
+mkrawe nogate
+{
+  printf '1000050000000\tfork\t4242\t4300\tsh\n'
+  printf '1000060000000\texec\t4300\tcurl\t/usr/bin/curl\n'
+  printf '1000070000000\tconnect4\t4300\t443\t<ip>\n'
+  printf '1000080000000\tconnect6\t4300\t443\t0\t7080908ffff0000\r\n'
+} >"$T/nogate/.trace/ebpf.txt"
+printf 'Lost 2 events\n' >"$T/nogate/.trace/ebpf.err"
+rm "$T/nogate/.trace/hangup.tsv"
+run_build nogate "$H/meta.json"
+want "no gate: the full tree stays" nogate 'any(e["kind"] == "exec" and e["pid"] == 4300 and e["ppid"] == 4242 for e in ev)'
+want "no gate: an address that is not IPv4 is <private-host>" nogate 'any(e["kind"] == "connect" and e["family"] == "ipv4" and e["host"] == "<private-host>" for e in ev)'
+want "no gate: an IPv4-mapped address has the IPv4 rules" nogate 'any(e["kind"] == "connect" and e["family"] == "ipv6" and e["host"] == "8.9.8.7" for e in ev)'
+want "no gate: a lost line in ebpf.err counts" nogate 'd["meta"]["ebpf_lost"] == 2'
+want "no gate: no hangup line, each pid with no exit is left" nogate '[p["pid"] for p in d["summary"]["processes_left"]] == [4242, 4300]'
+
 done_tests

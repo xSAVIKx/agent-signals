@@ -1,0 +1,3 @@
+{"version": 2, "width": 80, "height": 24, "timestamp": 1700000000, "env": {"TERM": "xterm-256color"}}
+[1.2, "o", "ready"]
+[4.2, "o", "dialog"]
