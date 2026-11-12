@@ -5,17 +5,19 @@
 **Goal:** `kit trace STEP@tmux --checks terminal,network,files,ebpf`
 records the processes, the opened files, the connections, the DNS names
 and the signals of the agent process tree with bpftrace on Linux.
-`traces.yml` runs these traces each week on the GitHub Linux runners, and
-`traces-issues.yml` keeps one GitHub issue for each agent version.
+`traces.yml` runs these traces each week on the GitHub Linux runners. Its
+job `issues` keeps one GitHub issue for each agent version.
 
 **Architecture:** `probes/agent/trace-ebpf.bt` is one bpftrace script. It
 follows each fork from the pid of `trace.sh` in the kernel, and writes one
-tab line for each event to `RAW/ebpf.txt`. `trace.sh` starts it with
-`sudo -n`, waits for a canary exec, and stops it with a sentinel process,
-so the kit never needs `sudo` to stop it. `trace-build.py` keeps only the
+tab line for each event to its stdout, which the shell of `trace.sh`
+opens as `RAW/ebpf.txt`. `trace.sh` starts it with `sudo -n`, waits for a
+canary exec, and stops it with a sentinel process, so the kit needs `sudo`
+to stop it only when it hangs. `trace-build.py` keeps only the
 process tree of each agent pid of `sessions.tsv` and writes the new events
 and summary keys. `traces.yml` runs the kit with the fixture home and the
-fake model. `traces-issues.yml` reads only a summary artifact.
+fake model. The job `issues` of `traces.yml` reads only the summary
+artifacts of its own run.
 
 **Tech stack:** POSIX sh, Python 3.10+ standard library only, bpftrace
 0.20.2 (the Ubuntu 24.04 package), tmux, Go (the validator), GitHub
@@ -52,7 +54,9 @@ amendments. Later plans: the site (items 5 and 6), macOS and Windows
 - Python helpers use the standard library only and run with `python3 -I`.
 - shellcheck at `--severity=warning` passes on each `.sh` file.
 - CI: hosted runners only. Pin each action to a commit SHA with the tag
-  in a comment. No `pull_request_target`. No secret in these workflows.
+  in a comment. No `pull_request_target`. No `workflow_run`. No secret
+  in these workflows. Only the job `issues` of `traces.yml` has a write
+  permission (`issues: write`).
 - Do not use end-of-life software versions. Node.js for the agents: 24.
 
 ## Facts that this plan uses
@@ -62,12 +66,17 @@ amendments. Later plans: the site (items 5 and 6), macOS and Windows
 | Ubuntu 24.04 ships bpftrace `0.20.2-1ubuntu4` (release) and `0.20.2-1ubuntu4.3` (updates, 2025-02-05). | launchpad.net/ubuntu/noble/+source/bpftrace |
 | The `ubuntu-24.04` runner image 20261101.360.1 has the kernel `7.0.0-1017-azure` and no bpftrace. | actions/runner-images, `images/ubuntu/Ubuntu2404-Readme.md` |
 | bpftrace 0.20: `BPFTRACE_MAX_STRLEN` default 64, about 200 in practice. `nsecs` counts from boot and includes suspend (`CLOCK_BOOTTIME`). `BEGIN` fires before the other probes attach. `-B line` is the default stdout mode. `uprobe:libc:FUNC` finds the library through `/etc/ld.so.cache`. Tracepoint fields are `args.NAME`. | manpages.ubuntu.com, noble, `bpftrace.8` |
-| The latest upstream bpftrace release on 2026-11-12 is 0.27.1. | github.com/bpftrace/bpftrace/releases |
+| The latest upstream bpftrace release on 2026-11-12 is 0.27.1. Its static binaries are the assets `bpftrace-x86_64` (`sha256:c8d570302725bd1a3ed2f23bfa8d83dd78bde95daa98856279343052db5799c9`) and `bpftrace-aarch64` (`sha256:ad159222808d799eaa85424001535836314cf21977a71686b7b7c091b5195672`). | `gh api repos/bpftrace/bpftrace/releases/tags/v0.27.1`, field `digest` |
+| `tools/scrub.sh` rewrites each IPv4 address to `<ip>`, except `127.0.0.1` and `0.0.0.0` (its rule 11). `trace.sh` scrubs `trace.json`, so a public IPv4 host of a `connect` event is `<ip>` in the final trace. | `tools/scrub.sh`, header |
 
 Not measured: whether bpftrace 0.20.2 attaches on the kernel 7.0 runner,
-and whether it reads user pointers of `connect` without `uptr()`. Task 3
-measures both. The script uses only tracepoints and one uprobe, and no
-kernel struct, so it needs no BTF type.
+whether it reads user pointers of `connect` without `uptr()`, and whether
+`task:task_newtask` and `uprobe:libc:getaddrinfo` attach on the arm64
+runner. Task 3 measures all of these, and gives a fixed fallback for each.
+The script uses only tracepoints and one uprobe, and no kernel struct, so
+it needs no BTF type. bpftrace 0.20.2 can still fail at the start when it
+reads the BTF of a new kernel. The fallback for that is the upstream
+static binary 0.27.1 above.
 
 ## The raw files of the eBPF check
 
@@ -76,9 +85,9 @@ the files of plan 1:
 
 | File | Writer | Content |
 |---|---|---|
-| `ebpf.txt` | bpftrace (as root) | one line for each event, below |
+| `ebpf.txt` | bpftrace (as root), through its stdout; the shell of `trace.sh` opens the file as the user | one line for each event, below |
 | `ebpf-clock` | `trace.sh` | epoch ms minus boot ms, one integer |
-| `ebpf.err` | bpftrace | its stderr |
+| `ebpf.err` | bpftrace and `sudo` | their stderr, opened by the shell as the user |
 | `hangup.tsv` | `session.sh stop` | `MS<tab>NAME`: the time after the hang-up wait |
 
 The lines of `ebpf.txt`. NS is `nsecs` (boot clock, ns). The fields are
@@ -96,8 +105,10 @@ separated by one tab. The last field can hold a tab.
 | `NS dns PID NAME` | a call of `getaddrinfo` in libc |
 | `NS signal PID TARGET SIG` | `kill` |
 
-Other lines are not events. `Lost N events` adds N to `meta.ebpf_lost`.
-Each other line that does not parse is skipped.
+Other lines are not events. A line that holds `Lost N events`, in
+`ebpf.txt` or in `ebpf.err`, adds N to `meta.ebpf_lost`. Each other line
+that does not parse is skipped. The parser removes a `\r` at the end of a
+line before it splits the line.
 
 ## Review focus
 
@@ -169,7 +180,7 @@ Each other line that does not parse is skipped.
 
 **Files:**
 - Modify: `probes/agent/trace-build.py`
-- Create: `tools/testdata/trace/raw-ebpf/` (the files of `raw/`, with `checks` = `terminal,network,files,ebpf`, plus `ebpf.txt`, `ebpf-clock`, `hangup.tsv`)
+- Create: `tools/testdata/trace/raw-ebpf/` (the files of `raw/`, with `checks` = `terminal,network,files,ebpf` and a `skipped.tsv` with no `ebpf` line, plus `ebpf.txt`, `ebpf-clock`, `hangup.tsv`). The `skipped.tsv` of `raw/` has the line `ebpf<tab>the kernel check did not run`: do not copy that line.
 - Test: `tools/agent-kit-tests/test-trace-build.sh`
 
 **Interfaces:**
@@ -204,8 +215,14 @@ Each other line that does not parse is skipped.
      for each `(path, mode, ok)`: the first one stays.
   7. `connect4` and `connect6`: `family`, `port`, and `host` = the
      address text, or `<private-host>` when `private_host()` of plan 1
-     says so. Loopback stays `127.0.0.1` or `::1`. `connect6` builds
-     the 16 bytes from HI and LO as two little-endian 64-bit values.
+     says so. Loopback stays `127.0.0.1` or `::1` (`private_host()` says
+     true for loopback, so test loopback first). `connect6` builds
+     the 16 bytes from HI and LO as two little-endian 64-bit values
+     (`struct.pack("<QQ", HI, LO)`). An IPv4-mapped IPv6 address
+     (`::ffff:A.B.C.D`) gets the rules of its IPv4 address and keeps the
+     family `ipv6`. An ADDR of `connect4` that is not an IPv4 address
+     (for example `<ip>` from the scrub in a kept raw folder) gives
+     `<private-host>`.
      `connectu`: `family` `unix`, `port` 0, `host` the normalized PATH,
      or `@` when PATH is empty.
   8. `dns`: `name` through `private_host()` and the scrub of plan 1.
@@ -248,8 +265,10 @@ Each other line that does not parse is skipped.
   `/run/systemd/resolve/io.systemd.Resolve` and one with an empty path;
   `dns` for `api.anthropic.com` and for `build01`; a fork 4242 to 4260
   and an exec of 4260 `/usr/bin/python3`, with no exit; the line
-  `Lost 3 events`; the line `garbage`. `hangup.tsv`: one line for
-  session `a`, after all these lines; then the exit of 4242.
+  `Lost 3 events`; the line `garbage`; the exit of 4242. `hangup.tsv`:
+  one line for session `a`, with a time after all these lines. The exit
+  of 4242 comes before that time, as in a real stop (the kit waits for
+  the agent pid to end before it writes the line).
 - [ ] **Step 2: Write the failing tests** in `test-trace-build.sh` (the
   `want` helper):
   - the build of `raw-ebpf` exits 0 and the result passes the schema;
@@ -303,21 +322,22 @@ Each other line that does not parse is skipped.
 ```
 // trace-ebpf.bt ROOT STOP: the eBPF check of "kit trace". Read
 // probes/README.md, section Traces. ROOT is the pid of trace.sh, STOP the
-// pid of the sentinel. Only tracepoints and one uprobe: no BTF type.
-BEGIN { @in[$1] = 1; }
-tracepoint:task:task_newtask /@in[pid] && !(args.clone_flags & 0x10000)/ {
-  @in[args.pid] = 1;
+// pid of the sentinel. Only tracepoints and one uprobe: no BTF type. Each
+// key of @in is a uint64, so that the map has one key type.
+BEGIN { @in[(uint64)$1] = 1; }
+tracepoint:task:task_newtask /@in[(uint64)pid] && !(args.clone_flags & 0x10000)/ {
+  @in[(uint64)args.pid] = 1;
   printf("%llu\tfork\t%d\t%d\t%s\n", nsecs, pid, args.pid, comm);
 }
-tracepoint:sched:sched_process_exec /@in[pid]/ {
+tracepoint:sched:sched_process_exec /@in[(uint64)pid]/ {
   printf("%llu\texec\t%d\t%s\t%s\n", nsecs, pid, comm, str(args.filename));
 }
-tracepoint:sched:sched_process_exit /@in[pid] && pid == tid/ {
+tracepoint:sched:sched_process_exit /@in[(uint64)pid] && pid == tid/ {
   printf("%llu\texit\t%d\n", nsecs, pid);
-  delete(@in[pid]);
+  delete(@in[(uint64)pid]);
 }
 tracepoint:sched:sched_process_exit /(pid == $1 || pid == $2) && pid == tid/ { exit(); }
-tracepoint:syscalls:sys_enter_openat /@in[pid]/ {
+tracepoint:syscalls:sys_enter_openat /@in[(uint64)pid]/ {
   @path[tid] = str(args.filename);
   @flags[tid] = args.flags;
   @open[tid] = 1;
@@ -326,7 +346,7 @@ tracepoint:syscalls:sys_exit_openat /@open[tid]/ {
   printf("%llu\topen\t%d\t%d\t%d\t%s\n", nsecs, pid, @flags[tid], args.ret, @path[tid]);
   delete(@path[tid]); delete(@flags[tid]); delete(@open[tid]);
 }
-tracepoint:syscalls:sys_enter_connect /@in[pid]/ {
+tracepoint:syscalls:sys_enter_connect /@in[(uint64)pid]/ {
   $p = (uint8 *)args.uservaddr;
   $fam = *(uint16 *)$p;
   if ($fam == 2) {
@@ -337,22 +357,48 @@ tracepoint:syscalls:sys_enter_connect /@in[pid]/ {
     printf("%llu\tconnectu\t%d\t%s\n", nsecs, pid, str($p + 2));
   }
 }
-tracepoint:syscalls:sys_enter_kill /@in[pid]/ {
+tracepoint:syscalls:sys_enter_kill /@in[(uint64)pid]/ {
   printf("%llu\tsignal\t%d\t%d\t%d\n", nsecs, pid, args.pid, args.sig);
 }
-uprobe:libc:getaddrinfo /@in[pid]/ {
+uprobe:libc:getaddrinfo /@in[(uint64)pid]/ {
   printf("%llu\tdns\t%d\t%s\n", nsecs, pid, str(arg0));
 }
 interval:s:7200 { exit(); }
 END { clear(@in); clear(@path); clear(@flags); clear(@open); }
 ```
 
-  When the runner job (Step 6) shows no `connect4` line, change
-  `$p = (uint8 *)args.uservaddr;` to `$p = (uint8 *)uptr(args.uservaddr);`
-  and say so in the commit body. When bpftrace 0.20.2 does not attach at
-  all on the runner, install the upstream static release 0.27.1 for the
-  CPU of the runner in the job, pinned with its SHA-256 in the workflow,
-  and say so in the commit body. Do not change the format of the lines.
+  The `END` block clears the maps, because bpftrace prints each map that
+  is not empty to stdout at the end.
+
+  The fallbacks. The runner job (Step 6) shows which one is necessary.
+  Apply them in this order, one at a time, and run the job again after
+  each one. Do not change the format of the lines.
+  1. bpftrace 0.20.2 does not start (`ebpf.err` names BTF, libbpf, or a
+     probe that it cannot attach), or a map key type error: in the job,
+     do not install bpftrace with apt. Download the static binary 0.27.1
+     for the CPU of the runner (`bpftrace-x86_64` or `bpftrace-aarch64`,
+     from `https://github.com/bpftrace/bpftrace/releases/download/v0.27.1/`)
+     with `curl -fsSL`, check it with `sha256sum -c` against the digest in
+     "Facts that this plan uses", `chmod 755`, and set `KIT_BPFTRACE` to
+     its path. Put the URL and the digest in the workflow as `env` values.
+  2. No `connect4` line for the connect of the stub: change
+     `$p = (uint8 *)args.uservaddr;` to
+     `$p = (uint8 *)uptr(args.uservaddr);`.
+  3. bpftrace 0.27.1 says that `BPFTRACE_MAX_STRLEN` or
+     `BPFTRACE_MAP_KEYS_MAX` is not known: remove the two variables from
+     the start command, and put
+     `config = { max_strlen = 200; max_map_keys = 65536 }` as the first
+     line after the comment of the script.
+  4. One probe still does not attach on one image (for example
+     `uprobe:libc:getaddrinfo` on arm64): remove only that probe from the
+     script. Write in `probes/README.md` and in the commit body which
+     probe is gone, on which image, and the line of `ebpf.err`. Remove the
+     test of that kind from the real mode of `test-trace-ebpf.sh`.
+  5. After these four, the job still fails: stop the task with the
+     status BLOCKED. Report the `ebpf.err` lines of each image and the
+     output of the step that prints the versions. Do not merge a partial
+     check.
+  Say in the commit body which fallbacks the task used.
 - Produces: `kit trace` accepts the check `ebpf`. The default stays
   `terminal,network,files`. The fixed order is `terminal`, `network`,
   `files`, `ebpf`. After the file check (step 4 of `trace.sh`), and only
@@ -360,30 +406,39 @@ END { clear(@in); clear(@path); clear(@flags); clear(@open); }
   1. Not Linux: skip `ebpf not-linux`.
   2. `bt=${KIT_BPFTRACE:-$(command -v bpftrace)}`. No file at `bt`: skip
      `ebpf no-bpftrace`.
-  3. `sudo -n true` fails, or no `sudo`: skip `ebpf no-sudo`.
+  3. No `sudo`, or `sudo -n true` fails: skip `ebpf no-sudo`.
   4. Write `ebpf-clock`: `python3 -I -c` with
      `time.time_ns() // 1000000 - time.clock_gettime_ns(time.CLOCK_BOOTTIME) // 1000000`.
   5. Start the sentinel `sleep 7200 </dev/null >/dev/null 2>&1 &` and add
      its pid with the label `trace ebpf stop`.
   6. Print to stderr `kit: the ebpf check runs: ` and the command. Start
-     `sudo -n env BPFTRACE_MAX_STRLEN=200 BPFTRACE_MAP_KEYS_MAX=65536 "$bt" -B line -o "$raw/ebpf.txt" "$KIT_DIR/trace-ebpf.bt" "$$" SPID </dev/null >/dev/null 2>"$raw/ebpf.err" &`
-     and add its pid with the label `trace ebpf`.
+     `sudo -n env BPFTRACE_MAX_STRLEN=200 BPFTRACE_MAP_KEYS_MAX=65536 "$bt" -B line "$KIT_DIR/trace-ebpf.bt" "$$" SPID </dev/null >"$raw/ebpf.txt" 2>"$raw/ebpf.err" &`
+     and add its pid with the label `trace ebpf`. Do not use `-o`: the
+     shell opens both files as the user, and `-B line` flushes stdout
+     after each line. The pid in `RUN/pids/` is the pid of `sudo`, which
+     runs bpftrace as its child. `sudo` has the real user id of the user,
+     so the kit can check it with `kill -0` and send it TERM; `sudo`
+     passes TERM to bpftrace.
   7. The ready check: at most `KIT_EBPF_READY_TURNS` (default 60) turns
      of 0.5 s. In each turn: when the `trace ebpf` pid does not run,
      print the first 5 lines of `ebpf.err` with the prefix `kit: `, stop
      the sentinel, and skip `ebpf bpftrace-failed`. Else run the canary
-     `env true </dev/null >/dev/null 2>&1 &` and wait for it; the check
+     `sleep 0.2 </dev/null >/dev/null 2>&1 &` and wait for it; the check
      is ready when `ebpf.txt` has a line with field 2 `exec` and field 3
-     the pid of a canary. After the last turn: stop both pids and skip
-     `ebpf no-ready`.
+     the pid of a canary. The canary lives 0.2 s, so that the poll of
+     `fake-bpftrace.py` sees it too. After the last turn: stop both pids
+     and skip `ebpf no-ready`.
   A skip of `ebpf` never fails the trace: the step runs with the other
   checks.
 - Produces: `kit_trace_end_recorders RUN` also stops the label
   `trace ebpf stop` (as the other recorders), then waits 10 s at most
-  for each `trace ebpf` pid to end. When it still runs: `kill` (it works
-  for a pid of the same account, as with the stub), then
-  `sudo -n kill -TERM PID`, 2 s, `sudo -n kill -KILL PID`. It removes
-  the pid files. `kit_trace_leftover` uses it as before.
+  for each `trace ebpf` pid to end. When it still runs: `kill PID` (the
+  pid of `sudo` has the real user id of the user), 2 s; then, for the
+  pids of `kit_pid_tree PID` that run (`sudo` and bpftrace below it),
+  `sudo -n kill -TERM` with these pids, 2 s, `sudo -n kill -KILL` with
+  these pids. A KILL of the `sudo` pid alone would leave bpftrace as
+  root. It removes the pid files. `kit_trace_leftover` uses it as
+  before.
 - Produces: `session.sh`: `trace_ebpf` is true only when `KIT_TRACE` is
   set and `KIT_TRACE_CHECKS` names `ebpf` (an empty list does not
   select `ebpf`). With it, `stop_session` waits after the hang-up of the
@@ -396,16 +451,31 @@ END { clear(@in); clear(@path); clear(@flags); clear(@open); }
   `STUB_LEAVE=yes` makes the answer of the dialog start
   `setsid python3 -I -c 'import time; time.sleep(120)' "$HOME/" </dev/null >/dev/null 2>&1 &`.
   Its arguments hold the session home, so `end_home_daemons` stops it.
-- Produces: `fake-bpftrace.py -B line -o FILE SCRIPT ROOT STOP` for the
-  tests. It polls `/proc` every 20 ms and writes `fork`, `exec` (PATH
-  from `/proc/PID/exe`) and `exit` lines for the tree of ROOT, with the
-  boot clock in ns. It exits when ROOT or STOP ends. `FAKE_BPFTRACE=fail`
-  makes it write `ERROR: test` to stderr and exit 1 at once.
-  `FAKE_BPFTRACE=silent` makes it write nothing until the end.
+- Produces: `fake-bpftrace.py -B line SCRIPT ROOT STOP` for the tests.
+  It writes to stdout and flushes each line. It polls `/proc` every
+  20 ms, with the boot clock in ns
+  (`time.clock_gettime_ns(time.CLOCK_BOOTTIME)`). A process of this
+  account that it did not see in its first poll is new: it writes
+  `fork PPID PID COMM` (PPID from `/proc/PID/stat`) and
+  `exec PID COMM PATH`. A change of `/proc/PID/cmdline` of a known pid
+  writes one more `exec`. PATH is the link `/proc/PID/exe`. When that
+  program is a shell (its name is `sh`, `dash` or `bash`) and the second
+  word of the cmdline is a file, PATH is that word: this is the form of
+  the kernel for a `#!` script, as the stub agent is. A pid that is gone
+  gives `exit PID`. The fake does not follow the tree of ROOT: a poll
+  cannot see the double fork of the tmux server, so the server and the
+  agent are not below ROOT in `/proc`. The build keeps only the agent
+  trees and drops the other lines. It exits when ROOT or STOP ends.
+  `FAKE_BPFTRACE=fail` makes it write `ERROR: test` to stderr and exit 1
+  at once. `FAKE_BPFTRACE=silent` makes it write nothing until the
+  end.
 - Produces: `KIT_TEST_EBPF=real` makes `test-trace-ebpf.sh` use the real
-  `bpftrace` and `sudo`. Else it puts a stub `sudo` (it drops `-n` and
-  runs the rest; `NO_SUDO=1` in its environment makes it exit 1) first
-  in `PATH` and sets `KIT_BPFTRACE` to `fake-bpftrace.py`.
+  `bpftrace` (or `KIT_BPFTRACE` when it is set) and `sudo`. In this
+  mode a missing tmux, bpftrace or `sudo -n` is a failure, not a skip.
+  Else it puts a stub `sudo` (it drops `-n` and runs the rest with
+  `exec`; `NO_SUDO=1` in its environment makes it exit 1) first in
+  `PATH` and sets `KIT_BPFTRACE` to `fake-bpftrace.py`. In this mode a
+  missing tmux is a skip, as in `test-trace.sh`.
 
 - [ ] **Step 1: Write the failing tests** in `test-trace-ebpf.sh` (Linux
   only, else `pass: skip not Linux`; source `core-lib.sh` and
@@ -448,20 +518,26 @@ END { clear(@in); clear(@path); clear(@flags); clear(@open); }
   the wait of 3.5 s at most at the stop). Put this caution before the
   command example: `CAUTION: The ebpf check runs bpftrace as root with
   "sudo -n". Run "sudo -v" before the trace on a machine that asks for a
-  password. The agent does not run as root.` In
+  password. The agent does not run as root.` List the three commands
+  that the kit runs with `sudo -n`: `true` (the check), `env ... bpftrace
+  ...` (the check itself), and `kill` (only when bpftrace hangs at the
+  stop). In
   `tasks/run-the-kit-as-an-agent.md`: the agent adds `ebpf` only when the
   prompt asks for it.
 - [ ] **Step 6: The runner job.** In `probes.yml`, add the job `ebpf`:
   `runs-on` a matrix of `ubuntu-24.04` and `ubuntu-24.04-arm`,
   `timeout-minutes: 20`, `permissions: contents: read`. Steps: checkout
-  (the pinned SHA of the other jobs); `sudo apt-get update -q && sudo
-  apt-get install -y -q tmux bpftrace`; a step that prints `uname -r`,
-  `dpkg-query -W bpftrace`, `bpftrace --version` and
+  (the pinned SHA of the other jobs, `persist-credentials: false`);
+  `sudo apt-get update -q && sudo apt-get install -y -q tmux bpftrace`;
+  a step that prints `uname -r`, `dpkg-query -W bpftrace`,
+  `"${KIT_BPFTRACE:-bpftrace}" --version` and
   `ls -l /sys/kernel/btf/vmlinux`; then
-  `KIT_TEST_EBPF=real KIT_TEST_SESSIONS=required sh tools/test-agent-kit.sh tools/agent-kit-tests/test-trace-ebpf.sh`.
-  Push the branch and open the PR. Read the job log of each image.
+  `KIT_TEST_EBPF=real sh tools/test-agent-kit.sh tools/agent-kit-tests/test-trace-ebpf.sh`.
+  In the real mode, when a case fails, the test prints the stderr of
+  `kit trace` through `tools/scrub.sh`. That stderr holds the `kit: `
+  lines of `ebpf.err`. Push the branch and open the PR. Read the job log of each image.
   Expected: PASS on both. When it fails, apply the fallbacks of the
-  Interfaces block, one at a time.
+  Interfaces block in their order.
 - [ ] **Step 7: Commit** `feat(kit): add the ebpf check to kit trace`.
   The commit body names the kernel, the `dpkg-query` line and the
   bpftrace version of each runner image from the log of Step 6.
@@ -489,8 +565,10 @@ END { clear(@in); clear(@path); clear(@flags); clear(@open); }
   `meta.checks`, and has at least one item in `summary.programs`. It
   copies each trace to a temp root as
   `traces/AGENT/VERSION/NN-STEP/trace.json` (each part with each
-  character outside `[A-Za-z0-9._@-]` changed to `-`), with `schema/`,
-  and runs `cd tools && go run ./cmd/validate ROOT`. It prints one line
+  character outside `[A-Za-z0-9._@-]` changed to `-`), copies each file
+  of `schema/`, makes the empty folders `corpus/` and `facts/` (the
+  validator stops with exit 2 without them, as the `validate` helper of
+  `test-trace.sh` shows), and runs `cd tools && go run ./cmd/validate ROOT`. It prints one line
   `check: NN-NAME@BACKEND ok` or `check: NN-NAME@BACKEND fail REASON`
   for each trace, and deletes the temp root. No trace: exit 1.
 - Produces: `traces.yml`:
@@ -504,9 +582,13 @@ END { clear(@in); clear(@path); clear(@flags); clear(@open); }
     `run=yes` only when the agent is a word of `inputs.agents` (the
     default list on a schedule). Each later step has
     `if: steps.pick.outputs.run == 'yes'`.
-  - Steps: checkout; `actions/setup-node` with node 24; install tmux
-    and bpftrace with apt; install the agent with the command of
-    `scenarios.yml`, job `kit-no-login`; `sudo mkdir -p /work && sudo
+  - Steps: checkout with `persist-credentials: false`;
+    `actions/setup-node` with node 24; `actions/setup-go` with
+    `go-version-file: tools/go.mod` (the pinned SHA of `ci.yml`), for
+    `check-traces.sh`; install tmux with apt, and bpftrace in the same
+    way as the job `ebpf` of `probes.yml` after Task 3 (apt, or the
+    pinned static binary of fallback 1 with `KIT_BPFTRACE`); install
+    the agent with the command of `scenarios.yml`, job `kit-no-login`; `sudo mkdir -p /work && sudo
     chown "$(id -u):$(id -g)" /work`; then the run, with each kit output
     through `tools/scrub.sh` as in `scenarios.yml`:
     `AGENT_SIGNALS_WORK=/work/example`,
@@ -514,6 +596,10 @@ END { clear(@in); clear(@path); clear(@flags); clear(@open); }
     each step `kit trace STEP@tmux --checks terminal,network,files,ebpf`
     (with `KIT_TRACE_KEEP_RAW=1` when `inputs.raw` is true), then
     `kit session stop --all`, then `sh tools/check-traces.sh RUN`.
+  - Each input goes to a `run:` line through `env` (for example
+    `AGENTS: ${{ inputs.agents }}`), never as `${{ }}` in the script.
+    The script accepts only words of `[a-z0-9-]`; another word is bad
+    use and fails the job.
   - The steps: `inputs.steps` when it is not empty (a step of another
     agent is skipped). Else, for AGENT: `permission-AGENT`,
     `interrupt-AGENT`, `new-chat-AGENT`, `resume-AGENT`, and the write
@@ -530,7 +616,8 @@ END { clear(@in); clear(@path); clear(@flags); clear(@open); }
   mode): with `KIT_TRACE_KEEP_RAW=1`, `raw/ebpf.txt` and
   `raw/sessions.tsv` exist in the trace folder, no file there holds
   `$T`, and `trace-build.py` on a copy of that `raw/` folder (as
-  `X/.trace`) exits 0. Without the variable, no `raw/` folder.
+  `X/.trace`, with `--meta` a file that holds the `meta` object of the
+  `trace.json` of the same folder) exits 0. Without the variable, no `raw/` folder.
   `sh tools/check-traces.sh RUN` exits 0 on the run of the first case
   (skip that case when `go` is not on `PATH`), and exits 1 on a run whose
   trace has the skip `no-sudo`.
@@ -546,8 +633,9 @@ END { clear(@in); clear(@path); clear(@flags); clear(@open); }
 
 ### Task 5: A fixture recorded on a real runner
 
-This task starts after the PR of Task 4 is merged, because
-`workflow_dispatch` runs the file of the default branch.
+The controller merges the PR of Task 4 before this task starts, because
+`workflow_dispatch` runs the workflow file of the default branch. The
+worker of this task does not merge.
 
 **Files:**
 - Create: `tools/testdata/trace/runner-ebpf/` (the raw files of one real trace)
@@ -560,15 +648,21 @@ This task starts after the PR of Task 4 is merged, because
 
 - [ ] **Step 1: Run the workflow.**
   1. `gh workflow run traces.yml --ref main -f agents=claude -f steps=permission-claude -f raw=true`
-  2. `gh run list --workflow traces.yml --limit 1 --json databaseId,status`
+  2. `gh run list --workflow traces.yml --event workflow_dispatch --branch main --limit 1 --json databaseId,status,createdAt`.
+     Use the run that was made after the time of command 1.
   3. `gh run watch ID --exit-status`. Expected: exit 0.
   4. `gh run download ID -n traces-claude-ubuntu-24.04 -D DIR`, with DIR
      a new empty folder outside the repository.
 - [ ] **Step 2: Make the fixture.** Copy `DIR/*/raw/*` to
   `tools/testdata/trace/runner-ebpf/`. Then:
-  1. Replace each IPv4 and IPv6 address that is not loopback with a
-     documentation address (`192.0.2.N`, `2001:db8::N`), the same N for
-     the same address, in `ebpf.txt`.
+  1. The scrub of `KIT_TRACE_KEEP_RAW` already made each IPv4 address
+     `<ip>`, except `127.0.0.1` and `0.0.0.0`. Check this with
+     `grep -nE '([0-9]{1,3}\.){3}[0-9]{1,3}'` on the folder: only these
+     two may show. The scrub does not see an IPv6 address, because
+     `connect6` writes it as two hex values. In each `connect6` line that
+     is not `::1` (HI `0`, LO `100000000000000`), replace HI with
+     `b80d0120` and LO with the hex of `N << 56`, with N from 1, the same
+     N for the same HI and LO. This is `2001:db8::N`.
   2. When `ebpf.txt` is larger than 1 MB, keep each `fork`, `exec` and
      `exit` line, each line of a pid of the agent tree (the rule of
      Task 2), and the first 500 other lines.
@@ -587,13 +681,18 @@ This task starts after the PR of Task 4 is merged, because
   kernel and the Claude Code version, and says what the edits of Step 2
   changed.
 
-### Task 6: `traces-issues.yml`
+### Task 6: the issue job of `traces.yml`
+
+The design names a separate workflow `traces-issues.yml` with a
+`workflow_run` trigger. The controller ruled against it: the issue job is
+a job of `traces.yml`. Do not use `workflow_run`. Do not make
+`traces-issues.yml`.
 
 **Files:**
 - Create: `tools/trace-issues.py`
 - Create: `tools/testdata/trace-issues/` (summaries and an issue list)
-- Create: `.github/workflows/traces-issues.yml`
-- Modify: `.github/workflows/traces.yml` (the summary artifact)
+- Modify: `.github/workflows/traces.yml` (the summary artifact and the job `issues`)
+- Modify: `probes/README.md` (section "Traces": the job `issues` and the variable `TRACE_ISSUES`, one paragraph)
 - Test: `tools/test-trace-issues.sh`; add it to the job of `ci.yml` that runs the other `tools/test-*.sh` files
 
 **Interfaces:**
@@ -616,7 +715,8 @@ This task starts after the PR of Task 4 is merged, because
   2. The items of a key: `programs` (paths), `files` and `opened` (by
      area), `hosts` (`host:port`), `direct`, `dns`, `processes_left`
      (programs), each with the set of runner images that saw it.
-  3. The body: a first line with the key and the run link; one table
+  3. The body: a first line with the key, the run link and the names of
+     the artifacts of the run; one table
      for each kind of item with one column for each runner image
      (`yes` or `-`); the timeline near each state change of the
      `permission` step of each image (the `near` texts); a section
@@ -637,30 +737,40 @@ This task starts after the PR of Task 4 is merged, because
   7. A table with more than 100 rows shows 100 and a line
      `N more in the artifact`. A body longer than 60000 characters drops
      the timeline first, then cuts the tables to 20 rows.
-- Produces: `traces.yml` runs `collect` after `check-traces.sh` and
-  uploads the file as the artifact `trace-summary-AGENT-OS`
-  (`if: always()`).
-- Produces: `traces-issues.yml`:
-  - `on: workflow_run: workflows: [Traces], types: [completed]`.
-  - Job `issues`: `if` the run event is `schedule` or
-    `workflow_dispatch`, its `head_branch` is `main`, and its
-    conclusion is not `cancelled`. `permissions: issues: write,
-    actions: read`. No checkout of the code of the triggering run: it
-    checks out `main` of this repository.
-  - Steps: `actions/download-artifact` (pin the SHA of its latest
-    release, from `gh api repos/actions/download-artifact/releases/latest`
-    and the tag ref) with `pattern: trace-summary-*`, `run-id` of the
-    triggering run and `github-token: ${{ github.token }}`; `gh issue
-    list ...` into a file; `trace-issues.py plan`; then, only when the
-    repository variable `TRACE_ISSUES` is `open`, `gh label create
-    NAME --force` for `trace`, `fixture`, `login` and `none`, and one
-    `gh issue create --title T --label L --body-file F` or `gh issue
+- Produces: `traces.yml` runs `collect` after `check-traces.sh` into
+  `$RUNNER_TEMP/summary/summary-AGENT-OS.json` and uploads that file as
+  the artifact `trace-summary-AGENT-OS` (`if: always()`, `retention-days:
+  14`).
+- Produces: the job `issues` in `traces.yml`:
+  - `needs: trace`. `if: ${{ !cancelled() && (github.event_name ==
+    'schedule' || github.event_name == 'workflow_dispatch') &&
+    github.ref == 'refs/heads/main' }}`. It runs also when a trace job
+    failed, so that the traces that passed get their issue.
+  - `runs-on: ubuntu-24.04`, `timeout-minutes: 10`.
+  - `permissions: contents: read, issues: write` on this job only. The
+    workflow keeps `permissions: contents: read`, so the job `trace`
+    has no write permission. No secret: `GH_TOKEN` is
+    `${{ github.token }}`, passed through `env`.
+  - Steps: checkout of the same commit with `persist-credentials: false`;
+    `actions/download-artifact` (pin the SHA of its latest release, from
+    `gh api repos/actions/download-artifact/releases/latest` and the tag
+    ref) with `pattern: trace-summary-*`, `merge-multiple: true` and
+    `path: ${{ runner.temp }}/summary`. The artifacts are of the same
+    run, so no `run-id` and no `github-token` input is necessary. Then
+    `gh issue list ...` into a file; `trace-issues.py plan`; then, only
+    when the repository variable `TRACE_ISSUES` is `open`, `gh label
+    create NAME --force` for `trace`, `fixture`, `login` and `none`, and
+    one `gh issue create --title T --label L --body-file F` or `gh issue
     comment N --body-file F` and `gh issue edit N --body-file F` for
-    each action. When `TRACE_ISSUES` is not `open`, it writes the
-    actions and the bodies to `$GITHUB_STEP_SUMMARY` and changes no
-    issue.
-  - The run URL comes from `github.event.workflow_run.html_url`, passed
-    through `env`, never put into a `run:` line with `${{ }}`.
+    each action. When `TRACE_ISSUES` is not `open` (also when it is not
+    set), it writes the actions and the bodies to `$GITHUB_STEP_SUMMARY`
+    and changes no issue.
+  - The run URL is
+    `${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`
+    and the variable is `${{ vars.TRACE_ISSUES }}`. Both go to the
+    script through `env`, never as `${{ }}` in a `run:` line. A title, a
+    label and a body go to `gh` as an argument in double quotes or as a
+    file, never through `eval`.
 
 - [ ] **Step 1: Write the test data.** Two `collect` files for
   `claude 2.1.320 fixture` (images `ubuntu-24.04` and `ubuntu-24.04-arm`,
@@ -686,18 +796,23 @@ This task starts after the PR of Task 4 is merged, because
   - no output holds a key of `trace.json` other than the summary keys
     and the meta keys of `collect`.
 - [ ] **Step 3: Run** `sh tools/test-trace-issues.sh`. Expected: FAIL.
-- [ ] **Step 4: Implement** `trace-issues.py`, the summary artifact in
-  `traces.yml`, and `traces-issues.yml` with a header comment: the
-  trigger, the permissions, the variable `TRACE_ISSUES`, and that the
-  job reads only the summary artifact.
-- [ ] **Step 5: Run** `sh tools/test-trace-issues.sh`, `sh tools/test-agent-kit.sh`, and `actionlint` on both workflows when it is on `PATH`. Expected: PASS.
+- [ ] **Step 4: Implement** `trace-issues.py`, the summary artifact and
+  the job `issues` in `traces.yml`. Extend the header comment of
+  `traces.yml`: the job `issues`, its trigger condition, its
+  permissions, the variable `TRACE_ISSUES`, and that it reads only the
+  summary artifacts.
+- [ ] **Step 5: Run** `sh tools/test-trace-issues.sh`, `sh tools/test-agent-kit.sh`, and `actionlint .github/workflows/traces.yml` when it is on `PATH`. Expected: PASS.
 - [ ] **Step 6: Commit** `feat(ci): keep one issue for each traced agent version`.
-- [ ] **Step 7: The first run, after the merge.** Run
-  `gh workflow run traces.yml --ref main -f agents=claude`. Wait for
-  `traces-issues.yml` to end. Read its step summary: one `open` action,
-  and a body with no runner path, no account name and no IP address of
-  the runner. Report the result. Do not set `TRACE_ISSUES`: the
-  operator sets it after reading one body.
+- [ ] **Step 7: The first run, after the merge.** The worker of this
+  task stops after Step 6 and reports. The controller merges the PR, and
+  then runs this step itself or gives it to a new worker, because
+  `workflow_dispatch` runs the workflow file of `main`. Run
+  `gh workflow run traces.yml --ref main -f agents=claude`. Find the run
+  as in Task 5, Step 1, and wait for it with `gh run watch ID`. Read the
+  step summary of the job `issues`: one `open` action, and a body with
+  no runner path, no account name and no IP address of the runner.
+  Report the result. Do not set `TRACE_ISSUES`: the operator sets it
+  after reading one body.
 
 ## Decisions closed by this plan
 
@@ -726,5 +841,12 @@ or did not say.
     the terminal are the neutral paths of the corpus.
 12. The PR job proves the script with the stub agent, the fixture home
     and the fake model. `traces.yml` runs the real agents each week.
-13. `traces-issues.yml` changes no issue until the operator sets the
-    repository variable `TRACE_ISSUES` to `open`.
+13. The job `issues` of `traces.yml` changes no issue until the operator
+    sets the repository variable `TRACE_ISSUES` to `open`. It is a job of
+    `traces.yml` with `needs: trace`, not a `workflow_run` workflow
+    (ruling of the controller). Only this job has `issues: write`, and
+    it runs only on `schedule` or `workflow_dispatch` on `main`.
+14. A public IPv4 address in a final trace is `<ip>` (the scrub). The
+    hosts of the proxy keep their names.
+15. Root runs only bpftrace, through `sudo -n env`. `sudo -n true` checks
+    the access, and `sudo -n kill` stops bpftrace only when it hangs.
