@@ -212,6 +212,9 @@ a reason in `meta.skipped` and records the other checks:
   the first 5 lines of its error output with the prefix `kit: `.
 - `no-ready`: no canary exec in the record after 30 s
   (`KIT_EBPF_READY_TURNS` turns of 0.5 s, 60 by default).
+- `tracer-ended`: bpftrace ended after the ready check and before the
+  end of the step, so the record is not complete. The kit prints the
+  first 5 lines of its error output with the prefix `kit: `.
 
 The kit runs these three commands with `sudo -n`:
 

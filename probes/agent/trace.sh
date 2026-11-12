@@ -47,6 +47,7 @@
 #      the first 5 lines of ebpf.err with the prefix "kit: " and skip
 #      "ebpf bpftrace-failed". After the last turn: skip "ebpf no-ready".
 #      Each skip stops the pids of the check. A skip never fails the trace.
+#      When bpftrace ends during the step: skip "ebpf tracer-ended".
 #   5. Run "kit step NAME@BACKEND ARGS" with KIT_TRACE (the raw folder) and
 #      KIT_TRACE_CHECKS (LIST) in the environment, and TMPDIR set to a
 #      folder in the raw folder. Keep its exit code and its output lines.
