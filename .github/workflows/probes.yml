@@ -187,7 +187,7 @@ jobs:
           f=$RUNNER_TEMP/ebpf-raw/ebpf.txt
           test -s "$f"
           awk -F '\t' '$2 == "open" || $2 == "exec" { print $NF }' "$f" |
-            grep -Ev '^(/tmp/|/usr/|/lib|/etc/|/dev/|/proc/|/sys/|/bin/|/sbin/|/run/|/var/|/home/runner/work/|$)' |
+            grep '^/' | grep -Ev '^(/tmp/|/usr/|/lib|/etc/|/dev/|/proc|/sys/|/bin/|/sbin/|/run/|/var/|/home/runner/work/|$)' |
             sort -u >"$RUNNER_TEMP/other-paths.txt" || true
           if [ -s "$RUNNER_TEMP/other-paths.txt" ]; then
             echo "other paths, no upload:"

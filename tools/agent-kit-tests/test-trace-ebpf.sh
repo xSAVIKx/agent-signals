@@ -208,7 +208,9 @@ for e in d["events"]:
     # The raw lines of the agent pid, and each raw line about stub-work.
     apid=$(cut -f4 "$T/raw-sessions.tsv" 2>/dev/null | head -n 1)
     echo "  raw: agent pid '$apid', $(wc -l <"$T/raw-ebpf.txt" 2>/dev/null) lines"
-    awk -F '\t' -v a="$apid" '($3 == a && $2 != "fork") || ($2 == "fork" && ($3 == a || $4 == a)) || /stub-work/' "$T/raw-ebpf.txt" 2>/dev/null |
+    awk -F '\t' '{ n[$2]++ } END { for (w in n) printf "  raw: %s %d\n", w, n[w] }' "$T/raw-ebpf.txt" 2>/dev/null | sort
+    awk -F '\t' '{ n[$3]++ } END { for (p in n) print n[p], p }' "$T/raw-ebpf.txt" 2>/dev/null | sort -rn | head -n 5 | sed 's/^/  raw: lines of pid: /'
+    awk -F '\t' -v a="$apid" '($3 == a && $2 != "fork" && $NF !~ /^\/(dev\/null|tmp\/tmp\.[A-Za-z0-9]+)$/) || /stub-work/' "$T/raw-ebpf.txt" 2>/dev/null |
       sed "s|$T|\$T|g" | head -n 60 | sed 's/^/  raw| /'
   fi
 fi
