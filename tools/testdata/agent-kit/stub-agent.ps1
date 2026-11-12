@@ -5,7 +5,7 @@
 # draws a permission dialog. On "1" it writes agent-signals-test.txt in
 # its working folder. On "2" or Escape it goes back to idle. On the text
 # "busy" and Enter it draws a busy screen with the text "esc to
-# interrupt", and it stays busy until Escape.
+# interrupt", and it stays busy until Escape. C-u clears the prompt line.
 #
 # When STUB_LOG is set, it writes one line for each key to that file:
 # "key Enter", "key Escape", "key Tab", or "char N" (N is the code of the
@@ -39,8 +39,21 @@ $script:Buffer = ''
 $script:Note = ''
 $esc = [char]27
 
+# Write-Log LINE: add LINE to STUB_LOG. Another process (a virus scanner,
+# or a reader of the log) can hold the file for a moment. With "Stop", a
+# failed write ended the stub, and the step then failed with agent-ended.
+# So the stub opens the file with all sharing, tries again 20 times at
+# most, 50 ms apart, and then drops the line.
 function Write-Log([string]$Line) {
-    if ($env:STUB_LOG) { Add-Content -LiteralPath $env:STUB_LOG -Value $Line }
+    if (-not $env:STUB_LOG) { return }
+    $bytes = [Text.Encoding]::UTF8.GetBytes($Line + "`r`n")
+    for ($i = 0; $i -lt 20; $i++) {
+        try {
+            $fs = New-Object System.IO.FileStream($env:STUB_LOG, [IO.FileMode]::Append, [IO.FileAccess]::Write, ([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete))
+            try { $fs.Write($bytes, 0, $bytes.Length) } finally { $fs.Dispose() }
+            return
+        } catch { Start-Sleep -Milliseconds 50 }
+    }
 }
 
 # When STUB_ENV is set, write the names of the environment variables to
@@ -87,6 +100,11 @@ while ($true) {
             elseif ($script:Buffer -eq 'busy') { $script:State = 'busy' }
             $script:Buffer = ''
         } elseif ($k.Key -eq 'Escape') {
+            $script:Buffer = ''
+        } elseif ([int]$k.KeyChar -eq 21) {
+            # C-u clears the box. The step sends it before it types the
+            # prompt again. Without it, the box held "busybusy", and the
+            # stub did not become busy.
             $script:Buffer = ''
         } elseif ($k.Key -eq 'Backspace') {
             if ($script:Buffer.Length -gt 0) { $script:Buffer = $script:Buffer.Substring(0, $script:Buffer.Length - 1) }
