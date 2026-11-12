@@ -442,7 +442,9 @@ class Libc:
     def inotify_add_watch(self, fd, path, mask):
         Libc.n += 1
         return Libc.n
+    removed = []
     def inotify_rm_watch(self, fd, wd):
+        Libc.removed.append(wd)
         return 0
 
 fd = os.open(out, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
@@ -494,6 +496,51 @@ elif case == "move-out-time":
     rows.sort(key=lambda r: r["t"])
     kinds = [(r["kind"], r["path"].rsplit("/", 1)[-1]) for r in rows]
     sys.exit(0 if kinds == [("delete", "d.txt"), ("create", "d.txt")] else "got %r" % kinds)
+elif case == "move-out-replace":
+    # A folder moves out, and a new folder with the same name comes before
+    # the wait ends. The new folder keeps its own watch after the wait.
+    # Only the watches of the old folder are removed.
+    d = root + "/d"
+    old_wd = w.add_watch(d)
+    old_kid = w.add_watch(d + "/k")
+    w.seen.add(d)
+    w.seen.add(d + "/k")
+    isdir = mod["IN_ISDIR"]
+    batch((mod["IN_MOVED_FROM"] | isdir, 80, "d"))
+    batch((mod["IN_CREATE"] | isdir, 0, "d"))
+    new_wd = w.path2wd.get(d)
+    time.sleep(mod["MOVE_WAIT"] + 0.05)
+    w.expire_moves(False)
+    w.flush()
+    # The order of the lines, not only of the times (the times can be
+    # the same millisecond).
+    rows = [json.loads(l) for l in open(out)]
+    kinds = [(r["kind"], r["path"].rsplit("/", 1)[-1]) for r in rows]
+    ok = (kinds == [("delete", "d"), ("create", "d")]
+          and new_wd is not None and new_wd != old_wd
+          and w.path2wd.get(d) == new_wd and w.wd2path.get(new_wd) == d
+          and d in w.seen and d + "/k" not in w.seen
+          and d + "/k" not in w.path2wd
+          and sorted(Libc.removed) == sorted([old_wd, old_kid])
+          and old_wd not in w.wd2path and old_kid not in w.wd2path
+          and w.held == 0)
+    sys.exit(0 if ok else "kinds %r, wd %r -> %r, path2wd %r, removed %r" % (
+        kinds, old_wd, new_wd, dict(w.path2wd.data), Libc.removed))
+elif case == "move-dir-pair":
+    # A folder moves in the tree over two reads: its watches follow it.
+    d = root + "/e"
+    e_wd = w.add_watch(d)
+    k_wd = w.add_watch(d + "/k")
+    w.seen.add(d + "/k/f")
+    isdir = mod["IN_ISDIR"]
+    batch((mod["IN_MOVED_FROM"] | isdir, 81, "e"))
+    batch((mod["IN_MOVED_TO"] | isdir, 81, "g"))
+    g = root + "/g"
+    ok = (w.path2wd.get(g) == e_wd and w.path2wd.get(g + "/k") == k_wd
+          and w.wd2path.get(k_wd) == g + "/k" and d not in w.path2wd
+          and g + "/k/f" in w.seen and d + "/k/f" not in w.seen
+          and not Libc.removed and w.held == 0)
+    sys.exit(0 if ok else "path2wd %r" % dict(w.path2wd.data))
 elif case == "forget":
     # A large tree: forget each folder from the bottom, as a delete of the
     # tree does. The time must grow linearly with the size of the tree.
@@ -535,7 +582,7 @@ elif case == "rename":
           and root + "/r" in w.seen and root + "/m" not in w.seen)
     sys.exit(0 if ok else "bad rename")
 PYEOF
-for c in move-batches move-out move-out-time forget forget-deep rename; do
+for c in move-batches move-out move-out-time move-out-replace move-dir-pair forget forget-deep rename; do
   if python3 -I "$H/unit.py" "$watch" "$T/unit-$c.jsonl" "$c" >"$T/unit.err" 2>&1; then
     pass "unit: $c"
   else
