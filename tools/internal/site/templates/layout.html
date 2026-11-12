@@ -14,8 +14,15 @@
 <meta property="og:site_name" content="agent-signals">
 <meta property="og:title" content="{{$title}}">
 {{with .Description}}<meta property="og:description" content="{{.}}">
-{{end}}<meta name="twitter:card" content="summary">
-<link rel="icon" href="data:,">
+{{end}}<meta property="og:image" content="{{canonical "icon-512.png"}}">
+<meta property="og:image:alt" content="The agent-signals mark: a terminal prompt">
+<meta name="twitter:card" content="summary">
+<link rel="icon" href="{{rel .Out "favicon.ico"}}" sizes="32x32">
+<link rel="icon" href="{{rel .Out "favicon.svg"}}" type="image/svg+xml">
+<link rel="apple-touch-icon" href="{{rel .Out "apple-touch-icon.png"}}">
+<link rel="manifest" href="{{rel .Out "site.webmanifest"}}">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1216" media="(prefers-color-scheme: dark)">
 {{with .Markdown}}<link rel="alternate" type="text/markdown" href="{{rel $.Out .}}">
 {{end}}<link rel="alternate" type="text/plain" title="llms.txt" href="{{rel .Out "llms.txt"}}">
 <link rel="stylesheet" href="{{rel .Out "assets/style.css"}}">
