@@ -179,12 +179,31 @@ class PathMap:
 
     def __delitem__(self, path):
         del self.data[path]
+        self.prune(path)
 
     def get(self, path, default=None):
         return self.data.get(path, default)
 
     def pop(self, path, default=None):
-        return self.data.pop(path, default)
+        value = self.data.pop(path, default)
+        self.prune(path)
+        return value
+
+    def prune(self, path):
+        """Remove PATH and then each folder above it from the index while
+        it has no value and no child, so that the index does not grow
+        with each deleted file."""
+        q = path
+        while q != "/" and q in self.nodes and q not in self.data and not self.kids.get(q):
+            self.nodes.discard(q)
+            self.kids.pop(q, None)
+            par = parent_of(q)
+            s = self.kids.get(par)
+            if s is not None:
+                s.discard(q)
+                if not s:
+                    del self.kids[par]
+            q = par
 
     def pop_tree(self, path):
         """Remove PATH and each path below it. Return the (path, value)
@@ -201,6 +220,7 @@ class PathMap:
             if q in self.data:
                 out.append((q, self.data.pop(q)))
             stack.extend(self.kids.pop(q, ()))
+        self.prune(parent_of(path))
         return out
 
 
@@ -211,7 +231,7 @@ class PathSet(PathMap):
         self[path] = True
 
     def discard(self, path):
-        self.data.pop(path, None)
+        self.pop(path, None)
 
 
 class Watcher:

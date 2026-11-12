@@ -495,7 +495,9 @@ elif case == "forget":
         w.forget(d, True, False)
     took = time.monotonic() - t
     left = [p for p in dirs if p in w.seen or p in w.path2wd]
-    sys.exit(0 if took < 5 and not left else "took %.1f s, %d left" % (took, len(left)))
+    # The index of the paths does not keep the forgotten paths.
+    idx = len(w.seen.nodes) + len(w.seen.kids)
+    sys.exit(0 if took < 5 and not left and idx == 0 else "took %.1f s, %d left, index %d" % (took, len(left), idx))
 elif case == "forget-deep":
     # A folder with seen entries below a folder that is not seen: a move
     # out of the tree forgets all of them, and their watches.

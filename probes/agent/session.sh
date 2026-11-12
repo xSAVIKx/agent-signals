@@ -197,7 +197,7 @@ shq() {
 # trace_mark WHAT: make and delete the mark file of the kit for this
 # session in the work root (read the header). WHAT is begin or end. It
 # does nothing when the work root does not exist. A "begin" sets a trap:
-# when the command exits (also with kit_die, or on HUP, INT or TERM)
+# when the command exits (also with kit_die, or on HUP, INT, QUIT or TERM)
 # before its "end", the trap makes the "end" mark. So an unmatched
 # "begin" holds only until the end of this kit command. A KILL of the
 # command runs no trap.
@@ -210,6 +210,7 @@ trace_mark() {
       trap 'trace_mark_close; trap - HUP; kill -HUP $$' HUP
       trap 'trace_mark_close; trap - INT; kill -INT $$' INT
       trap 'trace_mark_close; trap - TERM; kill -TERM $$' TERM
+      trap 'trace_mark_close; trap - QUIT; kill -QUIT $$' QUIT
       ;;
     end) mark_open= ;;
   esac

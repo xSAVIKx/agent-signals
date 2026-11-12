@@ -323,11 +323,13 @@ while [ ! -s "$T/run1/sessions/s10/recorder.pid" ] && [ "$_n" -lt 60 ]; do
   sleep 0.05
   _n=$((_n + 1))
 done
+if [ -s "$T/run1/sessions/s10/recorder.pid" ]; then pass "gate timeout, slow recorder: the recorder started late"; else fail "gate timeout, slow recorder: the recorder started late" "no recorder.pid"; fi
 _n=0
 while kill -0 "$(cat "$T/run1/sessions/s10/recorder.pid" 2>/dev/null)" 2>/dev/null && [ "$_n" -lt 60 ]; do
   sleep 0.05
   _n=$((_n + 1))
 done
+rec_gone "$T/run1/sessions/s10/recorder.pid" "gate timeout, slow recorder: the late recorder ends"
 left=$(pids_run "$T/run1")
 if [ -z "$left" ]; then pass "gate timeout, slow recorder: no pid of the run stays"; else fail "gate timeout, slow recorder: no pid of the run stays" "$left"; fi
 

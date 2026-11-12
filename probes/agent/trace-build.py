@@ -53,7 +53,7 @@ Rules:
   shared, reserved), and each IPv6 address. A host of numbers only is
   read as the C resolver reads it: 10.1 is 10.0.0.1, 0x7f.1 and
   2130706433 are 127.0.0.1. A host of numbers that is not an address is
-  private. A public name, for example
+  private, also with more than four labels. A public name, for example
   api.anthropic.com, stays.
 - A model event holds the method, the route (with no query), and the
   model kind. It holds no text of the request. The program reads the model
@@ -112,7 +112,7 @@ PRIVATE_SUFFIXES = (
 )
 # A host whose labels are all numbers (decimal, octal or hex). The C
 # resolver reads it as an IPv4 address, for example 10.1 or 0x7f.1.
-NUMERIC_HOST_RE = re.compile(r"^(0x[0-9a-f]*|[0-9]+)(\.(0x[0-9a-f]*|[0-9]+)){0,3}$")
+NUMERIC_HOST_RE = re.compile(r"^(0x[0-9a-f]*|[0-9]+)(\.(0x[0-9a-f]*|[0-9]+))*$")
 
 
 def read_lines(path):
@@ -212,12 +212,20 @@ LINK_FORMS = (("/tmp", "/private/tmp"), ("/var", "/private/var"))
 
 def forms(path):
     """The forms of a folder path: the path, its form on the other side of
-    a link of LINK_FORMS, and its real path."""
+    a link of LINK_FORMS, and its real path. A form on the other side is
+    not added when both sides exist on this machine as two different
+    folders (on Linux, /private/tmp can be a real folder)."""
     path = path.rstrip("/") or "/"
     out = {path}
     for a, b in LINK_FORMS:
         for x, y in ((a, b), (b, a)):
             if path == x or path.startswith(x + "/"):
+                if (
+                    os.path.isdir(x)
+                    and os.path.isdir(y)
+                    and os.path.realpath(x) != os.path.realpath(y)
+                ):
+                    continue
                 out.add(y + path[len(x) :])
     real = os.path.realpath(path)
     if real != path:
