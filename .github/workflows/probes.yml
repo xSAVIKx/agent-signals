@@ -126,6 +126,34 @@ jobs:
           f=$(ls agent-signals-probe-*.txt)
           grep -c '^### ' "$f"
 
+  # The ebpf check of "kit trace" with the real bpftrace and sudo. The
+  # runner account has "sudo -n". The test fails when bpftrace does not
+  # start, does not attach, or misses an event of the stub agent.
+  ebpf:
+    name: eBPF check (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install tmux and bpftrace
+        run: sudo apt-get update -q && sudo apt-get install -y -q tmux bpftrace
+      - name: Versions
+        run: |
+          uname -r
+          dpkg-query -W bpftrace
+          "${KIT_BPFTRACE:-bpftrace}" --version
+          ls -l /sys/kernel/btf/vmlinux
+      - name: eBPF check test
+        run: KIT_TEST_EBPF=real sh tools/test-agent-kit.sh tools/agent-kit-tests/test-trace-ebpf.sh
+
   windows:
     name: Windows (${{ matrix.os }})
     strategy:

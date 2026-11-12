@@ -161,7 +161,7 @@ $env:AGENT_SIGNALS_GET = "$HOME\kits"; irm https://xsavikx.github.io/agent-signa
 
 A trace records one step of the agent kit. Traces run on Linux and macOS.
 They are not on Windows yet: `kit.ps1 trace` exits 2. A trace records
-three checks on one clock:
+these checks on one clock:
 
 - `terminal`: the output of the tmux pane, as an asciicast v2 file.
 - `network`: each connection of the agent through a local proxy: the host,
@@ -181,6 +181,46 @@ three checks on one clock:
   file `.kit-trace-mark.NAME.begin` and `.end` in the work root. When the
   file watch is very late, the trace can drop a file that the agent
   writes just at its start.
+- `ebpf` (Linux only, not in the default): the process tree of the agent,
+  as the kernel sees it, with bpftrace. It records each fork, exec and
+  exit of a process, each `openat` (the path, the mode and the result),
+  each `connect` (the address and the port, or the path of a unix
+  socket), each name that the agent gives to `getaddrinfo` of libc, and
+  each `kill`. It records the program path of each exec, but no
+  arguments of a program. The trace keeps only the processes below the
+  agent pid of each session, so the processes of the kit are not in it.
+  `summary.programs`, `summary.processes_left`, `summary.opened`,
+  `summary.direct` and `summary.dns` come from this check.
+
+The ebpf check runs bpftrace with `sudo -n`. bpftrace follows each fork
+from the pid of `kit trace`, and writes one line for each event to a file
+that the shell of the kit opens as the user. bpftrace stops itself when
+`kit trace` ends, or when a sentinel process of the kit ends. The kit
+waits for the exec of a canary process in the record before the step
+starts, 30 s at most. When the check cannot run, the trace skips it with
+a reason in `meta.skipped` and records the other checks:
+
+- `not-linux`: the system is not Linux.
+- `no-bpftrace`: no bpftrace on PATH, and no file at `KIT_BPFTRACE`.
+- `no-sudo`: no `sudo`, or `sudo -n true` fails.
+- `bpftrace-failed`: bpftrace ended before it was ready. The kit prints
+  the first 5 lines of its error output with the prefix `kit: `.
+- `no-ready`: no canary exec in the record after 30 s
+  (`KIT_EBPF_READY_TURNS` turns of 0.5 s, 60 by default).
+
+The kit runs these three commands with `sudo -n`:
+
+1. `true`, to check that sudo needs no password.
+2. `env BPFTRACE_MAX_STRLEN=200 BPFTRACE_MAP_KEYS_MAX=65536 BPFTRACE -B line trace-ebpf.bt PID SENTINEL`,
+   the check itself.
+3. `kill`, only when bpftrace does not stop in 10 s at the end of the
+   trace.
+
+With the ebpf check, `kit session stop` waits after the hang-up of the
+agent until the agent pid ends, 3 s at most, then 0.5 s more. It writes
+that time to `hangup.tsv` in the raw folder. A process of the agent tree
+that still runs at that time is in `summary.processes_left`. So the stop
+of a session takes 3.5 s more at most.
 
 A trace also records the states of the step (`start`, `idle`, `prompt`,
 `busy`, `dialog`, `answer`, `idle-after`, `stop`). It holds no prompt text
@@ -205,16 +245,22 @@ the folders that come during the step. When a large home uses all the
 other watches, `meta.files_limit` is `true`, and some folders of the home
 have no watch.
 
-Make a run, then trace one step of it:
+Make a run, then trace one step of it.
+
+CAUTION: The ebpf check runs bpftrace as root with "sudo -n". Run "sudo
+-v" before the trace on a machine that asks for a password. The agent
+does not run as root.
 
 ```sh
 sh probes/agent/kit.sh start --home fixture --unattended --out DIR
 export AGENT_SIGNALS_RUN=DIR/agent-signals-run-linux-<time>
 sh probes/agent/kit.sh trace permission-claude@tmux
 sh probes/agent/kit.sh trace permission-claude@tmux --checks terminal,files
+sh probes/agent/kit.sh trace permission-claude@tmux --checks terminal,network,files,ebpf
 ```
 
-`--checks` selects the checks. The default is all three. Put `--checks`
+`--checks` selects the checks. The default is `terminal,network,files`.
+The check `ebpf` runs only when `--checks` names it. Put `--checks`
 before the step or just after it. The words after the step go to
 `kit step`, so a `--checks` after them goes to the step too. The command
 prints the line of the step, then `trace: RUN/traces/NN-NAME@BACKEND`. It
@@ -224,7 +270,8 @@ run in a run at a time.
 
 A trace that gets KILL cannot stop its recorders. The proxy and the file
 watcher check two times each second, or more, that `kit trace` is still
-their parent, and stop when it is gone. The file watcher then deletes its
+their parent, and stop when it is gone. bpftrace stops when the pid of
+`kit trace` ends. The next trace stops the sentinel. The file watcher then deletes its
 record in `/tmp/as-trace.*`, because that record holds the real paths.
 The killed trace leaves the folder `RUN/.trace`, and its step can still
 run. The next `kit trace` in the run, or `kit session stop --all`, sees

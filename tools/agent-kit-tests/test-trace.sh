@@ -153,10 +153,14 @@ j=$run/traces/03-permission-claude@tmux/trace.json
 want "operator TMPDIR: summary.files.tmp holds the temp file of the stub" "$j" 'len(d["summary"]["files"]["tmp"]) > 0 and all(p.startswith("TMP/") for p in d["summary"]["files"]["tmp"])'
 want "operator TMPDIR: no path names the folder" "$j" '"optmp" not in json.dumps(d)'
 
+# The ebpf check with no bpftrace: a skip, not a failure. The folder number
+# is 04.
+(KIT_BPFTRACE=$T/none && export KIT_BPFTRACE && kitx trace permission-claude@tmux --checks terminal,ebpf) >"$T/t3" 2>&1
+expect_code "ebpf, no bpftrace: exit 0" 0 $?
+j=$run/traces/04-permission-claude@tmux/trace.json
+want "ebpf, no bpftrace: the skip no-bpftrace" "$j" '{"check": "ebpf", "reason": "no-bpftrace"} in d["meta"]["skipped"] and d["meta"]["checks"] == ["terminal"]'
+
 # Bad use.
-kitx trace permission-claude@tmux --checks ebpf >"$T/t3" 2>&1
-expect_code "ebpf: exit 2" 2 $?
-expect_line "ebpf: the text" 'the ebpf check is not in this kit yet' "$T/t3"
 kitx trace permission-claude@tmux --checks terminal,disk >"$T/t3" 2>&1
 expect_code "an unknown check: exit 2" 2 $?
 kitx trace --bogus permission-claude@tmux >"$T/t3" 2>&1
@@ -165,16 +169,18 @@ kitx trace >"$T/t3" 2>&1
 expect_code "no step: exit 2" 2 $?
 kitx trace no-such-step@tmux >"$T/t3" 2>&1
 expect_code "an unknown step: exit 2" 2 $?
-if [ ! -e "$run/.trace" ] && [ ! -e "$run/traces/04-permission-claude@tmux" ]; then pass "bad use: no trace folder"; else fail "bad use: no trace folder" "a folder exists"; fi
+if [ ! -e "$run/.trace" ] && [ ! -e "$run/traces/05-permission-claude@tmux" ]; then pass "bad use: no trace folder"; else fail "bad use: no trace folder" "a folder exists"; fi
 
 # A step that fails: the agent shows no idle screen.
 cp "$B/claude" "$T/stub-claude"
 cp "$T/other/claude" "$B/claude"
 kitx trace permission-claude@tmux >"$T/t4" 2>&1
-expect_code "failed step: exit 1" 1 $?
+rc4=$?
+expect_code "failed step: exit 1" 1 "$rc4"
+[ "$rc4" = 1 ] || sed "s/^/  | /" "$T/t4"
 cp "$T/stub-claude" "$B/claude"
 expect_line "failed step: the step line" '^step: permission-claude@tmux fail no-idle' "$T/t4"
-j=$run/traces/04-permission-claude@tmux/trace.json
+j=$run/traces/05-permission-claude@tmux/trace.json
 expect_file "failed step: trace.json exists" "$j"
 want "failed step: the state start" "$j" '"start" in [s["state"] for s in d["states"]]'
 if [ -z "$(trace_pids)" ]; then pass "failed step: no trace pid stays"; else fail "failed step: no trace pid stays" "$(trace_pids)"; fi
@@ -184,7 +190,7 @@ if [ -z "$(trace_pids)" ]; then pass "failed step: no trace pid stays"; else fai
 if [ -z "$(PATH="$B:$SYS_PATH" command -v codex)" ]; then
   (cd "$D" && HOME=$H PATH="$B:$SYS_PATH" AGENT_SIGNALS_WATCH=3 sh "$ROOT/probes/agent/kit.sh" trace permission-codex@tmux </dev/null) >"$T/t5" 2>&1
   expect_code "skipped step: exit 3" 3 $?
-  j=$run/traces/05-permission-codex@tmux/trace.json
+  j=$run/traces/06-permission-codex@tmux/trace.json
   want "skipped step: terminal no-cast" "$j" '{"check": "terminal", "reason": "no-cast"} in d["meta"]["skipped"] and d["terminal"] is None'
   want "skipped step: the step name is the meta step" "$j" 'd["meta"]["step"] == "permission-codex@tmux"'
 else

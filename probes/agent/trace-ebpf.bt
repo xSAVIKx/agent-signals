@@ -1,0 +1,45 @@
+// trace-ebpf.bt ROOT STOP: the eBPF check of "kit trace". Read
+// probes/README.md, section Traces. ROOT is the pid of trace.sh, STOP the
+// pid of the sentinel. Only tracepoints and one uprobe: no BTF type. Each
+// key of @in is a uint64, so that the map has one key type.
+BEGIN { @in[(uint64)$1] = 1; }
+tracepoint:task:task_newtask /@in[(uint64)pid] && !(args.clone_flags & 0x10000)/ {
+  @in[(uint64)args.pid] = 1;
+  printf("%llu\tfork\t%d\t%d\t%s\n", nsecs, pid, args.pid, comm);
+}
+tracepoint:sched:sched_process_exec /@in[(uint64)pid]/ {
+  printf("%llu\texec\t%d\t%s\t%s\n", nsecs, pid, comm, str(args.filename));
+}
+tracepoint:sched:sched_process_exit /@in[(uint64)pid] && pid == tid/ {
+  printf("%llu\texit\t%d\n", nsecs, pid);
+  delete(@in[(uint64)pid]);
+}
+tracepoint:sched:sched_process_exit /(pid == $1 || pid == $2) && pid == tid/ { exit(); }
+tracepoint:syscalls:sys_enter_openat /@in[(uint64)pid]/ {
+  @path[tid] = str(args.filename);
+  @flags[tid] = args.flags;
+  @open[tid] = 1;
+}
+tracepoint:syscalls:sys_exit_openat /@open[tid]/ {
+  printf("%llu\topen\t%d\t%d\t%d\t%s\n", nsecs, pid, @flags[tid], args.ret, @path[tid]);
+  delete(@path[tid]); delete(@flags[tid]); delete(@open[tid]);
+}
+tracepoint:syscalls:sys_enter_connect /@in[(uint64)pid]/ {
+  $p = (uint8 *)args.uservaddr;
+  $fam = *(uint16 *)$p;
+  if ($fam == 2) {
+    printf("%llu\tconnect4\t%d\t%d\t%s\n", nsecs, pid, (*($p + 2) << 8) | *($p + 3), ntop(2, *(uint32 *)($p + 4)));
+  } else if ($fam == 10) {
+    printf("%llu\tconnect6\t%d\t%d\t%llx\t%llx\n", nsecs, pid, (*($p + 2) << 8) | *($p + 3), *(uint64 *)($p + 8), *(uint64 *)($p + 16));
+  } else if ($fam == 1) {
+    printf("%llu\tconnectu\t%d\t%s\n", nsecs, pid, str($p + 2));
+  }
+}
+tracepoint:syscalls:sys_enter_kill /@in[(uint64)pid]/ {
+  printf("%llu\tsignal\t%d\t%d\t%d\n", nsecs, pid, args.pid, args.sig);
+}
+uprobe:libc:getaddrinfo /@in[(uint64)pid]/ {
+  printf("%llu\tdns\t%d\t%s\n", nsecs, pid, str(arg0));
+}
+interval:s:7200 { exit(); }
+END { clear(@in); clear(@path); clear(@flags); clear(@open); }

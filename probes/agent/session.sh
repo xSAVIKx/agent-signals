@@ -104,6 +104,14 @@
 # "stop" marks "begin" after the agent and its daemons are stopped, and
 # "end" after it deleted the work folder and the home.
 #
+# The ebpf check: with KIT_TRACE set, and KIT_TRACE_CHECKS a comma list
+# that has "ebpf" (an empty list does not select it), "stop" waits after
+# the hang-up of the server (tmux kill-server, pty "client stop") until the
+# agent pid ends, 3 s at most, then 0.5 s more. Then it appends
+# MS<tab>NAME to $KIT_TRACE/hangup.tsv, and stops the pids as before. The
+# build reads the processes that stay after that time as processes that
+# the agent left.
+#
 # Each started pid is also in RUN/pids/, with the label "session NAME
 # ROLE". "stop" stops only these pids, never a process found by its name.
 set -u
@@ -180,6 +188,17 @@ trace_files() {
   [ -n "${KIT_TRACE:-}" ] || return 1
   case ",${KIT_TRACE_CHECKS:-}," in
     ,, | *,files,*) return 0 ;;
+  esac
+  return 1
+}
+
+# trace_ebpf: true when the ebpf check is on: KIT_TRACE is set, and
+# KIT_TRACE_CHECKS is a comma list that has "ebpf". An empty list does not
+# select ebpf.
+trace_ebpf() {
+  [ -n "${KIT_TRACE:-}" ] || return 1
+  case ",${KIT_TRACE_CHECKS:-}," in
+    *,ebpf,*) return 0 ;;
   esac
   return 1
 }
@@ -920,6 +939,21 @@ stop_session() {
     tmux) [ -n "$sock" ] && tm kill-server >/dev/null 2>&1 ;;
     pty) [ -n "$sock" ] && client stop >/dev/null 2>&1 ;;
   esac
+  # The ebpf check: the processes that stay after the hang-up are the
+  # processes that the agent leaves. Wait for the agent pid to end (3 s at
+  # most), then 0.5 s more, and write the time to hangup.tsv. Then the
+  # stop of the pids comes.
+  if trace_ebpf; then
+    _ap=$(cat "$sdir/pid" 2>/dev/null)
+    case $_ap in '' | *[!0-9]*) _ap= ;; esac
+    _n=0
+    while [ -n "$_ap" ] && kit_pid_live "$_ap" && [ "$_n" -lt 30 ]; do
+      sleep 0.1
+      _n=$((_n + 1))
+    done
+    sleep 0.5
+    printf '%s\t%s\n' "$(kit_ms)" "$name" >>"$KIT_TRACE/hangup.tsv"
+  fi
   # shellcheck disable=SC2046
   end_pids $(session_pids)
   # The server is stopped. The recorder gets the end of its input and

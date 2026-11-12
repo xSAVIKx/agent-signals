@@ -369,6 +369,12 @@ Do the task as written, with these changes in step 5:
    kit trace NAME@BACKEND
    ```
 
+   Add `--checks terminal,network,files,ebpf` only when the prompt asks
+   for the ebpf check. That check runs bpftrace as root with `sudo -n`,
+   and works only on Linux. Do not run `sudo -v` yourself. When the trace
+   skips the check, `meta.skipped` of `trace.json` gives the reason. Tell
+   the operator that reason.
+
    Before each trace, read the `step` lines of `manifest.tsv` in the run
    folder. Give your shell tool a time limit of 10 minutes, as for
    `kit step`. Only one trace can run in a run at a time. The command prints the line
