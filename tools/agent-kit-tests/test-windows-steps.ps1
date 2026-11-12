@@ -248,34 +248,39 @@ try {
         Expect-Line "${b}: the reason is agent-ended" "^step: ended-claude@$b fail agent-ended$" $out
         Stop-Process -Id $killer.Id -Force -ErrorAction SilentlyContinue
 
-        # The cases below use a watch of 4 s, as test-steps.sh does, so that
-        # the slow runners stay in the time limit of the job.
+        # The cases below use a watch of 4 s, as test-steps.sh does. A step
+        # takes about 45 s on the slow runners, so only the cases that need
+        # session-step.ps1 run as a step. The other cases run the guided
+        # watch alone, as test-steps.sh does.
         $env:AGENT_SIGNALS_WATCH = '4'
 
+        # Invoke-Jump STEP JUMP AT NAME WANT: the step with a fake jump of
+        # the wall clock (AGENT_SIGNALS_CLOCK_JUMP and _AT), as when the
+        # machine sleeps.
+        function Invoke-Jump([string]$Step, [string]$Jump, [string]$At, [string]$Name, [int]$Want) {
+            $env:AGENT_SIGNALS_CLOCK_JUMP = $Jump
+            if ($At) { $env:AGENT_SIGNALS_CLOCK_JUMP_AT = $At } else { Remove-Item Env:\AGENT_SIGNALS_CLOCK_JUMP_AT -ErrorAction SilentlyContinue }
+            try { Expect-Kit "${b}: ${Name}: the step exits $Want" $Want 'step' "$Step@$b" }
+            finally { Remove-Item Env:\AGENT_SIGNALS_CLOCK_JUMP, Env:\AGENT_SIGNALS_CLOCK_JUMP_AT -ErrorAction SilentlyContinue }
+        }
+
         # test_busy_at_end: no dialog, but the last screen shows the busy
-        # text. The agent still works, so the step is not ok no-dialog.
-        Expect-Kit "${b}: busy at end: the step exits 1" 1 'step' "busyend-claude@$b"
+        # text. The agent still works, so the step is not ok no-dialog. The
+        # step also has a bad jump value (9x) for the end of the watch. The
+        # kit ignores it, so the result is not clock-gap.
+        Invoke-Jump 'busyend-claude' '9x' 'end' 'busy at end' 1
         Expect-Line "${b}: busy at end: the step is fail busy-at-end" "^step: busyend-claude@$b fail busy-at-end$" $out
         $f = Get-StepFile "*-busyend-claude@$b.txt"
         Expect-Line "${b}: busy at end: the file has the result" '^result: fail busy-at-end$' $f
         Expect-Line "${b}: busy at end: the file keeps the last screen" '^### screen last$' $f
         Expect-Line "${b}: busy at end: the last screen shows the busy text" 'esc to interrupt' $f
-
-        # Invoke-Jump JUMP AT NAME: the permission step with a fake jump of
-        # the wall clock (AGENT_SIGNALS_CLOCK_JUMP and _AT), as when the
-        # machine sleeps.
-        function Invoke-Jump([string]$Jump, [string]$At, [string]$Name, [int]$Want) {
-            $env:AGENT_SIGNALS_CLOCK_JUMP = $Jump
-            if ($At) { $env:AGENT_SIGNALS_CLOCK_JUMP_AT = $At } else { Remove-Item Env:\AGENT_SIGNALS_CLOCK_JUMP_AT -ErrorAction SilentlyContinue }
-            try { Expect-Kit "${b}: ${Name}: the step exits $Want" $Want 'step' "permission-claude@$b" }
-            finally { Remove-Item Env:\AGENT_SIGNALS_CLOCK_JUMP, Env:\AGENT_SIGNALS_CLOCK_JUMP_AT -ErrorAction SilentlyContinue }
-        }
+        Expect-NoLine "${b}: bad jump: the kit ignores it" '^clock gap: ' $f
 
         # test_clock_gap: the first turn of the watch at 2 s of counted time
         # takes 600 s more wall time. The step fails with clock-gap and
         # gives the size. The rule is for each turn, so the position of the
         # jump does not change the code path: no case for a late jump.
-        Invoke-Jump '600' '' 'clock gap' 1
+        Invoke-Jump 'permission-claude' '600' '' 'clock gap' 1
         $f = Get-StepFile "*-permission-claude@$b.txt"
         Expect-Line "${b}: clock gap: the step is fail clock-gap" "^step: permission-claude@$b fail clock-gap$" $out
         Expect-Line "${b}: clock gap: the file has the result" '^result: fail clock-gap$' $f
@@ -286,32 +291,46 @@ try {
         if ($gm) { $g = [int]$gm.Matches[0].Groups[1].Value }
         if ($g -ge 600) { Pass "${b}: clock gap: the size holds the jump" } else { Fail "${b}: clock gap: the size holds the jump" "$g" }
 
-        # test_slow_machine: each turn takes 2 s more (fake wall time). The
-        # machine is slow, but has no gap.
-        Invoke-Jump '2' 'each' 'slow machine' 0
-        $f = Get-StepFile "*-permission-claude@$b.txt"
-        Expect-NoLine "${b}: slow machine: no clock gap" 'clock-gap' $out
-        Expect-NoLine "${b}: slow machine: no gap in the file" '^watch: clock gap' $f
-
         # test_clock_gap_at_the_end: the wait of the step for the end of the
         # watch takes 100 s more wall time.
-        Invoke-Jump '100' 'end' 'end gap' 1
+        Invoke-Jump 'permission-claude' '100' 'end' 'end gap' 1
         $f = Get-StepFile "*-permission-claude@$b.txt"
         Expect-Line "${b}: end gap: the step is fail clock-gap" "^step: permission-claude@$b fail clock-gap$" $out
         Expect-Line "${b}: end gap: the file gives the size" '^clock gap: a turn of the wait for the end of the watch took [0-9]+ s of wall time \(the end of the watch\)$' $f
         Expect-NoLine "${b}: end gap: the watch saw no gap" '^watch: clock gap' $f
 
-        # test_clock_gap_in_the_snapshot: the "after" snapshot of the watch
-        # takes 100 s more wall time.
-        Invoke-Jump '100' 'snapshot' 'snapshot gap' 1
-        $f = Get-StepFile "*-permission-claude@$b.txt"
-        Expect-Line "${b}: snapshot gap: the step is fail clock-gap" "^step: permission-claude@$b fail clock-gap$" $out
-        Expect-Line "${b}: snapshot gap: the file gives the size" '^clock gap: the after snapshot of the watch took [0-9]+ s of wall time, at [0-9]+ s of counted time \(the guided watch\)$' $f
-        Expect-Line "${b}: snapshot gap: the guided step has the gap line" '^watch: clock gap of [0-9]+ s: ' $f
+        # Invoke-Watch NAME JUMP AT: the guided watch alone (probes\run.ps1)
+        # for 4 s on the other stub, with a fake jump of the wall clock. The
+        # console is in $T\NAME.log, the file in $T\NAME.txt. The watch
+        # ends before the function returns.
+        $otherPids = Join-Path $T 'other.pids'
+        New-TextFile $otherPids "$($other.Id)`n"
+        function Invoke-Watch([string]$Name, [string]$Jump, [string]$At) {
+            $env:AGENT_SIGNALS_CLOCK_JUMP = $Jump
+            $env:AGENT_SIGNALS_CLOCK_JUMP_AT = $At
+            $ErrorActionPreference = 'Continue'
+            $c = -1
+            try {
+                & $Exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $env:ROOT 'probes\run.ps1') -Guided permission claude -Wait 4 -PidsFile $otherPids -StateHome $h -Out (Join-Path $T "$Name.txt") *> (Join-Path $T "$Name.log")
+                $c = $LASTEXITCODE
+            } finally { Remove-Item Env:\AGENT_SIGNALS_CLOCK_JUMP, Env:\AGENT_SIGNALS_CLOCK_JUMP_AT -ErrorAction SilentlyContinue }
+            Expect-Code "${b}: ${Name}: the watch exits 0" 0 $c
+            if ($c -ne 0) { Get-Content -LiteralPath (Join-Path $T "$Name.log") -ErrorAction SilentlyContinue | Write-Output }
+        }
 
-        # A bad jump value is ignored.
-        Invoke-Jump '9x' 'end' 'bad jump' 0
-        Expect-NoLine "${b}: bad jump: the kit ignores it" 'clock-gap' $out
+        # test_clock_gap_in_the_snapshot: the "after" snapshot of the watch
+        # takes 100 s more wall time. The step reads this "kit: clock gap"
+        # line as it reads the line of test_clock_gap.
+        Invoke-Watch 'snapshot' '100' 'snapshot'
+        Expect-Line "${b}: snapshot gap: the watch prints the gap" '^kit: clock gap: the after snapshot of the watch took [0-9]+ s of wall time, at [0-9]+ s of counted time$' (Join-Path $T 'snapshot.log')
+        Expect-Line "${b}: snapshot gap: the file has the gap line" '^watch: clock gap of [0-9]+ s: ' (Join-Path $T 'snapshot.txt')
+
+        # test_slow_machine: each turn takes 2 s more (fake wall time). The
+        # machine is slow, but has no gap.
+        Invoke-Watch 'slow' '2' 'each'
+        Expect-NoLine "${b}: slow machine: no gap line" 'clock gap' (Join-Path $T 'slow.log')
+        Expect-NoLine "${b}: slow machine: no gap in the file" '^watch: clock gap' (Join-Path $T 'slow.txt')
+        Expect-Line "${b}: slow machine: the watch ran to its end" '^### 1\. ' (Join-Path $T 'slow.txt')
         $env:AGENT_SIGNALS_WATCH = '8'
     }
 
