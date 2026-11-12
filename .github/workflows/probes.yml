@@ -175,6 +175,27 @@ jobs:
           ls -l /sys/kernel/btf/vmlinux
       - name: eBPF check test
         run: KIT_TEST_EBPF=real sh tools/test-agent-kit.sh tools/agent-kit-tests/test-trace-ebpf.sh
+      # After a failure: the raw lines of the script for one long open and
+      # one connect, with no kit around it.
+      - name: Raw lines of the script
+        if: failure()
+        run: |
+          d=$RUNNER_TEMP/a-folder-with-a-long-name-so-that-the-path-has-more-than-64-characters
+          mkdir -p "$d"
+          sleep 300 &
+          stop=$!
+          sudo -n env BPFTRACE_MAX_STRLEN=200 BPFTRACE_MAP_KEYS_MAX=65536 "$KIT_BPFTRACE" -B line \
+            probes/agent/trace-ebpf.bt "$$" "$stop" >"$RUNNER_TEMP/raw.txt" 2>"$RUNNER_TEMP/raw.err" &
+          sleep 10
+          sh -c "echo x >'$d/x.txt'"
+          python3 -I -c 'import socket; s = socket.socket(); s.settimeout(1); s.connect_ex(("127.0.0.1", 9)); s.close()'
+          sleep 1
+          kill "$stop"
+          wait
+          echo "== raw.err"
+          cat "$RUNNER_TEMP/raw.err"
+          echo "== raw.txt: lines that are not exec, fork or exit"
+          awk -F '\t' '$2 != "exec" && $2 != "fork" && $2 != "exit"' "$RUNNER_TEMP/raw.txt" | tail -n 40
 
   windows:
     name: Windows (${{ matrix.os }})
