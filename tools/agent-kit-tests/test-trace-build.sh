@@ -440,6 +440,22 @@ run_build late "$H/meta.json"
 want "late exec: the program at the hang-up stays" late '[p["program"] for p in d["summary"]["processes_left"]] == ["/usr/bin/python3"]'
 want "empty exec path: no event" late 'all(e.get("path") for e in ev if e["kind"] == "exec") and all(p["path"] for p in d["summary"]["programs"])'
 
+# A pid that the kernel gives again in one tree (4400) is a new process,
+# and the parents make no cycle. A child keeps the program of its parent
+# at the fork, also after a later exec of the parent.
+mkrawe reuse
+{
+  printf '1000900000000\tfork\t4242\t4400\tclaude\n'
+  printf '1000901000000\tfork\t4400\t4401\tclaude\n'
+  printf '1000902000000\texit\t4400\n'
+  printf '1000903000000\tfork\t4401\t4400\tclaude\n'
+  printf '1000950000000\texec\t4242\tnode\t/usr/bin/node\n'
+  printf '1000960000000\tfork\t4242\t4500\tnode\n'
+} >>"$T/reuse/.trace/ebpf.txt"
+run_build reuse "$H/meta.json"
+expect_code "pid reuse: exit 0" 0 $?
+want "pid reuse: the new process is left, with the program at the fork" reuse '[(p["pid"], p["ppid"], p["program"]) for p in d["summary"]["processes_left"]] == [(4260, 4242, "/usr/bin/python3"), (4400, 4401, "/usr/local/bin/claude"), (4401, 4400, "/usr/local/bin/claude"), (4500, 4242, "/usr/bin/node")]'
+
 # A pane with no gate exec keeps the full tree. A connect4 with an
 # address that is not IPv4, an IPv4-mapped IPv6 address, and a lost line
 # in ebpf.err.
