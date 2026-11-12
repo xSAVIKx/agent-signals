@@ -1,0 +1,8 @@
+[
+  {
+    "number": 3,
+    "title": "trace: claude 2.1.319 (fixture)",
+    "body": "trace: claude 2.1.319 (fixture) \u00b7 run: https://github.com/example/repo/actions/runs/0 \u00b7 artifacts: trace-summary-claude-linux-x64\n\n## items\n\n### programs\n\n| programs | ubuntu-24.04 |\n|---|---|\n| `/usr/bin/git` | yes |\n\n### files\n\n| files | ubuntu-24.04 |\n|---|---|\n| `WORK` | yes |\n| `WORK/src` | yes |\n| `~` | yes |\n| `~/.claude/projects` | yes |\n\n### opened\n\n| opened | ubuntu-24.04 |\n|---|---|\n| `/etc` | yes |\n| `/usr/lib` | yes |\n\n### hosts\n\n| hosts | ubuntu-24.04 |\n|---|---|\n| `api.anthropic.com:443` | yes |\n\n### direct\n\nnone\n\n### dns\n\n| dns | ubuntu-24.04 |\n|---|---|\n| `api.anthropic.com` | yes |\n\n### processes_left\n\nnone\n\n## timeline of the permission step\n\n### ubuntu-24.04\n\n- start at 0 ms: -\n- dialog at 4200 ms: exec `exec /usr/bin/git`\n\n## first traced version\n\n<!-- trace-data: eNptUL0OwiAQfpebFYwy9RUcTFwcjDEUri2mBcLB1NRnl1Y3b7t8f/flm8GmECNaaO6PHbhJ90j1htIWn8v+qMRBwcpknCoxg3UJTa7XsgPrN0hHJ7TPQ01yRpgw/QdUcedG3OS3y/XMvVhxSclw3JsFpTCjLhZlTOFVWxH7eAiU+Z6NUifWEiL6dZMZJGa2kCyU5Oha1l7rGCRCeo7Y/baqWJ/0d8PN3Dove5eZgGX5ABt4gf4= -->\n",
+    "state": "OPEN"
+  }
+]
