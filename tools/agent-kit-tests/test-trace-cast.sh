@@ -300,19 +300,25 @@ if [ -z "$left" ]; then pass "gate timeout: no pid of the run stays"; else fail 
 sock_gone s5 "gate timeout: no socket folder stays"
 
 # The gate wait ends while pipe-pane works, but the recorder is slow to
-# start: a python3 wrapper waits 1 s before it runs trace-cast.py. The
-# pane gives up at the gate with 125, and the start exits 1.
+# start: a python3 wrapper runs trace-cast.py only after the test makes
+# the file "go", after the start ended. So the recorder cannot start in
+# the wait, also on a slow machine. The start exits 1.
 real_py=$(command -v python3)
 mkdir "$T/slowpy"
 cat >"$T/slowpy/python3" <<PYWEOF
 #!/bin/sh
-case "\$*" in *trace-cast.py*) sleep 1 ;; esac
+case "\$*" in
+  *trace-cast.py*)
+    i=0
+    while [ ! -e '$T/slowpy/go' ] && [ "\$i" -lt 600 ]; do sleep 0.05; i=\$((i + 1)); done ;;
+esac
 exec "$real_py" "\$@"
 PYWEOF
 chmod +x "$T/slowpy/python3"
 (PATH="$T/slowpy:$PATH"; KIT_TRACE=$raw; KIT_TRACE_CHECKS=; KIT_TRACE_GATE_TURNS=4; export PATH KIT_TRACE KIT_TRACE_CHECKS KIT_TRACE_GATE_TURNS
  kit session start s10 stub --via tmux --cmd "sh '$stub'") >"$T/o" 2>&1
 expect_code "gate timeout, slow recorder: start exits 1" 1 $?
+: >"$T/slowpy/go"
 expect_line "gate timeout, slow recorder: the reason" "gate wait ended before the recorder started" "$T/o"
 if [ ! -e "$T/run1/sessions/s10/pid" ]; then pass "gate timeout, slow recorder: the agent did not run"; else fail "gate timeout, slow recorder: the agent did not run" "a pid file exists"; fi
 sock_gone s10 "gate timeout, slow recorder: no socket folder stays"

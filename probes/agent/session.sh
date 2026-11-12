@@ -680,10 +680,15 @@ do_start() {
           _n=$((_n + 1))
         done
         if [ ! -e "$sdir/ready" ]; then
-          _why="the recorder did not start: the terminal is not recorded"
-          # A pane that ended with 125 gave up at the gate first.
-          [ "$(tm display -p -t kit '#{pane_dead_status}' 2>/dev/null)" = 125 ] &&
+          # The kit makes no gate now, so the agent does not run. The
+          # reason comes from the recorder, not from the pane: the pane can
+          # still be in its gate wait at this time. The recorder writes its
+          # pid file first, before it opens the cast.
+          if [ -s "$sdir/recorder.pid" ]; then
+            _why="the recorder did not start: the terminal is not recorded"
+          else
             _why="the gate wait ended before the recorder started: the agent did not run"
+          fi
           tm kill-server >/dev/null 2>&1
           [ -n "$server" ] && rm -f "$run/pids/$server"
           start_die 1 "$_why"
