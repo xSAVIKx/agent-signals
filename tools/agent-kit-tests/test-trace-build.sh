@@ -191,11 +191,15 @@ for _h in 10.1 127.1 0x7f.1 0177.0.0.1 10.0.1 2130706433 0x7f000001 0x0a.0x01.0x
   dev.box web.lxd app.test svc.localhost wiki.intranet git.corp nas.home 999.1 10.1.2.3.4; do
   printf '{"start": 1700000001000, "end": 1700000001100, "host": "%s", "port": 443, "up": 1, "down": 2, "status": "ok", "method": "CONNECT"}\n' "$_h" >>"$T/private2/.trace/proxy.jsonl"
 done
-printf '{"start": 1700000001000, "end": 1700000001100, "host": "%s", "port": 443, "up": 1, "down": 2, "status": "ok", "method": "CONNECT"}\n' 8.8.8.8 >>"$T/private2/.trace/proxy.jsonl"
+# A public address and public names with numbers in them stay.
+for _h in 8.8.8.8 v1.2.example.com 2.1.example.org; do
+  printf '{"start": 1700000001000, "end": 1700000001100, "host": "%s", "port": 443, "up": 1, "down": 2, "status": "ok", "method": "CONNECT"}\n' "$_h" >>"$T/private2/.trace/proxy.jsonl"
+done
 run_build private2 "$H/meta.json" ci-box
 want "private host: each short IPv4 form and suffix is <private-host>" private2 '[h for h in d["summary"]["hosts"] if h["host"] == "<private-host>"][0]["connections"] == 17'
 want "private host: no short form or private suffix stays" private2 'not any(w in json.dumps([d["summary"]["hosts"], [e for e in ev if e["kind"] == "proxy"]]).lower() for w in ("10.1", "127.1", "0x7f", "0177", "10.0.1", "2130706433", "0x0a", ".box", ".lxd", ".test", ".localhost", ".intranet", ".corp", ".home", "999.1"))'
 want "private host: a public address stays" private2 '"8.8.8.8" in {h["host"] for h in d["summary"]["hosts"]}'
+want "private host: a public name with numbers stays" private2 '{"v1.2.example.com", "2.1.example.org"} <= {h["host"] for h in d["summary"]["hosts"]}'
 
 # The file work of the kit: the events between the marks of a session.
 # The session a has the home /home/example and the work folder

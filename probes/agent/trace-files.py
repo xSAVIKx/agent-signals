@@ -61,8 +61,9 @@ The watch limit is 8192 watches. The watcher keeps each IN_MOVED_FROM
 with its cookie for a short wait (MOVE_WAIT, 0.1 s), over as many reads
 as come in that time. An IN_MOVED_TO with the same cookie in that time
 gives "move". A move out of the tree has no IN_MOVED_TO and gives
-"delete" when the wait ends. On SIGTERM the watcher sets a flag, reads the queue one more
-time, writes all lines, and exits 0. When inotify is not available, it
+"delete" when the wait ends. The "delete" has the time of the
+IN_MOVED_FROM. On SIGTERM the watcher sets a flag, reads the queue one
+more time, writes all lines, and exits 0. When inotify is not available, it
 exits 3. The standard library only.
 """
 
@@ -478,7 +479,7 @@ class Watcher:
                         src = self.pend_from.pop(cookie, None)
                         if src is not None and cookie not in self.unknown_from:
                             # It left the part of the tree that is recorded.
-                            self.emit("delete", src[0], src[1])
+                            self.emit("delete", src[0], src[1], t=src[3])
                             self.forget(src[0], src[1], True)
                         self.unknown_from.discard(cookie)
                     return
@@ -505,7 +506,9 @@ class Watcher:
             self.forget(path, is_dir, False)
         elif mask & IN_MOVED_FROM:
             self.flush_writes(path)
-            self.pend_from[cookie] = (path, is_dir, time.monotonic() + MOVE_WAIT)
+            # The time of the move-from: a "delete" at the end of the wait
+            # has this time, not the time when the wait ends.
+            self.pend_from[cookie] = (path, is_dir, time.monotonic() + MOVE_WAIT, now_ms())
         elif mask & IN_MOVED_TO:
             self.unknown_from.discard(cookie)
             src = self.pend_from.pop(cookie, None)
@@ -529,20 +532,20 @@ class Watcher:
         """A move out of the tree has no IN_MOVED_TO: write "delete" when
         the wait of the move ends (all with everything)."""
         now = time.monotonic()
-        for cookie, (path, is_dir, due) in list(self.pend_from.items()):
+        for cookie, (path, is_dir, due, t) in list(self.pend_from.items()):
             if everything or due <= now:
                 del self.pend_from[cookie]
                 if cookie in self.unknown_from:
                     # A --top item with no known owner left the tree.
                     self.unknown_from.discard(cookie)
                 else:
-                    self.emit("delete", path, is_dir)
+                    self.emit("delete", path, is_dir, t=t)
                 self.forget(path, is_dir, True)
 
     def timeout(self):
         t = None
         if self.pend_from:
-            due = min(d for _, _, d in self.pend_from.values())
+            due = min(v[2] for v in self.pend_from.values())
             t = max(0.0, due - time.monotonic())
         if self.pend_write:
             due = min(d for d, _ in self.pend_write.values())

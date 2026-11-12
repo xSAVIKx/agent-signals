@@ -480,6 +480,20 @@ elif case == "move-out":
     rows = [json.loads(l) for l in open(out)]
     kinds = [(r["kind"], r["path"].rsplit("/", 1)[-1]) for r in rows]
     sys.exit(0 if kinds == [("create", "c.txt"), ("delete", "c.txt")] else "got %r" % kinds)
+elif case == "move-out-time":
+    # A move out, then a new file with the same name before the wait
+    # ends. The delete has the time of the move-from, so it comes before
+    # the new create in the order of the times.
+    batch((mod["IN_MOVED_FROM"], 79, "d.txt"))
+    time.sleep(0.02)
+    batch((mod["IN_CREATE"], 0, "d.txt"))
+    time.sleep(mod["MOVE_WAIT"] + 0.05)
+    w.expire_moves(False)
+    w.flush()
+    rows = [json.loads(l) for l in open(out)]
+    rows.sort(key=lambda r: r["t"])
+    kinds = [(r["kind"], r["path"].rsplit("/", 1)[-1]) for r in rows]
+    sys.exit(0 if kinds == [("delete", "d.txt"), ("create", "d.txt")] else "got %r" % kinds)
 elif case == "forget":
     # A large tree: forget each folder from the bottom, as a delete of the
     # tree does. The time must grow linearly with the size of the tree.
@@ -521,7 +535,7 @@ elif case == "rename":
           and root + "/r" in w.seen and root + "/m" not in w.seen)
     sys.exit(0 if ok else "bad rename")
 PYEOF
-for c in move-batches move-out forget forget-deep rename; do
+for c in move-batches move-out move-out-time forget forget-deep rename; do
   if python3 -I "$H/unit.py" "$watch" "$T/unit-$c.jsonl" "$c" >"$T/unit.err" 2>&1; then
     pass "unit: $c"
   else
