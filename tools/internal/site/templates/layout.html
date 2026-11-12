@@ -4,9 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>{{if eq .Section "home"}}agent-signals: measured signals of AI coding agents{{else}}{{.Title}} | agent-signals{{end}}</title>
+{{- $title := printf "%s | agent-signals" .Title}}{{if eq .Section "home"}}{{$title = "agent-signals: measured signals of AI coding agents"}}{{end}}
+<title>{{$title}}</title>
 {{with .Description}}<meta name="description" content="{{.}}">
-{{end}}<link rel="icon" href="data:,">
+{{end}}{{if eq .Out "404.html"}}<meta name="robots" content="noindex">
+{{else}}<link rel="canonical" href="{{canonical .Out}}">
+<meta property="og:url" content="{{canonical .Out}}">
+{{end}}<meta property="og:type" content="website">
+<meta property="og:site_name" content="agent-signals">
+<meta property="og:title" content="{{$title}}">
+{{with .Description}}<meta property="og:description" content="{{.}}">
+{{end}}<meta name="twitter:card" content="summary">
+<link rel="icon" href="data:,">
 {{with .Markdown}}<link rel="alternate" type="text/markdown" href="{{rel $.Out .}}">
 {{end}}<link rel="alternate" type="text/plain" title="llms.txt" href="{{rel .Out "llms.txt"}}">
 <link rel="stylesheet" href="{{rel .Out "assets/style.css"}}">
@@ -51,7 +60,7 @@
 <div class="footer-inner">
 <p>The Markdown files and the corpus in the repository are the source of this site.{{with .Source}} <a href="{{github .}}">Read the source of this page on GitHub</a>.{{end}}</p>
 <p><a href="https://github.com/xSAVIKx/agent-signals">The agent-signals repository on GitHub</a>. License: <a href="https://github.com/xSAVIKx/agent-signals/blob/main/LICENSE">Apache License 2.0</a>.</p>
-<p>Maintained by Yurii Serhiichuk, <a href="https://serhiichuk.dev/">serhiichuk.dev</a>.</p>
+<p>Maintained by Yurii Serhiichuk, <a href="https://serhiichuk.dev/">serhiichuk.dev</a>. <a href="https://xsavikx.github.io/">More projects</a>.</p>
 </div>
 </footer>
 {{- if .Markdown}}
