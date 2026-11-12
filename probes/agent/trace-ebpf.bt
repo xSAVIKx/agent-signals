@@ -20,15 +20,26 @@ tracepoint:syscalls:sys_enter_openat /@in[(uint64)pid]/ {
   // the kit reads /proc very often, and on a runner these lines filled
   // the output buffer, so that the open lines of the agent were lost.
   // So the script does not write them.
+  // The counters @ne (enter), @ns (stored), @nf (store failed) and @nx
+  // (written) go to the line "counters" at the end. The build skips it.
+  @ne = @ne + 1;
   $f = str(args.filename);
   if (strncmp($f, "/proc/", 6) != 0 && strncmp($f, "/sys/", 5) != 0) {
     @path[tid] = $f;
     @flags[tid] = args.flags;
     @open[tid] = 1;
+    if (@open[tid]) { @ns = @ns + 1; } else { @nf = @nf + 1; }
   }
 }
+// Only a tid of the tree has an entry, and this probe deletes it on each
+// return of openat, also for a failed open.
 tracepoint:syscalls:sys_exit_openat /@open[tid]/ {
   printf("%llu\topen\t%d\t%d\t%d\t%s\n", nsecs, pid, @flags[tid], args.ret, @path[tid]);
+  @nx = @nx + 1;
+  delete(@path[tid]); delete(@flags[tid]); delete(@open[tid]);
+}
+// A thread that ends inside openat leaves no entry.
+tracepoint:sched:sched_process_exit /@open[tid]/ {
   delete(@path[tid]); delete(@flags[tid]); delete(@open[tid]);
 }
 tracepoint:syscalls:sys_enter_connect /@in[(uint64)pid]/ {
@@ -52,4 +63,8 @@ uprobe:libc:getaddrinfo /@in[(uint64)pid]/ {
   printf("%llu\tdns\t%d\t%s\n", nsecs, pid, str(arg0));
 }
 interval:s:7200 { exit(); }
-END { clear(@in); clear(@path); clear(@flags); clear(@open); }
+END {
+  printf("counters\tenter=%d\tstored=%d\tfailed=%d\twritten=%d\n", @ne, @ns, @nf, @nx);
+  clear(@in); clear(@path); clear(@flags); clear(@open);
+  clear(@ne); clear(@ns); clear(@nf); clear(@nx);
+}
