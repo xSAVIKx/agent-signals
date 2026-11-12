@@ -169,7 +169,9 @@ jobs:
         run: |
           uname -r
           dpkg-query -W bpftrace || echo "bpftrace: no package"
-          "${KIT_BPFTRACE:-bpftrace}" --version
+          # The static binary needs root: as the user, it cannot write
+          # uid_map.
+          sudo -n "${KIT_BPFTRACE:-bpftrace}" --version
           ls -l /sys/kernel/btf/vmlinux
       - name: eBPF check test
         run: KIT_TEST_EBPF=real sh tools/test-agent-kit.sh tools/agent-kit-tests/test-trace-ebpf.sh
