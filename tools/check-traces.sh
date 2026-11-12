@@ -137,18 +137,20 @@ if [ "$count" = 0 ]; then
 fi
 
 # The validator, one time for all traces. Exit 0: no problem. Exit 1: a
-# problem line "PATH: MESSAGE" for each problem. Another exit: it could
-# not check.
-(cd "$root/tools" && go run ./cmd/validate "$vroot") >"$tmp/validate.log" 2>&1
+# problem line "PATH: MESSAGE" on stdout for each problem. Another exit: it
+# could not check. "go run" also exits 1 when the build fails, with no
+# problem line.
+(cd "$root/tools" && go run ./cmd/validate "$vroot") >"$tmp/validate.log" 2>"$tmp/validate.err"
 vrc=$?
 # A problem line that names no trace (for example "traces: ...") makes
-# each trace fail, because the script cannot tell which trace it is.
+# each trace fail, because the script cannot tell which trace it is. So
+# does an exit 1 with no problem line.
 other=0
 if [ "$vrc" = 1 ]; then
   other=$(awk -F '\t' 'NR == FNR { if ($2 != "-") p[$2 ": "] = 1; next }
     /^validate: / { next }
-    { f = 0; for (k in p) if (index($0, k) == 1) f = 1; if (!f) n++ }
-    END { print n + 0 }' "$tmp/list.tsv" "$tmp/validate.log")
+    { all++; f = 0; for (k in p) if (index($0, k) == 1) f = 1; if (!f) n++ }
+    END { print (all == 0) ? 1 : n + 0 }' "$tmp/list.tsv" "$tmp/validate.log")
 fi
 
 fail=0
@@ -178,6 +180,7 @@ done <"$tmp/list.tsv"
 
 if [ "$vrc" != 0 ] && [ "$vrc" != 1 ] || [ "$other" != 0 ]; then
   echo "check: the validator (exit $vrc):"
-  grep -v '^traces/[^:]*/trace.json: ' "$tmp/validate.log" | head -n 20 | sed 's/^/check:   /'
+  { grep -v '^traces/[^:]*/trace.json: ' "$tmp/validate.log"; cat "$tmp/validate.err"; } |
+    head -n 20 | sed 's/^/check:   /'
 fi
 exit "$fail"
