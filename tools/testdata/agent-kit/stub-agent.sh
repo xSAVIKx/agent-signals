@@ -33,6 +33,9 @@
 #   STUB_WELCOME=TEXT  the idle screen shows TEXT, as a welcome box does.
 #   STUB_EXIT=yes      the stub stops at a prompt.
 #   STUB_BUSY=no       "Count ..." does not make the stub busy.
+#   STUB_BUSY=brief    "Count ..." shows the busy line for 1.5 s. Then the
+#                      stub shows numbers with no busy line until Escape, as
+#                      Codex does when the answer text starts.
 #   STUB_KEEP=yes      "/clear" stays in the box after Enter.
 #   STUB_LOSE=N        the stub drops the first N characters of input, as an
 #                      agent that redraws its box after the idle screen.
@@ -94,6 +97,9 @@ draw() {
       ;;
     busy)
       printf 'stub busy\r\n\r\n* Counting (esc to interrupt)\r\n'
+      ;;
+    stream)
+      printf 'stub stream\r\n\r\n1\r\n2\r\n3\r\n'
       ;;
     *)
       printf 'stub idle\r\n'
@@ -176,7 +182,7 @@ while :; do
           ;;
       esac
       ;;
-    busy)
+    busy | stream)
       case $c in
         "$esc")
           note="interrupted"
@@ -205,7 +211,18 @@ while :; do
               env >stub-env.txt
               note="env saved"
               ;;
-            Count*) [ "${STUB_BUSY:-}" = no ] || state=busy ;;
+            Count*)
+              case ${STUB_BUSY:-} in
+                no) ;;
+                brief)
+                  state=busy
+                  draw
+                  sleep 1.5
+                  state=stream
+                  ;;
+                *) state=busy ;;
+              esac
+              ;;
             /clear)
               note="cleared"
               ;;
