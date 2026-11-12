@@ -788,21 +788,47 @@ def ebpf_events(raw, t0, sessions, hangups, paths):
             if fields[2] not in GATE_SHELLS:
                 start[fields[0]] = i
     member = {}  # pid -> session name, for each live pid of a tree
-    parent = {}
     for pid, name in agents.items():
         if pid not in start:
             member[pid] = name
-    since = {}  # pid -> epoch ms of its first line in a tree
-    ended = {}  # pid -> epoch ms of its exit
-    execs = {}  # pid -> (epoch ms, normalized path) of each exec
-    tree = {}  # pid -> (session name, ppid), in order of appearance
+    # The kernel can give a pid again. Each process of a tree has its own
+    # key (pid, n), so that an old process with the same pid does not
+    # hide a new one, and the parents never make a cycle.
+    cur = {}  # pid -> the key of its live process
+    count = {}  # pid -> the number of keys of the pid
+    parent = {}  # key -> the key of the parent
+    since = {}  # key -> epoch ms of its first line in a tree
+    ended = {}  # key -> epoch ms of its exit
+    execs = {}  # key -> [(epoch ms, normalized path)] of each exec
+    inherit = {}  # key -> the program of the parent at the fork
+    tree = {}  # key -> session name, in order of appearance
     events = []
     opened = set()
 
     def note(pid, ms):
-        if pid not in tree:
-            tree[pid] = (member[pid], parent.get(pid))
-            since[pid] = ms
+        """Return the key of the live process of a pid of a tree."""
+        key = cur.get(pid)
+        if key is None:
+            key = (pid, count.get(pid, 0))
+            count[pid] = key[1] + 1
+            cur[pid] = key
+            tree[key] = member[pid]
+            since[key] = ms
+        return key
+
+    def program_of(key, stop):
+        """The last exec of a process at or before stop (None: no limit),
+        or else the program of its parent at the fork."""
+        program = None
+        for ms, path in execs.get(key, ()):
+            if stop is None or ms <= stop:
+                program = path
+        return program or inherit.get(key)
+
+    def ppid_of(pid, key):
+        if pid in agents or key not in parent:
+            return None
+        return parent[key][0]
 
     for i, (ns, word, fields) in enumerate(rows):
         ms = ns // 1000000 + clock
@@ -812,33 +838,40 @@ def ebpf_events(raw, t0, sessions, hangups, paths):
         if word == "fork":
             child = fields[1]
             if pid in member and child not in agents:
-                note(pid, ms)
+                pkey = note(pid, ms)
+                # A fork always starts a new process.
+                cur.pop(child, None)
                 member[child] = member[pid]
-                parent[child] = pid
-                note(child, ms)
+                ckey = note(child, ms)
+                parent[ckey] = pkey
+                program = program_of(pkey, None)
+                if program:
+                    inherit[ckey] = program
             elif child not in agents:
                 # A pid that the kernel gives again is not in a tree.
                 member.pop(child, None)
+                cur.pop(child, None)
             continue
         if pid not in member:
             continue
-        note(pid, ms)
+        key = note(pid, ms)
         ev = {
             "t": max(ms - t0, 0),
             "kind": word,
             "pid": pid,
-            "ppid": None if pid in agents else parent.get(pid),
+            "ppid": ppid_of(pid, key),
         }
         if word == "exec":
             path = paths.normalize(fields[2])
             if not path:
                 continue
-            execs.setdefault(pid, []).append((ms, path))
+            execs.setdefault(key, []).append((ms, path))
             ev["path"] = path
             ev["comm"] = fields[1]
         elif word == "exit":
-            ended[pid] = ms
+            ended[key] = ms
             member.pop(pid, None)
+            cur.pop(pid, None)
         elif word == "open":
             flags, ret, raw_path = fields[1], fields[2], fields[3]
             if not raw_path or under(raw_path, ("/proc", "/sys")):
@@ -879,26 +912,20 @@ def ebpf_events(raw, t0, sessions, hangups, paths):
         if ev["kind"] == "exec":
             runs[ev["path"]] = runs.get(ev["path"], 0) + 1
     left = []
-    for pid, (name, ppid) in tree.items():
+    for key, name in tree.items():
         stop = hangups.get(name)
         if stop is None:
-            if pid in ended:
+            if key in ended:
                 continue
-        elif since[pid] >= stop or ended.get(pid, stop + 1) <= stop:
+        elif since[key] >= stop or ended.get(key, stop + 1) <= stop:
             continue
         # The program that ran at the hang-up: the last exec at or before
-        # that time, of the pid or of its nearest parent with an exec.
-        program = None
-        p = pid
-        while p is not None and program is None:
-            for ms, path in execs.get(p, ()):
-                if stop is None or ms <= stop:
-                    program = path
-            p = parent.get(p) if p not in agents else None
+        # that time, or else the program of the parent at the fork.
+        program = program_of(key, stop)
         left.append(
             {
-                "pid": pid,
-                "ppid": None if pid in agents else ppid,
+                "pid": key[0],
+                "ppid": ppid_of(key[0], key),
                 "program": program or "?",
                 "session": name,
             }
