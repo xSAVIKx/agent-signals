@@ -411,6 +411,8 @@ mkrawe nogate
   printf '1000060000000\texec\t4300\tcurl\t/usr/bin/curl\n'
   printf '1000070000000\tconnect4\t4300\t443\t<ip>\n'
   printf '1000080000000\tconnect6\t4300\t443\t0\t7080908ffff0000\r\n'
+  printf '1000090000000\topen\t4300\t0\t3\t/work/example/proj/c\rd.txt\n'
+  printf '\302\262\texit\t4300\n'
 } >"$T/nogate/.trace/ebpf.txt"
 printf 'Lost 2 events\n' >"$T/nogate/.trace/ebpf.err"
 rm "$T/nogate/.trace/hangup.tsv"
@@ -419,6 +421,7 @@ want "no gate: the full tree stays" nogate 'any(e["kind"] == "exec" and e["pid"]
 want "no gate: an address that is not IPv4 is <private-host>" nogate 'any(e["kind"] == "connect" and e["family"] == "ipv4" and e["host"] == "<private-host>" for e in ev)'
 want "no gate: an IPv4-mapped address has the IPv4 rules" nogate 'any(e["kind"] == "connect" and e["family"] == "ipv6" and e["host"] == "8.9.8.7" for e in ev)'
 want "no gate: a lost line in ebpf.err counts" nogate 'd["meta"]["ebpf_lost"] == 2'
+want "no gate: a carriage return in a path stays" nogate 'any(e["kind"] == "open" and e["path"] == "WORK/c\rd.txt" for e in ev)'
 want "no gate: no hangup line, each pid with no exit is left" nogate '[p["pid"] for p in d["summary"]["processes_left"]] == [4242, 4300]'
 
 done_tests

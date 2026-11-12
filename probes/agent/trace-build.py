@@ -160,6 +160,7 @@ GATE_SHELLS = ("/bin/sh", "/usr/bin/sh", "/bin/dash", "/usr/bin/dash")
 # bpftrace cuts a string at this length.
 EBPF_MAX_PATH = 199
 LOST_RE = re.compile(r"Lost ([0-9]+) events")
+NS_RE = re.compile("[0-9]+")
 PRIVATE_SUFFIXES = (
     ".ts.net",
     ".internal",
@@ -597,7 +598,9 @@ def clean_route(route):
 def parse_ebpf_line(line):
     """Return (ns, word, fields) of an event line, or None."""
     cols = line.split("\t", 1)
-    if len(cols) < 2 or not cols[0].isdigit():
+    # isdigit() is also true for other digits, such as "\u00b2", that
+    # int() refuses.
+    if len(cols) < 2 or not NS_RE.fullmatch(cols[0]):
         return None
     word, _, rest = cols[1].partition("\t")
     want = EBPF_FIELDS.get(word)
@@ -623,23 +626,29 @@ def read_ebpf_lines(raw):
     lost = 0
     for name in ("ebpf.txt", "ebpf.err"):
         try:
+            # newline="\n": only a new line ends a line, and Python does
+            # not change a \r in a path into a new line. The file is read
+            # one line at a time, so a large file does not fill memory.
             with open(
-                os.path.join(raw, name), encoding="utf-8", errors="replace"
+                os.path.join(raw, name),
+                encoding="utf-8",
+                errors="replace",
+                newline="\n",
             ) as f:
-                # Only a new line ends a line: a path can hold other
-                # control characters.
-                lines = f.read().split("\n")
+                for line in f:
+                    if line.endswith("\n"):
+                        line = line[:-1]
+                    if line.endswith("\r"):
+                        line = line[:-1]
+                    row = parse_ebpf_line(line) if name == "ebpf.txt" else None
+                    if row is not None:
+                        rows.append(row)
+                        continue
+                    m = LOST_RE.search(line)
+                    if m:
+                        lost += int(m.group(1))
         except OSError:
             continue
-        for line in lines:
-            line = line.rstrip("\r")
-            row = parse_ebpf_line(line) if name == "ebpf.txt" else None
-            if row is not None:
-                rows.append(row)
-                continue
-            m = LOST_RE.search(line)
-            if m:
-                lost += int(m.group(1))
     # The lines of the CPUs can come out of order.
     rows.sort(key=lambda r: r[0])
     return rows, lost
@@ -787,7 +796,7 @@ def ebpf_events(raw, t0, sessions, hangups, paths):
             path = paths.normalize(raw_path)
             if not path:
                 continue
-            mode ={0: "r", 1: "w"}.get(flags & 3, "rw")
+            mode = {0: "r", 1: "w"}.get(flags & 3, "rw")
             ok = ret >= 0
             if (path, mode, ok) in opened:
                 continue
