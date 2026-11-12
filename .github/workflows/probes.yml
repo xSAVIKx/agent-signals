@@ -139,16 +139,36 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+    # bpftrace 0.20.2 of Ubuntu 24.04 does not start the script on the
+    # kernel of the runner: "the BPF stack limit is exceeded" in
+    # sys_exit_openat. So the job uses the upstream static binary, checked
+    # against its digest.
+    env:
+      BPFTRACE_URL: https://github.com/bpftrace/bpftrace/releases/download/v0.27.1/
+      BPFTRACE_SHA256_X86_64: c8d570302725bd1a3ed2f23bfa8d83dd78bde95daa98856279343052db5799c9
+      BPFTRACE_SHA256_AARCH64: ad159222808d799eaa85424001535836314cf21977a71686b7b7c091b5195672
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Install tmux and bpftrace
-        run: sudo apt-get update -q && sudo apt-get install -y -q tmux bpftrace
+      - name: Install tmux
+        run: sudo apt-get update -q && sudo apt-get install -y -q tmux
+      - name: Install bpftrace 0.27.1
+        run: |
+          case $(uname -m) in
+            x86_64) asset=bpftrace-x86_64 digest=$BPFTRACE_SHA256_X86_64 ;;
+            aarch64) asset=bpftrace-aarch64 digest=$BPFTRACE_SHA256_AARCH64 ;;
+            *) echo "no bpftrace for $(uname -m)"; exit 1 ;;
+          esac
+          bin=$RUNNER_TEMP/bpftrace
+          curl -fsSL -o "$bin" "$BPFTRACE_URL$asset"
+          echo "$digest  $bin" | sha256sum -c -
+          chmod 755 "$bin"
+          echo "KIT_BPFTRACE=$bin" >>"$GITHUB_ENV"
       - name: Versions
         run: |
           uname -r
-          dpkg-query -W bpftrace
+          dpkg-query -W bpftrace || echo "bpftrace: no package"
           "${KIT_BPFTRACE:-bpftrace}" --version
           ls -l /sys/kernel/btf/vmlinux
       - name: eBPF check test
