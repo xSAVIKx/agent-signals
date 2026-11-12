@@ -168,9 +168,11 @@ these checks on one clock:
   the port, the byte counts and the times. The proxy does not read the
   encrypted content. With the fake model, the trace also gets the method
   and the route of each model request. A host of a private network (a
-  tailnet name, a name below `.internal`, `.local`, `.lan` or
-  `.home.arpa`, a name with one label, a private IPv4 address, an IPv6
-  address) becomes `<private-host>`.
+  tailnet name, a name below `.internal`, `.local`, `.lan`,
+  `.home.arpa`, `.localhost`, `.intranet`, `.corp`, `.home`, `.box`,
+  `.lxd` or `.test`, a name with one label, a private IPv4 address also
+  in a short form such as `10.1` or `0x7f.1`, an IPv6 address) becomes
+  `<private-host>`.
 - `files` (Linux only): each file that the agent makes, writes, moves or
   deletes in its home, its work folder and `/tmp`. The agent starts with no
   `TMPDIR`, so `/tmp` is its temp folder. On other systems, the trace
@@ -178,7 +180,10 @@ these checks on one clock:
   itself writes (the work folder and the home of a session, the settings
   files of the fake model, also on a resume step, and the deletes when a
   session stops) are not in the trace. The kit marks its own work with a
-  file `.kit-trace-mark.NAME.begin` and `.end` in the work root. When the
+  file `.kit-trace-mark.NAME.begin` and `.end` in the work root. A kit
+  command that fails or stops after its `begin` mark still makes the
+  `end` mark when it exits. Only a KILL of the command leaves a `begin`
+  with no `end`. When the
   file watch is very late, the trace can drop a file that the agent
   writes just at its start.
 - `ebpf` (Linux only, not in the default): the process tree of the agent,
@@ -290,8 +295,12 @@ The output folder `RUN/traces/NN-NAME@BACKEND/` holds `trace.json` (the
 format is `schema/trace.schema.json`) and, with the fixture home only,
 `terminal.cast`. NN is one more than the highest number in `RUN/traces/`.
 The kit scrubs each file. In `trace.json`, the home of the session is
-`~`, the work folder is `WORK`, and `/tmp` is `TMP`. A step that fails or
-skips also gets a trace.
+`~`, the work folder is `WORK`, and `/tmp` is `TMP` (also in its macOS
+form `/private/tmp`, and a `TMPDIR` below `/private/var/folders`). In
+`terminal.cast`, a cut path `/…/TAIL` that names the run folder, the work
+root or a session becomes `/work/example/LAST`, also when the agent drew
+it in two parts or with a color inside it. A cut path with a space in it
+stays. A step that fails or skips also gets a trace.
 
 The file check watches only the top level of `/tmp`, but there it sees the
 items of all processes of your account. The TMP list can show items of

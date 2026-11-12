@@ -464,45 +464,23 @@ with open(sys.argv[1], "w", encoding="utf-8") as f:
     json.dump(d, f, indent=0, ensure_ascii=False)
     f.write("\n")
 ' "$raw/out/trace.json" || fail build
-# A cut path in the cast. An agent can draw a long folder as "/…/TAIL",
-# for example the cwd in a welcome box. The scrub knows only full paths,
-# so TAIL can keep a part of the run folder or of the work root, with its
-# hash. Each "/…/TAIL" whose TAIL holds the name of the run folder or of
-# the work root, or a start of these names that the kit sets
-# (agent-signals-run-, agent-signals-work), or ends with the name of a
-# session, becomes
-# "/work/example/LAST", with LAST the last folder of TAIL.
-if [ -f "$raw/out/terminal.cast" ]; then
-  # Session names have only letters, digits, "_" and "-".
-  # shellcheck disable=SC2046
-  python3 -I -c '
-import json, re, sys
-path, names, ends = sys.argv[1], sys.argv[2:6], sys.argv[6:]
-cut = re.compile("/\u2026/[^\\s\x1b\"\x27\u2502]*")
-def fix(m):
-    tail = m.group(0)[3:]
-    last = tail.rstrip("/").rsplit("/", 1)[-1]
-    if any(n and n in tail for n in names) or any(e and last == e for e in ends):
-        return "/work/example/" + last
-    return m.group(0)
-with open(path, encoding="utf-8") as f:
-    lines = f.read().splitlines()
-out = lines[:1]
-for line in lines[1:]:
-    try:
-        ev = json.loads(line)
-    except ValueError:
-        out.append(line)
-        continue
-    if isinstance(ev, list) and len(ev) == 3 and isinstance(ev[2], str) and "/\u2026/" in ev[2]:
-        ev[2] = cut.sub(fix, ev[2])
-        line = json.dumps(ev, ensure_ascii=False)
-    out.append(line)
-with open(path, "w", encoding="utf-8") as f:
-    f.write("\n".join(out) + "\n")
-' "$raw/out/terminal.cast" "${run##*/}" "${work##*/}" agent-signals-run- agent-signals-work \
-    $(cut -f1 "$raw/sessions.tsv" 2>/dev/null | sort -u) || fail scrub
-fi
+# cast_scrub IN OUT: scrub a cast with trace-cast-scrub.py. A cut path in
+# the cast ("/…/TAIL", for example the cwd in a welcome box) whose TAIL
+# holds the name of the run folder or of the work root, or a start of
+# these names that the kit sets (agent-signals-run-, agent-signals-work),
+# or ends with the name of a session, becomes "/work/example/LAST".
+# Session names have only letters, digits, "_" and "-".
+cast_scrub() {
+  _in=$1
+  _out=$2
+  set -- --cut-name "${run##*/}" --cut-name "${work##*/}" \
+    --cut-name agent-signals-run- --cut-name agent-signals-work
+  for _s in $(cut -f1 "$raw/sessions.tsv" 2>/dev/null | sort -u); do
+    set -- "$@" --cut-end "$_s"
+  done
+  python3 -I "$KIT_DIR/trace-cast-scrub.py" --scrub "$KIT_ROOT/tools/scrub.sh" \
+    "$@" "$_in" "$_out"
+}
 mkdir -p "$raw/scrubbed"
 : >"$raw/scrub.log"
 # The run folder, the kit folder and the work root can hold names.
@@ -514,8 +492,7 @@ for f in "$raw"/out/*; do
   [ -f "$f" ] || continue
   case ${f##*/} in
     # The scrub reads text, not JSON: it gets the text of each event.
-    *.cast) python3 -I "$KIT_DIR/trace-cast-scrub.py" --scrub "$KIT_ROOT/tools/scrub.sh" \
-      "$f" "$raw/scrubbed/${f##*/}" 2>>"$raw/scrub.log" ;;
+    *.cast) cast_scrub "$f" "$raw/scrubbed/${f##*/}" 2>>"$raw/scrub.log" ;;
     *) sh "$KIT_ROOT/tools/scrub.sh" "$f" >"$raw/scrubbed/${f##*/}" 2>>"$raw/scrub.log" ;;
   esac || {
     sed 's/^/kit: /' "$raw/scrub.log" >&2
