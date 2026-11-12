@@ -286,6 +286,16 @@ func TestTraces(t *testing.T) {
 		root, path := tracesRoot(t, "question", "bad-kind.json")
 		wantOne(t, check(t, root), path, "schema:")
 	})
+	t.Run("a trace with the eBPF events has no problem", func(t *testing.T) {
+		root, _ := tracesRoot(t, "permission", "ebpf.json")
+		if p := check(t, root); len(p) != 0 {
+			t.Fatalf("want no problem, got %v", p)
+		}
+	})
+	t.Run("an exec event without a path fails the schema", func(t *testing.T) {
+		root, path := tracesRoot(t, "permission", "bad-exec.json")
+		wantOne(t, check(t, root), path, "schema:")
+	})
 	t.Run("a measured-edited trace needs one edits line", func(t *testing.T) {
 		root, path := tracesRoot(t, "permission", "valid.json")
 		data, _ := os.ReadFile(filepath.Join(root, path))
