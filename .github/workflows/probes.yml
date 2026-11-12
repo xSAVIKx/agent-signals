@@ -174,7 +174,33 @@ jobs:
           sudo -n "${KIT_BPFTRACE:-bpftrace}" --version
           ls -l /sys/kernel/btf/vmlinux
       - name: eBPF check test
-        run: KIT_TEST_EBPF=real sh tools/test-agent-kit.sh tools/agent-kit-tests/test-trace-ebpf.sh
+        run: |
+          KIT_TEST_EBPF=real KIT_TEST_EBPF_RAW=$RUNNER_TEMP/ebpf-raw \
+            sh tools/test-agent-kit.sh tools/agent-kit-tests/test-trace-ebpf.sh
+      # After a failure: the raw record of the first trace of the test. It
+      # holds only the paths of the stub test on the runner. The check
+      # below stops the upload when a line names another path.
+      - name: Check the raw record
+        id: rawcheck
+        if: failure()
+        run: |
+          f=$RUNNER_TEMP/ebpf-raw/ebpf.txt
+          test -s "$f"
+          awk -F '\t' '$2 == "open" || $2 == "exec" { print $NF }' "$f" |
+            grep -Ev '^(/tmp/|/usr/|/lib|/etc/|/dev/|/proc/|/sys/|/bin/|/sbin/|/run/|/var/|/home/runner/work/|$)' |
+            sort -u >"$RUNNER_TEMP/other-paths.txt" || true
+          if [ -s "$RUNNER_TEMP/other-paths.txt" ]; then
+            echo "other paths, no upload:"
+            cat "$RUNNER_TEMP/other-paths.txt"
+            exit 1
+          fi
+      - name: Upload the raw record
+        if: failure() && steps.rawcheck.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ebpf-raw-${{ matrix.os }}
+          path: ${{ runner.temp }}/ebpf-raw/
+          retention-days: 3
       # After a failure: the raw lines of the script for one long open and
       # one connect, with no kit around it.
       - name: Raw lines of the script

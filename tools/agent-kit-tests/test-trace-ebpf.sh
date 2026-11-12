@@ -152,9 +152,26 @@ expect_code "kit start exits 0" 0 $?
 run=$(run_of "$D")
 stub_set STUB_TRUST=yes STUB_SPAWN=yes STUB_LEAVE=yes
 
-# The full trace with all checks.
-kitx trace permission-claude@tmux --checks terminal,network,files,ebpf >"$T/t1" 2>"$T/t1.err"
+# The full trace with all checks. While it runs, the test keeps a copy of
+# the raw ebpf.txt and sessions.tsv: the trace deletes its raw folder at
+# the end. KIT_TEST_EBPF_RAW=DIR copies them to DIR after the trace.
+kitx trace permission-claude@tmux --checks terminal,network,files,ebpf >"$T/t1" 2>"$T/t1.err" &
+tpid=$!
+bg_pid "$tpid"
+while kill -0 "$tpid" 2>/dev/null; do
+  for f in ebpf.txt sessions.tsv; do
+    [ -s "$run/.trace/$f" ] && cat "$run/.trace/$f" >"$T/raw-$f.tmp" 2>/dev/null && mv "$T/raw-$f.tmp" "$T/raw-$f"
+  done
+  sleep 0.2
+done
+wait "$tpid"
 rc=$?
+if [ -n "${KIT_TEST_EBPF_RAW:-}" ]; then
+  mkdir -p "$KIT_TEST_EBPF_RAW"
+  for f in ebpf.txt sessions.tsv; do
+    [ -f "$T/raw-$f" ] && cat "$T/raw-$f" >"$KIT_TEST_EBPF_RAW/$f"
+  done
+fi
 expect_code "ebpf: exit 0" 0 "$rc"
 [ "$rc" = 0 ] || { sed "s/^/  out| /" "$T/t1"; sh "$ROOT/tools/scrub.sh" "$T/t1.err" 2>/dev/null | tail -n 20 | sed "s/^/  err| /"; }
 tr1=$(folder_of "$T/t1")
@@ -188,6 +205,11 @@ d = json.load(open(sys.argv[1], encoding="utf-8"))
 for e in d["events"]:
     if e["kind"] == "connect" or (e["kind"] == "open" and not e["path"].startswith(("/usr/", "/lib", "/etc/"))):
         print("  event:", json.dumps({k: e.get(k) for k in ("kind", "pid", "path", "mode", "ok", "host", "port", "family")}))' "$j" 2>/dev/null | head -n 40
+    # The raw lines of the agent pid, and each raw line about stub-work.
+    apid=$(cut -f4 "$T/raw-sessions.tsv" 2>/dev/null | head -n 1)
+    echo "  raw: agent pid '$apid', $(wc -l <"$T/raw-ebpf.txt" 2>/dev/null) lines"
+    awk -F '\t' -v a="$apid" '($3 == a && $2 != "fork") || ($2 == "fork" && ($3 == a || $4 == a)) || /stub-work/' "$T/raw-ebpf.txt" 2>/dev/null |
+      sed "s|$T|\$T|g" | head -n 60 | sed 's/^/  raw| /'
   fi
 fi
 if [ "$_fail" != 0 ]; then show_err "$T/t1.err"; fi
