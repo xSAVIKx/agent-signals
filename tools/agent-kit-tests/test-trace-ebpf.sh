@@ -210,6 +210,75 @@ expect_code "no ready: exit 0" 0 $?
 skip_case "no ready" "$T/t5" no-ready
 if [ -z "$(ebpf_pids)" ]; then pass "no ready: no ebpf pid stays"; else fail "no ready: no ebpf pid stays" "$(ebpf_pids)"; fi
 
+# KIT_TRACE_KEEP_RAW=1: the trace folder gets raw/, with the scrubbed raw
+# files. trace-build.py can build a trace again from that copy.
+(KIT_TRACE_KEEP_RAW=1 && export KIT_TRACE_KEEP_RAW &&
+  kitx trace permission-claude@tmux --checks terminal,network,files,ebpf) >"$T/t6" 2>"$T/t6.err"
+expect_code "keep raw: exit 0" 0 $?
+tr6=$(folder_of "$T/t6")
+expect_file "keep raw: raw/ebpf.txt exists" "$tr6/raw/ebpf.txt"
+expect_file "keep raw: raw/sessions.tsv exists" "$tr6/raw/sessions.tsv"
+if grep -rlF -- "$T" "$tr6/raw" >/dev/null 2>&1; then
+  fail "keep raw: no file in raw/ holds the test folder" "$(grep -rlF -- "$T" "$tr6/raw" | sed 's|.*/||' | tr '\n' ' ')"
+else
+  pass "keep raw: no file in raw/ holds the test folder"
+fi
+for f in terminal.cast proxy.jsonl files.jsonl; do
+  if [ -e "$tr6/raw/$f" ]; then fail "keep raw: no $f in raw/" "it exists"; else pass "keep raw: no $f in raw/"; fi
+done
+mkdir -p "$T/rebuild"
+cp -R "$tr6/raw" "$T/rebuild/.trace"
+python3 -I -c '
+import json, sys
+d = json.load(open(sys.argv[1], encoding="utf-8"))
+json.dump(d["meta"], open(sys.argv[2], "w", encoding="utf-8"))' "$tr6/trace.json" "$T/rebuild/meta.json"
+if python3 -I "$ROOT/probes/agent/trace-build.py" --raw "$T/rebuild/.trace" --meta "$T/rebuild/meta.json" \
+  --out "$T/rebuild/out" >"$T/rebuild.log" 2>&1; then
+  pass "keep raw: trace-build.py builds from raw/"
+else
+  fail "keep raw: trace-build.py builds from raw/" "$(head -c 400 "$T/rebuild.log")"
+fi
+if [ -d "$tr1/raw" ]; then fail "no keep raw: no raw/ folder" "it exists"; else pass "no keep raw: no raw/ folder"; fi
+if [ "$_fail" != 0 ]; then show_err "$T/t6.err"; fi
+
+# tools/check-traces.sh: on a run with the trace of the keep raw case, and
+# on a run with that trace and the trace of the no sudo case.
+if command -v go >/dev/null 2>&1; then
+  n6=${tr6##*/}
+  n2=$(folder_of "$T/t2")
+  n2=${n2##*/}
+  mkdir -p "$T/cr1/traces" "$T/cr2/traces"
+  cp -R "$tr6" "$T/cr1/traces/"
+  cp -R "$tr6" "$(folder_of "$T/t2")" "$T/cr2/traces/"
+  sh "$ROOT/tools/check-traces.sh" "$T/cr1" --passed "$T/passed1" >"$T/c1" 2>&1
+  expect_code "check-traces: one good trace exits 0" 0 $?
+  expect_line "check-traces: the ok line" "^check: $n6 ok\$" "$T/c1"
+  if [ "$(cat "$T/passed1" 2>/dev/null)" = "$n6" ]; then
+    pass "check-traces: the passed file holds the trace"
+  else
+    fail "check-traces: the passed file holds the trace" "$(cat "$T/passed1" 2>/dev/null)"
+  fi
+  sh "$ROOT/tools/check-traces.sh" "$T/cr2" --passed "$T/passed2" >"$T/c2" 2>&1
+  expect_code "check-traces: a trace with no ebpf exits 1" 1 $?
+  expect_line "check-traces: the fail line" "^check: $n2 fail " "$T/c2"
+  if [ "$(cat "$T/passed2" 2>/dev/null)" = "$n6" ]; then
+    pass "check-traces: the passed file holds only the good trace"
+  else
+    fail "check-traces: the passed file holds only the good trace" "$(cat "$T/passed2" 2>/dev/null)"
+  fi
+  mkdir -p "$T/cr3"
+  sh "$ROOT/tools/check-traces.sh" "$T/cr3" --passed "$T/passed3" >"$T/c3" 2>&1
+  expect_code "check-traces: no trace exits 1" 1 $?
+  if [ -f "$T/passed3" ] && [ ! -s "$T/passed3" ]; then
+    pass "check-traces: no trace gives an empty passed file"
+  else
+    fail "check-traces: no trace gives an empty passed file" "no file, or not empty"
+  fi
+  if [ "$_fail" != 0 ]; then sed 's/^/  | /' "$T/c1" "$T/c2"; fi
+else
+  echo "pass: skip check-traces.sh, go is not on PATH"
+fi
+
 # KILL of "kit trace" while the check runs. bpftrace stops when the pid of
 # trace.sh ends. The next trace stops the sentinel. "exec" makes $! the
 # pid of trace.sh.

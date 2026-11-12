@@ -1,0 +1,237 @@
+# Runs "kit trace" with the checks terminal, network, files and ebpf on the
+# GitHub-hosted Linux runners (ubuntu-24.04 and ubuntu-24.04-arm), for
+# Claude Code, Codex CLI and agy. Read the section "Traces" of
+# probes/README.md.
+#
+# The job trace installs one agent, tmux and bpftrace, starts a run with
+# "kit start --home fixture --unattended", and traces each step of that
+# agent. A local fake model (probes/agent/fake-model.py) answers: no
+# login, no model on the network, no cost. bpftrace runs as root with
+# "sudo -n"; the agent does not run as root. Then tools/check-traces.sh
+# checks each trace: the schema, the ebpf check, and one program or more.
+# The job uploads RUN/traces/ as the artifact traces-AGENT-OS.
+#
+# The output of each kit command goes to a file. The log gets it only
+# through tools/scrub.sh. The kit scrubs each trace before it writes it.
+#
+# A step that exits 3 is a skip (a needed tool is missing). The job fails
+# when another step fails, or when check-traces.sh fails, for example when
+# the kit skipped the ebpf check. It fails after the upload.
+#
+# The workflow runs once a week and when started by hand. It installs
+# software from the network. It uses no secret. Each input goes to the
+# scripts only through env.
+#
+# Each action is pinned to a commit SHA. The comment gives the tag.
+name: Traces
+
+on:
+  workflow_dispatch:
+    inputs:
+      agents:
+        description: The agents to trace, separated by spaces (claude, codex, agy)
+        type: string
+        default: claude codex agy
+      steps:
+        description: The steps to trace, separated by spaces. Empty means the default steps of each agent.
+        type: string
+        default: ""
+      raw:
+        description: Keep the scrubbed raw files in raw/ of each trace (KIT_TRACE_KEEP_RAW=1)
+        type: boolean
+        default: false
+  schedule:
+    - cron: "41 4 * * 2"
+
+permissions:
+  contents: read
+
+jobs:
+  trace:
+    name: Trace (${{ matrix.agent }}, ${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+        agent: [claude, codex, agy]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    # The bpftrace of probes.yml, job ebpf: the upstream static binary,
+    # checked against its digest. bpftrace 0.20.2 of Ubuntu 24.04 does not
+    # start the script on the kernel of the runner.
+    env:
+      BPFTRACE_URL: https://github.com/bpftrace/bpftrace/releases/download/v0.27.1/
+      BPFTRACE_SHA256_X86_64: c8d570302725bd1a3ed2f23bfa8d83dd78bde95daa98856279343052db5799c9
+      BPFTRACE_SHA256_AARCH64: ad159222808d799eaa85424001535836314cf21977a71686b7b7c091b5195672
+    steps:
+      # run=yes only when the agent of the job is a word of the input
+      # "agents". On a schedule, the input is empty: the default list.
+      - name: Pick
+        id: pick
+        env:
+          AGENTS: ${{ inputs.agents }}
+          STEPS: ${{ inputs.steps }}
+          AGENT: ${{ matrix.agent }}
+        run: |
+          set -f
+          list=${AGENTS:-claude codex agy}
+          for w in $list $STEPS; do
+            case $w in
+              *[!a-z0-9-]*)
+                echo "bad use: the word '$w' has a character outside [a-z0-9-]"
+                exit 2
+                ;;
+            esac
+          done
+          run=no
+          for w in $list; do
+            if [ "$w" = "$AGENT" ]; then run=yes; fi
+          done
+          echo "run: $run"
+          echo "run=$run" >>"$GITHUB_OUTPUT"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.pick.outputs.run == 'yes'
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: steps.pick.outputs.run == 'yes'
+        with:
+          node-version: "24"
+      # Go runs the validator in tools/check-traces.sh.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        if: steps.pick.outputs.run == 'yes'
+        with:
+          go-version-file: tools/go.mod
+          cache: false
+      - name: Install tmux
+        if: steps.pick.outputs.run == 'yes'
+        run: sudo apt-get update -q && sudo apt-get install -y -q tmux
+      - name: Install bpftrace 0.27.1
+        if: steps.pick.outputs.run == 'yes'
+        run: |
+          case $(uname -m) in
+            x86_64) asset=bpftrace-x86_64 digest=$BPFTRACE_SHA256_X86_64 ;;
+            aarch64) asset=bpftrace-aarch64 digest=$BPFTRACE_SHA256_AARCH64 ;;
+            *) echo "no bpftrace for $(uname -m)"; exit 1 ;;
+          esac
+          bin=$RUNNER_TEMP/bpftrace
+          curl -fsSL -o "$bin" "$BPFTRACE_URL$asset"
+          echo "$digest  $bin" | sha256sum -c -
+          chmod 755 "$bin"
+          echo "KIT_BPFTRACE=$bin" >>"$GITHUB_ENV"
+      # The install commands of scenarios.yml, job kit-no-login. agy goes
+      # to ~/.local/bin.
+      - name: Install the agent
+        if: steps.pick.outputs.run == 'yes'
+        env:
+          AGENT: ${{ matrix.agent }}
+        # No -e, so that the log gets the scrubbed output after a failure.
+        # pipefail stays on: a failed curl fails the step.
+        run: |
+          set +e
+          echo "$HOME/.local/bin" >>"$GITHUB_PATH"
+          out=$RUNNER_TEMP/install.txt
+          case $AGENT in
+            claude) npm install -g @anthropic-ai/claude-code >"$out" 2>&1 ;;
+            codex) npm install -g @openai/codex >"$out" 2>&1 ;;
+            agy) curl -fsSL https://antigravity.google/cli/install.sh | bash >"$out" 2>&1 ;;
+            *) echo "no install command for $AGENT"; exit 1 ;;
+          esac
+          rc=$?
+          sh tools/scrub.sh "$out" 2>/dev/null | tail -n 5
+          exit "$rc"
+      - name: Versions
+        if: steps.pick.outputs.run == 'yes'
+        run: |
+          uname -r
+          sudo -n "$KIT_BPFTRACE" --version
+          tmux -V
+          go version
+      - name: Make the work folder
+        if: steps.pick.outputs.run == 'yes'
+        run: sudo mkdir -p /work && sudo chown "$(id -u):$(id -g)" /work
+      # No -e: a failed trace does not stop the loop. The step exits with
+      # "fail" after check-traces.sh wrote passed.txt.
+      - name: Run the traces
+        id: run
+        if: steps.pick.outputs.run == 'yes'
+        shell: bash {0}
+        env:
+          AGENT: ${{ matrix.agent }}
+          STEPS: ${{ inputs.steps }}
+          RAW: ${{ inputs.raw }}
+          AGENT_SIGNALS_WORK: /work/example
+        run: |
+          set -f
+          fail=0
+          raw=$(mktemp)
+          k() {
+            if sh probes/agent/kit.sh "$@" >"$raw" 2>&1; then rc=0; else rc=$?; fi
+            sh tools/scrub.sh "$raw" 2>/dev/null
+            return "$rc"
+          }
+          # agent_of STEP: the agent column of the step in steps.tsv.
+          agent_of() {
+            awk -F '\t' -v s="$1" '/^#/ { next }
+              !h { for (i = 1; i <= NF; i++) if ($i == "agent") c = i; h = 1; next }
+              $1 == s { print $c }' probes/agent/steps.tsv
+          }
+          for w in $STEPS; do
+            case $w in
+              *[!a-z0-9-]*)
+                echo "bad use: the step '$w' has a character outside [a-z0-9-]"
+                exit 2
+                ;;
+            esac
+          done
+          if [ -n "$STEPS" ]; then
+            list=
+            for s in $STEPS; do
+              if [ "$(agent_of "$s")" = "$AGENT" ]; then
+                list="$list $s"
+              else
+                echo "skip: $s is not a step of $AGENT"
+              fi
+            done
+          else
+            case $AGENT in
+              claude) mode=write-claude-manual out=write-outside-claude-manual ;;
+              codex) mode=write-codex-on-request out=write-outside-codex-on-request ;;
+              agy) mode=write-agy-default out=write-outside-agy-default ;;
+            esac
+            list="permission-$AGENT interrupt-$AGENT new-chat-$AGENT resume-$AGENT $mode $out"
+          fi
+          if [ "$RAW" = true ]; then
+            KIT_TRACE_KEEP_RAW=1
+            export KIT_TRACE_KEEP_RAW
+          fi
+          mkdir -p /work/runs
+          k start --home fixture --unattended --out /work/runs || exit 1
+          run=$(sed -n 's/^run: //p' "$raw")
+          if [ -z "$run" ] || [ ! -d "$run" ]; then
+            echo "no run folder in the output of kit start"
+            exit 1
+          fi
+          echo "traces=$run/traces" >>"$GITHUB_OUTPUT"
+          for s in $list; do
+            k trace "$s@tmux" --checks terminal,network,files,ebpf
+            case $rc in
+              0) ;;
+              3) echo "skip: $s (exit 3)" ;;
+              *) echo "fail: $s (exit $rc)"; fail=1 ;;
+            esac
+          done
+          k session stop --all || true
+          sh tools/check-traces.sh "$run" --passed "$RUNNER_TEMP/passed.txt" || fail=1
+          rm -f "$raw"
+          exit "$fail"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always() && steps.pick.outputs.run == 'yes' && steps.run.outputs.traces != ''
+        with:
+          name: traces-${{ matrix.agent }}-${{ matrix.os }}
+          path: ${{ steps.run.outputs.traces }}
+          retention-days: 14
+          if-no-files-found: warn
+
+  # Task 6 adds the job "issues" here. It reads only the artifacts of this
+  # run, and passed.txt tells it which traces passed.

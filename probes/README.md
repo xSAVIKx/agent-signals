@@ -312,6 +312,23 @@ The mode in `meta.mode` is `fixture` with the fixture home, `login` with
 the real home, and `none` with a throwaway home, which has no login and
 no fake model.
 
+The workflow `.github/workflows/traces.yml` runs the traces once a week
+and when started by hand, on `ubuntu-24.04` and `ubuntu-24.04-arm`. Each
+job installs one agent (Claude Code, Codex CLI or agy), tmux and the
+static bpftrace 0.27.1. It traces the steps `permission`, `interrupt`,
+`new-chat`, `resume` and the two write steps of the default mode with
+`--checks terminal,network,files,ebpf` and the fixture home. Then
+`sh tools/check-traces.sh RUN` checks each trace: the schema, `ebpf` in
+`meta.checks`, and one item or more in `summary.programs`. The job
+uploads `RUN/traces/` as the artifact `traces-AGENT-OS` for 14 days. It
+fails when a step fails (exit 3 is a skip) or when a trace fails the
+check. The workflow uses no secret. With the input `raw`, the job sets
+`KIT_TRACE_KEEP_RAW=1`: each trace folder then also holds `raw/`, a
+scrubbed copy of the raw files that `trace-build.py` reads (`t0`,
+`checks`, `states.tsv`, `sessions.tsv`, `hangup.tsv`, `ebpf.txt`,
+`ebpf-clock` and `skipped.tsv`). It holds no cast, no proxy log and no
+file log.
+
 ## How a probe becomes a fact
 
 1. The operator runs the kit on the real machine and sends the file.
