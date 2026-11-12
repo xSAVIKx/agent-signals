@@ -47,6 +47,13 @@
 #                  console host or a terminal above them. Stop with exit 2
 #                  when more than one session matches.
 #   -Out FILE      write the file to FILE.
+# When one turn of the watch (a sleep of 0.2 s, and a sample every 2 s),
+# or its "after" snapshot, takes more than 60 s of wall time, the machine
+# slept. The kit then prints "kit: clock gap: ..." and the file has the
+# line "watch: clock gap of N s: ...", with N the longest turn. For the
+# tests, AGENT_SIGNALS_CLOCK_JUMP=N adds N s to the first turn at
+# AGENT_SIGNALS_CLOCK_JUMP_AT s of counted time (default 2), to each turn
+# ("each"), or to the "after" snapshot ("snapshot"), as in run.sh.
 # The step never walks the home folder. It shows only the files below
 # -Scope, the Claude pid file and the transcript of a counted process, and
 # the files that a counted process holds open. It does not show the files
@@ -533,6 +540,53 @@ if ($Guided) {
   Say "  $($actions[$Guided])"
   Say "kit: watch starts, $watchS s"
 
+  # The clock gap: a machine that sleeps stops the sleeps of the watch, but
+  # the wall clock moves on. The watch reads the wall clock at the end of
+  # each turn (a sleep of 0.2 s, and a sample every 2 s). A turn that took
+  # more than 60 s of wall time is a gap. At the first gap, the watch
+  # prints a "kit: clock gap" line at once. The file gets a "watch: clock
+  # gap" line with the longest turn. The "after" snapshot counts as one
+  # more turn. The test jump (AGENT_SIGNALS_CLOCK_JUMP) takes 1 to 9
+  # digits. Another value turns the jump off, and so does another value
+  # of AGENT_SIGNALS_CLOCK_JUMP_AT.
+  $script:JumpS = 0
+  if ([string]$env:AGENT_SIGNALS_CLOCK_JUMP -match '^[0-9]{1,9}$') { $script:JumpS = [int]$env:AGENT_SIGNALS_CLOCK_JUMP }
+  $script:JumpAt = '2'
+  if ($env:AGENT_SIGNALS_CLOCK_JUMP_AT) { $script:JumpAt = [string]$env:AGENT_SIGNALS_CLOCK_JUMP_AT }
+  if ($script:JumpAt -ne 'each' -and $script:JumpAt -ne 'snapshot' -and $script:JumpAt -notmatch '^[0-9]{1,9}$') { $script:JumpS = 0 }
+  $script:JumpDone = $false
+  $script:Skew = 0
+  $script:CountedMs = 0
+  $script:Prev = [DateTime]::UtcNow
+  $script:Gap = 0
+  $script:Gaps = 0
+  # Test-Turn [snapshot]: check the turn that ends now.
+  function Test-Turn([string]$At) {
+    $t = [int][math]::Floor($script:CountedMs / 1000)
+    if ($script:JumpS -gt 0) {
+      if ($script:JumpAt -eq 'each') {
+        $script:Skew += $script:JumpS
+      } elseif ($script:JumpAt -eq 'snapshot') {
+        if ($At -eq 'snapshot') { $script:Skew += $script:JumpS }
+      } elseif (-not $script:JumpDone -and $At -ne 'snapshot' -and $script:CountedMs -ge ([long]$script:JumpAt * 1000)) {
+        $script:Skew += $script:JumpS
+        $script:JumpDone = $true
+      }
+    }
+    $nowUtc = [DateTime]::UtcNow.AddSeconds($script:Skew)
+    $d = [int][math]::Floor(($nowUtc - $script:Prev).TotalSeconds)
+    $script:Prev = $nowUtc
+    if ($d -le 60) { return }
+    $script:Gaps++
+    if ($d -gt $script:Gap) { $script:Gap = $d }
+    if ($script:Gaps -gt 1) { return }
+    if ($At -eq 'snapshot') {
+      Say "kit: clock gap: the after snapshot of the watch took $d s of wall time, at $t s of counted time"
+    } else {
+      Say "kit: clock gap: a turn of the watch took $d s of wall time, at $t s of counted time"
+    }
+  }
+
   # A sample every 2 s. A -StopFile ends the watch early.
   $t0 = Get-Date
   $endAt = $t0.AddSeconds($watchS)
@@ -540,23 +594,31 @@ if ($Guided) {
   while ((Get-Date) -lt $endAt) {
     if ($StopFile -and (Test-Path -LiteralPath $StopFile)) { break }
     Start-Sleep -Milliseconds 200
+    $script:CountedMs += 200
     if (((Get-Date) - $t0).TotalSeconds -ge $next) {
       [void]$status.Add((Get-ClaudeStatus $firstProcs))
       $next += 2
     }
+    Test-Turn ''
   }
+  Test-Turn ''
 
+  # The "after" snapshot: the processes, the open files, and the files of
+  # the scope now, for the processes of the start and of the end. A
+  # process can end in the watch.
   $counted = Get-Counted
-  Add-Line 'processes after the step:'
-  foreach ($a in $which) { foreach ($p in $counted[$a]) { Add-Line "$a $(Format-ProcessLine $p)" } }
   $lastProcs = @(Get-AllCounted $counted)
   $openAfter = @(Get-OpenOf $lastProcs)
-
-  # The files of the scope now, for the processes of the start and of the
-  # end. A process can end in the watch.
   $byId = @{}
   foreach ($p in $firstProcs + $lastProcs) { $byId[[int]$p.ProcessId] = $p }
   $now = Get-InScope @($byId.Values) $openAfter
+  Test-Turn 'snapshot'
+  if ($script:Gaps -gt 0) {
+    $countedS = [int][math]::Floor($script:CountedMs / 1000)
+    Add-Line "watch: clock gap of $($script:Gap) s: the longest turn of the watch took $($script:Gap) s of wall time; $($script:Gaps) turns took more than 60 s; the watch counted $countedS s"
+  }
+  Add-Line 'processes after the step:'
+  foreach ($a in $which) { foreach ($p in $counted[$a]) { Add-Line "$a $(Format-ProcessLine $p)" } }
   $who = $which[0]
   Add-Line ''
   Add-Line '### 1. Files that changed during the step (size, path)'

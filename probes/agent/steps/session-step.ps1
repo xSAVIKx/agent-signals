@@ -40,6 +40,19 @@
 #   fail no-idle, no-busy, prompt-on-screen, agent-ended, screen-failed,
 #        send-failed, session-start, no-watch, watch-exit-N, watch-timeout,
 #        no-guided
+#   fail busy-at-end       permission only: no dialog in the time limit,
+#                          but the last screen matches busy_regex. The
+#                          agent still works, so the step does not know if
+#                          a dialog comes. The file keeps the last screen.
+#   fail clock-gap         one turn of the guided watch, its last snapshot,
+#                          or one turn of the wait for its end took more
+#                          than 60 s of wall time: the machine slept in the
+#                          step. The line "clock gap: ..." gives the size.
+#                          This result replaces each other result. For the
+#                          tests, AGENT_SIGNALS_CLOCK_JUMP=N with
+#                          AGENT_SIGNALS_CLOCK_JUMP_AT=end adds N s to the
+#                          first turn of the wait for the end of the watch.
+#                          probes\run.ps1 reads the other values.
 #   skip unmeasured        the step list has no idle regex or no wait regex
 #                          for the agent (Cursor).
 # A failed screen read is a failure: the step does not use an old screen.
@@ -412,7 +425,13 @@ try {
             } else {
                 $reason = 'no-dialog'
                 Add-Screen 'last' $sc
-                Add-Log 'no dialog in the time limit'
+                if (Test-Line $sc $busyRe) {
+                    # The agent still works: a dialog can come later.
+                    $reason = 'busy-at-end'
+                    Add-Log 'no dialog in the time limit, and the agent is busy'
+                } else {
+                    Add-Log 'no dialog in the time limit'
+                }
             }
             Add-Log "answer: $answer"
             Send-Keys @($answer -split ' ' | Where-Object { $_ })
@@ -422,6 +441,7 @@ try {
                 if (-not $reason) { $reason = 'no-idle-after' }
             }
             Add-Screen 'after' $sc
+            if ($reason -eq 'busy-at-end') { $code = 1 }
         }
         'new-chat' {
             Start-Sleep -Seconds 2
@@ -461,11 +481,32 @@ try {
     # must not stop the rest of this block.
     $watchText = ''
     $watchBad = ''
+    $endGap = ''
+    $gapText = ''
     try {
         if ($watch) {
             [IO.File]::WriteAllText("$out.watch.stop", '')
             Add-Log 'end the watch'
-            $w = Wait-KitProcess $run $watch $endS
+            # The wait reads the wall clock at the end of each turn (a sleep
+            # of 0.2 s). A turn that took more than 60 s means that the
+            # machine slept.
+            $prev = [DateTime]::UtcNow
+            $endAt = $prev.AddSeconds($endS)
+            if ($env:AGENT_SIGNALS_CLOCK_JUMP_AT -eq 'end' -and [string]$env:AGENT_SIGNALS_CLOCK_JUMP -match '^[0-9]{1,9}$') {
+                $prev = $prev.AddSeconds(0 - [int]$env:AGENT_SIGNALS_CLOCK_JUMP)
+            }
+            $dmax = 0
+            $more = $true
+            while ($more) {
+                $more = (-not $watch.HasExited) -and ([DateTime]::UtcNow -lt $endAt)
+                if ($more) { Start-Sleep -Milliseconds 200 }
+                $nowUtc = [DateTime]::UtcNow
+                $d = [int][math]::Floor(($nowUtc - $prev).TotalSeconds)
+                if ($d -gt $dmax) { $dmax = $d }
+                $prev = $nowUtc
+            }
+            if ($dmax -gt 60) { $endGap = "a turn of the wait for the end of the watch took $dmax s of wall time (the end of the watch)" }
+            $w = Wait-KitProcess $run $watch ([math]::Max(0, [int][math]::Ceiling(($endAt - [DateTime]::UtcNow).TotalSeconds)))
             Add-Log "the watch ended, exit $($w.Code)"
             $watchText = Read-KitText "$out.watch"
             if ($w.TimedOut) { $watchBad = 'watch-timeout' }
@@ -477,6 +518,10 @@ try {
         Add-Log "the wait for the watch failed: $_"
         $watchBad = 'watch-timeout'
     }
+    # The clock gap that the watch saw (its "kit: clock gap" line), or that
+    # the wait for its end saw.
+    $m = [regex]::Match((Read-Shared "$out.watch.console"), '(?m)^kit: clock gap: ([^\r\n]*)')
+    if ($m.Success) { $gapText = $m.Groups[1].Value + ' (the guided watch)' } elseif ($endGap) { $gapText = $endGap }
     foreach ($x in "$out.watch", "$out.watch.stop", "$out.watch.console", "$out.watch.err") { Remove-Item -LiteralPath $x -Force -ErrorAction SilentlyContinue }
     # The conditions of the session and the facts of the end. "session
     # stop" deletes the work folder, so the step reads it before the stop.
@@ -527,6 +572,11 @@ try {
         if ($code -eq 0) { $reason = $watchBad }
         $code = 1
     }
+    if ($gapText) {
+        Add-Log "clock gap: $gapText"
+        $code = 1
+        $reason = 'clock-gap'
+    }
     if ($code -eq 0 -and -not $reason -and $watch -and (Test-NoRecords $watchText)) { $reason = 'no-records' }
     $result = 'ok'
     if ($code -eq 1) { $result = 'fail' } elseif ($code -eq 3) { $result = 'skip' }
@@ -534,6 +584,7 @@ try {
     [void]$sb.Append("# agent-signals session step: $env:KIT_STEP@$backend`n")
     [void]$sb.Append("kind: $kind`nagent: $agent`nbackend: $backend`nhome: $env:KIT_HOME`n$(if ($env:KIT_HOME -eq 'fixture') { "model: fake-model.py with fixed answers. No real model ran.`n" })send key: $sendKey`n")
     [void]$sb.Append(("result: $result $reason").TrimEnd() + "`n")
+    if ($gapText) { [void]$sb.Append("clock gap: $gapText`n") }
     if ($agent -eq 'claude') { [void]$sb.Append("screens: the kit blanks each welcome box line that can show a display name or an organisation. No real screen was measured.`n") }
     [void]$sb.Append("### conditions`n" + $cond.ToString())
     [void]$sb.Append("### log`n" + $log.ToString())

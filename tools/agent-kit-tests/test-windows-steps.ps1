@@ -77,6 +77,7 @@ New-TextFile $steps ((@(
             "unmeasured-claude`tnew-chat`t$common`t/new-chat`t-`t-`t-`tno wait_regex`t-"
             "ended-claude`tpermission`t$common`tnothing`tno-such-text`tEscape`t-`tthe agent ends`t-"
             "norecords-agy`tpermission`t$($common -replace '^claude', 'agy')`twrite`tDo you want to create`tEscape`t-`tno file changes`t-"
+            "busyend-claude`tpermission`tclaude`tconpty,psmux`twindows`tlogin`tturns:1`t-`t^stub idle`$`tesc to interrupt`t^Do you want to create`tbusy`tDo you want to create`tEscape`t-`tthe agent is busy at the end`t-"
             "real-session-claude`treal-session`tclaude`toperator`twindows`toperator`tnone`t-`t-`t-`t-`t-`t-`t-`t-`tthe real session`t-"
         ) -join "`n") + "`n")
 $env:KIT_STEPS = $steps
@@ -180,6 +181,8 @@ try {
         $seen = @(Select-String -LiteralPath $f -Pattern '^claude pid=').Count
         if ($seen -ge 2) { Pass "${b}: the last snapshot sees the session" } else { Fail "${b}: the last snapshot sees the session" "$seen lines" }
         Expect-Line "${b}: the step ends the watch before the stop" '^t=\S+ end the watch$' $f
+        Expect-NoLine "${b}: the watch saw no clock gap" '^watch: clock gap' $f
+        Expect-NoLine "${b}: the step has no clock gap" 'clock-gap' $out
         $live = @(Get-LivePids)
         if ($live.Count -eq 0) { Pass "${b}: no session pid runs after the step" } else { Fail "${b}: no session pid runs after the step" ($live -join ' ') }
         if (Get-Process -Id $other.Id -ErrorAction SilentlyContinue) { Pass "${b}: the step leaves the other stub" } else { Fail "${b}: the step leaves the other stub" 'it stopped' }
@@ -244,6 +247,71 @@ try {
         Expect-Kit "${b}: a step whose agent ends fails" 1 'step' "ended-claude@$b"
         Expect-Line "${b}: the reason is agent-ended" "^step: ended-claude@$b fail agent-ended$" $out
         Stop-Process -Id $killer.Id -Force -ErrorAction SilentlyContinue
+
+        # test_busy_at_end: no dialog, but the last screen shows the busy
+        # text. The agent still works, so the step is not ok no-dialog.
+        Expect-Kit "${b}: busy at end: the step exits 1" 1 'step' "busyend-claude@$b"
+        Expect-Line "${b}: busy at end: the step is fail busy-at-end" "^step: busyend-claude@$b fail busy-at-end$" $out
+        $f = Get-StepFile "*-busyend-claude@$b.txt"
+        Expect-Line "${b}: busy at end: the file has the result" '^result: fail busy-at-end$' $f
+        Expect-Line "${b}: busy at end: the file keeps the last screen" '^### screen last$' $f
+        Expect-Line "${b}: busy at end: the last screen shows the busy text" 'esc to interrupt' $f
+
+        # Invoke-Jump JUMP AT NAME: the permission step with a fake jump of
+        # the wall clock (AGENT_SIGNALS_CLOCK_JUMP and _AT), as when the
+        # machine sleeps.
+        function Invoke-Jump([string]$Jump, [string]$At, [string]$Name, [int]$Want) {
+            $env:AGENT_SIGNALS_CLOCK_JUMP = $Jump
+            if ($At) { $env:AGENT_SIGNALS_CLOCK_JUMP_AT = $At } else { Remove-Item Env:\AGENT_SIGNALS_CLOCK_JUMP_AT -ErrorAction SilentlyContinue }
+            try { Expect-Kit "${b}: ${Name}: the step exits $Want" $Want 'step' "permission-claude@$b" }
+            finally { Remove-Item Env:\AGENT_SIGNALS_CLOCK_JUMP, Env:\AGENT_SIGNALS_CLOCK_JUMP_AT -ErrorAction SilentlyContinue }
+        }
+
+        # test_clock_gap: the first turn of the watch at 2 s of counted time
+        # takes 600 s more wall time. The step fails with clock-gap and
+        # gives the size.
+        Invoke-Jump '600' '' 'clock gap' 1
+        $f = Get-StepFile "*-permission-claude@$b.txt"
+        Expect-Line "${b}: clock gap: the step is fail clock-gap" "^step: permission-claude@$b fail clock-gap$" $out
+        Expect-Line "${b}: clock gap: the file has the result" '^result: fail clock-gap$' $f
+        Expect-Line "${b}: clock gap: the file gives the size" '^clock gap: a turn of the watch took [0-9]+ s of wall time, at 2 s of counted time \(the guided watch\)$' $f
+        Expect-Line "${b}: clock gap: the guided step has the gap line" '^watch: clock gap of [0-9]+ s: ' $f
+        $g = 0
+        $gm = Select-String -LiteralPath $f -Pattern '^watch: clock gap of ([0-9]+) s: ' | Select-Object -First 1
+        if ($gm) { $g = [int]$gm.Matches[0].Groups[1].Value }
+        if ($g -ge 600) { Pass "${b}: clock gap: the size holds the jump" } else { Fail "${b}: clock gap: the size holds the jump" "$g" }
+
+        # test_clock_gap_late: a jump of 65 s at 4 s of counted time.
+        Invoke-Jump '65' '4' 'late gap' 1
+        $f = Get-StepFile "*-permission-claude@$b.txt"
+        Expect-Line "${b}: late gap: the file gives the size" '^clock gap: a turn of the watch took [0-9]+ s of wall time, at 4 s of counted time \(the guided watch\)$' $f
+
+        # test_slow_machine: each turn takes 2 s more (fake wall time). The
+        # machine is slow, but has no gap.
+        Invoke-Jump '2' 'each' 'slow machine' 0
+        $f = Get-StepFile "*-permission-claude@$b.txt"
+        Expect-NoLine "${b}: slow machine: no clock gap" 'clock-gap' $out
+        Expect-NoLine "${b}: slow machine: no gap in the file" '^watch: clock gap' $f
+
+        # test_clock_gap_at_the_end: the wait of the step for the end of the
+        # watch takes 100 s more wall time.
+        Invoke-Jump '100' 'end' 'end gap' 1
+        $f = Get-StepFile "*-permission-claude@$b.txt"
+        Expect-Line "${b}: end gap: the step is fail clock-gap" "^step: permission-claude@$b fail clock-gap$" $out
+        Expect-Line "${b}: end gap: the file gives the size" '^clock gap: a turn of the wait for the end of the watch took [0-9]+ s of wall time \(the end of the watch\)$' $f
+        Expect-NoLine "${b}: end gap: the watch saw no gap" '^watch: clock gap' $f
+
+        # test_clock_gap_in_the_snapshot: the "after" snapshot of the watch
+        # takes 100 s more wall time.
+        Invoke-Jump '100' 'snapshot' 'snapshot gap' 1
+        $f = Get-StepFile "*-permission-claude@$b.txt"
+        Expect-Line "${b}: snapshot gap: the step is fail clock-gap" "^step: permission-claude@$b fail clock-gap$" $out
+        Expect-Line "${b}: snapshot gap: the file gives the size" '^clock gap: the after snapshot of the watch took [0-9]+ s of wall time, at [0-9]+ s of counted time \(the guided watch\)$' $f
+        Expect-Line "${b}: snapshot gap: the guided step has the gap line" '^watch: clock gap of [0-9]+ s: ' $f
+
+        # A bad jump value is ignored.
+        Invoke-Jump '9x' 'end' 'bad jump' 0
+        Expect-NoLine "${b}: bad jump: the kit ignores it" 'clock-gap' $out
     }
 
     # test_real_session_asks_first.

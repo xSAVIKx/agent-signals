@@ -3,7 +3,9 @@
 #
 # It draws "stub idle" and a prompt line. On the text "write" and Enter it
 # draws a permission dialog. On "1" it writes agent-signals-test.txt in
-# its working folder. On "2" or Escape it goes back to idle.
+# its working folder. On "2" or Escape it goes back to idle. On the text
+# "busy" and Enter it draws a busy screen with the text "esc to
+# interrupt", and it stays busy until Escape.
 #
 # When STUB_LOG is set, it writes one line for each key to that file:
 # "key Enter", "key Escape", "key Tab", or "char N" (N is the code of the
@@ -54,6 +56,11 @@ function Show-Screen {
         if ($script:Note) { $lines += $script:Note }
         $lines += ''
         $last = "> $($script:Buffer)"
+    } elseif ($script:State -eq 'busy') {
+        $lines += 'stub busy'
+        $lines += ''
+        $lines += '* Counting (esc to interrupt)'
+        $last = ''
     } else {
         $lines += 'Do you want to create agent-signals-test.txt?'
         $lines += '1. Yes'
@@ -77,6 +84,7 @@ while ($true) {
     if ($script:State -eq 'idle') {
         if ($k.Key -eq 'Enter') {
             if ($script:Buffer -eq 'write') { $script:State = 'dialog' }
+            elseif ($script:Buffer -eq 'busy') { $script:State = 'busy' }
             $script:Buffer = ''
         } elseif ($k.Key -eq 'Escape') {
             $script:Buffer = ''
@@ -85,6 +93,8 @@ while ($true) {
         } elseif ([int]$k.KeyChar -ge 32) {
             $script:Buffer += $k.KeyChar
         }
+    } elseif ($script:State -eq 'busy') {
+        if ($k.Key -eq 'Escape') { $script:State = 'idle' }
     } else {
         if ($k.KeyChar -eq '1') {
             Set-Content -LiteralPath (Join-Path (Get-Location).Path 'agent-signals-test.txt') -Value 'agent-signals test'
