@@ -416,6 +416,17 @@ grep -v "$(printf '\tdns\t')" "$rawe/ebpf.txt" >"$T/nodns/.trace/ebpf.txt"
 run_build nodns "$H/meta.json"
 want "ebpf: no dns line gives an empty list" nodns 'd["summary"]["dns"] == [] and any(e["kind"] == "connect" for e in ev)'
 
+# bpftrace 0.27 writes the sum of the lost events at its end. The fixture
+# has one "Lost 3 events" line, so the sum 7 gives 7, and the sum 2 keeps 3.
+mkrawe losttotal
+printf 'WARNING: Total lost event count: 7\n' >>"$T/losttotal/.trace/ebpf.err"
+run_build losttotal "$H/meta.json"
+want "ebpf: the total lost count of bpftrace 0.27" losttotal 'd["meta"]["ebpf_lost"] == 7'
+mkrawe lostsmall
+printf 'WARNING: Total lost event count: 2\n' >>"$T/lostsmall/.trace/ebpf.err"
+run_build lostsmall "$H/meta.json"
+want "ebpf: a smaller total keeps the sum of the lines" lostsmall 'd["meta"]["ebpf_lost"] == 3'
+
 # No ebpf-clock: the check is skipped.
 mkrawe noclock
 rm "$T/noclock/.trace/ebpf-clock"

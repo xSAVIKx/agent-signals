@@ -159,7 +159,7 @@ kitx trace permission-claude@tmux --checks terminal,network,files,ebpf >"$T/t1" 
 tpid=$!
 bg_pid "$tpid"
 while kill -0 "$tpid" 2>/dev/null; do
-  for f in ebpf.txt sessions.tsv; do
+  for f in ebpf.txt ebpf.err sessions.tsv; do
     [ -s "$run/.trace/$f" ] && cat "$run/.trace/$f" >"$T/raw-$f.tmp" 2>/dev/null && mv "$T/raw-$f.tmp" "$T/raw-$f"
   done
   sleep 0.2
@@ -168,7 +168,7 @@ wait "$tpid"
 rc=$?
 if [ -n "${KIT_TEST_EBPF_RAW:-}" ]; then
   mkdir -p "$KIT_TEST_EBPF_RAW"
-  for f in ebpf.txt sessions.tsv; do
+  for f in ebpf.txt ebpf.err sessions.tsv; do
     [ -f "$T/raw-$f" ] && cat "$T/raw-$f" >"$KIT_TEST_EBPF_RAW/$f"
   done
 fi
@@ -208,6 +208,7 @@ for e in d["events"]:
     # The raw lines of the agent pid, and each raw line about stub-work.
     apid=$(cut -f4 "$T/raw-sessions.tsv" 2>/dev/null | head -n 1)
     echo "  raw: agent pid '$apid', $(wc -l <"$T/raw-ebpf.txt" 2>/dev/null) lines"
+    grep -i 'lost' "$T/raw-ebpf.err" 2>/dev/null | head -n 5 | sed 's/^/  raw err| /'
     awk -F '\t' '{ n[$2]++ } END { for (w in n) printf "  raw: %s %d\n", w, n[w] }' "$T/raw-ebpf.txt" 2>/dev/null | sort
     awk -F '\t' '{ n[$3]++ } END { for (p in n) print n[p], p }' "$T/raw-ebpf.txt" 2>/dev/null | sort -rn | head -n 5 | sed 's/^/  raw: lines of pid: /'
     awk -F '\t' -v a="$apid" '($3 == a && $2 != "fork" && $NF !~ /^\/(dev\/null|tmp\/tmp\.[A-Za-z0-9]+)$/) || /stub-work/' "$T/raw-ebpf.txt" 2>/dev/null |

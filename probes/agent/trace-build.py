@@ -167,6 +167,8 @@ GATE_SHELLS = ("/bin/sh", "/usr/bin/sh", "/bin/dash", "/usr/bin/dash")
 # bpftrace cuts a string at this length.
 EBPF_MAX_PATH = 199
 LOST_RE = re.compile(r"Lost ([0-9]+) events")
+# bpftrace 0.27 also writes the sum at its end, as a warning on stderr.
+LOST_TOTAL_RE = re.compile(r"Total lost event count: ([0-9]+)")
 NS_RE = re.compile("[0-9]+")
 PRIVATE_SUFFIXES = (
     ".ts.net",
@@ -671,9 +673,11 @@ def parse_ebpf_line(line):
 def read_ebpf_lines(raw):
     """Return (rows, lost). Each row is (ns, word, fields). A line that
     does not parse is skipped. A "Lost N events" line, in ebpf.txt or in
-    ebpf.err, adds N to lost."""
+    ebpf.err, adds N to lost. A "Total lost event count: N" line gives
+    the sum: lost is at least N."""
     rows = []
     lost = 0
+    total = 0
     for name in ("ebpf.txt", "ebpf.err"):
         try:
             # newline="\n": only a new line ends a line, and Python does
@@ -697,11 +701,15 @@ def read_ebpf_lines(raw):
                     m = LOST_RE.search(line)
                     if m:
                         lost += int(m.group(1))
+                        continue
+                    m = LOST_TOTAL_RE.search(line)
+                    if m:
+                        total = max(total, int(m.group(1)))
         except OSError:
             continue
     # The lines of the CPUs can come out of order.
     rows.sort(key=lambda r: r[0])
-    return rows, lost
+    return rows, max(lost, total)
 
 
 def loopback(host):
