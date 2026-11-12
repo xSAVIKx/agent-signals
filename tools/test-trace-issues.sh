@@ -185,8 +185,48 @@ for k in d["dropped"]:
     assert k + ": not compared (too large)" in body, k
 assert "opened" not in d["items"], list(d["items"])
 ' "$tmp/huge.json"
+  # An update of that issue with a smaller run keeps the dropped kinds.
+  mkdir -p "$tmp/small"
+  python3 -I -c "$pre"'
+a = load(sys.argv[1])[0]
+json.dump([{"number": 9, "title": a["title"], "body": a["body"], "state": "OPEN"}],
+          open(sys.argv[2], "w", encoding="utf-8"))
+src = load(sys.argv[3])
+src[0]["agent_version"] = "4.0.0"
+src[0]["summary"]["programs"].append({"path": "/usr/bin/rg", "runs": 1})
+json.dump(src, open(sys.argv[4], "w", encoding="utf-8"))
+' "$tmp/huge.json" "$tmp/issues-huge.json" "$data/wide/summary-claude-linux-x64.json" "$tmp/small/summary-claude-linux-x64.json"
+  if plan "$tmp/small" "$tmp/issues-huge.json" "$tmp/small.json"; then
+    check "an update of a dropped kind keeps it dropped" "$pre"'
+acts = load(sys.argv[1])
+assert len(acts) == 1 and acts[0]["action"] == "update", acts
+d = data(acts[0]["body"])
+assert "opened" in d["dropped"] and "opened" not in d["items"], d["dropped"]
+assert "/usr/bin/rg" in d["items"]["programs"], d
+assert "opened:" not in acts[0]["comment"], acts[0]["comment"]
+' "$tmp/small.json"
+  else
+    bad "plan on a dropped kind exits 0"
+  fi
 else
   bad "plan on 5000 folders exits 0"
+fi
+
+# A DATA with a bad shape counts as no DATA; plan does not stop.
+python3 -I -c "$pre"'
+bad = {"images": [], "dropped": [], "items": {"programs": {"/usr/bin/git": 1}}}
+text = base64.b64encode(zlib.compress(json.dumps(bad).encode(), 9)).decode()
+body = "x\n<!-- trace-data: %s -->\n" % text
+json.dump([{"number": 5, "title": "trace: claude 2.1.320 (fixture)", "body": body, "state": "OPEN"}],
+          open(sys.argv[1], "w", encoding="utf-8"))
+' "$tmp/issues-bad.json"
+if plan "$data/run" "$tmp/issues-bad.json" "$tmp/bad.json"; then
+  check "a DATA with a bad shape gives an update with the full union" "$pre"'
+acts = load(sys.argv[1])
+assert len(acts) == 1 and acts[0]["action"] == "update" and acts[0]["number"] == 5, acts
+' "$tmp/bad.json"
+else
+  bad "plan with a bad DATA exits 0"
 fi
 
 # 7. Versions sort by their runs of digits.

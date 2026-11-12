@@ -169,16 +169,24 @@ def decode(body):
         return None
     if not isinstance(data, dict) or not isinstance(data.get("items"), dict):
         return None
+    images = data.get("images") or []
+    dropped = data.get("dropped") or []
+    if not isinstance(images, list) or not isinstance(dropped, list):
+        return None
     out = empty_data()
-    out["images"] = sorted({str(i) for i in data.get("images") or []})
-    out["dropped"] = [k for k in data.get("dropped") or [] if k in KINDS]
+    out["images"] = sorted({str(i) for i in images})
+    out["dropped"] = [k for k in KINDS if k in dropped]
     for kind in KINDS:
         if kind in out["dropped"]:
             out["items"].pop(kind, None)
             continue
         items = data["items"].get(kind) or {}
-        if isinstance(items, dict):
-            out["items"][kind] = {str(k): sorted({str(i) for i in v or []}) for k, v in items.items()}
+        if not isinstance(items, dict):
+            return None
+        for name, seen in items.items():
+            if not isinstance(seen, list):
+                return None
+            out["items"][kind][str(name)] = sorted({str(i) for i in seen})
     return out
 
 
@@ -341,7 +349,12 @@ def read_issues(path):
 def union(old, run):
     out = empty_data()
     out["images"] = sorted(set(old["images"]) | set(run["images"]))
+    # A kind that the old DATA dropped stays dropped: its history is not known.
+    out["dropped"] = [k for k in KINDS if k in old["dropped"]]
     for kind in KINDS:
+        if kind in out["dropped"]:
+            out["items"].pop(kind, None)
+            continue
         merged = {}
         for src in (old, run):
             for name, images in (src["items"].get(kind) or {}).items():
