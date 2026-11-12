@@ -115,7 +115,7 @@ fails twice.
 | `kit step NAME` | Runs one step. Writes `NN-NAME.txt` in the run folder. Prints one result line: `step: NAME ok|skip|fail <reason>`. |
 | `kit check` | Checks the run folder (part 5). Exit 0 means complete. |
 | `kit edit FILE REASON` | Records a manual change in the manifest. |
-| `kit trace NAME@BACKEND` | Runs one step and records a trace of it. Read `docs/design/2026-11-09-harness-traces.md`. |
+| `kit trace NAME@BACKEND` | Runs one step and records a trace of it. Linux and macOS only: `kit.ps1 trace` exits 2. Read `docs/design/2026-11-09-harness-traces.md`. |
 | `kit session ...` | The session helpers (part 3), for the steps and for tests. |
 
 Exit codes: 0 ok, 1 fail, 2 bad use, 3 a needed tool is missing, 4 the
