@@ -280,8 +280,9 @@ Each item is one pull request or more.
 State on 2026-11-11: items 1 and 2 are done
 (`docs/plans/2026-11-09-harness-traces-1.md`, pull requests #128, #130,
 #132 to #135, #138, #141 and #143). `kit trace` also runs on a real Linux
-machine, and on macOS without the file check. The eBPF check (item 3)
-and the items after it are not started.
+machine, and on macOS without the file check. The trace format has the
+eBPF keys since pull request #150. The eBPF check itself (item 3) and
+the items after it are not started.
 
 ## Calls made by the designer
 
