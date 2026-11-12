@@ -505,6 +505,10 @@ do_start() {
     tmux) command -v tmux >/dev/null 2>&1 || kit_die 3 "needs tmux" ;;
     pty) pty_python ;;
   esac
+  # A trace folder that does not exist: fail before any change.
+  if [ -n "${KIT_TRACE:-}" ] && [ ! -d "$KIT_TRACE" ]; then
+    kit_die 2 "KIT_TRACE is not a folder: $KIT_TRACE"
+  fi
   sdir=$run/sessions/$name
   if [ -d "$sdir" ]; then
     [ -f "$sdir/stopped" ] || kit_die 2 "the session exists: $name"
