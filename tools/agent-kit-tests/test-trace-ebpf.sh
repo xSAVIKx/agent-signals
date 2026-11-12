@@ -246,8 +246,14 @@ json.dump(d["meta"], open(sys.argv[2], "w", encoding="utf-8"))' "$tr6/trace.json
 if python3 -I "$ROOT/probes/agent/trace-build.py" --raw "$T/rebuild/.trace" --meta "$T/rebuild/meta.json" \
   --out "$T/rebuild/out" >"$T/rebuild.log" 2>&1; then
   pass "keep raw: trace-build.py builds from raw/"
+  want "keep raw: the new build has ebpf and programs" "$T/rebuild/out/trace.json" '"ebpf" in d["meta"]["checks"] and len(d["summary"]["programs"] or []) > 0'
 else
   fail "keep raw: trace-build.py builds from raw/" "$(head -c 400 "$T/rebuild.log")"
+fi
+if awk -F '\t' 'NF > 1 && $1 !~ /^[0-9]+$/ { bad = 1 } END { exit bad }' "$tr6/raw/ebpf.txt"; then
+  pass "keep raw: each event line of raw/ebpf.txt starts with the time"
+else
+  fail "keep raw: each event line of raw/ebpf.txt starts with the time" "a line has another first field"
 fi
 if [ -d "$tr1/raw" ]; then fail "no keep raw: no raw/ folder" "it exists"; else pass "no keep raw: no raw/ folder"; fi
 if [ "$_fail" != 0 ]; then show_err "$T/t6.err"; fi

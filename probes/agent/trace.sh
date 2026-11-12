@@ -532,6 +532,18 @@ $_d" ;;
       fail scrub
     }
   done
+  # The scrub changes a run of 16 digits or more to <hex>. The boot clock
+  # in ns has 16 digits after about 12 days. So the first field of each
+  # line of ebpf.txt comes back from the raw file when it has only digits.
+  # The scrub keeps the lines of ebpf.txt (no line starts with white
+  # space); another line count fails the scrub.
+  if [ -f "$raw/ebpf.txt" ]; then
+    [ "$(wc -l <"$raw/ebpf.txt")" = "$(wc -l <"$raw/scrubbed/raw/ebpf.txt")" ] || fail scrub
+    awk -F '\t' -v OFS='\t' 'FILENAME == ARGV[1] { ns[FNR] = $1; next }
+      ns[FNR] ~ /^[0-9]+$/ { $1 = ns[FNR] } { print }' \
+      "$raw/ebpf.txt" "$raw/scrubbed/raw/ebpf.txt" >"$raw/ebpf.keep" &&
+      mv "$raw/ebpf.keep" "$raw/scrubbed/raw/ebpf.txt" || fail scrub
+  fi
 fi
 unset SCRUB_EXTRA
 # The scrub can change a word of the meta, for example the machine

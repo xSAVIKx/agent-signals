@@ -85,6 +85,13 @@ jobs:
           done
           run=no
           for w in $list; do
+            case $w in
+              claude | codex | agy) ;;
+              *)
+                echo "bad use: '$w' is not an agent of this workflow (claude, codex, agy)"
+                exit 2
+                ;;
+            esac
             if [ "$w" = "$AGENT" ]; then run=yes; fi
           done
           echo "run: $run"

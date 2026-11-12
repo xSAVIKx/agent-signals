@@ -23,8 +23,8 @@
 # validator-error.
 #
 # With --passed FILE, the script writes the name NN-NAME@BACKEND of each
-# trace that passed to FILE, one on each line. FILE is empty when no trace
-# passed, also when the script exits 1.
+# trace that passed to FILE, one on each line, also when another trace
+# failed and the script exits 1. FILE is empty only when no trace passed.
 #
 # Exit codes: 0 when each trace passed, 1 when a trace failed or when
 # RUN/traces has no trace, 2 for bad use.
