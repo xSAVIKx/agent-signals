@@ -107,9 +107,18 @@ fi
 # The pane pid is the agent pid: the gate loop ended with exec.
 if [ -e "$sdir/gate" ]; then pass "session: the gate file exists"; else fail "session: the gate file exists" "no file"; fi
 cp "$sdir/recorder.pid" "$T/s1.rec.pid" 2>/dev/null
+# The recorder is in RUN/pids/, so the checks of the run and "stop --all"
+# see it.
+_rp=$(cat "$T/s1.rec.pid" 2>/dev/null)
+if [ -n "$_rp" ] && [ "$(cut -f1 "$T/run1/pids/$_rp" 2>/dev/null)" = "recorder s1" ]; then
+  pass "session: the recorder pid is in RUN/pids"
+else
+  fail "session: the recorder pid is in RUN/pids" "no file $T/run1/pids/$_rp"
+fi
 kit session stop s1 --keep >"$T/o" 2>&1
 expect_code "session: stop --keep exits 0" 0 $?
 rec_gone "$T/s1.rec.pid" "session: no recorder stays after stop"
+if [ -n "$_rp" ] && [ ! -e "$T/run1/pids/$_rp" ]; then pass "session: stop removes the recorder pid file"; else fail "session: stop removes the recorder pid file" "file stays"; fi
 if grep -q 'stub idle' "$raw/terminal.cast"; then pass "session: the cast holds stub idle"; else fail "session: the cast holds stub idle" "$(head -c 300 "$raw/terminal.cast")"; fi
 # A second start of the same session (resume) continues the same file.
 (KIT_TRACE=$raw; KIT_TRACE_CHECKS=terminal,network; export KIT_TRACE KIT_TRACE_CHECKS
@@ -211,6 +220,27 @@ if [ -n "$sp_pid" ] && [ "$sp_pid" = "$sp_want" ]; then pass "space: the pid mat
 expect_code "space: stop exits 0" 0 $?
 if grep -q 'stub idle' "$raws/terminal.cast"; then pass "space: the cast holds stub idle"; else fail "space: the cast holds stub idle" "no text"; fi
 
+# A run folder and a trace folder with a single quote, a "#" (a format of
+# tmux) and a "$" in the path. The pipe-pane command quotes each path.
+rq="$T/run it's #{S} \$HOME"
+mkdir -m 700 "$rq"
+rawq="$T/raw it's #S"
+mkdir -m 0700 "$rawq"
+cp "$raw/t0" "$rawq/t0"
+(AGENT_SIGNALS_RUN=$rq; KIT_TRACE=$rawq; KIT_TRACE_CHECKS=; export AGENT_SIGNALS_RUN KIT_TRACE KIT_TRACE_CHECKS
+ kit session start s9 stub --via tmux --cmd "sh '$stub'") >"$T/o" 2>&1
+expect_code "quote: start exits 0" 0 $?
+(AGENT_SIGNALS_RUN=$rq; export AGENT_SIGNALS_RUN
+ kit session wait s9 'stub idle' 30) >"$T/o" 2>&1
+expect_code "quote: the agent started and shows idle" 0 $?
+cp "$rq/sessions/s9/recorder.pid" "$T/s9.rec.pid" 2>/dev/null
+(AGENT_SIGNALS_RUN=$rq; export AGENT_SIGNALS_RUN
+ kit session stop s9) >"$T/o" 2>&1
+expect_code "quote: stop exits 0" 0 $?
+rec_gone "$T/s9.rec.pid" "quote: no recorder stays after stop"
+if grep -q 'stub idle' "$rawq/terminal.cast" 2>/dev/null; then pass "quote: the cast holds stub idle"; else fail "quote: the cast holds stub idle" "no text"; fi
+if [ -e "$rq/sessions/s9/ready" ]; then pass "quote: the recorder made the ready file"; else fail "quote: the recorder made the ready file" "no file"; fi
+
 # KIT_TRACE_CHECKS=network: no cast and no gate wait.
 rm -f "$raw/terminal.cast"
 (KIT_TRACE=$raw; KIT_TRACE_CHECKS=network; export KIT_TRACE KIT_TRACE_CHECKS
@@ -268,6 +298,49 @@ expect_line "gate timeout: the reason" "gate wait ended" "$T/o"
 left=$(pids_run "$T/run1")
 if [ -z "$left" ]; then pass "gate timeout: no pid of the run stays"; else fail "gate timeout: no pid of the run stays" "$left"; fi
 sock_gone s5 "gate timeout: no socket folder stays"
+
+# The gate wait ends while pipe-pane works, but the recorder is slow to
+# start: a python3 wrapper waits 1 s before it runs trace-cast.py. The
+# pane gives up at the gate with 125, and the start exits 1.
+real_py=$(command -v python3)
+mkdir "$T/slowpy"
+cat >"$T/slowpy/python3" <<PYWEOF
+#!/bin/sh
+case "\$*" in *trace-cast.py*) sleep 1 ;; esac
+exec "$real_py" "\$@"
+PYWEOF
+chmod +x "$T/slowpy/python3"
+(PATH="$T/slowpy:$PATH"; KIT_TRACE=$raw; KIT_TRACE_CHECKS=; KIT_TRACE_GATE_TURNS=4; export PATH KIT_TRACE KIT_TRACE_CHECKS KIT_TRACE_GATE_TURNS
+ kit session start s10 stub --via tmux --cmd "sh '$stub'") >"$T/o" 2>&1
+expect_code "gate timeout, slow recorder: start exits 1" 1 $?
+expect_line "gate timeout, slow recorder: the reason" "gate wait ended before the recorder started" "$T/o"
+if [ ! -e "$T/run1/sessions/s10/pid" ]; then pass "gate timeout, slow recorder: the agent did not run"; else fail "gate timeout, slow recorder: the agent did not run" "a pid file exists"; fi
+sock_gone s10 "gate timeout, slow recorder: no socket folder stays"
+# The slow recorder starts after the start failed. It gets the end of its
+# input and ends.
+_n=0
+while [ ! -s "$T/run1/sessions/s10/recorder.pid" ] && [ "$_n" -lt 60 ]; do
+  sleep 0.05
+  _n=$((_n + 1))
+done
+_n=0
+while kill -0 "$(cat "$T/run1/sessions/s10/recorder.pid" 2>/dev/null)" 2>/dev/null && [ "$_n" -lt 60 ]; do
+  sleep 0.05
+  _n=$((_n + 1))
+done
+left=$(pids_run "$T/run1")
+if [ -z "$left" ]; then pass "gate timeout, slow recorder: no pid of the run stays"; else fail "gate timeout, slow recorder: no pid of the run stays" "$left"; fi
+
+# "kit session stop --all" stops the recorder by its pid in RUN/pids/.
+(KIT_TRACE=$raw; KIT_TRACE_CHECKS=; export KIT_TRACE KIT_TRACE_CHECKS
+ kit session start s11 stub --via tmux --cmd "sh '$stub'") >"$T/o" 2>&1
+expect_code "stop --all: start exits 0" 0 $?
+cp "$T/run1/sessions/s11/recorder.pid" "$T/s11.rec.pid" 2>/dev/null
+kit session stop --all >"$T/o" 2>&1
+expect_code "stop --all: exit 0" 0 $?
+rec_gone "$T/s11.rec.pid" "stop --all: no recorder stays"
+left=$(pids_run "$T/run1")
+if [ -z "$left" ]; then pass "stop --all: no pid of the run stays"; else fail "stop --all: no pid of the run stays" "$left"; fi
 
 # Step with the states: the first event comes before the idle state.
 stub_set STUB_TRUST=yes
