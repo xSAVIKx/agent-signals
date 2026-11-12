@@ -710,12 +710,17 @@ case $KIT_KIND in
   interrupt)
     say "send the prompt, wait for the busy screen ($WAIT_S s)"
     send "$KIT_PROMPT"
-    # A screen 2 s after the send: when the busy regex does not match, it
-    # shows what the agent drew while it worked.
-    sleep 2
-    screen "$tmp/early" || : >"$tmp/early"
-    wait_re "$KIT_WAIT_REGEX" "$WAIT_S" "$tmp/s"
+    # Look for the busy line from the send on. Codex shows its busy line
+    # only until the answer text starts, and that can be in 1 s. The
+    # screen at 2 s shows what the agent drew when the busy regex does not
+    # match.
+    wait_re "$KIT_WAIT_REGEX" 2 "$tmp/s"
     rc=$?
+    cp "$tmp/s" "$tmp/early" 2>/dev/null || : >"$tmp/early"
+    if [ "$rc" -eq 1 ]; then
+      wait_re "$KIT_WAIT_REGEX" "$WAIT_S" "$tmp/s"
+      rc=$?
+    fi
     bad "$rc"
     if [ "$rc" -ne 0 ]; then
       save "2 s after the prompt" "$tmp/early"

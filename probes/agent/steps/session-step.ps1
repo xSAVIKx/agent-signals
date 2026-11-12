@@ -450,12 +450,13 @@ try {
         }
         'interrupt' {
             $keys = @($answer -split ' ' | Where-Object { $_ })
-            # A screen 2 s after the send: when the busy regex does not
-            # match, it shows what the agent drew while it worked.
-            Start-Sleep -Seconds 2
-            Update-Screen
+            # Look for the busy line from the send on. Codex shows its
+            # busy line only until the answer text starts, and that can be
+            # in 1 s. The screen at 2 s shows what the agent drew when the
+            # busy regex does not match.
+            $busy = Wait-Regex $waitRe 2
             $early = $sc
-            if (-not (Wait-Regex $waitRe $waitS)) {
+            if (-not $busy -and -not (Wait-Regex $waitRe $waitS)) {
                 Add-Screen '2 s after the prompt' $early
                 if ($keys.Count -gt 0) { Send-Keys @($keys[0]) }
                 Stop-Step 'no-busy'

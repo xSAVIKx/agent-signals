@@ -209,6 +209,14 @@ EOF
   expect_code "no busy: the step exits 1" 1 $?
   expect_line "no busy: the step is fail no-busy" "^step: interrupt-claude@$ran fail no-busy$" "$T/step"
 
+  # A busy line that shows only for 2.5 s after Enter, as Codex draws it
+  # when the answer text starts at once: the step sees it. A step that
+  # sleeps 2 s after the send looks first at 3 s or later, and misses it.
+  stub_set STUB_BUSY=brief
+  WATCH=4 kitx step "interrupt-claude@$ran" >"$T/step" 2>&1
+  expect_code "brief busy: the step exits 0" 0 $?
+  expect_line "brief busy: the step is ok" "^step: interrupt-claude@$ran ok$" "$T/step"
+
   # new-chat needs a screen with no prompt text.
   stub_set STUB_KEEP=yes
   WATCH=4 kitx step "new-chat-claude@$ran" >"$T/step" 2>&1
