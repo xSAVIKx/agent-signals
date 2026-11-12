@@ -33,7 +33,7 @@
 #   STUB_WELCOME=TEXT  the idle screen shows TEXT, as a welcome box does.
 #   STUB_EXIT=yes      the stub stops at a prompt.
 #   STUB_BUSY=no       "Count ..." does not make the stub busy.
-#   STUB_BUSY=brief    "Count ..." shows the busy line for 1.5 s. Then the
+#   STUB_BUSY=brief    "Count ..." shows the busy line for 2.5 s. Then the
 #                      stub shows numbers with no busy line until Escape, as
 #                      Codex does when the answer text starts.
 #   STUB_KEEP=yes      "/clear" stays in the box after Enter.
@@ -217,7 +217,7 @@ while :; do
                 brief)
                   state=busy
                   draw
-                  sleep 1.5
+                  sleep 2.5
                   state=stream
                   ;;
                 *) state=busy ;;
