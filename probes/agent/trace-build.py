@@ -36,8 +36,10 @@ Rules:
   NAME is work of the kit when its path (or its "from") is under the home
   or the work folder of NAME, or under the Claude Code temp folder of that
   work folder (TMP/claude-UID/KEY). The program drops these events, and
-  the events of the mark files. A "begin" with no "end" holds until the
-  end of the file.
+  the events of the mark files. session.sh makes the "end" mark also
+  when its command fails or gets HUP, INT or TERM after "begin". Only a
+  KILL of that command leaves a "begin" with no "end". That "begin"
+  holds until the next "end" of NAME, or until the end of the file.
 - In each path, the account name and the host name become dev and host.
   In each name, a UUID becomes <uuid>, a run of 16 or more hex digits
   becomes <hex>, and a run of 5 or more digits becomes <n>.

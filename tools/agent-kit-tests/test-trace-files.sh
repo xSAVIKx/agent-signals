@@ -381,6 +381,29 @@ kill -TERM "$wpid"
 wait "$wpid"
 expect_code "mark: the watch exits 0" 0 $?
 
+# N4: a "kit session start" that fails after the mark "begin" still makes
+# the mark "end" when it exits. Here the work folder of the session is a
+# file, so the start fails at its mkdir, after "begin".
+if command -v tmux >/dev/null 2>&1; then
+  mkdir -p "$T/n4run/work" "$T/n4raw"
+  : >"$T/n4run/work/n4"
+  python3 -I "$watch" --out "$T/f9.jsonl" --ready "$T/f9.ready" "$T/n4run/work" &
+  wpid=$!
+  bg_pid "$wpid"
+  wait_file "$T/f9.ready" || fail "unmatched begin: the ready file is written" "no file"
+  (AGENT_SIGNALS_RUN=$T/n4run; KIT_TRACE=$T/n4raw; KIT_TRACE_CHECKS=files
+   export AGENT_SIGNALS_RUN KIT_TRACE KIT_TRACE_CHECKS
+   kit session start n4 stub --via tmux --cmd true --keep) >"$T/n4.out" 2>&1
+  _rc=$?
+  if [ "$_rc" -ne 0 ]; then pass "unmatched begin: the start fails"; else fail "unmatched begin: the start fails" "exit 0"; fi
+  check_has "unmatched begin: the begin mark" "$T/f9.jsonl" create "$T/n4run/work/.kit-trace-mark.n4.begin"
+  check_has "unmatched begin: the exit makes the end mark" "$T/f9.jsonl" create "$T/n4run/work/.kit-trace-mark.n4.end"
+  kill -TERM "$wpid"
+  wait "$wpid"
+else
+  echo "skip: unmatched begin: tmux is not installed"
+fi
+
 # The parent: when the --parent process is gone, the watcher stops and
 # deletes its lines and its folder. "sh -c" is the parent; it gets KILL.
 mkdir -p "$T/pw/w" "$T/pw/rec"

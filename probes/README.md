@@ -180,7 +180,10 @@ three checks on one clock:
   itself writes (the work folder and the home of a session, the settings
   files of the fake model, also on a resume step, and the deletes when a
   session stops) are not in the trace. The kit marks its own work with a
-  file `.kit-trace-mark.NAME.begin` and `.end` in the work root. When the
+  file `.kit-trace-mark.NAME.begin` and `.end` in the work root. A kit
+  command that fails or stops after its `begin` mark still makes the
+  `end` mark when it exits. Only a KILL of the command leaves a `begin`
+  with no `end`. When the
   file watch is very late, the trace can drop a file that the agent
   writes just at its start.
 
