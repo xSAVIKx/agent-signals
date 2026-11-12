@@ -31,6 +31,7 @@ KINDS = ("programs", "files", "opened", "hosts", "direct", "dns", "processes_lef
 # The order in which DATA drops a kind when it is too long.
 DROP_ORDER = ("opened", "files", "hosts", "dns", "direct", "programs", "processes_left")
 DATA_MAX = 40000
+INFLATE_MAX = 16 * 1024 * 1024
 BODY_MAX = 24000
 ITEM_MAX = 200
 TABLE_ROWS = 100
@@ -158,7 +159,12 @@ def decode(body):
     if not found:
         return None
     try:
-        data = json.loads(zlib.decompress(base64.b64decode(found[-1])))
+        # A limit on the output: a body can come from anyone who can edit it.
+        inflate = zlib.decompressobj()
+        raw = inflate.decompress(base64.b64decode(found[-1]), INFLATE_MAX)
+        if inflate.unconsumed_tail:
+            return None
+        data = json.loads(raw)
     except (ValueError, zlib.error):
         return None
     if not isinstance(data, dict) or not isinstance(data.get("items"), dict):
@@ -206,7 +212,7 @@ def table(kind, items, images, limit):
     if not items:
         lines.append("none")
         return lines
-    lines.append("| %s | %s |" % (kind, " | ".join(images)))
+    lines.append("| %s | %s |" % (kind, " | ".join(i.replace("|", "\\|") for i in images)))
     lines.append("|%s" % ("---|" * (len(images) + 1)))
     names = sorted(items)
     for name in names[:limit]:
