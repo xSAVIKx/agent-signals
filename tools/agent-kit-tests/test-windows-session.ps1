@@ -246,7 +246,10 @@ foreach ($b in 'conpty', 'psmux') {
         $sec = Start-KitPiped 'session' 'start' $s2 'claude' '--via' $b
         Write-Output ("${b}: start with pipes took {0:N1} s" -f $sec)
         if ($sec -ge 0) { Pass "${b}: start does not hold the pipes of the caller" } else { Fail "${b}: start does not hold the pipes of the caller" 'the pipes stayed open for 60 s' }
-        if ($sec -ge 0 -and $sec -lt 5) { Pass "${b}: start returns in under 5 s" } else { Fail "${b}: start returns in under 5 s" "it took $sec s" }
+        # The budget is 15 s. On the hosted runners a start took 1.6 s to
+        # 2.0 s, but 6.2 s (conpty) and 7.4 s (psmux) on a slow
+        # windows-2022 runner. A start that holds the pipes takes 60 s.
+        if ($sec -ge 0 -and $sec -lt 15) { Pass "${b}: start returns in under 15 s" } else { Fail "${b}: start returns in under 15 s" "it took $sec s" }
         $bw = Join-Path $run "sessions/$s2/breakaway"
         if (Test-Path -LiteralPath $bw) { Write-Output "${b}: breakaway from the job: $((Get-Text $bw).Trim())" }
         $be = Join-Path $run "sessions/$s2/breakaway-error"
