@@ -735,7 +735,7 @@ def ebpf_events(raw, t0, sessions, hangups, paths):
             member[pid] = name
     since = {}  # pid -> epoch ms of its first line in a tree
     ended = {}  # pid -> epoch ms of its exit
-    last_exec = {}  # pid -> normalized path of its last exec
+    execs = {}  # pid -> (epoch ms, normalized path) of each exec
     tree = {}  # pid -> (session name, ppid), in order of appearance
     events = []
     opened = set()
@@ -772,9 +772,9 @@ def ebpf_events(raw, t0, sessions, hangups, paths):
         }
         if word == "exec":
             path = paths.normalize(fields[2])
-            if path is None:
+            if not path:
                 continue
-            last_exec[pid] = path
+            execs.setdefault(pid, []).append((ms, path))
             ev["path"] = path
             ev["comm"] = fields[1]
         elif word == "exit":
@@ -785,9 +785,9 @@ def ebpf_events(raw, t0, sessions, hangups, paths):
             if not raw_path or under(raw_path, ("/proc", "/sys")):
                 continue
             path = paths.normalize(raw_path)
-            if path is None:
+            if not path:
                 continue
-            mode = {0: "r", 1: "w"}.get(flags & 3, "rw")
+            mode ={0: "r", 1: "w"}.get(flags & 3, "rw")
             ok = ret >= 0
             if (path, mode, ok) in opened:
                 continue
@@ -827,10 +827,14 @@ def ebpf_events(raw, t0, sessions, hangups, paths):
                 continue
         elif since[pid] >= stop or ended.get(pid, stop + 1) <= stop:
             continue
+        # The program that ran at the hang-up: the last exec at or before
+        # that time, of the pid or of its nearest parent with an exec.
         program = None
         p = pid
         while p is not None and program is None:
-            program = last_exec.get(p)
+            for ms, path in execs.get(p, ()):
+                if stop is None or ms <= stop:
+                    program = path
             p = parent.get(p) if p not in agents else None
         left.append(
             {

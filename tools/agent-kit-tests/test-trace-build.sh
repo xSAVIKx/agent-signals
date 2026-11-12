@@ -391,6 +391,17 @@ printf 'ebpf\tno-sudo\n' >>"$T/skipebpf/.trace/skipped.tsv"
 run_build skipebpf "$H/meta.json"
 want "skipped ebpf: no eBPF event" skipebpf 'not any(e["kind"] in ("exec", "exit", "open", "connect", "dns", "signal") for e in ev) and d["summary"]["dns"] is None and "ebpf" not in d["meta"]["checks"]'
 
+# An exec after the hang-up does not change the program of a process
+# that is left. An exec with an empty path is not an event.
+mkrawe late
+{
+  printf '1006100000000\texec\t4260\tnode\t/usr/bin/node\n'
+  printf '1000820000000\texec\t4260\tsh\t\n'
+} >>"$T/late/.trace/ebpf.txt"
+run_build late "$H/meta.json"
+want "late exec: the program at the hang-up stays" late '[p["program"] for p in d["summary"]["processes_left"]] == ["/usr/bin/python3"]'
+want "empty exec path: no event" late 'all(e.get("path") for e in ev if e["kind"] == "exec") and all(p["path"] for p in d["summary"]["programs"])'
+
 # A pane with no gate exec keeps the full tree. A connect4 with an
 # address that is not IPv4, an IPv4-mapped IPv6 address, and a lost line
 # in ebpf.err.
