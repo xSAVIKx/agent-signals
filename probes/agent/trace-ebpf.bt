@@ -25,14 +25,17 @@ tracepoint:syscalls:sys_exit_openat /@open[tid]/ {
   delete(@path[tid]); delete(@flags[tid]); delete(@open[tid]);
 }
 tracepoint:syscalls:sys_enter_connect /@in[(uint64)pid]/ {
-  $p = (uint8 *)uptr(args.uservaddr);
-  $fam = *(uint16 *)$p;
+  // A cast drops the user address space of a pointer, so uptr() comes
+  // after each cast: each read is a read of user memory.
+  $p = (uint64)args.uservaddr;
+  $fam = *uptr((uint16 *)$p);
+  $port = (*uptr((uint8 *)($p + 2)) << 8) | *uptr((uint8 *)($p + 3));
   if ($fam == 2) {
-    printf("%llu\tconnect4\t%d\t%d\t%s\n", nsecs, pid, (*($p + 2) << 8) | *($p + 3), ntop(2, *(uint32 *)($p + 4)));
+    printf("%llu\tconnect4\t%d\t%d\t%s\n", nsecs, pid, $port, ntop(2, *uptr((uint32 *)($p + 4))));
   } else if ($fam == 10) {
-    printf("%llu\tconnect6\t%d\t%d\t%llx\t%llx\n", nsecs, pid, (*($p + 2) << 8) | *($p + 3), *(uint64 *)($p + 8), *(uint64 *)($p + 16));
+    printf("%llu\tconnect6\t%d\t%d\t%llx\t%llx\n", nsecs, pid, $port, *uptr((uint64 *)($p + 8)), *uptr((uint64 *)($p + 16)));
   } else if ($fam == 1) {
-    printf("%llu\tconnectu\t%d\t%s\n", nsecs, pid, str($p + 2));
+    printf("%llu\tconnectu\t%d\t%s\n", nsecs, pid, str(uptr((uint8 *)($p + 2))));
   }
 }
 tracepoint:syscalls:sys_enter_kill /@in[(uint64)pid]/ {
