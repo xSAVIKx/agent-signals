@@ -1,4 +1,5 @@
 # shellcheck shell=sh
+# shellcheck disable=SC2154 # _fail comes from lib.sh.
 # The ebpf check of "kit trace" (probes/agent/trace.sh, step 4b): the start
 # of bpftrace, its ready check, its skips, its stop, the hang-up time of
 # session.sh, and the build of the events. Linux only.
@@ -177,6 +178,16 @@ kinds = {}
 for e in d["events"]:
     kinds[e["kind"]] = kinds.get(e["kind"], 0) + 1
 print("  facts: ebpf_lost=%s kinds=%s" % (d["meta"]["ebpf_lost"], json.dumps(kinds, sort_keys=True)))' "$j" 2>/dev/null
+  # After a failure: the scrubbed open paths that are not system paths,
+  # and the connect events.
+  if [ "$_fail" != 0 ]; then
+    python3 -I -c '
+import json, sys
+d = json.load(open(sys.argv[1], encoding="utf-8"))
+for e in d["events"]:
+    if e["kind"] == "connect" or (e["kind"] == "open" and not e["path"].startswith(("/usr/", "/lib", "/etc/"))):
+        print("  event:", json.dumps({k: e.get(k) for k in ("kind", "pid", "path", "mode", "ok", "host", "port", "family")}))' "$j" 2>/dev/null | head -n 40
+  fi
 fi
 if [ "$_fail" != 0 ]; then show_err "$T/t1.err"; fi
 private "ebpf: no file in RUN/traces holds the test folder or a name" "$run/traces"
