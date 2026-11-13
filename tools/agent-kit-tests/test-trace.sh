@@ -91,11 +91,28 @@ export WATCH
 kitx start --home fixture --out "$D" >"$T/log" 2>&1
 expect_code "kit start exits 0" 0 $?
 run=$(run_of "$D")
+# trace_code NAME WANT CODE FILE...: expect_code, and after a wrong exit
+# code, the output of the trace and the log of its step file, so that a CI
+# failure shows its cause. Write $T/mark before the trace: only a step file
+# newer than the mark is the step of this trace.
+trace_code() {
+  _n=$1 _w=$2 _c=$3
+  shift 3
+  expect_code "$_n" "$_w" "$_c"
+  [ "$_c" = "$_w" ] && return 0
+  for _f in "$@"; do
+    [ -f "$_f" ] && tail -n 30 "$_f" | sed "s/^/  out| /"
+  done
+  _s=$(find "$run" -maxdepth 1 -name '[0-9]*.txt' -newer "$T/mark" 2>/dev/null | sort | tail -n 1)
+  [ -n "$_s" ] && sed -n '/^result:/p; /^#* *log$/,/^#/p' "$_s" | head -n 40 | sed "s/^/  step| /"
+  return 0
+}
 # The stub shows its current folder, as the welcome box of an agent does.
 # It also shows a cut form "/…/TAIL", as Claude Code draws a long folder.
 stub_set STUB_TRUST=yes 'STUB_WELCOME="cwd $PWD cut /…/${PWD#*/out/}"'
+: >"$T/mark"
 kitx trace permission-claude@tmux >"$T/t1" 2>"$T/t1.err"
-expect_code "trace: exit 0" 0 $?
+trace_code "trace: exit 0" 0 $? "$T/t1" "$T/t1.err"
 tr1=$run/traces/01-permission-claude@tmux
 j=$tr1/trace.json
 expect_line "trace: the step line" '^step: permission-claude@tmux ok' "$T/t1"
@@ -137,8 +154,9 @@ else
 fi
 
 # Only the terminal check.
+: >"$T/mark"
 kitx trace permission-claude@tmux --checks terminal >"$T/t2" 2>&1
-expect_code "terminal only: exit 0" 0 $?
+trace_code "terminal only: exit 0" 0 $? "$T/t2"
 j=$run/traces/02-permission-claude@tmux/trace.json
 expect_file "terminal only: the folder number is 02" "$j"
 want "terminal only: summary.hosts is null" "$j" 'd["summary"]["hosts"] is None and d["summary"]["files"] is None and d["summary"]["model_requests"] is None'
@@ -147,8 +165,9 @@ want "terminal only: meta.checks is terminal" "$j" 'd["meta"]["checks"] == ["ter
 # The TMPDIR of the operator does not change the temp folder of the
 # agent: the agent starts with no TMPDIR and writes to /tmp.
 mkdir -p "$T/optmp"
+: >"$T/mark"
 (TMPDIR=$T/optmp && export TMPDIR && kitx trace permission-claude@tmux --checks files) >"$T/t2b" 2>&1
-expect_code "operator TMPDIR: exit 0" 0 $?
+trace_code "operator TMPDIR: exit 0" 0 $? "$T/t2b"
 j=$run/traces/03-permission-claude@tmux/trace.json
 want "operator TMPDIR: summary.files.tmp holds the temp file of the stub" "$j" 'len(d["summary"]["files"]["tmp"]) > 0 and all(p.startswith("TMP/") for p in d["summary"]["files"]["tmp"])'
 want "operator TMPDIR: no path names the folder" "$j" '"optmp" not in json.dumps(d)'
@@ -276,8 +295,9 @@ stree=$(ps -A -o pid= -o ppid= | awk -v r="$spid" '
 if [ -n "$stree" ]; then pass "KILL: the step has processes below it"; else fail "KILL: the step has processes below it" "none"; fi
 # RUN/.trace changed less than one minute ago, but its owner file names a
 # pid that does not run: the next trace does not wait for the grace time.
+: >"$T/mark"
 kitx trace permission-claude@tmux --checks terminal >"$T/tk2" 2>&1
-expect_code "after KILL: the next trace exits 0" 0 $?
+trace_code "after KILL: the next trace exits 0" 0 $? "$T/tk2"
 expect_line "after KILL: the next trace removes the old folder" '^kit: removed the folder of a stopped trace' "$T/tk2"
 expect_line "after KILL: the next trace gives its folder" '^trace: .*/traces/[0-9]+-permission-claude@tmux$' "$T/tk2"
 if [ ! -e "$run/.trace" ]; then pass "after KILL: no RUN/.trace stays"; else fail "after KILL: no RUN/.trace stays" "it exists"; fi
