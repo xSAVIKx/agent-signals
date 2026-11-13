@@ -226,12 +226,25 @@ jobs:
           stop=$!
           sudo -n env BPFTRACE_MAX_STRLEN=200 BPFTRACE_MAP_KEYS_MAX=65536 "$KIT_BPFTRACE" -B line \
             probes/agent/trace-ebpf.bt "$$" "$stop" >"$RUNNER_TEMP/raw.txt" 2>"$RUNNER_TEMP/raw.err" &
+          tracer=$!
           sleep 10
           sh -c "echo x >'$d/x.txt'"
           python3 -I -c 'import socket; s = socket.socket(); s.settimeout(1); s.connect_ex(("127.0.0.1", 9)); s.close()'
           sleep 1
           kill "$stop"
-          wait
+          # bpftrace ends when the sentinel ends. Wait 10 s at most, then
+          # stop it, so that the step still prints the two files.
+          for _ in 1 2 3 4 5 6 7 8 9 10; do
+            kill -0 "$tracer" 2>/dev/null || break
+            sleep 1
+          done
+          if kill -0 "$tracer" 2>/dev/null; then
+            echo "bpftrace did not end in 10 s: stop it"
+            sudo -n kill "$tracer" || true
+            sleep 2
+            sudo -n kill -9 "$tracer" 2>/dev/null || true
+          fi
+          wait "$tracer" 2>/dev/null || true
           echo "== raw.err"
           cat "$RUNNER_TEMP/raw.err"
           echo "== raw.txt: lines that are not exec, fork or exit"
