@@ -174,8 +174,9 @@ want "operator TMPDIR: no path names the folder" "$j" '"optmp" not in json.dumps
 
 # The ebpf check with no bpftrace: a skip, not a failure. The folder number
 # is 04.
+: >"$T/mark"
 (KIT_BPFTRACE=$T/none && export KIT_BPFTRACE && kitx trace permission-claude@tmux --checks terminal,ebpf) >"$T/t3" 2>&1
-expect_code "ebpf, no bpftrace: exit 0" 0 $?
+trace_code "ebpf, no bpftrace: exit 0" 0 $? "$T/t3"
 j=$run/traces/04-permission-claude@tmux/trace.json
 want "ebpf, no bpftrace: the skip no-bpftrace" "$j" '{"check": "ebpf", "reason": "no-bpftrace"} in d["meta"]["skipped"] and d["meta"]["checks"] == ["terminal"]'
 
@@ -217,6 +218,7 @@ else
 fi
 
 # A second trace while a trace runs: exit 2.
+: >"$T/mark"
 (WATCH=6 && export WATCH && kitx trace permission-claude@tmux) >"$T/t6" 2>&1 &
 first=$!
 bg_pid "$first"
@@ -228,7 +230,7 @@ done
 kitx trace permission-claude@tmux --checks terminal >"$T/t7" 2>&1
 expect_code "a second trace: exit 2" 2 $?
 wait "$first"
-expect_code "the first trace: exit 0" 0 $?
+trace_code "the first trace: exit 0" 0 $? "$T/t6"
 if [ ! -e "$run/.trace" ]; then pass "the first trace deletes RUN/.trace"; else fail "the first trace deletes RUN/.trace" "it exists"; fi
 
 # TERM while the step runs: the trace stops the step, its session and the
@@ -382,8 +384,9 @@ kitr() {
 kitr start --home real --out "$D2" >"$T/log" 2>&1
 expect_code "real home: kit start exits 0" 0 $?
 run=$(run_of "$D2")
+: >"$T/mark"
 kitr trace permission-claude@tmux >"$T/t8" 2>&1
-expect_code "real home: exit 0" 0 $?
+trace_code "real home: exit 0" 0 $? "$T/t8"
 tr8=$run/traces/01-permission-claude@tmux
 j=$tr8/trace.json
 want "real home: home paths start with ~" "$j" 'any(e.get("path", "").startswith("~/.claude/") for e in ev) and all(not e.get("path", "").startswith("/") for e in ev if e["kind"] != "proxy")'
@@ -400,8 +403,9 @@ while [ "$k" -lt 80 ]; do
   mkdir -p "$R/folder$k"
   k=$((k + 1))
 done
+: >"$T/mark"
 (KIT_TRACE_WATCH_LIMIT=64 && export KIT_TRACE_WATCH_LIMIT && kitr trace permission-claude@tmux) >"$T/t10" 2>&1
-expect_code "real home, small limit: exit 0" 0 $?
+trace_code "real home, small limit: exit 0" 0 $? "$T/t10"
 j=$run/traces/02-permission-claude@tmux/trace.json
 want "real home, small limit: files_limit is true" "$j" 'd["meta"]["files_limit"] is True'
 want "real home, small limit: the file of the stub in WORK" "$j" '"WORK/stub-work.txt" in d["summary"]["files"]["work"]'
@@ -418,8 +422,9 @@ kitt() {
 kitt start --home throwaway --out "$D3" >"$T/log" 2>&1
 expect_code "throwaway home: kit start exits 0" 0 $?
 run=$(run_of "$D3")
+: >"$T/mark"
 kitt trace permission-claude@tmux >"$T/t11" 2>&1
-expect_code "throwaway home: exit 0" 0 $?
+trace_code "throwaway home: exit 0" 0 $? "$T/t11"
 expect_line "throwaway home: the step skips with no-login" '^step: permission-claude@tmux skip no-login' "$T/t11"
 j=$run/traces/01-permission-claude@tmux/trace.json
 want "throwaway home: the mode is none" "$j" 'd["meta"]["mode"] == "none" and d["meta"]["home"] == "throwaway"'
