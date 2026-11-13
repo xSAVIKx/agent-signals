@@ -69,7 +69,11 @@ for a in claude codex agy; do
   busy=$(field "permission-$a" busy_regex)
   dialog=$(field "permission-$a" dialog_regex)
   write=$(field "permission-$a" wait_regex)
-  [ "$(field "interrupt-$a" wait_regex)" = "$busy" ] || fail "the interrupt step of $a waits for busy_regex" "another regex"
+  iwait=$(field "interrupt-$a" wait_regex)
+  case $iwait in
+    "$busy" | "$busy|"*) ;;
+    *) fail "the interrupt step of $a waits for busy_regex" "another regex" ;;
+  esac
   n=0
   : >"$T/bad"
   for y in "$ROOT"/corpus/$a/screens/*.yaml; do
@@ -101,6 +105,15 @@ for a in claude codex agy; do
       *permission* | approval*) has "$write" "$s" || echo "$b does not match the write regex" >>"$T/bad" ;;
     esac
   done
+  # Codex hides its busy line while the answer streams: a line of the
+  # count is a busy screen too (macOS and Windows runs, Codex 0.167.2 and
+  # 0.169.0). An idle screen after a count also has such lines, but the
+  # step looks only while the count runs: a count to 2000 took more than
+  # 90 s in these runs.
+  if [ "$a" = codex ]; then
+    printf '› Count from 1 to 2000, with one number on each line.\n  147   \n' >"$T/stream"
+    has "$iwait" "$T/stream" || echo "a streamed count does not match the interrupt wait regex" >>"$T/bad"
+  fi
   if [ -s "$T/bad" ]; then
     fail "the regexes of $a agree with its $n corpus screens" "$(tr '\n' ';' <"$T/bad")"
   else
