@@ -1,7 +1,8 @@
 // trace-ebpf.bt ROOT STOP: the eBPF check of "kit trace". Read
 // probes/README.md, section Traces. ROOT is the pid of trace.sh, STOP the
-// pid of the sentinel. Only tracepoints and one uprobe: no BTF type. Each
-// key of @in is a uint64, so that the map has one key type.
+// pid of the sentinel. Tracepoints, one kprobe with its kretprobe, and one
+// uprobe: no BTF type. Each key of @in is a uint64, so that the map has
+// one key type.
 BEGIN { @in[(uint64)$1] = 1; }
 tracepoint:task:task_newtask /@in[(uint64)pid] && !(args.clone_flags & 0x10000)/ {
   @in[(uint64)args.pid] = 1;
@@ -15,32 +16,37 @@ tracepoint:sched:sched_process_exit /@in[(uint64)pid] && pid == tid/ {
   delete(@in[(uint64)pid]);
 }
 tracepoint:sched:sched_process_exit /(pid == $1 || pid == $2) && pid == tid/ { exit(); }
-tracepoint:syscalls:sys_enter_openat /@in[(uint64)pid]/ {
+// The opens: open, openat, openat2 and creat all go through
+// do_sys_openat2(dfd, filename, how). The probes are a kprobe and a
+// kretprobe, not the syscall tracepoints: on kernel 7.0 a program on a
+// syscall tracepoint can sleep in a user read, and then the kernel skips
+// the next hits on that CPU with no lost line (measured: about 70 % of the
+// opens of a process were not in the record). A kprobe program does not
+// sleep. The entry keeps the user pointer of the path and the flags (the
+// first field of struct open_how). The return reads the path, after the
+// kernel copied it, and writes the line, also for a failed open.
+// The counters @ne (entries) and @nx (returns) go to the line "counters"
+// at the end. The build skips it.
+kprobe:do_sys_openat2 /@in[(uint64)pid]/ {
+  @ne = @ne + 1;
+  @path[tid] = (uint64)arg1;
+  @flags[tid] = *(uint64 *)arg2;
+}
+kretprobe:do_sys_openat2 /@path[tid]/ {
+  @nx = @nx + 1;
+  $f = str(uptr((uint8 *)@path[tid]));
   // The build drops the paths below /proc and /sys. The guided watch of
   // the kit reads /proc very often, and on a runner these lines filled
   // the output buffer, so that the open lines of the agent were lost.
   // So the script does not write them.
-  // The counters @ne (enter), @ns (stored), @nf (store failed) and @nx
-  // (written) go to the line "counters" at the end. The build skips it.
-  @ne = @ne + 1;
-  $f = str(args.filename);
   if (strncmp($f, "/proc/", 6) != 0 && strncmp($f, "/sys/", 5) != 0) {
-    @path[tid] = $f;
-    @flags[tid] = args.flags;
-    @open[tid] = 1;
-    if (@open[tid]) { @ns = @ns + 1; } else { @nf = @nf + 1; }
+    printf("%llu\topen\t%d\t%d\t%d\t%s\n", nsecs, pid, @flags[tid], (int64)retval, $f);
   }
+  delete(@path[tid]); delete(@flags[tid]);
 }
-// Only a tid of the tree has an entry, and this probe deletes it on each
-// return of openat, also for a failed open.
-tracepoint:syscalls:sys_exit_openat /@open[tid]/ {
-  printf("%llu\topen\t%d\t%d\t%d\t%s\n", nsecs, pid, @flags[tid], args.ret, @path[tid]);
-  @nx = @nx + 1;
-  delete(@path[tid]); delete(@flags[tid]); delete(@open[tid]);
-}
-// A thread that ends inside openat leaves no entry.
-tracepoint:sched:sched_process_exit /@open[tid]/ {
-  delete(@path[tid]); delete(@flags[tid]); delete(@open[tid]);
+// A thread that ends inside an open leaves no entry.
+tracepoint:sched:sched_process_exit /@path[tid]/ {
+  delete(@path[tid]); delete(@flags[tid]);
 }
 tracepoint:syscalls:sys_enter_connect /@in[(uint64)pid]/ {
   // A cast drops the user address space of a pointer, so uptr() comes
@@ -64,7 +70,7 @@ uprobe:libc:getaddrinfo /@in[(uint64)pid]/ {
 }
 interval:s:7200 { exit(); }
 END {
-  printf("counters\tenter=%d\tstored=%d\tfailed=%d\twritten=%d\n", @ne, @ns, @nf, @nx);
-  clear(@in); clear(@path); clear(@flags); clear(@open);
-  clear(@ne); clear(@ns); clear(@nf); clear(@nx);
+  printf("counters\tenter=%d\treturn=%d\n", @ne, @nx);
+  clear(@in); clear(@path); clear(@flags);
+  clear(@ne); clear(@nx);
 }

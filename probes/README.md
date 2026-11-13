@@ -189,7 +189,9 @@ these checks on one clock:
   writes just at its start.
 - `ebpf` (Linux only, not in the default): the process tree of the agent,
   as the kernel sees it, with bpftrace. It records each fork, exec and
-  exit of a process, each `openat` (the path, the mode and the result; not below `/proc` and `/sys`),
+  exit of a process, each open (`open`, `openat`, `openat2` and
+  `creat`: the path, the mode and the result; not below `/proc` and
+  `/sys`),
   each `connect` (the address and the port, or the path of a unix
   socket), each name that the agent gives to `getaddrinfo` of libc, and
   each `kill`. It records the program path of each exec, but no

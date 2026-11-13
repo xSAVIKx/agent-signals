@@ -196,7 +196,7 @@ kinds = {}
 for e in d["events"]:
     kinds[e["kind"]] = kinds.get(e["kind"], 0) + 1
 print("  facts: ebpf_lost=%s kinds=%s" % (d["meta"]["ebpf_lost"], json.dumps(kinds, sort_keys=True)))' "$j" 2>/dev/null
-  # The open counters of the script: enter, stored, failed, written.
+  # The open counters of the script: entries and returns.
   grep '^counters' "$T/raw-ebpf.txt" 2>/dev/null | sed 's/^/  facts: /'
   # After a failure: the scrubbed open paths that are not system paths,
   # and the connect events.
