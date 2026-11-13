@@ -111,7 +111,7 @@ for a in claude codex agy; do
   # step looks only while the count runs: a count to 2000 took more than
   # 90 s in these runs.
   if [ "$a" = codex ]; then
-    printf '› Count from 1 to 2000, with one number on each line.\n  147   \n' >"$T/stream"
+    printf '  147   \n' >"$T/stream"
     has "$iwait" "$T/stream" || echo "a streamed count does not match the interrupt wait regex" >>"$T/bad"
   fi
   if [ -s "$T/bad" ]; then
