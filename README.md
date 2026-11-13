@@ -81,7 +81,7 @@ The task of the agent is [the task for an agent that runs the kit](tasks/run-the
 ## Run the probe kit by hand
 
 The probe kit only reads. One command downloads the kit of the latest
-release (about 170 KB) to a temporary folder, runs the probes, writes one
+release (about 230 KB) to a temporary folder, runs the probes, writes one
 file in the current folder, and deletes the temporary folder.
 
 | OS | Command |

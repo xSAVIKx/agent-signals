@@ -43,7 +43,7 @@ permissions:
 
 jobs:
   unix:
-    name: Unix (${{ matrix.os }})
+    name: Unix (${{ matrix.os }}${{ matrix.shard && format(' {0}', matrix.shard) || '' }})
     strategy:
       fail-fast: false
       matrix:
@@ -54,11 +54,23 @@ jobs:
           - ubuntu-22.04-arm
           - ubuntu-24.04-arm
           - ubuntu-26.04-arm
-          - ubuntu-slim
           - macos-15
           - macos-26
           - macos-15-intel
           - macos-26-intel
+        # ubuntu-slim has a limit of 15 min for each job. One job took
+        # 11 min to 15 min, and 7 of 33 jobs from 2026-11-09 to
+        # 2026-11-12 hit the limit. test-steps.sh alone took 7 min. Four
+        # jobs share the agent kit tests.
+        include:
+          - os: ubuntu-slim
+            shard: 1/4
+          - os: ubuntu-slim
+            shard: 2/4
+          - os: ubuntu-slim
+            shard: 3/4
+          - os: ubuntu-slim
+            shard: 4/4
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.os == 'ubuntu-slim' }}
     timeout-minutes: 30
@@ -114,6 +126,8 @@ jobs:
             sudo apt-get update -q && sudo apt-get install -y -q tmux
           fi
       - name: Agent kit test
+        env:
+          KIT_TEST_SHARD: ${{ matrix.shard }}
         run: sh tools/test-agent-kit.sh
       - name: Kit through the one-liner
         # The one-liner reads a local archive here, so the step needs no

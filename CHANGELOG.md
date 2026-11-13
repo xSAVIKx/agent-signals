@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.22.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.21.0...corpus-v0.22.0) (2026-11-12)
+
+
+### Features
+
+* **ci:** add the script that plans one issue for each traced agent version ([#155](https://github.com/xSAVIKx/agent-signals/issues/155)) ([867de10](https://github.com/xSAVIKx/agent-signals/commit/867de10a31feb5eb1fdee29216cd14052cb8b330))
+* **kit:** build the eBPF events of a trace ([#151](https://github.com/xSAVIKx/agent-signals/issues/151)) ([fb19248](https://github.com/xSAVIKx/agent-signals/commit/fb19248d2d1bc10c86410ae8535d995f188fb857))
+* **schema:** add the eBPF events and summary keys to the trace format ([#150](https://github.com/xSAVIKx/agent-signals/issues/150)) ([0269e6a](https://github.com/xSAVIKx/agent-signals/commit/0269e6a3eec78e2475d9c2b1a455e02f1c7fce2a))
+
+
+### Bug Fixes
+
+* fix three flaky tests of the Probes workflow ([#158](https://github.com/xSAVIKx/agent-signals/issues/158)) ([2b7337a](https://github.com/xSAVIKx/agent-signals/commit/2b7337a3e2d63d9f3aef64ceb7088507de5029ca))
+* **kit:** check the clock gap and a busy agent in the Windows session steps ([#145](https://github.com/xSAVIKx/agent-signals/issues/145)) ([cc0bba8](https://github.com/xSAVIKx/agent-signals/commit/cc0bba8b64157b437bca3be4d9fffa67fde941ba))
+* **kit:** fix the deferred findings of kit trace ([#148](https://github.com/xSAVIKx/agent-signals/issues/148)) ([76f3852](https://github.com/xSAVIKx/agent-signals/commit/76f3852afe0ad76120d191350c08731b24c9327a))
+* **kit:** look for the busy line from the send in the interrupt step ([#159](https://github.com/xSAVIKx/agent-signals/issues/159)) ([abfcb13](https://github.com/xSAVIKx/agent-signals/commit/abfcb13c8bb003d624f4af8b21d1f79724daab40))
+* **kit:** make the Windows busy-at-end test deterministic ([#153](https://github.com/xSAVIKx/agent-signals/issues/153)) ([d77bba2](https://github.com/xSAVIKx/agent-signals/commit/d77bba262f43292540d0e0752f645b69037140f4))
+
 ## [0.21.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.20.0...corpus-v0.21.0) (2026-11-11)
 
 

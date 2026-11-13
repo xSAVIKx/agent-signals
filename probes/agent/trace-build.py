@@ -86,15 +86,17 @@ null.
   /bin/sh, /usr/bin/sh, /bin/dash or /usr/bin/dash (the gate of the
   pane). The lines of AGENT_PID before it, and the pids that it forked
   before it, are dropped. With no such exec, the full tree stays.
-- The ppid of AGENT_PID is null.
+- The ppid of AGENT_PID is null. A fork that gives a pid again ends the
+  old process with that pid, also when its exit line was lost.
 - open: mode from FLAGS & 3, create when FLAGS & 0o100, ok when RET is 0
   or more, cut when the path has 199 characters or more. The paths under
-  /proc and /sys are dropped. One event for each (path, mode, ok): the
-  first one stays.
+  /proc and /sys, and a relative path, are dropped. One event for each
+  (path, mode, ok): the first one stays.
 - connect: loopback stays. Each other address goes through the host
   rules above. An IPv4-mapped IPv6 address gets the rules of its IPv4
   address. An address that does not parse becomes <private-host>. A unix
-  socket has the normalized path, or @ for an abstract socket.
+  socket has the normalized path, or @ for an abstract socket. A unix
+  socket with a relative path is dropped.
 - dns: the name goes through the host rules and the scrub.
 - summary.programs counts the exec paths. summary.processes_left holds
   each pid of a tree that started before the hang-up time of its session
@@ -745,7 +747,8 @@ def ebpf_connect(word, fields, paths):
         if not path:
             # An abstract socket.
             return {"family": "unix", "host": "@", "port": 0}
-        host = paths.normalize(path)
+        # A relative path has no prefix that the path rules can mask.
+        host = paths.normalize(path) if path.startswith("/") else None
         if host is None:
             return None
         return {"family": "unix", "host": host, "port": 0}
@@ -847,8 +850,11 @@ def ebpf_events(raw, t0, sessions, hangups, paths):
             child = fields[1]
             if pid in member and child not in agents:
                 pkey = note(pid, ms)
-                # A fork always starts a new process.
-                cur.pop(child, None)
+                # A fork always starts a new process. When the exit line
+                # of the old process was lost, the fork is its end.
+                old = cur.pop(child, None)
+                if old is not None:
+                    ended.setdefault(old, ms)
                 member[child] = member[pid]
                 ckey = note(child, ms)
                 parent[ckey] = pkey
@@ -858,7 +864,9 @@ def ebpf_events(raw, t0, sessions, hangups, paths):
             elif child not in agents:
                 # A pid that the kernel gives again is not in a tree.
                 member.pop(child, None)
-                cur.pop(child, None)
+                old = cur.pop(child, None)
+                if old is not None:
+                    ended.setdefault(old, ms)
             continue
         if pid not in member:
             continue
@@ -882,7 +890,11 @@ def ebpf_events(raw, t0, sessions, hangups, paths):
             cur.pop(pid, None)
         elif word == "open":
             flags, ret, raw_path = fields[1], fields[2], fields[3]
-            if not raw_path or under(raw_path, ("/proc", "/sys")):
+            # A relative path has no prefix that the path rules can mask,
+            # so it gives no event.
+            if not raw_path.startswith("/") or under(
+                raw_path, ("/proc", "/sys")
+            ):
                 continue
             path = paths.normalize(raw_path)
             if not path:

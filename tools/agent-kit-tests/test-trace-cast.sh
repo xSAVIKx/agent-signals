@@ -257,15 +257,34 @@ case $pane in
   *) pass "network only: no gate wait in the pane command" ;;
 esac
 
-# A tmux wrapper: WRAP_MODE=fail makes pipe-pane fail, slow delays it by 1 s.
+# A tmux wrapper: WRAP_MODE=fail makes pipe-pane fail. WRAP_MODE=slow
+# starts pipe-pane only after the pane gave up at the gate (exit 125). A
+# fixed delay of 1 s was not sufficient on ubuntu-slim: the pane was not
+# always dead at that time, and the start gave a different reason.
 real_tmux=$(command -v tmux)
 mkdir "$T/wrap"
 cat >"$T/wrap/tmux" <<WRAPEOF
 #!/bin/sh
+wsock=
+[ "\$1" = -S ] && wsock=\$2
 for a in "\$@"; do
   if [ "\$a" = pipe-pane ]; then
     [ "\${WRAP_MODE:-}" = fail ] && exit 1
-    [ "\${WRAP_MODE:-}" = slow ] && sleep 1
+    if [ "\${WRAP_MODE:-}" = slow ]; then
+      i=0
+      while [ "\$("$real_tmux" -S "\$wsock" display -p -t kit '#{pane_dead_status}' 2>/dev/null)" != 125 ] &&
+        [ "\$i" -lt 600 ]; do
+        sleep 0.05
+        i=\$((i + 1))
+      done
+    fi
+    # WRAP_RC=FILE: write the exit code of pipe-pane to FILE.
+    if [ -n "\${WRAP_RC:-}" ]; then
+      "$real_tmux" "\$@"
+      rc=\$?
+      echo "\$rc" >"\$WRAP_RC"
+      exit "\$rc"
+    fi
   fi
 done
 exec "$real_tmux" "\$@"
@@ -295,6 +314,7 @@ sock_gone s6 "fixture, pipe-pane fails: no socket folder stays"
  kit session start s5 stub --via tmux --cmd "sh '$stub'") >"$T/o" 2>&1
 expect_code "gate timeout: start exits 1" 1 $?
 expect_line "gate timeout: the reason" "gate wait ended" "$T/o"
+grep -q "gate wait ended" "$T/o" || sed 's/^/  /' "$T/o"
 left=$(pids_run "$T/run1")
 if [ -z "$left" ]; then pass "gate timeout: no pid of the run stays"; else fail "gate timeout: no pid of the run stays" "$left"; fi
 sock_gone s5 "gate timeout: no socket folder stays"
@@ -315,27 +335,34 @@ esac
 exec "$real_py" "\$@"
 PYWEOF
 chmod +x "$T/slowpy/python3"
-(PATH="$T/slowpy:$PATH"; KIT_TRACE=$raw; KIT_TRACE_CHECKS=; KIT_TRACE_GATE_TURNS=4; export PATH KIT_TRACE KIT_TRACE_CHECKS KIT_TRACE_GATE_TURNS
+(PATH="$T/wrap:$T/slowpy:$PATH"; KIT_TRACE=$raw; KIT_TRACE_CHECKS=; KIT_TRACE_GATE_TURNS=4; WRAP_RC=$T/s10.rc; export PATH KIT_TRACE KIT_TRACE_CHECKS KIT_TRACE_GATE_TURNS WRAP_RC
  kit session start s10 stub --via tmux --cmd "sh '$stub'") >"$T/o" 2>&1
 expect_code "gate timeout, slow recorder: start exits 1" 1 $?
 : >"$T/slowpy/go"
 expect_line "gate timeout, slow recorder: the reason" "gate wait ended before the recorder started" "$T/o"
+grep -q "gate wait ended before the recorder started" "$T/o" || sed 's/^/  /' "$T/o"
 if [ ! -e "$T/run1/sessions/s10/pid" ]; then pass "gate timeout, slow recorder: the agent did not run"; else fail "gate timeout, slow recorder: the agent did not run" "a pid file exists"; fi
 sock_gone s10 "gate timeout, slow recorder: no socket folder stays"
 # The slow recorder starts after the start failed. It gets the end of its
-# input and ends.
-_n=0
-while [ ! -s "$T/run1/sessions/s10/recorder.pid" ] && [ "$_n" -lt 60 ]; do
-  sleep 0.05
-  _n=$((_n + 1))
-done
-if [ -s "$T/run1/sessions/s10/recorder.pid" ]; then pass "gate timeout, slow recorder: the recorder started late"; else fail "gate timeout, slow recorder: the recorder started late" "no recorder.pid"; fi
-_n=0
-while kill -0 "$(cat "$T/run1/sessions/s10/recorder.pid" 2>/dev/null)" 2>/dev/null && [ "$_n" -lt 60 ]; do
-  sleep 0.05
-  _n=$((_n + 1))
-done
-rec_gone "$T/run1/sessions/s10/recorder.pid" "gate timeout, slow recorder: the late recorder ends"
+# input and ends. On a slow machine the pane can give up at the gate
+# before pipe-pane runs: then pipe-pane fails, and no recorder starts.
+# WRAP_RC tells the two cases apart.
+if [ "$(cat "$T/s10.rc" 2>/dev/null)" = 0 ]; then
+  _n=0
+  while [ ! -s "$T/run1/sessions/s10/recorder.pid" ] && [ "$_n" -lt 60 ]; do
+    sleep 0.05
+    _n=$((_n + 1))
+  done
+  if [ -s "$T/run1/sessions/s10/recorder.pid" ]; then pass "gate timeout, slow recorder: the recorder started late"; else fail "gate timeout, slow recorder: the recorder started late" "no recorder.pid"; fi
+  _n=0
+  while kill -0 "$(cat "$T/run1/sessions/s10/recorder.pid" 2>/dev/null)" 2>/dev/null && [ "$_n" -lt 60 ]; do
+    sleep 0.05
+    _n=$((_n + 1))
+  done
+  rec_gone "$T/run1/sessions/s10/recorder.pid" "gate timeout, slow recorder: the late recorder ends"
+else
+  echo "gate timeout, slow recorder: pipe-pane found the pane gone; no recorder starts"
+fi
 left=$(pids_run "$T/run1")
 if [ -z "$left" ]; then pass "gate timeout, slow recorder: no pid of the run stays"; else fail "gate timeout, slow recorder: no pid of the run stays" "$left"; fi
 

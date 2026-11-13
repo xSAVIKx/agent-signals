@@ -13,6 +13,7 @@ Paths:
 - `probes/lib.sh`, `probes/lib.ps1`: shared functions.
 - `probes/run.sh`, `probes/run.ps1`: the kit.
 - `probes/kit.sh`, `probes/kit.ps1`: the one-line start of the kit. The website serves them as `kit.sh` and `kit.ps1`.
+- `probes/agent/`: the agent kit, with the commands `kit.sh` and `kit.ps1`, the step list `steps.tsv`, and the step scripts in `steps/`.
 
 ## Rules for a probe
 
@@ -59,7 +60,7 @@ irm https://xsavikx.github.io/agent-signals/kit.ps1 | iex
 ```
 
 The one-liners download `agent-signals-kit.tar.gz` or `agent-signals-kit.zip`
-from the latest release: `probes/` and the scrub, about 30 KB. Each corpus
+from the latest release: `probes/` and the scrub, about 230 KB. Each corpus
 release has these files and `agent-signals-kit.sha256`. When the latest
 release has no kit file, the one-liners download `main`.
 `AGENT_SIGNALS_REF` selects a branch or a tag instead.
