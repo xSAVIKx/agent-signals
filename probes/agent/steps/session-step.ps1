@@ -214,6 +214,13 @@ function Test-Alive {
 # blank screen is not a failure: an agent can start slowly.
 function Update-Screen {
     $r = Invoke-Session @('screen', $name) (Get-Clip 30)
+    if ($r.Code -ne 0 -and (Test-Alive)) {
+        # psmux capture-pane can crash one time (exit -1073741819,
+        # 0xC0000005, in a Windows run of kit 0.22.0). Try again one time.
+        Add-Log "no screen: exit $($r.Code), try again in 1 s"
+        Start-Sleep -Seconds 1
+        $r = Invoke-Session @('screen', $name) (Get-Clip 30)
+    }
     if ($r.Code -ne 0) {
         if (-not (Test-Alive)) { Stop-Step 'agent-ended' }
         Add-Log "no screen: exit $($r.Code) $($r.Err.Trim())"
