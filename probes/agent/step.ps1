@@ -15,7 +15,8 @@
 # and prints:
 #   step: <name>@<backend> ok|skip|fail|operator [<reason>]
 # The exit code is the exit code of the script: 0 ok, 1 fail, 3 skip,
-# 4 the operator must act. It reads no key.
+# 4 the operator must act. A call while another "kit step" of the same
+# run runs is bad use (2). It reads no key.
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib.ps1')
 # The arguments as strings (see Get-KitArgs in lib.ps1).
@@ -42,6 +43,19 @@ if ($backends -notcontains $backend) {
     Stop-Kit 2 ("the step $name has no Windows backend $backend; it has: " + (($backends | ForEach-Object { $_ }) -join ', '))
 }
 $env:KIT_RUN = $run
+
+# One step at a time in a run. Two "kit step" calls at the same time take
+# the same file number and the same session name, and each one breaks the
+# session of the other. The lock is the file RUN\.step.lock, open with no
+# sharing while this process runs. Windows closes it when the process ends,
+# also after a kill.
+$lockPath = Join-Path $run '.step.lock'
+try {
+    $stepLock = [System.IO.File]::Open($lockPath, [System.IO.FileMode]::OpenOrCreate, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
+} catch {
+    # PowerShell wraps the IOException of a .NET call; a plain catch gets it.
+    Stop-Kit 2 "another kit step runs in this run ($($_.Exception.InnerException.Message)). Wait until it ends, then run $name@$backend again"
+}
 
 # The number of the file: one more than the highest number in the manifest.
 $n = 0
@@ -111,6 +125,8 @@ try {
     $why = if ($reason) { $reason } else { '-' }
     Add-KitManifest $run @('step', $name, $backend, $result, $start, (Get-KitIsoTime), "$base.txt", (Get-KitSha256 $file), $why)
 } finally {
+    $stepLock.Dispose()
+    Remove-Item -LiteralPath $lockPath -Force -ErrorAction SilentlyContinue
     # Delete the raw files of this step, also after an error.
     foreach ($x in @(Get-ChildItem -LiteralPath $raw -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name.StartsWith("$base.") })) {
         Remove-Item -LiteralPath $x.FullName -Recurse -Force -ErrorAction SilentlyContinue

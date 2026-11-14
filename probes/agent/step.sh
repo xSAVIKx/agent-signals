@@ -28,7 +28,8 @@
 # scrub fails, the step is "fail scrub" and has no file. When the
 # manifest has the meta line "awake" with caffeinate (kit start on macOS,
 # unattended), "caffeinate -i -w PID" runs while the script runs.
-# Exit codes: the code of the script (0, 1, 3 or 4), 2 for bad use.
+# Exit codes: the code of the script (0, 1, 3 or 4), 2 for bad use. A call
+# while another "kit step" of the same run runs is bad use.
 set -u
 . "$(dirname "$0")/lib.sh"
 
@@ -58,6 +59,25 @@ script=$KIT_DIR/steps/$kind.sh
 [ -f "$script" ] || kit_die "$KIT_USAGE" "this kit has no script for the step $name (steps/$kind.sh)"
 home=$(kit_manifest_value "$run" home)
 needs=$(kit_step_field "$name" needs)
+
+# One step at a time in a run. Two "kit step" calls at the same time take
+# the same file number and the same session name, and each one breaks the
+# session of the other. The lock is a symbolic link RUN/.step.lock to the
+# pid of the step: "ln -s" makes it in one operation. A lock whose pid does
+# not run is stale (a step that got kill -9), and the step deletes it.
+lock=$run/.step.lock
+locked=
+take_lock() {
+  ln -s "$$" "$lock" 2>/dev/null && return 0
+  _p=$(readlink "$lock" 2>/dev/null) || _p=
+  case $_p in '' | *[!0-9]*) ;; *) kill -0 "$_p" 2>/dev/null && return 1 ;; esac
+  rm -f "$lock"
+  ln -s "$$" "$lock" 2>/dev/null
+}
+take_lock || kit_die "$KIT_USAGE" "another kit step runs in this run (pid $(readlink "$lock" 2>/dev/null)). Wait until it ends, then run $name@$backend again"
+locked=1
+awake=
+trap '[ -z "$awake" ] || kill "$awake" 2>/dev/null; [ -z "$locked" ] || rm -f "$lock"' EXIT
 
 # record RESULT START END FILE SHA REASON: add a step line, and write the
 # JSON manifest and the summary again.
@@ -89,7 +109,6 @@ start=$(kit_now)
 # The meta line "awake" of kit start names caffeinate (macOS, unattended):
 # it keeps the machine awake while this process runs. The step stops it by
 # its pid; -w also ends it when this process ends.
-awake=
 case $(kit_manifest_value "$run" awake) in
   caffeinate*)
     if command -v caffeinate >/dev/null 2>&1; then
@@ -98,7 +117,6 @@ case $(kit_manifest_value "$run" awake) in
     fi
     ;;
 esac
-trap '[ -z "$awake" ] || kill "$awake" 2>/dev/null' EXIT
 KIT_RUN=$run KIT_ROOT=$KIT_ROOT KIT_DIR=$KIT_DIR KIT_STEP=$name KIT_KIND=$kind KIT_BACKEND=$backend \
   KIT_AGENT=$(kit_step_field "$name" agent) \
   KIT_PROMPT=$(kit_step_field "$name" prompt) \

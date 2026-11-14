@@ -68,6 +68,25 @@ else
   pass "manifest.json is JSON (skipped: no python3)"
 fi
 
+# One step at a time: a second "kit step" in the same run refuses to
+# start while the first one runs (a run of 2026-11-13 started each of
+# three steps twice at the same second). The lock is a symbolic link to
+# the pid of the step.
+sleep 30 &
+holder=$!
+ln -s "$holder" "$run/.step.lock"
+lines=$(grep -c '^step' "$run/manifest.tsv")
+(cd "$D" && HOME=$H PATH=$P kit step probe@none </dev/null) >"$T/out" 2>&1
+expect_code "a step while another step runs is bad use" 2 $?
+expect_line "the refusal names the other step" 'another kit step runs in this run' "$T/out"
+if [ "$(grep -c '^step' "$run/manifest.tsv")" = "$lines" ]; then pass "the refused step adds no manifest line"; else fail "the refused step adds no manifest line" "$(cat "$run/manifest.tsv")"; fi
+kill "$holder" 2>/dev/null
+wait "$holder" 2>/dev/null
+# The lock of a step that ended without its cleanup (kill -9) is stale.
+(cd "$D" && HOME=$H PATH=$P kit step probe@none </dev/null) >"$T/out" 2>&1
+expect_code "a stale lock does not stop a step" 0 $?
+if [ -e "$run/.step.lock" ] || [ -L "$run/.step.lock" ]; then fail "the step deletes its lock" "$(ls -la "$run")"; else pass "the step deletes its lock"; fi
+
 # Bad use.
 (cd "$D" && kit step no-such@none) >"$T/out" 2>&1
 expect_code "an unknown step is bad use" 2 $?
