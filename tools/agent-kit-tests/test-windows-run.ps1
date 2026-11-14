@@ -148,6 +148,17 @@ Expect-Kit 'an unknown step is bad use' 2 'step' 'no-such@none'
 Expect-Kit 'a step with no backend is bad use' 2 'step' 'probe'
 Expect-Kit 'the first run on tmux is bad use on Windows' 2 'step' 'first-run-claude@tmux'
 Expect-Kit 'a line with no Windows backend is bad use' 2 'step' 'first-run-tmux-claude@conpty'
+# One step at a time: while another process holds RUN\.step.lock open,
+# a step is bad use and adds no manifest line.
+$mf = Join-Path $run 'manifest.tsv'
+$before = @(Get-Content -LiteralPath $mf | Where-Object { $_ -like "step`t*" }).Count
+$held = [System.IO.File]::Open((Join-Path $run '.step.lock'), [System.IO.FileMode]::OpenOrCreate, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
+try {
+    Expect-Kit 'a step while another step runs is bad use' 2 'step' 'probe@none'
+    Expect-Line 'the refusal names the other step' 'another kit step runs in this run' $out
+} finally { $held.Dispose() }
+$after = @(Get-Content -LiteralPath $mf | Where-Object { $_ -like "step`t*" }).Count
+if ($after -eq $before) { Pass 'the refused step adds no manifest line' } else { Fail 'the refused step adds no manifest line' "$before -> $after" }
 Expect-Kit 'step probe exits 0' 0 'step' 'probe@none'
 Expect-Line 'step probe prints ok' '^step: probe@none ok$' $out
 $f1 = Join-Path $run '01-probe@none.txt'

@@ -267,7 +267,11 @@ different source.
    Caution: a step can run for more than 2 minutes. Give your shell tool a
    time limit of 10 minutes for each step. If your tool cannot do that,
    run the step in the background and read its output every 30 seconds.
-   Do not stop a step that runs.
+   Do not stop a step that runs. Do not start a step while another step
+   runs, also when your shell tool stops waiting for the first step. The
+   kit refuses the second step with exit code 2 and the line `another kit
+   step runs in this run`. Wait until the first step prints its `step:`
+   line, then go on.
 
    ```sh
    kit step NAME@BACKEND
