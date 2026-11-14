@@ -667,6 +667,30 @@ func geminiText(parts []any) string {
 	return strings.Join(out, " ")
 }
 
+// lowerTypes returns V with each "type" of a schema in lower case. The older
+// field responseSchema of the Gemini API uses OBJECT, STRING and INTEGER.
+func lowerTypes(v any) any {
+	switch x := v.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(x))
+		for k, e := range x {
+			if s, ok := e.(string); ok && k == "type" {
+				out[k] = strings.ToLower(s)
+			} else {
+				out[k] = lowerTypes(e)
+			}
+		}
+		return out
+	case []any:
+		out := make([]any, len(x))
+		for i, e := range x {
+			out[i] = lowerTypes(e)
+		}
+		return out
+	}
+	return v
+}
+
 // geminiAnswer returns the kind and the text. For kindWrite the text is the
 // path, for kindStructured it is the JSON text.
 func geminiAnswer(body map[string]any) (string, string) {
@@ -697,7 +721,7 @@ func geminiAnswer(body map[string]any) (string, string) {
 	}
 	if schema != nil {
 		// The model router and the other checks of Gemini CLI.
-		return kindStructured, string(marshal(fill(schema, verdict(text))))
+		return kindStructured, string(marshal(fill(obj(lowerTypes(schema)), verdict(text))))
 	}
 	for _, p := range parts {
 		if _, ok := obj(p)["functionResponse"]; ok {

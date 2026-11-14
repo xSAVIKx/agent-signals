@@ -268,6 +268,8 @@ post2 "$gs" "{$tools, \"contents\": [$gctx, {\"role\": \"user\", \"parts\": [{\"
 expect_line "gemini: a tool result gets the end text" 'finished the tool call' "$T/reply"
 post2 /v1beta/models/fixture-model:generateContent '{"contents": [{"role": "user", "parts": [{"text": "Create a file"}]}], "generationConfig": {"responseJsonSchema": {"type": "object", "required": ["model_choice"], "properties": {"model_choice": {"type": "string", "enum": ["flash", "pro"]}}}}}'
 expect_line "gemini: the router gets the first enum value" 'model_choice.*flash' "$T/reply"
+post2 /v1beta/models/fixture-model:generateContent '{"contents": [{"role": "user", "parts": [{"text": "Create a file"}]}], "generationConfig": {"responseSchema": {"type": "OBJECT", "required": ["n"], "properties": {"n": {"type": "INTEGER"}}}}}'
+expect_line "gemini: an upper-case responseSchema gets a number" '\{\\"n\\":0\}' "$T/reply"
 post2 "$gs" "{$tools, \"contents\": [$gctx, {\"role\": \"user\", \"parts\": [{\"text\": \"Count from 1 to 300.\"}]}]}"
 expect_line "gemini: a long prompt holds the turn" ' hold$' "$T/gemini.log"
 expect_no_line "gemini: the log holds no prompt text" 'Create a file|Count from|Write|/work/' "$T/gemini.log"

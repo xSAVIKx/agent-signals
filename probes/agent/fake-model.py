@@ -522,6 +522,17 @@ def gemini_text(parts):
                     if isinstance(p, dict) and isinstance(p.get("text"), str) and not p.get("thought"))
 
 
+def lower_types(schema):
+    """Return SCHEMA with each "type" in lower case. The older field
+    responseSchema of the Gemini API uses OBJECT, STRING and INTEGER."""
+    if isinstance(schema, dict):
+        return {k: (v.lower() if k == "type" and isinstance(v, str) else lower_types(v))
+                for k, v in schema.items()}
+    if isinstance(schema, list):
+        return [lower_types(v) for v in schema]
+    return schema
+
+
 def gemini_answer(body):
     """Return the kind and the text. For "write" the text is the path, for
     "structured" it is the JSON text."""
@@ -536,7 +547,7 @@ def gemini_answer(body):
     schema = gen.get("responseJsonSchema") or gen.get("responseSchema")
     if isinstance(schema, dict):
         # The model router and the other checks of Gemini CLI.
-        return "structured", json.dumps(fill(schema, verdict(text)), separators=(",", ":"))
+        return "structured", json.dumps(fill(lower_types(schema), verdict(text)), separators=(",", ":"))
     if any("functionResponse" in p for p in parts):
         return "text", TOOL_DONE
     kind = classify(text, bool(body.get("tools")))

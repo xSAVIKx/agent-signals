@@ -414,6 +414,12 @@ func TestGemini(t *testing.T) {
 	if !strings.Contains(out, `{\"model_choice\":\"flash\"}`) {
 		t.Errorf("router reply: %s", out)
 	}
+	// The older field responseSchema uses upper-case types.
+	old := map[string]any{"type": "OBJECT", "required": []any{"n"}, "properties": map[string]any{"n": map[string]any{"type": "INTEGER"}}}
+	out = post(t, base+"/v1beta/models/fixture-model:generateContent", map[string]any{"contents": []any{user("Create a file")}, "generationConfig": map[string]any{"responseSchema": old}})
+	if !strings.Contains(out, `{\"n\":0}`) {
+		t.Errorf("responseSchema reply: %s", out)
+	}
 	out = post(t, base+"/v1beta/models/fixture-model:countTokens", map[string]any{})
 	if !strings.Contains(out, `"totalTokens":1`) {
 		t.Errorf("countTokens: %s", out)
