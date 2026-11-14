@@ -482,7 +482,7 @@ jobs:
         run: ./scenarios/first-run-windows.ps1 -Summary
 
   kit-no-login:
-    name: Kit no login (${{ matrix.os }})
+    name: Kit no login (${{ matrix.os }}, ${{ matrix.set }})
     if: github.event_name == 'schedule' || inputs.job == 'all' || inputs.job == 'kit-no-login'
     strategy:
       fail-fast: false
@@ -499,9 +499,16 @@ jobs:
           - macos-26
           - macos-15-intel
           - macos-26-intel
+        # The agents of each job. Set a: Claude Code, Codex, the Cursor
+        # CLI and agy. Set b: opencode 2 and Gemini CLI. One job for all
+        # six would pass its time limit on macOS Intel.
+        set: [a, b]
     runs-on: ${{ matrix.os }}
-    # The fixture steps take about 35 min on macOS Intel.
+    # The fixture steps of set a take about 35 min on macOS Intel.
     timeout-minutes: 50
+    env:
+      # The steps of the set: a step name holds the agent name.
+      KIT_AGENTS: ${{ matrix.set == 'a' && '-(claude|codex|cursor-agent|agy)(-|@)' || '-(opencode|gemini)(-|@)' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -529,17 +536,31 @@ jobs:
       # in ~/.local/bin and takes no version. A failed install skips that
       # agent: the plan then has no step for it.
       - name: Install Claude Code
+        if: matrix.set == 'a'
         continue-on-error: true
         run: npm install -g @anthropic-ai/claude-code >"$RUNNER_TEMP/install-claude.txt" 2>&1
       - name: Install Codex CLI
+        if: matrix.set == 'a'
         continue-on-error: true
         run: npm install -g @openai/codex >"$RUNNER_TEMP/install-codex.txt" 2>&1
       - name: Install Cursor CLI
+        if: matrix.set == 'a'
         continue-on-error: true
         run: curl -fsS https://cursor.com/install | bash >"$RUNNER_TEMP/install-cursor.txt" 2>&1
       - name: Install agy
+        if: matrix.set == 'a'
         continue-on-error: true
         run: curl -fsSL https://antigravity.google/cli/install.sh | bash >"$RUNNER_TEMP/install-agy.txt" 2>&1
+      # opencode 2: the kit steps use its --standalone mode (fact 86). The
+      # npm package opencode-ai gives the 1.x line.
+      - name: Install opencode 2
+        if: matrix.set == 'b'
+        continue-on-error: true
+        run: npm install -g @opencode/cli >"$RUNNER_TEMP/install-opencode.txt" 2>&1
+      - name: Install Gemini CLI
+        if: matrix.set == 'b'
+        continue-on-error: true
+        run: npm install -g @google/gemini-cli >"$RUNNER_TEMP/install-gemini.txt" 2>&1
       - name: Install output (scrubbed)
         if: always()
         run: |
@@ -565,7 +586,7 @@ jobs:
           echo "KIT_RUN=1" >>"$GITHUB_ENV"
           k doctor
           k plan --home throwaway
-          sed -n 's/^step: \(first-run-[^ ]*\) .*/\1/p' "$raw" >"$RUNNER_TEMP/steps.txt"
+          sed -n 's/^step: \(first-run-[^ ]*\) .*/\1/p' "$raw" | grep -E -- "$KIT_AGENTS" >"$RUNNER_TEMP/steps.txt" || :
           echo "first-run steps in the plan: $(wc -l <"$RUNNER_TEMP/steps.txt" | tr -d ' ')"
           # Exit 3 is a skip: a needed tool is missing.
           : >"$RUNNER_TEMP/kit-failed.txt"
@@ -589,7 +610,7 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: steps.check.outcome == 'success'
         with:
-          name: kit-no-login-${{ matrix.os }}
+          name: kit-no-login-${{ matrix.os }}-${{ matrix.set }}
           path: ${{ runner.temp }}/kit/agent-signals-run-*.tar.gz
           retention-days: 7
           if-no-files-found: warn
@@ -614,10 +635,10 @@ jobs:
           if [ "$RUNNER_OS" = macOS ]; then kc >"$RUNNER_TEMP/keychain-before.txt"; fi
           k start --home fixture --out "$out"
           k plan --home fixture
-          sed -n 's/^step: \([^ ]*\) needs=login [^ ]* measures=.*/\1/p' "$raw" >"$RUNNER_TEMP/fixture-steps.txt"
+          sed -n 's/^step: \([^ ]*\) needs=login [^ ]* measures=.*/\1/p' "$raw" | grep -E -- "$KIT_AGENTS" >"$RUNNER_TEMP/fixture-steps.txt" || :
           echo "fixture steps in the plan: $(wc -l <"$RUNNER_TEMP/fixture-steps.txt" | tr -d ' ')"
           # A green job must not hide a plan with no step.
-          if { command -v codex || command -v claude || command -v agy; } >/dev/null && [ ! -s "$RUNNER_TEMP/fixture-steps.txt" ]; then
+          if { command -v codex || command -v claude || command -v agy || command -v opencode || command -v gemini; } >/dev/null && [ ! -s "$RUNNER_TEMP/fixture-steps.txt" ]; then
             echo "no fixture step in the plan" >>"$RUNNER_TEMP/kit-failed.txt"
           fi
           while read -r s; do
@@ -637,7 +658,7 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: steps.fixture.outcome == 'success'
         with:
-          name: kit-fixture-${{ matrix.os }}
+          name: kit-fixture-${{ matrix.os }}-${{ matrix.set }}
           path: ${{ runner.temp }}/kit-fixture/agent-signals-run-*.tar.gz
           retention-days: 7
           if-no-files-found: warn
@@ -650,15 +671,19 @@ jobs:
           exit 1
 
   kit-no-login-windows:
-    name: Kit no login (${{ matrix.os }})
+    name: Kit no login (${{ matrix.os }}, ${{ matrix.set }})
     if: github.event_name == 'schedule' || inputs.job == 'all' || inputs.job == 'kit-no-login'
     strategy:
       fail-fast: false
       matrix:
         # The Windows images of scenarios.yml.
         os: [windows-2022, windows-2025, windows-11-arm]
+        # The agents of each job, as in kit-no-login.
+        set: [a, b]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
+    env:
+      KIT_AGENTS: ${{ matrix.set == 'a' && '-(claude|codex|cursor-agent|agy)(-|@)' || '-(opencode|gemini)(-|@)' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -678,18 +703,30 @@ jobs:
       # Group a of scenarios.yml holds claude, codex and the Cursor CLI. The
       # script scrubs its output. A failed install skips that agent.
       - name: Install the agents
+        if: matrix.set == 'a'
         shell: pwsh
         run: ./scenarios/install-windows-agents.ps1 -Group a
       # The agy install command of
       # https://antigravity.google/docs/getting-started?tab=cli. It puts agy
       # in %LOCALAPPDATA%\agy\bin and takes no version.
       - name: Install agy
+        if: matrix.set == 'a'
         continue-on-error: true
         shell: pwsh
         run: |
           $log = Join-Path $env:RUNNER_TEMP 'install-agy.txt'
           & { irm https://antigravity.google/cli/install.ps1 | iex } *> $log
           Join-Path $env:LOCALAPPDATA 'agy\bin' | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          & pwsh -NoProfile -File tools/scrub.ps1 -Path $log 2>$null | Select-Object -Last 5
+      # opencode 2 (fact 86) and Gemini CLI. Group a has the npm package
+      # opencode-ai, which gives the 1.x line.
+      - name: Install opencode 2 and Gemini CLI
+        if: matrix.set == 'b'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:RUNNER_TEMP 'install-set-b.txt'
+          & npm install -g @opencode/cli @google/gemini-cli *> $log
           & pwsh -NoProfile -File tools/scrub.ps1 -Path $log 2>$null | Select-Object -Last 5
       - name: Run the kit
         shell: pwsh
@@ -719,7 +756,7 @@ jobs:
           if ($env:AGENT_SIGNALS_RUN) { 'KIT_RUN=1' | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8 }
           K doctor --python $py
           K plan --home throwaway --python $py
-          $steps = @(Get-Content $raw | ForEach-Object { if ($_ -match '^step: (first-run-\S+) ') { $Matches[1] } })
+          $steps = @(Get-Content $raw | ForEach-Object { if ($_ -match '^step: (first-run-\S+) ') { $Matches[1] } } | Where-Object { $_ -match $env:KIT_AGENTS })
           Write-Output "first-run steps in the plan: $($steps.Count)"
           # Exit 3 is a skip: a needed tool is missing.
           foreach ($s in $steps) {
@@ -754,7 +791,7 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: steps.check.outcome == 'success'
         with:
-          name: kit-no-login-${{ matrix.os }}
+          name: kit-no-login-${{ matrix.os }}-${{ matrix.set }}
           path: ${{ runner.temp }}/kit/agent-signals-run-*.zip
           retention-days: 7
           if-no-files-found: warn
@@ -780,10 +817,10 @@ jobs:
           K start --home fixture --out $out --python $py
           $env:AGENT_SIGNALS_RUN = (Get-Content (Join-Path $out '.agent-signals-run') | Select-Object -First 1)
           K plan --home fixture --python $py
-          $steps = @(Get-Content $raw | ForEach-Object { if ($_ -match '^step: (\S+) needs=login ' -and $_ -notmatch ' skip=') { $Matches[1] } })
+          $steps = @(Get-Content $raw | ForEach-Object { if ($_ -match '^step: (\S+) needs=login ' -and $_ -notmatch ' skip=') { $Matches[1] } } | Where-Object { $_ -match $env:KIT_AGENTS })
           Write-Output "fixture steps in the plan: $($steps.Count)"
           # A green job must not hide a plan with no step.
-          if ($steps.Count -eq 0 -and (Get-Command codex -ErrorAction SilentlyContinue)) {
+          if ($steps.Count -eq 0 -and (Get-Command codex, opencode, gemini -ErrorAction SilentlyContinue)) {
             'no fixture step in the plan' | Out-File -FilePath (Join-Path $env:RUNNER_TEMP 'kit-failed.txt') -Append -Encoding utf8
           }
           foreach ($s in $steps) {
@@ -798,7 +835,7 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: steps.fixture.outcome == 'success'
         with:
-          name: kit-fixture-${{ matrix.os }}
+          name: kit-fixture-${{ matrix.os }}-${{ matrix.set }}
           path: ${{ runner.temp }}/kit-fixture/agent-signals-run-*.zip
           retention-days: 7
           if-no-files-found: warn
