@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.11.1](https://github.com/xSAVIKx/agent-signals/compare/python-v0.11.0...python-v0.11.1) (2026-11-14)
+
+
+### Documentation
+
+* **facts:** add the files of agy 1.5.8 and its crash file ([50568f1](https://github.com/xSAVIKx/agent-signals/commit/50568f1f02b28d17877cecf178446f865ee29d87))
+* **facts:** add the files of agy 1.5.8 and its crash file ([a806c1e](https://github.com/xSAVIKx/agent-signals/commit/a806c1ef4a64c496ad25e9cf0a342ff3a2c1e710))
+* **facts:** test that a crash-file pid is still agy ([5983df6](https://github.com/xSAVIKx/agent-signals/commit/5983df6711ae1cbc810e95925d6ad21192f95d89))
+
 ## [0.11.0](https://github.com/xSAVIKx/agent-signals/compare/python-v0.10.0...python-v0.11.0) (2026-11-09)
 
 
