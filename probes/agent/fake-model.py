@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """A local fake model for the "fixture" home mode of the kit.
 
-It lets the real Codex CLI, Claude Code, agy, the Cursor CLI and opencode run a test
+It lets the real Codex CLI, Claude Code, agy, the Cursor CLI, opencode and Gemini CLI run a test
 session with no login, no network and no cost. It serves the API of one agent on 127.0.0.1
 with fixed answers. No model decides anything, so a fixture run measures the
 agent and its screens, not the behaviour of a model.
 
 Usage:
-  fake-model.py --agent codex|claude|agy|cursor-agent|opencode --home HOME --env-file FILE
+  fake-model.py --agent codex|claude|agy|cursor-agent|opencode|gemini --home HOME --env-file FILE
                 --log FILE [--pid-file FILE] [--log-times]
   fake-model.py --codex-home DIR --log FILE [--pid-file FILE] [--log-times]
 
@@ -35,6 +35,11 @@ line starts with the time in epoch milliseconds and a space.
   opencode
           The Chat Completions API, as for agy. HOME/.config/opencode/
           opencode.json names the fake provider and its model. No variable.
+  gemini  The Gemini API (generateContent, streamGenerateContent and
+          countTokens), from GOOGLE_GEMINI_BASE_URL with a dummy
+          GEMINI_API_KEY. HOME/.gemini/settings.json selects the API key
+          login, and turns off the updates and the usage statistics. The
+          folder trust question stays: it is a screen of a real start.
 
 The old form --codex-home DIR writes DIR/config.toml and no FILE.
 
@@ -44,10 +49,10 @@ The answer depends on the last user message of a request with tools:
   "Write a file"   one call of the file-write tool of the agent for the file
                    agent-signals-write.txt in the work folder, then a text
                    reply after the tool result. Claude Code: Write. Codex:
-                   apply_patch. agy: write_file. opencode: write. Claude Code,
-                   agy and opencode need an absolute path: the server reads
-                   the work folder from the system prompt. cursor-agent: a
-                   text reply.
+                   apply_patch. agy and gemini: write_file. opencode: write.
+                   Claude Code, agy, opencode and gemini need an absolute
+                   path: the server reads the work folder from the prompt.
+                   cursor-agent: a text reply.
   "Write outside"  the same call for the absolute path that follows this text,
                    for example "Write outside /work/x.txt". With no absolute
                    path: a text reply that says so.
@@ -505,6 +510,86 @@ def agy_message(rid, model, kind, text, agent="agy"):
 
 
 
+# --------------------------------------------------------------- gemini
+
+# Gemini CLI names the work folder in the first user message, in the list
+# of the workspace folders.
+GEMINI_CWD = "**Workspace Directories:**\n  - "
+
+
+def gemini_text(parts):
+    return " ".join(p["text"] for p in parts
+                    if isinstance(p, dict) and isinstance(p.get("text"), str) and not p.get("thought"))
+
+
+def lower_types(schema):
+    """Return SCHEMA with each "type" in lower case. The older field
+    responseSchema of the Gemini API uses OBJECT, STRING and INTEGER."""
+    if isinstance(schema, dict):
+        return {k: (v.lower() if k == "type" and isinstance(v, str) else lower_types(v))
+                for k, v in schema.items()}
+    if isinstance(schema, list):
+        return [lower_types(v) for v in schema]
+    return schema
+
+
+def gemini_answer(body):
+    """Return the kind and the text. For "write" the text is the path, for
+    "structured" it is the JSON text."""
+    contents = [c for c in body.get("contents") or [] if isinstance(c, dict)]
+    last = contents[-1] if contents else {}
+    parts = [p for p in last.get("parts") or [] if isinstance(p, dict)]
+    # After a cancelled turn, the next user message holds the earlier prompts
+    # too, as parts before the new one. The last text part is the prompt.
+    texts = [p for p in parts if isinstance(p.get("text"), str) and not p.get("thought")]
+    text = gemini_text(texts[-1:])
+    gen = body.get("generationConfig") or {}
+    schema = gen.get("responseJsonSchema") or gen.get("responseSchema")
+    if isinstance(schema, dict):
+        # The model router and the other checks of Gemini CLI.
+        return "structured", json.dumps(fill(lower_types(schema), verdict(text)), separators=(",", ":"))
+    if any("functionResponse" in p for p in parts):
+        return "text", TOOL_DONE
+    kind = classify(text, bool(body.get("tools")))
+    if kind == "write":
+        cwd = next((v for v in (label_value(gemini_text(c.get("parts") or []), GEMINI_CWD)
+                                for c in contents if c.get("role") == "user") if v), "")
+        path = write_path(text, cwd)
+        return ("write", path) if path else ("text", NO_PATH)
+    if kind in ("choice", "question"):
+        return "question", QUESTION
+    return kind, TEXT
+
+
+def gemini_parts(kind, text):
+    if kind == "tool":
+        args = {"command": COMMAND, "description": "Create a test file"}
+        return [{"functionCall": {"name": "run_shell_command", "args": args}}]
+    if kind == "write":
+        args = {"file_path": text, "content": WRITE_TEXT}
+        return [{"functionCall": {"name": "write_file", "args": args}}]
+    return [{"text": text}]
+
+
+def gemini_message(rid, model, kind, text):
+    return {
+        "candidates": [{
+            "content": {"role": "model", "parts": gemini_parts(kind, text)},
+            "finishReason": "STOP",
+            "index": 0,
+        }],
+        "usageMetadata": {"promptTokenCount": 1, "candidatesTokenCount": 1, "totalTokenCount": 2},
+        "modelVersion": model,
+        "responseId": rid,
+    }
+
+
+def gemini_stream(rid, model, kind, text):
+    if kind == "hold":
+        return
+    yield sse(None, gemini_message(rid, model, kind, text))
+
+
 # --------------------------------------------------------------- cursor
 # A small protobuf writer and reader. A message is a list of (field, value):
 # an int is a varint, bytes or str is a length-delimited field.
@@ -732,6 +817,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             Handler.count += 1
             rid = "fixture-%d" % Handler.count
         path = self.path.split("?")[0]
+        if path.endswith(":countTokens"):
+            self.note("POST %s %s reply" % (path, rid))
+            self.send_json(200, {"totalTokens": 1})
+            return
         if path.endswith("/count_tokens"):
             self.note("POST %s %s reply" % (path, rid))
             self.send_json(200, {"input_tokens": 1})
@@ -746,6 +835,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             stream = bool(body.get("stream"))
             chunks = claude_stream(rid, model, kind, text)
             whole = lambda: claude_message(rid, model, *claude_blocks(kind, text))
+        elif path.endswith(":generateContent") or path.endswith(":streamGenerateContent"):
+            model = path.rsplit("/", 1)[-1].split(":")[0]
+            kind, text = gemini_answer(body)
+            stream = path.endswith(":streamGenerateContent")
+            chunks = gemini_stream(rid, model, kind, text)
+            whole = lambda: gemini_message(rid, model, kind, text)
         elif path.endswith("/chat/completions"):
             chat = "opencode" if Handler.agent == "opencode" else "agy"
             kind, text = agy_answer(body, chat)
@@ -982,6 +1077,13 @@ def prepare(agent, home, port):
             "share": "disabled",
         }))
         return []
+    if agent == "gemini":
+        write_file(os.path.join(home, ".gemini", "settings.json"), json_text({
+            "security": {"auth": {"selectedType": "gemini-api-key"}},
+            "general": {"enableAutoUpdate": False, "enableAutoUpdateNotification": False},
+            "privacy": {"usageStatisticsEnabled": False},
+        }))
+        return [("GEMINI_API_KEY", "dummy"), ("GOOGLE_GEMINI_BASE_URL", base)]
     write_file(os.path.join(home, ".gemini", "antigravity-cli", "cache", "onboarding.json"),
                json_text({
                    "consumerOnboardingComplete": False,
@@ -999,7 +1101,7 @@ def prepare(agent, home, port):
 def main():
     parser = argparse.ArgumentParser()
     # "cursor" and "agent" are other names of cursor-agent.
-    parser.add_argument("--agent", choices=["codex", "claude", "agy", "cursor-agent", "cursor", "agent", "opencode"])
+    parser.add_argument("--agent", choices=["codex", "claude", "agy", "cursor-agent", "cursor", "agent", "opencode", "gemini"])
     parser.add_argument("--home")
     parser.add_argument("--env-file")
     parser.add_argument("--codex-home")

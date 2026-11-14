@@ -33,7 +33,7 @@ See `ExampleScreensFor` for a complete example.
 
 The package `github.com/xSAVIKx/agent-signals/go/fakemodel` is a local fake
 model for test sessions of agent CLIs: Codex CLI, Claude Code, agy, the
-Cursor CLI (`cursor-agent`) and opencode. The real agent runs against it with no login,
+Cursor CLI (`cursor-agent`), opencode and Gemini CLI. The real agent runs against it with no login,
 no network and no cost. It gives fixed answers, so a run measures the agent
 and its screens, not a model. It is the Go form of
 `probes/agent/fake-model.py` and gives the same answers. It uses only the
@@ -81,9 +81,17 @@ A request with another JSON schema, for example a title request, gets an
 object with a fixed value for each required property.
 
 The file-write tool is `Write` for Claude Code, `apply_patch` for Codex,
-`write_file` for agy and `write` for opencode. Claude Code, agy and opencode
-need an absolute path, so the server reads the work folder from the system
-prompt of the request. The shell tool of opencode is `shell`.
+`write_file` for agy and Gemini CLI, and `write` for opencode. Claude Code,
+agy, opencode and Gemini CLI need an absolute path, so the server reads the
+work folder from the prompt of the request. The shell tool of opencode is
+`shell`, and the shell tool of Gemini CLI is `run_shell_command`.
+
+For Gemini CLI, `Run` writes `HOME/.gemini/settings.json`, which selects the
+API key login and turns off the updates and the usage statistics. The
+variables are `GEMINI_API_KEY` (a dummy key) and `GOOGLE_GEMINI_BASE_URL`.
+The server serves `generateContent`, `streamGenerateContent` and
+`countTokens`. A request with a JSON schema, for example the model router of
+Gemini CLI, gets an object with a fixed value for each required property.
 
 For opencode, `Run` writes `HOME/.config/opencode/opencode.json` with a
 provider of `@ai-sdk/openai-compatible` and no variable. The

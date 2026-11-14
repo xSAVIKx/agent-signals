@@ -200,6 +200,11 @@ func (s *server) post(w http.ResponseWriter, r *http.Request) {
 	}
 	rid := s.nextID()
 	path := r.URL.Path
+	if strings.HasSuffix(path, ":countTokens") {
+		s.note("POST %s %s reply", path, rid)
+		sendJSON(w, http.StatusOK, map[string]any{"totalTokens": 1})
+		return
+	}
 	if strings.HasSuffix(path, "/count_tokens") {
 		s.note("POST %s %s reply", path, rid)
 		sendJSON(w, http.StatusOK, map[string]any{"input_tokens": 1})
@@ -228,6 +233,14 @@ func (s *server) post(w http.ResponseWriter, r *http.Request) {
 		chunks = claudeStream(rid, model, kind, text)
 		k, t := kind, text
 		whole = func() any { blocks, stop := claudeBlocks(k, t); return claudeMessage(rid, model, blocks, stop) }
+	case strings.HasSuffix(path, ":generateContent") || strings.HasSuffix(path, ":streamGenerateContent"):
+		var text string
+		model, _, _ = strings.Cut(path[strings.LastIndex(path, "/")+1:], ":")
+		kind, text = geminiAnswer(body)
+		stream = strings.HasSuffix(path, ":streamGenerateContent")
+		chunks = geminiStream(rid, model, kind, text)
+		k, t, m := kind, text, model
+		whole = func() any { return geminiMessage(rid, m, k, t) }
 	case strings.HasSuffix(path, "/chat/completions"):
 		var text string
 		chat := Agy
@@ -634,4 +647,137 @@ func agyMessage(rid, model, kind, text, agent string) map[string]any {
 		"choices": []any{map[string]any{"index": 0, "message": delta, "finish_reason": finish}},
 		"usage":   map[string]any{"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
 	}
+}
+
+// --------------------------------------------------------------- gemini
+
+// geminiCwd is the label of the work folder in the first user message of
+// Gemini CLI: the list of the workspace folders.
+const geminiCwd = "**Workspace Directories:**\n  - "
+
+// geminiText joins the text parts of PARTS that are not thoughts.
+func geminiText(parts []any) string {
+	var out []string
+	for _, p := range parts {
+		m := obj(p)
+		if t, ok := m["text"].(string); ok && m["thought"] != true {
+			out = append(out, t)
+		}
+	}
+	return strings.Join(out, " ")
+}
+
+// lowerTypes returns V with each "type" of a schema in lower case. The older
+// field responseSchema of the Gemini API uses OBJECT, STRING and INTEGER.
+func lowerTypes(v any) any {
+	switch x := v.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(x))
+		for k, e := range x {
+			if s, ok := e.(string); ok && k == "type" {
+				out[k] = strings.ToLower(s)
+			} else {
+				out[k] = lowerTypes(e)
+			}
+		}
+		return out
+	case []any:
+		out := make([]any, len(x))
+		for i, e := range x {
+			out[i] = lowerTypes(e)
+		}
+		return out
+	}
+	return v
+}
+
+// geminiAnswer returns the kind and the text. For kindWrite the text is the
+// path, for kindStructured it is the JSON text.
+func geminiAnswer(body map[string]any) (string, string) {
+	contents := list(body["contents"])
+	var last map[string]any
+	if len(contents) > 0 {
+		last = obj(contents[len(contents)-1])
+	}
+	parts := list(last["parts"])
+	// After a cancelled turn, the next user message holds the earlier
+	// prompts too, as parts before the new one. The last text part is the
+	// prompt.
+	var texts []any
+	for _, p := range parts {
+		m := obj(p)
+		if _, ok := m["text"].(string); ok && m["thought"] != true {
+			texts = append(texts, p)
+		}
+	}
+	if len(texts) > 1 {
+		texts = texts[len(texts)-1:]
+	}
+	text := geminiText(texts)
+	gen := obj(body["generationConfig"])
+	schema := obj(gen["responseJsonSchema"])
+	if schema == nil {
+		schema = obj(gen["responseSchema"])
+	}
+	if schema != nil {
+		// The model router and the other checks of Gemini CLI.
+		return kindStructured, string(marshal(fill(obj(lowerTypes(schema)), verdict(text))))
+	}
+	for _, p := range parts {
+		if _, ok := obj(p)["functionResponse"]; ok {
+			return kindText, ToolDone
+		}
+	}
+	kind := classify(text, hasTools(body))
+	switch kind {
+	case kindWrite:
+		cwd := ""
+		for _, c := range contents {
+			if m := obj(c); m["role"] == "user" {
+				if v := labelValue(geminiText(list(m["parts"])), geminiCwd); v != "" {
+					cwd = v
+					break
+				}
+			}
+		}
+		if path := writePath(text, cwd); path != "" {
+			return kind, path
+		}
+		return kindText, NoPath
+	case kindChoice, kindQuestion:
+		return kindQuestion, Question
+	}
+	return kind, Text
+}
+
+func geminiParts(kind, text string) []any {
+	switch kind {
+	case kindTool:
+		args := map[string]any{"command": Command, "description": "Create a test file"}
+		return []any{map[string]any{"functionCall": map[string]any{"name": "run_shell_command", "args": args}}}
+	case kindWrite:
+		args := map[string]any{"file_path": text, "content": WriteText}
+		return []any{map[string]any{"functionCall": map[string]any{"name": "write_file", "args": args}}}
+	}
+	return []any{map[string]any{"text": text}}
+}
+
+func geminiMessage(rid, model, kind, text string) map[string]any {
+	return map[string]any{
+		"candidates": []any{map[string]any{
+			"content":      map[string]any{"role": "model", "parts": geminiParts(kind, text)},
+			"finishReason": "STOP",
+			"index":        0,
+		}},
+		"usageMetadata": map[string]any{"promptTokenCount": 1, "candidatesTokenCount": 1, "totalTokenCount": 2},
+		"modelVersion":  model,
+		"responseId":    rid,
+	}
+}
+
+func geminiStream(rid, model, kind, text string) [][]byte {
+	if kind == kindHold {
+		return nil
+	}
+	return [][]byte{sse("", geminiMessage(rid, model, kind, text))}
 }

@@ -5,7 +5,7 @@
 #
 # Each line that does not start with "#" has 4 fields, separated by tabs.
 #
-#   agent  claude, codex, agy, cursor-agent or opencode.
+#   agent  claude, codex, agy, cursor-agent, opencode or gemini.
 #   scope  home     a path below the home of the session.
 #          project  a path below the work folder or a folder above it. The
 #                   kit looks in each folder from the work folder up to the
@@ -75,3 +75,14 @@ opencode	project	all	opencode.json
 opencode	project	all	opencode.jsonc
 opencode	project	all	.opencode
 opencode	project	all	AGENTS.md
+gemini	home	all	.gemini/settings.json
+gemini	home	all	.gemini/GEMINI.md
+gemini	home	all	.gemini/policies
+gemini	project	all	.gemini/settings.json
+gemini	project	all	GEMINI.md
+gemini	machine	linux	/etc/gemini-cli/settings.json
+gemini	machine	linux	/etc/gemini-cli/system-defaults.json
+gemini	machine	macos	/Library/Application Support/GeminiCli/settings.json
+gemini	machine	macos	/Library/Application Support/GeminiCli/system-defaults.json
+gemini	machine	windows	C:/ProgramData/gemini-cli/settings.json
+gemini	machine	windows	C:/ProgramData/gemini-cli/system-defaults.json

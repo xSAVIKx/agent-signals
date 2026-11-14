@@ -23,7 +23,7 @@ awk -F '\t' '
     if ($c["cost"] !~ /^(none|turns:[0-9]+)$/) print $1 ": cost " $c["cost"]
     if (!words($c["backends"], "^(none|tmux|pty|conpty|psmux|operator)$")) print $1 ": backends " $c["backends"]
     if (!words($c["os"], "^(linux|macos|windows)$")) print $1 ": os " $c["os"]
-    if ($c["agent"] !~ /^(-|claude|codex|agy|cursor-agent|opencode)$/) print $1 ": agent " $c["agent"]
+    if ($c["agent"] !~ /^(-|claude|codex|agy|cursor-agent|opencode|gemini)$/) print $1 ": agent " $c["agent"]
     want = $c["kind"] ($c["agent"] == "-" ? "" : "-" $c["agent"])
     # A permission step for one mode: write-AGENT-MODE or
     # write-outside-AGENT-MODE.
@@ -34,7 +34,7 @@ awk -F '\t' '
 if [ -s "$T/shape" ]; then fail "each line of steps.tsv has a known shape" "$(head -n 3 "$T/shape" | tr '\n' ';')"; else pass "each line of steps.tsv has a known shape"; fi
 
 for k in probe terminals first-run permission new-chat resume interrupt real-session; do
-  for a in claude codex agy cursor-agent; do
+  for a in claude codex agy cursor-agent gemini; do
     case $k in probe | terminals) n=$k ;; *) n=$k-$a ;; esac
     grep -q "^$n	" "$steps" || echo "$n" >>"$T/missing"
   done
@@ -64,7 +64,7 @@ if [ -f "$T/oc-idle" ]; then fail "the opencode rows find the idle corpus screen
 # step matches each write dialog and no other state.
 # has RE FILE: a line of FILE matches RE.
 has() { grep -Eq -- "$1" "$2"; }
-for a in claude codex agy; do
+for a in claude codex agy gemini; do
   idle=$(field "permission-$a" idle_regex)
   busy=$(field "permission-$a" busy_regex)
   dialog=$(field "permission-$a" dialog_regex)
@@ -143,8 +143,8 @@ for a in claude codex agy; do
     pass "the mode rows of $a agree with its corpus screens"
   fi
   # Each pre pair matches a screen of the agent, and no IDLE, BUSY or
-  # PERMISSION screen.
-  field "permission-$a" pre | awk '{ n = split($0, p, ";;"); for (i = 1; i <= n; i++) { sub(/=>.*/, "", p[i]); print p[i] } }' >"$T/pre"
+  # PERMISSION screen. "-" is no pair: gemini starts with --skip-trust.
+  field "permission-$a" pre | awk '$0 != "-" { n = split($0, p, ";;"); for (i = 1; i <= n; i++) { sub(/=>.*/, "", p[i]); print p[i] } }' >"$T/pre"
   : >"$T/bad"
   while IFS= read -r re; do
     hit=no

@@ -1,0 +1,30 @@
+schema: 1
+agent: gemini
+agent_version: 0.68.0
+measured: 2026-11-14
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured
+edits: []
+description: >-
+  Gemini CLI 0.68.0 asks before a file write in the work folder in the default
+  approval mode. The dialog has the same frame as the shell dialog: "?
+  WriteFile  Writing to agent-signals-write.txt", the new content with line
+  numbers in an inner frame, the question "Apply this change?" and four
+  numbered options. In the mode auto_edit or yolo the write runs with no
+  dialog, and in the mode plan Gemini CLI refuses it with no dialog (fact 90).
+  The screen is the capture of a kit session (kit session start NAME gemini
+  --via tmux --home fixture --args "--skip-trust") of Gemini CLI 0.68.0 (npm
+  @google/gemini-cli), against the fake model of the kit
+  (probes/agent/fake-model.py), in a private tmux server on Linux (x64),
+  120x40.
+expect:
+  state: PERMISSION
+  dialog: permission
+  question: "Apply this change?"
+  options:
+    - {n: 1, label: "Allow once", selected: true}
+    - {n: 2, label: "Allow for this session"}
+    - {n: 3, label: "Modify with external editor"}
+    - {n: 4, label: "No, suggest changes (esc)"}
+facts: [90]

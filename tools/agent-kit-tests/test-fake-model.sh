@@ -248,6 +248,33 @@ expect_line "opencode: an outside write uses the given path" 'path.*/work/other/
 expect_no_line "opencode: the log holds no prompt text" 'Create a file|Write|/work/' "$T/opencode.log"
 kill "$fake" 2>/dev/null
 
+# gemini: the Gemini API, with the tools run_shell_command and write_file,
+# and the work folder from the list of the workspace folders.
+start_fake gemini
+expect_line "gemini: the key is a dummy" '^GEMINI_API_KEY=dummy$' "$T/gemini.env"
+expect_line "gemini: the settings select the API key" '"selectedType": "gemini-api-key"' "$T/gemini/.gemini/settings.json"
+expect_line "gemini: the settings turn off the statistics" '"usageStatisticsEnabled": false' "$T/gemini/.gemini/settings.json"
+port=$(sed -n 's#^GOOGLE_GEMINI_BASE_URL=http://127\.0\.0\.1:##p' "$T/gemini.env")
+gs='/v1beta/models/fixture-model:streamGenerateContent?alt=sse'
+tools='"tools": [{"functionDeclarations": [{"name": "write_file"}]}]'
+gctx='{"role": "user", "parts": [{"text": "<session_context>\n- **Workspace Directories:**\n  - /work/example\n</session_context>"}]}'
+post2 "$gs" "{$tools, \"contents\": [$gctx, {\"role\": \"user\", \"parts\": [{\"text\": \"Create a file named x.\"}]}]}"
+expect_line "gemini: a file prompt gets a shell call" '"name": "run_shell_command"' "$T/reply"
+post2 "$gs" "{$tools, \"contents\": [$gctx, {\"role\": \"user\", \"parts\": [{\"text\": \"Write a file now.\"}]}]}"
+expect_line "gemini: the path is in the work folder" '"file_path": "/work/example/agent-signals-write\.txt"' "$T/reply"
+post2 "$gs" "{$tools, \"contents\": [$gctx, {\"role\": \"user\", \"parts\": [{\"text\": \"Create a file named x.\"}, {\"text\": \"Write a file now.\"}]}]}"
+expect_line "gemini: after a cancelled turn the last text part is the prompt" '"name": "write_file"' "$T/reply"
+post2 "$gs" "{$tools, \"contents\": [$gctx, {\"role\": \"user\", \"parts\": [{\"functionResponse\": {\"name\": \"write_file\"}}]}]}"
+expect_line "gemini: a tool result gets the end text" 'finished the tool call' "$T/reply"
+post2 /v1beta/models/fixture-model:generateContent '{"contents": [{"role": "user", "parts": [{"text": "Create a file"}]}], "generationConfig": {"responseJsonSchema": {"type": "object", "required": ["model_choice"], "properties": {"model_choice": {"type": "string", "enum": ["flash", "pro"]}}}}}'
+expect_line "gemini: the router gets the first enum value" 'model_choice.*flash' "$T/reply"
+post2 /v1beta/models/fixture-model:generateContent '{"contents": [{"role": "user", "parts": [{"text": "Create a file"}]}], "generationConfig": {"responseSchema": {"type": "OBJECT", "required": ["n"], "properties": {"n": {"type": "INTEGER"}}}}}'
+expect_line "gemini: an upper-case responseSchema gets a number" '\{\\"n\\":0\}' "$T/reply"
+post2 "$gs" "{$tools, \"contents\": [$gctx, {\"role\": \"user\", \"parts\": [{\"text\": \"Count from 1 to 300.\"}]}]}"
+expect_line "gemini: a long prompt holds the turn" ' hold$' "$T/gemini.log"
+expect_no_line "gemini: the log holds no prompt text" 'Create a file|Count from|Write|/work/' "$T/gemini.log"
+kill "$fake" 2>/dev/null
+
 start_fake cursor-agent
 expect_line "cursor: the endpoint is local" '^CURSOR_API_ENDPOINT=http://127\.0\.0\.1:[0-9]+$' "$T/cursor-agent.env"
 expect_line "cursor: the agent stream uses HTTP/1.1" '"useHttp1ForAgent": true' "$T/cursor-agent/.cursor/cli-config.json"
