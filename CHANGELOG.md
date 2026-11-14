@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.23.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.22.0...corpus-v0.23.0) (2026-11-14)
+
+
+### Features
+
+* **ci:** keep one issue for each traced agent version ([#168](https://github.com/xSAVIKx/agent-signals/issues/168)) ([b461062](https://github.com/xSAVIKx/agent-signals/commit/b461062a1e68f3fb4bafa6de72be056ff4165809))
+* **ci:** run the traces with eBPF on the Linux runners ([#157](https://github.com/xSAVIKx/agent-signals/issues/157)) ([4f4887c](https://github.com/xSAVIKx/agent-signals/commit/4f4887c1a747c837eba0cafca2f9e611874f528b))
+* **kit:** add the ebpf check to kit trace ([#152](https://github.com/xSAVIKx/agent-signals/issues/152)) ([86f581a](https://github.com/xSAVIKx/agent-signals/commit/86f581a4f53fdedee7a4ee8393a5ce17ec708f64))
+* **site:** add social metadata, a 404 page and a hub link ([#147](https://github.com/xSAVIKx/agent-signals/issues/147)) ([f5eb72b](https://github.com/xSAVIKx/agent-signals/commit/f5eb72be4b5c6827158ce8d80623c398d1b96257))
+* **site:** give the site its own icon ([#161](https://github.com/xSAVIKx/agent-signals/issues/161)) ([6d018b3](https://github.com/xSAVIKx/agent-signals/commit/6d018b3a34d1d0307919c2d6df6e76f4229351b4))
+
+
+### Bug Fixes
+
+* **kit:** check the owner of the trace folder with POSIX find ([#162](https://github.com/xSAVIKx/agent-signals/issues/162)) ([25259da](https://github.com/xSAVIKx/agent-signals/commit/25259da378c6076b616811f2b182bc8a5711128f))
+* **kit:** see a streamed Codex answer as busy in the interrupt step ([#163](https://github.com/xSAVIKx/agent-signals/issues/163)) ([c4e70c9](https://github.com/xSAVIKx/agent-signals/commit/c4e70c99cb99e8495ab53d79a0c2e90299a18f9f))
+* **site:** stop publishing a robots.txt under the project path ([#156](https://github.com/xSAVIKx/agent-signals/issues/156)) ([b7bfd66](https://github.com/xSAVIKx/agent-signals/commit/b7bfd668cb14d8213b3e289cca793fd7e37c3cc6))
+* **validate:** count session_ followed by a word as no session address ([#166](https://github.com/xSAVIKx/agent-signals/issues/166)) ([817dfd9](https://github.com/xSAVIKx/agent-signals/commit/817dfd90844f070129439df7518d0734678d78ad))
+
 ## [0.22.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.21.0...corpus-v0.22.0) (2026-11-12)
 
 
