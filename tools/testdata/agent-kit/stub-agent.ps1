@@ -23,6 +23,24 @@ $ErrorActionPreference = 'Stop'
 $code = @'
 using System;
 using System.Runtime.InteropServices;
+// StubStream draws a new number each 0.3 s from a timer thread while the
+// main thread waits in ReadKey. A loop on Console.KeyAvailable did not
+// redraw under ConPTY in CI.
+public static class StubStream {
+    static System.Threading.Timer timer;
+    static int n;
+    public static void Start() {
+        n = 0;
+        timer = new System.Threading.Timer(delegate(object o) {
+            n++;
+            Console.Out.Write("\x1b[2J\x1b[3J\x1b[Hstub stream\r\n\r\n" + (n + 1) + "\r\n" + (n + 2) + "\r\n" + (n + 3));
+            Console.Out.Flush();
+        }, null, 300, 300);
+    }
+    public static void Stop() {
+        if (timer != null) { timer.Dispose(); timer = null; }
+    }
+}
 public static class StubConsole {
     [DllImport("kernel32.dll")] static extern IntPtr GetStdHandle(int n);
     [DllImport("kernel32.dll")] static extern bool GetConsoleMode(IntPtr h, out uint m);
@@ -39,7 +57,6 @@ try { Add-Type -TypeDefinition $code; [StubConsole]::EnableVt() } catch { }
 $script:State = 'idle'
 $script:Buffer = ''
 $script:Note = ''
-$script:Count = 0
 $esc = [char]27
 
 # Write-Log LINE: add LINE to STUB_LOG. Another process (a virus scanner,
@@ -80,9 +97,9 @@ function Show-Screen {
     } elseif ($script:State -eq 'stream') {
         $lines += 'stub stream'
         $lines += ''
-        $lines += [string]($script:Count + 1)
-        $lines += [string]($script:Count + 2)
-        $last = [string]($script:Count + 3)
+        $lines += '1'
+        $lines += '2'
+        $last = '3'
     } else {
         $lines += 'Do you want to create agent-signals-test.txt?'
         $lines += '1. Yes'
@@ -96,12 +113,6 @@ function Show-Screen {
 
 Show-Screen
 while ($true) {
-    if ($script:State -eq 'stream' -and -not [Console]::KeyAvailable) {
-        Start-Sleep -Milliseconds 300
-        $script:Count++
-        Show-Screen
-        continue
-    }
     $k = [Console]::ReadKey($true)
     switch ($k.Key) {
         'Enter' { Write-Log 'key Enter' }
@@ -113,7 +124,7 @@ while ($true) {
         if ($k.Key -eq 'Enter') {
             if ($script:Buffer -eq 'write') { $script:State = 'dialog' }
             elseif ($script:Buffer -eq 'busy') { $script:State = 'busy' }
-            elseif ($script:Buffer -eq 'stream') { $script:State = 'stream' }
+            elseif ($script:Buffer -eq 'stream') { $script:State = 'stream'; [StubStream]::Start() }
             $script:Buffer = ''
         } elseif ($k.Key -eq 'Escape') {
             $script:Buffer = ''
@@ -128,7 +139,11 @@ while ($true) {
             $script:Buffer += $k.KeyChar
         }
     } elseif ($script:State -eq 'busy' -or $script:State -eq 'stream') {
-        if ($k.Key -eq 'Escape') { $script:State = 'idle'; $script:Note = 'interrupted' }
+        if ($k.Key -eq 'Escape') {
+            if ($script:State -eq 'stream') { [StubStream]::Stop(); Start-Sleep -Milliseconds 400 }
+            $script:State = 'idle'
+            $script:Note = 'interrupted'
+        }
     } else {
         if ($k.KeyChar -eq '1') {
             Set-Content -LiteralPath (Join-Path (Get-Location).Path 'agent-signals-test.txt') -Value 'agent-signals test'
