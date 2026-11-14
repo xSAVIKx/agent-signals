@@ -64,7 +64,10 @@
 #      tools/scrub.sh into RUN/traces/NN-NAME@BACKEND/. The cast goes
 #      through trace-cast-scrub.py, which scrubs the text of each event
 #      and keeps each line valid JSON. NN is one more than
-#      the highest number in RUN/traces/. Delete RUN/.trace. A build or a
+#      the highest number in RUN/traces/. With KIT_TRACE_KEEP_RAW=1, scrub
+#      also the raw files t0, checks, states.tsv, sessions.tsv,
+#      hangup.tsv, ebpf.txt, ebpf-clock and skipped.tsv (each one that
+#      exists) into RUN/traces/NN-NAME@BACKEND/raw/. Delete RUN/.trace. A build or a
 #      scrub that fails gives the line "trace: NAME@BACKEND fail REASON"
 #      and exit 1.
 #   9. Print the output lines of the step, then the line
@@ -509,6 +512,52 @@ for f in "$raw"/out/*; do
     fail scrub
   }
 done
+# KIT_TRACE_KEEP_RAW=1: a scrubbed copy of the raw files that the build
+# reads goes to raw/ in the trace folder, so that a later build can read
+# them again. No cast, no proxy log and no file log: they can hold content.
+# The raw lines hold the program paths as they are, also of programs in a
+# temp folder (a folder of PATH, or of KIT_BPFTRACE). Such a folder can
+# hold a name, so the scrub gets it as one more root.
+if [ "${KIT_TRACE_KEEP_RAW:-}" = 1 ]; then
+  _ifs=$IFS
+  IFS=:
+  for _d in $PATH ${KIT_BPFTRACE:+"${KIT_BPFTRACE%/*}"}; do
+    case $_d in
+      /tmp/?* | /private/tmp/?* | "${TMPDIR:-/tmp}"/?*) SCRUB_EXTRA="$SCRUB_EXTRA
+$_d" ;;
+    esac
+  done
+  IFS=$_ifs
+  # The out folder of the run (the parent of RUN) can hold a name, and the
+  # raw lines hold its path (an open of the folder). It is a root only when
+  # the home is not in it: the home rule gives ~.
+  _o=${run%/*}
+  case $HOME/ in
+    "$_o"/*) ;;
+    *) [ -n "$_o" ] && SCRUB_EXTRA="$SCRUB_EXTRA
+$_o" ;;
+  esac
+  mkdir "$raw/scrubbed/raw" || fail scrub
+  for f in t0 checks states.tsv sessions.tsv hangup.tsv ebpf.txt ebpf-clock skipped.tsv; do
+    [ -f "$raw/$f" ] || continue
+    sh "$KIT_ROOT/tools/scrub.sh" "$raw/$f" >"$raw/scrubbed/raw/$f" 2>>"$raw/scrub.log" || {
+      sed 's/^/kit: /' "$raw/scrub.log" >&2
+      fail scrub
+    }
+  done
+  # The scrub changes a run of 16 digits or more to <hex>. The boot clock
+  # in ns has 16 digits after about 12 days. So the first field of each
+  # line of ebpf.txt comes back from the raw file when it has only digits.
+  # The scrub keeps the lines of ebpf.txt (no line starts with white
+  # space); another line count fails the scrub.
+  if [ -f "$raw/ebpf.txt" ]; then
+    [ "$(wc -l <"$raw/ebpf.txt")" = "$(wc -l <"$raw/scrubbed/raw/ebpf.txt")" ] || fail scrub
+    awk -F '\t' -v OFS='\t' 'FILENAME == ARGV[1] { ns[FNR] = $1; next }
+      ns[FNR] ~ /^[0-9]+$/ { $1 = ns[FNR] } { print }' \
+      "$raw/ebpf.txt" "$raw/scrubbed/raw/ebpf.txt" >"$raw/ebpf.keep" &&
+      mv "$raw/ebpf.keep" "$raw/scrubbed/raw/ebpf.txt" || fail scrub
+  fi
+fi
 unset SCRUB_EXTRA
 # The scrub can change a word of the meta, for example the machine
 # "runner" when the account name is "runner". So the meta keys with a
