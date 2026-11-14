@@ -145,7 +145,9 @@ kitf() {
   (PATH=$T/sbin:$PATH && KIT_BPFTRACE=$T/fake-bpftrace.py && export PATH KIT_BPFTRACE && kitx "$@")
 }
 
-WATCH=3
+# WATCH caps each wait of a step. 3 s was too short for the idle wait on a
+# busy CPU.
+WATCH=6
 export WATCH
 kitx start --home fixture --out "$D" >"$T/log" 2>&1
 expect_code "kit start exits 0" 0 $?

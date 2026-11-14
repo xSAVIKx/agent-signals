@@ -85,8 +85,10 @@ trace_pids() {
 }
 
 # The fixture run. The first trace comes just after "kit start", so the
-# work root and RUN/home do not exist yet.
-WATCH=3
+# work root and RUN/home do not exist yet. WATCH caps each wait of a step.
+# With 3 s, the idle wait after the trust question of the stub ended too
+# early on a busy CPU (fail no-idle, seen on the one-CPU runners).
+WATCH=6
 export WATCH
 kitx start --home fixture --out "$D" >"$T/log" 2>&1
 expect_code "kit start exits 0" 0 $?
@@ -219,7 +221,7 @@ fi
 
 # A second trace while a trace runs: exit 2.
 : >"$T/mark"
-(WATCH=6 && export WATCH && kitx trace permission-claude@tmux) >"$T/t6" 2>&1 &
+(WATCH=10 && export WATCH && kitx trace permission-claude@tmux) >"$T/t6" 2>&1 &
 first=$!
 bg_pid "$first"
 n=0
@@ -378,7 +380,7 @@ mkdir -p "$R"
 D2=$T/out2
 mkdir -m 0700 "$D2"
 kitr() {
-  (cd "$D2" && HOME=$R PATH="$B:$PATH" AGENT_SIGNALS_WATCH=3 \
+  (cd "$D2" && HOME=$R PATH="$B:$PATH" AGENT_SIGNALS_WATCH=6 \
     KITSH=$ROOT/probes/agent/kit.sh "$T/orch/claude" "$@" </dev/null)
 }
 kitr start --home real --out "$D2" >"$T/log" 2>&1
@@ -416,7 +418,7 @@ want "real home, small limit: a file in ~/.claude" "$j" 'any(p.startswith("~/.cl
 D3=$T/out3
 mkdir -m 0700 "$D3"
 kitt() {
-  (cd "$D3" && HOME=$H PATH="$B:$PATH" AGENT_SIGNALS_WATCH=3 \
+  (cd "$D3" && HOME=$H PATH="$B:$PATH" AGENT_SIGNALS_WATCH=6 \
     KITSH=$ROOT/probes/agent/kit.sh "$T/orch/claude" "$@" </dev/null)
 }
 kitt start --home throwaway --out "$D3" >"$T/log" 2>&1
