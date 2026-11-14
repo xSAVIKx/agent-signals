@@ -153,7 +153,9 @@ Capture the corpus screens of Claude Code 2.1.325, Codex 0.169.0 and agy
 
 ### 8. Release and the operator runs
 
-1. Let release-please release the kit.
+1. Let release-please release the kit. Do this only when each of items
+   1, 2, 3 and 5 is merged, or is blocked by a cause outside the kit.
+   Else do not release, and write the open items in the last report.
 2. Write the three unattended prompts (Linux, macOS, Windows) into the
    last report.
 
