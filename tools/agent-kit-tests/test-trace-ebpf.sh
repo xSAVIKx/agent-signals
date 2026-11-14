@@ -310,6 +310,8 @@ expect_file "keep raw: raw/ebpf.txt exists" "$tr6/raw/ebpf.txt"
 expect_file "keep raw: raw/sessions.tsv exists" "$tr6/raw/sessions.tsv"
 if grep -rlF -- "$T" "$tr6/raw" >/dev/null 2>&1; then
   fail "keep raw: no file in raw/ holds the test folder" "$(grep -rlF -- "$T" "$tr6/raw" | sed 's|.*/||' | tr '\n' ' ')"
+  # The first lines that hold it, with the folder as $T.
+  grep -rhF -- "$T" "$tr6/raw" | head -n 8 | awk -v t="$T" '{ while ((i = index($0, t)) > 0) $0 = substr($0, 1, i - 1) "$T" substr($0, i + length(t)); print "  leak| " $0 }'
 else
   pass "keep raw: no file in raw/ holds the test folder"
 fi
@@ -329,7 +331,8 @@ if python3 -I "$ROOT/probes/agent/trace-build.py" --raw "$T/rebuild/.trace" --me
 else
   fail "keep raw: trace-build.py builds from raw/" "$(head -c 400 "$T/rebuild.log")"
 fi
-if awk -F '\t' 'NF > 1 && $1 !~ /^[0-9]+$/ { bad = 1 } END { exit bad }' "$tr6/raw/ebpf.txt"; then
+# The script ends with one line "counters" with no time: the build skips it.
+if awk -F '\t' 'NF > 1 && $1 != "counters" && $1 !~ /^[0-9]+$/ { bad = 1 } END { exit bad }' "$tr6/raw/ebpf.txt"; then
   pass "keep raw: each event line of raw/ebpf.txt starts with the time"
 else
   fail "keep raw: each event line of raw/ebpf.txt starts with the time" "a line has another first field"
