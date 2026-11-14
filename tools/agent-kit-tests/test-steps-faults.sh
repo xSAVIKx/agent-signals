@@ -7,7 +7,9 @@
 #   - kill -9 of the process group of "kit step" (the session stays);
 #   - the end of the tmux server of the session (tmux only);
 #   - the shell of an orchestrator: no TERM, TERM=dumb, and LANG=C with
-#     LC_ALL=POSIX.
+#     LC_ALL=POSIX;
+#   - a resume step in a run with the fixture home: the stop of the first
+#     session must not stop the guided watch.
 # Each case checks the exit code or the manifest line, and that the next
 # step runs. lib.sh fails the test when a process of the test stays.
 . "$ROOT/tools/agent-kit-tests/lib.sh"
@@ -176,5 +178,17 @@ for e in "-u TERM" "TERM=dumb" "LANG=C LC_ALL=POSIX"; do
   expect_line "env $e: the step is ok" "^step: $step ok$" "$T/step"
   grep -q "^step: $step ok$" "$T/step" || { sed 's/^/  out: /' "$T/step"; f=$run/$(last_file); sed -n '/################ screen: last/,/################ log/p' "$f" | grep -v '^ *$' | tail -12 | sed 's/^/  screen: /'; }
 done
+
+# test_resume_keeps_the_watch_in_a_fixture_home: the session stop of the
+# resume step stops the processes that name the throwaway home. The watch
+# names it in --scope, and it must run on.
+D2=$T/out2
+mkdir -m 0700 "$D2"
+(D=$D2; kitx start --home fixture --out "$D2") >"$T/log" 2>&1
+expect_code "fixture: kit start exits 0" 0 $?
+(D=$D2; WATCH=8 kitx step "resume-claude@$via") >"$T/step" 2>&1
+expect_code "fixture resume: the step exits 0" 0 $?
+expect_line "fixture resume: the step is ok" "^step: resume-claude@$via ok" "$T/step"
+expect_no_line "fixture resume: the watch was not stopped" 'watch ended, exit (137|143)' "$T/step"
 
 done_tests
