@@ -48,7 +48,8 @@
 # name, never a reused pid.
 #
 # conpty needs a Python with pywinpty, pyte, wcwidth and psutil:
-# $env:AGENT_SIGNALS_PYTHON, then RUN\.kit\python, then python on PATH.
+# $env:AGENT_SIGNALS_PYTHON, then RUN\.kit\python, then python on PATH,
+# then a uv environment with these packages.
 # psmux needs psmux on PATH. When one is missing, start exits 3.
 #
 # Exit codes: 0 ok, 1 fail (also: wait came to its time limit), 2 bad use,
@@ -350,7 +351,8 @@ function Find-KitPython([string]$Run) {
         $r = Invoke-KitNative $py @('-I', '-c', 'import winpty, pyte, wcwidth, psutil')
         if ($r.Code -eq 0) { return $py }
     }
-    return ''
+    # The last way: a uv environment with the packages.
+    return (Get-KitUvDriverPython $Run)
 }
 
 # Find-Psmux: the real psmux.exe. A Chocolatey shim starts the real

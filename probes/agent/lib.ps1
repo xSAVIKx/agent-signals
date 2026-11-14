@@ -691,6 +691,34 @@ function Get-KitConptyTool([string]$Python, [string]$Run) {
     return $null
 }
 
+# Get-KitUvDriverPython RUN: the Python of a uv environment that imports
+# the packages of the conpty driver, or ''. A Windows laptop of kit 0.22.0
+# had uv and no Python with these packages, and the plan then dropped each
+# session step on conpty. uv makes the environment one time and keeps it in
+# its cache. With RUN, the path goes to RUN\.kit\python, so that the next
+# command of the run reads it and does not start uv again.
+function Get-KitUvDriverPython([string]$Run) {
+    $uv = Get-KitCommandFile 'uv'
+    if (-not $uv) { return '' }
+    $a = @('run', '--no-project', '--python', '3.12')
+    foreach ($p in $script:KitConptyPackages) { $a += @('--with', $p) }
+    $a += @('python', '-I', '-c', 'import sys, winpty, pyte, wcwidth, psutil; print(sys.executable)')
+    $ErrorActionPreference = 'Continue'
+    $out = @(& $uv @a 2>$null | ForEach-Object { "$_" })
+    if ($LASTEXITCODE -ne 0) { return '' }
+    $py = @($out | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Leaf) } | Select-Object -Last 1)
+    if ($py.Count -eq 0) { return '' }
+    $py = [string]$py[0]
+    if ($Run -and (Test-Path -LiteralPath $Run -PathType Container)) {
+        $f = Join-Path $Run '.kit\python'
+        if (-not (Test-Path -LiteralPath $f)) {
+            New-Item -ItemType Directory -Force -Path (Join-Path $Run '.kit') | Out-Null
+            Write-KitText $f ($py + "`n")
+        }
+    }
+    return $py
+}
+
 # Get-KitConptyCommand TOOL: the program and the first arguments that run
 # a Python script with the driver packages.
 function Get-KitConptyCommand($Tool) {
