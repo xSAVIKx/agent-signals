@@ -123,7 +123,9 @@ AFTER_S=$(lim 10)
 WATCH_S=$((IDLE_S + WAIT_S + HOLD_S + AFTER_S))
 # The limit for the "after" snapshot, after the stop file.
 END_S=$(lim 30)
-[ "$END_S" -ge 10 ] || END_S=10
+# A short AGENT_SIGNALS_WATCH (the tests) keeps 20 s for the end: the last
+# snapshot of the watch took more than 10 s on a loaded host.
+[ "$END_S" -ge 20 ] || END_S=20
 
 say() { echo "kit: $KIT_STEP@$KIT_BACKEND: $*" >&2; echo "$(date -u +%H:%M:%S) $*" >>"$tmp/log"; }
 reason() { echo "$1" >"$KIT_OUT.reason"; }

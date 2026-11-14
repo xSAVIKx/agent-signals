@@ -5,7 +5,9 @@
 #     a command that runs too long);
 #   - kill -9 of the "kit step" process only;
 #   - kill -9 of the process group of "kit step" (the session stays);
-#   - the end of the tmux server of the session (tmux only).
+#   - the end of the tmux server of the session (tmux only);
+#   - the shell of an orchestrator: no TERM, TERM=dumb, and LANG=C with
+#     LC_ALL=POSIX.
 # Each case checks the exit code or the manifest line, and that the next
 # step runs. lib.sh fails the test when a process of the test stays.
 . "$ROOT/tools/agent-kit-tests/lib.sh"
@@ -113,6 +115,7 @@ stub_set
 WATCH=4 kitx step "$step" >"$T/step" 2>&1
 expect_code "kill -9: the next step exits 0" 0 $?
 expect_line "kill -9: the next step is ok" "^step: $step ok$" "$T/step"
+grep -q "^step: $step ok$" "$T/step" || { sed 's/^/  out: /' "$T/step"; f=$run/$(last_file); sed -n '/################ guided step/,/^### 1/p' "$f" | head -12 | sed 's/^/  watch: /'; }
 
 
 # test_kill_9_of_the_group: the session stays with no step. The next step
@@ -132,6 +135,7 @@ stub_set
 WATCH=4 kitx step "$step" >"$T/step" 2>&1
 expect_code "group: the next step exits 0" 0 $?
 expect_line "group: the next step is ok" "^step: $step ok$" "$T/step"
+grep -q "^step: $step ok$" "$T/step" || sed 's/^/  out: /' "$T/step"
 f=$run/$(last_file)
 
 expect_line "group: the next step stopped the old session" 'a session of an ended step stayed: stop it$' "$f"
@@ -161,5 +165,16 @@ if [ "$via" = tmux ]; then
 else
   echo "skip: tmux ends: the backend is $via"
 fi
+
+# test_orchestrator_shell: the shell tool of an AI agent can have no TERM,
+# TERM=dumb (Codex), or a C locale. The step must still work.
+stub_set
+for e in "-u TERM" "TERM=dumb" "LANG=C LC_ALL=POSIX"; do
+  # shellcheck disable=SC2086
+  (eval "export_env() { env $e \"\$@\"; }"; WATCH=4 export_env sh -c '. "$1"; shift; kitx "$@"' sh "$T/kitx.sh" step "$step") >"$T/step" 2>&1
+  expect_code "env $e: the step exits 0" 0 $?
+  expect_line "env $e: the step is ok" "^step: $step ok$" "$T/step"
+  grep -q "^step: $step ok$" "$T/step" || { sed 's/^/  out: /' "$T/step"; f=$run/$(last_file); sed -n '/################ screen: last/,/################ log/p' "$f" | grep -v '^ *$' | tail -12 | sed 's/^/  screen: /'; }
+done
 
 done_tests
