@@ -8,8 +8,9 @@ scrubbed copy of KIT_TRACE_KEEP_RAW). OUT is a new folder. The script:
 
 1. copies each file of RAW to OUT;
 2. in ebpf.txt, changes each IPv6 address of a connect6 line that is not
-   ::1 to 2001:db8::N (HI b80d0120, LO the hex of N << 56), with the same N
-   for the same address;
+   ::1 to 2001:db8::N (HI b80d0120, LO the last 8 bytes with N in network
+   order, read as a little-endian number), with the same N for the same
+   address;
 3. when ebpf.txt is larger than 1 MB, keeps each fork, exec and exit line,
    each line of a pid in the agent tree at that time (the tree of the
    agent pid of sessions.tsv, through the fork lines), the lines that are
@@ -49,7 +50,10 @@ def rewrite_v6(lines):
         f = line.split("\t")
         if len(f) == 6 and f[1] == "connect6" and (f[4], f[5]) != LOOPBACK6:
             n = seen.setdefault((f[4], f[5]), len(seen) + 1)
-            f[4], f[5] = "b80d0120", "%x" % (n << 56)
+            # LO is the last 8 bytes of the address, read as a
+            # little-endian number: N as 8 bytes in network order.
+            lo = int.from_bytes(n.to_bytes(8, "big"), "little")
+            f[4], f[5] = "b80d0120", "%x" % lo
             line = "\t".join(f)
         out.append(line)
     return out
