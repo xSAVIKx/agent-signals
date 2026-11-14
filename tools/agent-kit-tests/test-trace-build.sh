@@ -505,4 +505,40 @@ want "no gate: a lost line in ebpf.err counts" nogate 'd["meta"]["ebpf_lost"] ==
 want "no gate: a carriage return in a path stays" nogate 'any(e["kind"] == "open" and e["path"] == "WORK/c\rd.txt" for e in ev)'
 want "no gate: no hangup line, each pid with no exit is left" nogate '[p["pid"] for p in d["summary"]["processes_left"]] == [4242, 4300]'
 
+# A real trace of a GitHub runner (tools/testdata/trace/runner-ebpf): the raw
+# files that traces.yml kept with raw=true, made by tools/make-ebpf-fixture.py.
+# Run 43560847656, 2026-11-14, Claude Code 2.1.325 on ubuntu-24.04 (x64).
+rawr=$ROOT/tools/testdata/trace/runner-ebpf
+mkdir -p "$T/runner/.trace"
+for _f in "$rawr"/*; do cp "$_f" "$T/runner/.trace/"; done
+cat >"$H/meta-runner.json" <<'JEOF'
+{"agent": "claude", "agent_version": "2.1.325", "kit": "0.22.0", "os": "linux",
+ "os_version": "Ubuntu 24.04.5 LTS", "cpu": "x86_64",
+ "runner_image": "ubuntu24 20261111.370.1", "machine": "runner",
+ "backend": "tmux", "mode": "fixture", "home": "fixture",
+ "step": "permission", "date": "2026-11-14"}
+JEOF
+run_build runner "$H/meta-runner.json"
+expect_code "runner: exit 0" 0 $?
+want "runner: meta.checks holds ebpf" runner '"ebpf" in d["meta"]["checks"]'
+want "runner: a program path holds claude" runner 'any("claude" in p["path"] for p in d["summary"]["programs"] or [])'
+# Each event pid leads to the agent pid through the ppid of the events.
+want "runner: each event pid is in the tree" runner '(lambda par: all(e.get("pid") is None or (lambda f: f(f, e["pid"], 0))(lambda f, p, n: p == 3465 or (n < 200 and par.get(p) is not None and f(f, par[p], n + 1))) for e in ev))({e["pid"]: e["ppid"] for e in ev if e.get("pid") is not None and e.get("ppid") is not None})'
+want "runner: the first exec of the agent is within 3000 ms of start" runner 'abs(min(e["t"] for e in ev if e["kind"] == "exec") - [s["t"] for s in d["states"] if s["state"] == "start"][0]) <= 3000'
+want "runner: processes_left is a list" runner 'isinstance(d["summary"]["processes_left"], list)'
+if command -v go >/dev/null 2>&1; then
+  R=$T/root4
+  mkdir -p "$R/schema" "$R/corpus" "$R/facts" "$R/traces/claude/2.1.325/01-permission@tmux"
+  for _f in "$ROOT"/schema/*; do cp "$_f" "$R/schema/"; done
+  cp "$T/runner/out/trace.json" "$R/traces/claude/2.1.325/01-permission@tmux/"
+  [ -f "$T/runner/out/terminal.cast" ] && cp "$T/runner/out/terminal.cast" "$R/traces/claude/2.1.325/01-permission@tmux/"
+  if (cd "$ROOT/tools" && go run ./cmd/validate "$R") >"$T/validate4.log" 2>&1; then
+    pass "runner: the trace passes the schema check"
+  else
+    fail "runner: the trace passes the schema check" "$(head -c 400 "$T/validate4.log")"
+  fi
+else
+  echo "pass: skip the runner schema check, go is not on PATH"
+fi
+
 done_tests
