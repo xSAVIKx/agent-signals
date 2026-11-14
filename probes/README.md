@@ -335,6 +335,18 @@ scrubbed copy of the raw files that `trace-build.py` reads (`t0`,
 `ebpf-clock` and `skipped.tsv`). It holds no cast, no proxy log and no
 file log.
 
+Each job also writes the summary of each trace that passed the check
+(`tools/trace-issues.py collect`: the summary and some meta keys, no
+content) as the artifact `trace-summary-AGENT-OS`. Then the job `issues`
+keeps one GitHub issue for each traced version, `trace: AGENT VERSION
+(MODE)`, with the programs, files, hosts and processes of each runner
+image, and what is new since the version before. It runs only on the
+schedule or a start by hand on `main`. Only this job can write issues,
+with the token of the run. It changes no issue until the repository
+variable `TRACE_ISSUES` is `open`. Until then, it writes the planned
+issues to the step summary of the run. Read one planned body, then set
+the variable.
+
 ## How a probe becomes a fact
 
 1. The operator runs the kit on the real machine and sends the file.

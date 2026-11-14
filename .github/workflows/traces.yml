@@ -18,6 +18,19 @@
 # when another step fails, or when check-traces.sh fails, for example when
 # the kit skipped the ebpf check. It fails after the upload.
 #
+# After the traces, the job trace writes a summary of each trace that
+# passed (tools/trace-issues.py collect: the summary and some meta keys,
+# no content) and uploads it as the artifact trace-summary-AGENT-OS, also
+# when a step failed.
+#
+# The job issues keeps one issue for each traced agent version
+# ("trace: AGENT VERSION (MODE)"). It runs after the job trace, also when a
+# trace job failed, but only on a schedule or a start by hand on main. It
+# reads only the summary artifacts of this run. Only this job has
+# "issues: write"; it uses the token of the run, no secret. It changes no
+# issue until the repository variable TRACE_ISSUES is "open". Until then
+# it writes the planned actions and bodies to the step summary.
+#
 # The workflow runs once a week and when started by hand. It installs
 # software from the network. It uses no secret. Each input goes to the
 # scripts only through env.
@@ -223,6 +236,7 @@ jobs:
             exit 1
           fi
           echo "traces=$run/traces" >>"$GITHUB_OUTPUT"
+          echo "run=$run" >>"$GITHUB_OUTPUT"
           for s in $list; do
             k trace "$s@tmux" --checks terminal,network,files,ebpf
             case $rc in
@@ -242,6 +256,130 @@ jobs:
           path: ${{ steps.run.outputs.traces }}
           retention-days: 14
           if-no-files-found: warn
+      # The summary of each trace that passed check-traces.sh. Also after a
+      # failed step: a missing passed.txt gives an empty list.
+      - name: Collect the summaries
+        if: always() && steps.pick.outputs.run == 'yes'
+        env:
+          RUN: ${{ steps.run.outputs.run }}
+          AGENT: ${{ matrix.agent }}
+          OS: ${{ matrix.os }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/summary"
+          python3 -I tools/trace-issues.py collect "${RUN:-$RUNNER_TEMP/no-run}" \
+            --only "$RUNNER_TEMP/passed.txt" \
+            --out "$RUNNER_TEMP/summary/summary-$AGENT-$OS.json"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always() && steps.pick.outputs.run == 'yes'
+        with:
+          name: trace-summary-${{ matrix.agent }}-${{ matrix.os }}
+          path: ${{ runner.temp }}/summary/summary-${{ matrix.agent }}-${{ matrix.os }}.json
+          retention-days: 14
+          if-no-files-found: warn
 
-  # Task 6 adds the job "issues" here. It reads only the artifacts of this
-  # run, and passed.txt tells it which traces passed.
+  issues:
+    name: Issues
+    needs: trace
+    if: ${{ !cancelled() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # One issues job at a time, so that two runs do not plan from the same
+    # issue list and open one issue two times. A new run waits.
+    concurrency:
+      group: traces-issues
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: trace-summary-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/summary
+      - name: Plan the issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/summary"
+          gh issue list --label trace --state all --limit 500 \
+            --json number,title,body,state >"$RUNNER_TEMP/issues.json"
+          python3 -I tools/trace-issues.py plan --summaries "$RUNNER_TEMP/summary" \
+            --issues "$RUNNER_TEMP/issues.json" --run-url "$RUN_URL" \
+            --out "$RUNNER_TEMP/actions.json"
+      # Each title, label and body goes to gh as a quoted argument or as a
+      # file. TRACE_ISSUES other than "open" (also unset): no issue changes.
+      - name: Apply the actions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TRACE_ISSUES: ${{ vars.TRACE_ISSUES }}
+        run: |
+          d=$RUNNER_TEMP/actions
+          mkdir -p "$d"
+          # One file for each field of each action: N.action, N.title,
+          # N.labels (one label for each line), N.number, N.body, N.comment.
+          python3 -I -c '
+          import json, os, sys
+          acts = json.load(open(sys.argv[1], encoding="utf-8"))
+          for i, a in enumerate(acts):
+              for k in ("action", "title", "number", "body", "comment"):
+                  if k in a:
+                      with open(os.path.join(sys.argv[2], "%d.%s" % (i, k)), "w", encoding="utf-8") as f:
+                          f.write(str(a[k]))
+              if "labels" in a:
+                  with open(os.path.join(sys.argv[2], "%d.labels" % i), "w", encoding="utf-8") as f:
+                      f.write("\n".join(a["labels"]) + "\n")
+          print(len(acts))' "$RUNNER_TEMP/actions.json" "$d" >"$d/count"
+          n=$(cat "$d/count")
+          echo "actions: $n"
+          if [ "$TRACE_ISSUES" != open ]; then
+            {
+              echo "## Planned issue actions: $n"
+              echo
+              echo "TRACE_ISSUES is not \"open\": no issue changed."
+              i=0
+              while [ "$i" -lt "$n" ]; do
+                echo
+                echo "### $(cat "$d/$i.action") ${i}"
+                [ -f "$d/$i.title" ] && echo "title: $(cat "$d/$i.title")"
+                [ -f "$d/$i.number" ] && echo "issue: #$(cat "$d/$i.number")"
+                [ -f "$d/$i.comment" ] && { echo; echo "comment:"; echo; cat "$d/$i.comment"; echo; }
+                echo
+                echo "body:"
+                echo
+                cat "$d/$i.body"
+                echo
+                i=$((i + 1))
+              done
+            } >>"$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          for l in trace fixture login none; do
+            gh label create "$l" --force >/dev/null
+          done
+          i=0
+          while [ "$i" -lt "$n" ]; do
+            case $(cat "$d/$i.action") in
+              open)
+                set --
+                while IFS= read -r l; do set -- "$@" --label "$l"; done <"$d/$i.labels"
+                gh issue create --title "$(cat "$d/$i.title")" "$@" --body-file "$d/$i.body"
+                ;;
+              update)
+                num=$(cat "$d/$i.number")
+                gh issue comment "$num" --body-file "$d/$i.comment"
+                gh issue edit "$num" --body-file "$d/$i.body"
+                ;;
+              *)
+                echo "unknown action in $i"
+                exit 1
+                ;;
+            esac
+            i=$((i + 1))
+          done
