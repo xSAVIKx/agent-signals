@@ -33,7 +33,7 @@ public static class StubStream {
         n = 0;
         timer = new System.Threading.Timer(delegate(object o) {
             n++;
-            Console.Out.Write("\x1b[2J\x1b[3J\x1b[Hstub stream\r\n\r\n" + (n + 1) + "\r\n" + (n + 2) + "\r\n" + (n + 3));
+            Console.Out.Write("\x1b[2J\x1b[3J\x1b[Hstub output\r\n\r\n" + (n + 1) + "\r\n" + (n + 2) + "\r\n" + (n + 3));
             Console.Out.Flush();
         }, null, 300, 300);
     }
@@ -95,7 +95,9 @@ function Show-Screen {
         $lines += '* Counting (esc to interrupt)'
         $last = ''
     } elseif ($script:State -eq 'stream') {
-        $lines += 'stub stream'
+        # Not "stub stream": the step must not see its prompt "stream" on
+        # the screen.
+        $lines += 'stub output'
         $lines += ''
         $lines += '1'
         $lines += '2'
