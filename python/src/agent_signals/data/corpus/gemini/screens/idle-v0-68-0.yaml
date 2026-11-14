@@ -1,0 +1,22 @@
+schema: 1
+agent: gemini
+agent_version: 0.68.0
+measured: 2026-11-14
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - the work folder of the session in the footer, an absolute path below the home of the account, is replaced with /work/example, with spaces after it so that "no sandbox" and "Auto" keep their columns
+description: >-
+  Gemini CLI 0.68.0 with an API key and --skip-trust waits for a prompt. The
+  logo and "Authenticated with gemini-api-key /auth" are at the top, then four
+  tips. Above the box are "? for shortcuts", a rule and "Shift+Tab to accept
+  edits". The box between two rows of half blocks holds the placeholder
+  "Type your message or @path/to/file". Below the box are the workspace
+  folder, "no sandbox" and the model "Auto". The placeholder is not typed
+  text. The screen is the capture of a kit session (kit session start NAME gemini --via tmux --home fixture --args "--skip-trust") of Gemini CLI 0.68.0 (npm @google/gemini-cli), against the fake model of the kit (probes/agent/fake-model.py), in a private tmux server on Linux (x64), 120x40.
+expect:
+  state: IDLE
+  dialog: none
+  box_text: null
+facts: [90]

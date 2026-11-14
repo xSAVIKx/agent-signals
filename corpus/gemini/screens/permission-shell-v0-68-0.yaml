@@ -1,0 +1,29 @@
+schema: 1
+agent: gemini
+agent_version: 0.68.0
+measured: 2026-11-14
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured
+edits: []
+description: >-
+  Gemini CLI 0.68.0 asks before a shell command in the default approval mode.
+  A framed dialog replaces the input box and the footer: "? Shell  touch
+  agent-signals-test.txt", the command in an inner frame, the question "Allow
+  execution of [Shell]?" and three numbered options, with "●" at the selected
+  option. Esc takes option 3 and cancels the turn: the screen then shows "-
+  Shell" and "Request cancelled." (fact 90). The screen is the capture of a
+  kit session (kit session start NAME gemini --via tmux --home fixture --args
+  "--skip-trust") of Gemini CLI 0.68.0 (npm @google/gemini-cli), against the
+  fake model of the kit (probes/agent/fake-model.py), in a private tmux
+  server on Linux (x64), 120x40. The fake model asks for the command "touch
+  agent-signals-test.txt".
+expect:
+  state: PERMISSION
+  dialog: permission
+  question: "Allow execution of [Shell]?"
+  options:
+    - {n: 1, label: "Allow once", selected: true}
+    - {n: 2, label: "Allow for this session"}
+    - {n: 3, label: "No, suggest changes (esc)"}
+facts: [90]

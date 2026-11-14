@@ -1,0 +1,40 @@
+
+ ▝▜▄     Gemini CLI v0.68.0
+   ▝▜▄
+  ▗▟▀    Authenticated with gemini-api-key /auth
+ ▝▀
+
+
+Tips for getting started:
+1. Create GEMINI.md files to customize your interactions
+2. /help for more information
+3. Ask coding questions, edit code or run commands
+4. Be specific for the best results
+▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+ > Create a file named agent-signals-test.txt that holds the word hello.
+▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ? Shell  touch agent-signals-test.txt                                                                                │
+│ ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮ │
+│ │ touch agent-signals-test.txt                                                                                     │ │
+│ ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯ │
+│ Allow execution of [Shell]?                                                                                          │
+│                                                                                                                      │
+│ ● 1. Allow once                                                                                                      │
+│   2. Allow for this session                                                                                          │
+│   3. No, suggest changes (esc)                                                                                       │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+
+
+
+
+
+
+

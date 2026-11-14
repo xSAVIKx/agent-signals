@@ -13,3 +13,14 @@ verified:
       (trust-color-warning-v0-66-0). Not checked: the screens after a login,
       any turn, a permission dialog, styled captures, and a pane narrower than
       120 columns.
+  - version: 0.68.0
+    date: 2026-11-14
+    method: >-
+      capture-pane -p, 120x40, of kit sessions with --home fixture and
+      --skip-trust, against the fake model of the kit, on Linux (x64)
+    notes: >-
+      Covers the idle screen (idle-v0-68-0), the busy screen of a held turn
+      (busy-v0-68-0), and the shell and file write dialogs of the default
+      approval mode (permission-shell-v0-68-0, permission-write-v0-68-0).
+      Not checked: a real model and a Google login, macOS and Windows, styled
+      captures, and a pane narrower than 120 columns.

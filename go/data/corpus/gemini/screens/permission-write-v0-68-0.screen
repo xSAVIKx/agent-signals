@@ -1,0 +1,40 @@
+
+ ▝▜▄     Gemini CLI v0.68.0
+   ▝▜▄
+  ▗▟▀    Authenticated with gemini-api-key /auth
+ ▝▀
+
+
+Tips for getting started:
+1. Create GEMINI.md files to customize your interactions
+2. /help for more information
+3. Ask coding questions, edit code or run commands
+4. Be specific for the best results
+▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+ > Write a file named agent-signals-write.txt that holds the word hello.
+▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ? WriteFile  Writing to agent-signals-write.txt                                                                      │
+│ ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮ │
+│ │ 1 The fixture wrote this file.                                                                                   │ │
+│ ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯ │
+│ Apply this change?                                                                                                   │
+│                                                                                                                      │
+│ ● 1. Allow once                                                                                                      │
+│   2. Allow for this session                                                                                          │
+│   3. Modify with external editor                                                                                     │
+│   4. No, suggest changes (esc)                                                                                       │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+
+
+
+
+
+

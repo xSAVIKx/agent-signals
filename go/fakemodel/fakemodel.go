@@ -1,7 +1,7 @@
 // Package fakemodel is a local fake model for test sessions of agent CLIs.
 //
-// It lets the real Codex CLI, Claude Code, agy, the Cursor CLI and opencode run a test
-// session with no login, no network and no cost. It serves the API of one
+// It lets the real Codex CLI, Claude Code, agy, the Cursor CLI, opencode and Gemini
+// CLI run a test session with no login, no network and no cost. It serves the API of one
 // agent on 127.0.0.1 with fixed answers. No model decides anything, so a run
 // measures the agent and its screens, not the behaviour of a model. It is the
 // Go form of probes/agent/fake-model.py and gives the same answers.
@@ -31,6 +31,11 @@
 //   - opencode: the Chat Completions API, as for agy.
 //     HOME/.config/opencode/opencode.json names the fake provider and its
 //     model. No variable.
+//   - gemini: the Gemini API (generateContent, streamGenerateContent and
+//     countTokens), from GOOGLE_GEMINI_BASE_URL with a dummy GEMINI_API_KEY.
+//     HOME/.gemini/settings.json selects the API key login, and turns off
+//     the updates and the usage statistics. The folder trust question
+//     stays: it is a screen of a real start.
 //
 // The answer depends on the last user message of a request with tools. See
 // the Trigger constants. A request with no tools (a title or a summary) gets a
@@ -121,6 +126,7 @@ const (
 	Agy         = "agy"
 	CursorAgent = "cursor-agent"
 	OpenCode    = "opencode"
+	Gemini      = "gemini"
 )
 
 const (
@@ -134,7 +140,7 @@ const (
 
 // Options of Run.
 type Options struct {
-	Agent    string        // codex, claude, agy, cursor-agent or opencode
+	Agent    string        // codex, claude, agy, cursor-agent, opencode or gemini
 	Home     string        // the throwaway home of the test session
 	EnvFile  string        // Run writes the variables here when it serves
 	Log      string        // the log file; Run appends one line per request
@@ -146,12 +152,12 @@ type Options struct {
 // "cursor" and "agent" give CursorAgent.
 func Agent(name string) (string, error) {
 	switch name {
-	case Codex, Claude, Agy, CursorAgent, OpenCode:
+	case Codex, Claude, Agy, CursorAgent, OpenCode, Gemini:
 		return name, nil
 	case "cursor", "agent":
 		return CursorAgent, nil
 	}
-	return "", fmt.Errorf("unknown agent %q: use codex, claude, agy, cursor-agent or opencode", name)
+	return "", fmt.Errorf("unknown agent %q: use codex, claude, agy, cursor-agent, opencode or gemini", name)
 }
 
 // Run serves the fake model of one agent until ctx ends or the lifetime ends.
@@ -322,6 +328,16 @@ func prepare(agent, home string, port int) ([][2]string, error) {
 			return nil, err
 		}
 		return [][2]string{}, nil
+	case Gemini:
+		cfg := map[string]any{
+			"security": map[string]any{"auth": map[string]any{"selectedType": "gemini-api-key"}},
+			"general":  map[string]any{"enableAutoUpdate": false, "enableAutoUpdateNotification": false},
+			"privacy":  map[string]any{"usageStatisticsEnabled": false},
+		}
+		if err := writeFile(filepath.Join(home, ".gemini", "settings.json"), jsonText(cfg)); err != nil {
+			return nil, err
+		}
+		return [][2]string{{"GEMINI_API_KEY", "dummy"}, {"GOOGLE_GEMINI_BASE_URL", base}}, nil
 	}
 	onb := map[string]any{
 		"consumerOnboardingComplete":   false,

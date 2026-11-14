@@ -49,7 +49,7 @@ func start(t *testing.T, agent string) (string, string, string, map[string]strin
 		env[k] = v
 	}
 	base := ""
-	for _, k := range []string{"ANTHROPIC_BASE_URL", "CURSOR_API_ENDPOINT", "AGY_LLM_GATEWAY_URL"} {
+	for _, k := range []string{"ANTHROPIC_BASE_URL", "CURSOR_API_ENDPOINT", "AGY_LLM_GATEWAY_URL", "GOOGLE_GEMINI_BASE_URL"} {
 		if v := env[k]; v != "" {
 			base = strings.TrimSuffix(v, "/v1")
 		}
@@ -96,7 +96,7 @@ func post(t *testing.T, url string, body any) string {
 }
 
 func TestAgentNames(t *testing.T) {
-	for in, want := range map[string]string{"codex": Codex, "claude": Claude, "agy": Agy, "cursor-agent": CursorAgent, "cursor": CursorAgent, "agent": CursorAgent, "opencode": OpenCode} {
+	for in, want := range map[string]string{"codex": Codex, "claude": Claude, "agy": Agy, "cursor-agent": CursorAgent, "cursor": CursorAgent, "agent": CursorAgent, "opencode": OpenCode, "gemini": Gemini} {
 		if got, err := Agent(in); err != nil || got != want {
 			t.Errorf("Agent(%q) = %q, %v; want %q", in, got, err, want)
 		}
@@ -365,6 +365,62 @@ func TestOpenCode(t *testing.T) {
 	out = post(t, base+"/v1/chat/completions", map[string]any{"tools": tools, "messages": []any{sys, map[string]any{"role": "user", "content": "Write outside /work/other/x.txt"}}})
 	if !strings.Contains(out, `\"path\":\"/work/other/x.txt\"`) {
 		t.Errorf("outside write reply: %s", out)
+	}
+}
+
+func TestGemini(t *testing.T) {
+	base, home, logFile, env := start(t, Gemini)
+	if env["GEMINI_API_KEY"] != "dummy" {
+		t.Errorf("GEMINI_API_KEY: %q", env["GEMINI_API_KEY"])
+	}
+	cfg, err := os.ReadFile(filepath.Join(home, ".gemini", "settings.json"))
+	if err != nil || !strings.Contains(string(cfg), `"selectedType": "gemini-api-key"`) || !strings.Contains(string(cfg), `"usageStatisticsEnabled": false`) {
+		t.Errorf("settings.json: %s, %v", cfg, err)
+	}
+	url := base + "/v1beta/models/fixture-model:streamGenerateContent?alt=sse"
+	tools := []any{map[string]any{"functionDeclarations": []any{map[string]any{"name": "write_file"}}}}
+	ctx := map[string]any{"role": "user", "parts": []any{map[string]any{"text": "<session_context>\n- **Workspace Directories:**\n  - /work/example\n</session_context>"}}}
+	user := func(texts ...string) map[string]any {
+		var parts []any
+		for _, x := range texts {
+			parts = append(parts, map[string]any{"text": x})
+		}
+		return map[string]any{"role": "user", "parts": parts}
+	}
+	out := post(t, url, map[string]any{"tools": tools, "contents": []any{ctx, user("Create a file")}})
+	if !strings.Contains(out, `"name":"run_shell_command"`) || !strings.Contains(out, `"command":"touch agent-signals-test.txt"`) {
+		t.Errorf("tool reply: %s", out)
+	}
+	out = post(t, url, map[string]any{"tools": tools, "contents": []any{ctx, user("Write a file now.")}})
+	if !strings.Contains(out, `"name":"write_file"`) || !strings.Contains(out, `"file_path":"/work/example/agent-signals-write.txt"`) {
+		t.Errorf("write reply: %s", out)
+	}
+	out = post(t, url, map[string]any{"tools": tools, "contents": []any{ctx, user("Write outside /work/other/x.txt")}})
+	if !strings.Contains(out, `"file_path":"/work/other/x.txt"`) {
+		t.Errorf("outside write reply: %s", out)
+	}
+	// After a cancelled turn, the last text part is the prompt.
+	out = post(t, url, map[string]any{"tools": tools, "contents": []any{ctx, user("Create a file", "Write a file now.")}})
+	if !strings.Contains(out, `"name":"write_file"`) {
+		t.Errorf("prompt after a cancelled turn: %s", out)
+	}
+	resp := map[string]any{"role": "user", "parts": []any{map[string]any{"functionResponse": map[string]any{"name": "write_file"}}}}
+	out = post(t, url, map[string]any{"tools": tools, "contents": []any{ctx, user("Write a file now."), resp}})
+	if !strings.Contains(out, ToolDone) {
+		t.Errorf("tool result reply: %s", out)
+	}
+	schema := map[string]any{"type": "object", "required": []any{"model_choice"}, "properties": map[string]any{"model_choice": map[string]any{"type": "string", "enum": []any{"flash", "pro"}}}}
+	out = post(t, base+"/v1beta/models/fixture-model:generateContent", map[string]any{"contents": []any{user("Create a file")}, "generationConfig": map[string]any{"responseJsonSchema": schema}})
+	if !strings.Contains(out, `{\"model_choice\":\"flash\"}`) {
+		t.Errorf("router reply: %s", out)
+	}
+	out = post(t, base+"/v1beta/models/fixture-model:countTokens", map[string]any{})
+	if !strings.Contains(out, `"totalTokens":1`) {
+		t.Errorf("countTokens: %s", out)
+	}
+	raw, _ := os.ReadFile(logFile)
+	if strings.Contains(string(raw), "Create a file") || strings.Contains(string(raw), "/work/") {
+		t.Errorf("the log holds prompt text: %s", raw)
 	}
 }
 
