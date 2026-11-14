@@ -528,6 +528,15 @@ $_d" ;;
     esac
   done
   IFS=$_ifs
+  # The out folder of the run (the parent of RUN) can hold a name, and the
+  # raw lines hold its path (an open of the folder). It is a root only when
+  # the home is not in it: the home rule gives ~.
+  _o=${run%/*}
+  case $HOME/ in
+    "$_o"/*) ;;
+    *) [ -n "$_o" ] && SCRUB_EXTRA="$SCRUB_EXTRA
+$_o" ;;
+  esac
   mkdir "$raw/scrubbed/raw" || fail scrub
   for f in t0 checks states.tsv sessions.tsv hangup.tsv ebpf.txt ebpf-clock skipped.tsv; do
     [ -f "$raw/$f" ] || continue
