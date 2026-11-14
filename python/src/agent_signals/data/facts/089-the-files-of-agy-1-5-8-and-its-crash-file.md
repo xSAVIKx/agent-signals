@@ -78,8 +78,11 @@ The crash file names the pid of a live agy process, and the process
 deletes it at a normal exit. So a reader can find the live agy processes
 from a list of `crashes/`, with no `ps` and no `lsof`, and then test each
 pid. A file can stay after a crash or a kill: fact 072 and fact 082 saw
-files in `crashes/` with no process. So the reader must test that the pid
-runs. The presence lock (fact 044) stays the test for one conversation.
+files in `crashes/` with no process. The system can also give the pid of
+a stale file to another process. So the reader must test that the pid
+runs, and that the process is agy: the process holds its crash file open
+(item 3), or its command name is agy. The presence lock (fact 044) stays
+the test for one conversation.
 
 The files that tell the state are the same as in 1.4.7: the
 conversation database, the presence lock and the summaries database. A
