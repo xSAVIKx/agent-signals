@@ -45,6 +45,15 @@
 #                      "No, exit". Down moves the selection to "Yes, I
 #                      trust this folder". Enter on Yes goes to idle, Enter
 #                      on No stops the stub.
+#   STUB_SPAWN=yes     each prompt of a session step runs python3, which
+#                      calls getaddrinfo for localhost and connects to
+#                      127.0.0.1 port 9 (the ebpf check sees a fork, an
+#                      exec, a dns call and a connect).
+#   STUB_LEAVE=yes     the answer of the dialog starts a python3 process
+#                      in a new session, which sleeps 120 s and stays
+#                      after the stub ends. Its arguments hold the home of
+#                      the session, so that the stop of the session stops
+#                      it.
 #
 # Each prompt of a session step (Create, Count, /clear, Reply) writes the
 # file stub-work.txt in the current folder, and one record to the file
@@ -118,7 +127,8 @@ draw() {
 held=
 record() {
   [ "${STUB_RECORDS:-}" = no ] && return 0
-  echo stub >stub-work.txt
+  # An absolute path, so that the open of the ebpf check is in WORK.
+  echo stub >"$(pwd)/stub-work.txt"
   if [ -z "$held" ]; then
     held=${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects/$(printf '%s' "$(pwd -P)" | tr -c 'A-Za-z0-9' '-')
     mkdir -p "$held"
@@ -171,6 +181,13 @@ while :; do
       ;;
     dialog)
       case $c in
+        1 | 2 | "$esc")
+          if [ "${STUB_LEAVE:-}" = yes ]; then
+            setsid python3 -I -c 'import time; time.sleep(120)' "$HOME/" </dev/null >/dev/null 2>&1 &
+          fi
+          ;;
+      esac
+      case $c in
         1)
           echo hello >agent-signals-test.txt
           note="created agent-signals-test.txt"
@@ -196,6 +213,9 @@ while :; do
           case $buf in
             "Create a file named"* | Count* | /clear | Reply*)
               record
+              if [ "${STUB_SPAWN:-}" = yes ]; then
+                python3 -I -c 'import socket; socket.getaddrinfo("localhost", 9); s = socket.socket(); s.settimeout(1); s.connect_ex(("127.0.0.1", 9)); s.close()' </dev/null >/dev/null 2>&1
+              fi
               [ "${STUB_EXIT:-}" = yes ] && exit 0
               ;;
           esac

@@ -140,6 +140,120 @@ jobs:
           f=$(ls agent-signals-probe-*.txt)
           grep -c '^### ' "$f"
 
+  # The ebpf check of "kit trace" with the real bpftrace and sudo. The
+  # runner account has "sudo -n". The test fails when bpftrace does not
+  # start, does not attach, or misses an event of the stub agent.
+  ebpf:
+    name: eBPF check (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    # bpftrace 0.20.2 of Ubuntu 24.04 does not start the script on the
+    # kernel of the runner: "the BPF stack limit is exceeded" in
+    # sys_exit_openat. So the job uses the upstream static binary, checked
+    # against its digest.
+    env:
+      BPFTRACE_URL: https://github.com/bpftrace/bpftrace/releases/download/v0.27.1/
+      BPFTRACE_SHA256_X86_64: c8d570302725bd1a3ed2f23bfa8d83dd78bde95daa98856279343052db5799c9
+      BPFTRACE_SHA256_AARCH64: ad159222808d799eaa85424001535836314cf21977a71686b7b7c091b5195672
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install tmux
+        run: sudo apt-get update -q && sudo apt-get install -y -q tmux
+      - name: Install bpftrace 0.27.1
+        run: |
+          case $(uname -m) in
+            x86_64) asset=bpftrace-x86_64 digest=$BPFTRACE_SHA256_X86_64 ;;
+            aarch64) asset=bpftrace-aarch64 digest=$BPFTRACE_SHA256_AARCH64 ;;
+            *) echo "no bpftrace for $(uname -m)"; exit 1 ;;
+          esac
+          bin=$RUNNER_TEMP/bpftrace
+          curl -fsSL -o "$bin" "$BPFTRACE_URL$asset"
+          echo "$digest  $bin" | sha256sum -c -
+          chmod 755 "$bin"
+          # The binary is an AppImage. Some runner images have no working
+          # FUSE (kernel 7.0.0-1014-aws: "Cannot mount AppImage", exit
+          # 127). The extracted AppRun needs no FUSE.
+          (cd "$RUNNER_TEMP" && "$bin" --appimage-extract >/dev/null)
+          echo "KIT_BPFTRACE=$RUNNER_TEMP/squashfs-root/AppRun" >>"$GITHUB_ENV"
+      - name: Versions
+        run: |
+          uname -r
+          dpkg-query -W bpftrace || echo "bpftrace: no package"
+          # The static binary needs root: as the user, it cannot write
+          # uid_map.
+          sudo -n "${KIT_BPFTRACE:-bpftrace}" --version
+          ls -l /sys/kernel/btf/vmlinux
+      - name: eBPF check test
+        run: |
+          KIT_TEST_EBPF=real KIT_TEST_EBPF_RAW=$RUNNER_TEMP/ebpf-raw \
+            sh tools/test-agent-kit.sh tools/agent-kit-tests/test-trace-ebpf.sh
+      # After a failure: the raw record of the first trace of the test. It
+      # holds only the paths of the stub test on the runner. The check
+      # below stops the upload when a line names another path.
+      - name: Check the raw record
+        id: rawcheck
+        if: failure()
+        run: |
+          f=$RUNNER_TEMP/ebpf-raw/ebpf.txt
+          test -s "$f"
+          awk -F '\t' '$2 == "open" || $2 == "exec" { print $NF }' "$f" |
+            grep '^/' | grep -Ev '^(/tmp/|/usr/|/lib|/etc/|/dev/|/proc|/sys/|/bin/|/sbin/|/run/|/var/|/home/runner/work/|$)' |
+            sort -u >"$RUNNER_TEMP/other-paths.txt" || true
+          if [ -s "$RUNNER_TEMP/other-paths.txt" ]; then
+            echo "other paths, no upload:"
+            cat "$RUNNER_TEMP/other-paths.txt"
+            exit 1
+          fi
+      - name: Upload the raw record
+        if: failure() && steps.rawcheck.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ebpf-raw-${{ matrix.os }}
+          path: ${{ runner.temp }}/ebpf-raw/
+          retention-days: 3
+      # After a failure: the raw lines of the script for one long open and
+      # one connect, with no kit around it.
+      - name: Raw lines of the script
+        if: failure()
+        run: |
+          d=$RUNNER_TEMP/a-folder-with-a-long-name-so-that-the-path-has-more-than-64-characters
+          mkdir -p "$d"
+          sleep 300 &
+          stop=$!
+          sudo -n env BPFTRACE_MAX_STRLEN=200 BPFTRACE_MAP_KEYS_MAX=65536 "$KIT_BPFTRACE" -B line \
+            probes/agent/trace-ebpf.bt "$$" "$stop" >"$RUNNER_TEMP/raw.txt" 2>"$RUNNER_TEMP/raw.err" &
+          tracer=$!
+          sleep 10
+          sh -c "echo x >'$d/x.txt'"
+          python3 -I -c 'import socket; s = socket.socket(); s.settimeout(1); s.connect_ex(("127.0.0.1", 9)); s.close()'
+          sleep 1
+          kill "$stop"
+          # bpftrace ends when the sentinel ends. Wait 10 s at most, then
+          # stop it, so that the step still prints the two files.
+          for _ in 1 2 3 4 5 6 7 8 9 10; do
+            kill -0 "$tracer" 2>/dev/null || break
+            sleep 1
+          done
+          if kill -0 "$tracer" 2>/dev/null; then
+            echo "bpftrace did not end in 10 s: stop it"
+            sudo -n kill "$tracer" || true
+            sleep 2
+            sudo -n kill -9 "$tracer" 2>/dev/null || true
+          fi
+          wait "$tracer" 2>/dev/null || true
+          echo "== raw.err"
+          cat "$RUNNER_TEMP/raw.err"
+          echo "== raw.txt: lines that are not exec, fork or exit"
+          awk -F '\t' '$2 != "exec" && $2 != "fork" && $2 != "exit"' "$RUNNER_TEMP/raw.txt" | tail -n 40
+
   windows:
     name: Windows (${{ matrix.os }})
     strategy:

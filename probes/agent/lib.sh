@@ -188,17 +188,93 @@ kit_trace_end_step() {
   return 0
 }
 
+# kit_pid_live PID: true when the process runs and is not a zombie. A
+# child that ended and that its parent did not wait for yet is a zombie,
+# and "kill -0" still works on it.
+kit_pid_live() {
+  kit_pid_runs "$1" || return 1
+  case $(ps -o stat= -p "$1" 2>/dev/null | tr -d ' ') in
+    '' | Z*) return 1 ;;
+  esac
+  return 0
+}
+
 # kit_trace_end_recorders RUN: stop the pids of RUN/pids/ with a trace
-# label (TERM, then KILL after 5 s), and remove their pid files.
+# label (TERM, then KILL after 5 s), and remove their pid files. The
+# sentinel of the ebpf check ("trace ebpf stop") is one of them. Then wait
+# for bpftrace ("trace ebpf"), as kit_trace_wait_ebpf tells.
 kit_trace_end_recorders() {
+  kit_trace_end_labels "$1" "trace proxy" "trace files" "trace ebpf stop"
+  kit_trace_wait_ebpf "$1"
+}
+
+# kit_trace_end_ebpf RUN: stop only the pids of the ebpf check: the
+# sentinel, then bpftrace.
+kit_trace_end_ebpf() {
+  kit_trace_end_labels "$1" "trace ebpf stop"
+  kit_trace_wait_ebpf "$1"
+}
+
+# kit_trace_wait_ebpf RUN: wait 10 s at most for each pid of RUN/pids/
+# with the label "trace ebpf" to end. That pid is the pid of sudo, which
+# runs bpftrace as root. bpftrace stops itself when the sentinel ends.
+# When the pid still runs: TERM to it (sudo has the real user id of the
+# user, and passes TERM to bpftrace), 2 s; then "sudo -n kill -TERM" to
+# each pid of its tree that runs, 2 s; then "sudo -n kill -KILL". A KILL
+# of the sudo pid alone would leave bpftrace as root. It removes the pid
+# files.
+kit_trace_wait_ebpf() {
+  _wr=$1
+  for _wf in "$_wr"/pids/*; do
+    [ -f "$_wf" ] || continue
+    [ "$(awk -F '\t' 'NR == 1 { print $1 }' "$_wf")" = "trace ebpf" ] || continue
+    _wp=${_wf##*/}
+    _wn=0
+    while [ "$_wn" -lt 100 ] && kit_pid_ours "$_wr" "$_wp" && kit_pid_live "$_wp"; do
+      sleep 0.1
+      _wn=$((_wn + 1))
+    done
+    if kit_pid_ours "$_wr" "$_wp" && kit_pid_live "$_wp"; then
+      _wt=$(kit_pid_tree "$_wp")
+      echo "kit: bpftrace did not stop in 10 s, so the kit stops it: $_wp" >&2
+      kill "$_wp" 2>/dev/null
+      sleep 2
+      _wl=
+      for _wq in $_wt; do kit_pid_live "$_wq" && _wl="$_wl $_wq"; done
+      if [ -n "$_wl" ]; then
+        # shellcheck disable=SC2086
+        sudo -n kill -TERM $_wl </dev/null >/dev/null 2>&1
+        sleep 2
+        _wl=
+        for _wq in $_wt; do kit_pid_live "$_wq" && _wl="$_wl $_wq"; done
+        # shellcheck disable=SC2086
+        [ -z "$_wl" ] || sudo -n kill -KILL $_wl </dev/null >/dev/null 2>&1
+        _wl=
+        for _wq in $_wt; do kit_pid_live "$_wq" && _wl="$_wl $_wq"; done
+        [ -z "$_wl" ] || echo "kit: bpftrace still runs as root, stop it by hand: sudo kill$_wl" >&2
+      fi
+    fi
+    wait "$_wp" 2>/dev/null
+    rm -f "$_wf"
+  done
+  return 0
+}
+
+# kit_trace_end_labels RUN LABEL...: stop the pids of RUN/pids/ with one of
+# the labels (TERM, then KILL after 5 s), and remove their pid files.
+kit_trace_end_labels() {
   _er=$1
-  set --
+  shift
+  _el=
   for _f in "$_er"/pids/*; do
     [ -f "$_f" ] || continue
-    case $(awk -F '\t' 'NR == 1 { print $1 }' "$_f") in
-      "trace proxy" | "trace files") set -- "$@" "${_f##*/}" ;;
-    esac
+    _lb=$(awk -F '\t' 'NR == 1 { print $1 }' "$_f")
+    for _w in "$@"; do
+      [ "$_lb" = "$_w" ] && _el="$_el ${_f##*/}"
+    done
   done
+  # shellcheck disable=SC2086
+  set -- $_el
   [ "$#" -gt 0 ] || return 0
   for _p in "$@"; do kit_pid_ours "$_er" "$_p" && kill "$_p" 2>/dev/null; done
   _n=0

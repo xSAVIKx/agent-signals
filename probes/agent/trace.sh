@@ -2,9 +2,9 @@
 # kit trace NAME@BACKEND [--checks LIST] [ARGS]: run one step of the
 # current run with recorders, and write a trace of it.
 #
-# LIST is a comma list of the checks terminal, network and files. The
-# default is all three. The check ebpf is not in this kit yet. An unknown
-# check or option is bad use. --checks comes before NAME or just after it.
+# LIST is a comma list of the checks terminal, network, files and ebpf.
+# The default is terminal,network,files. An unknown check or option is bad
+# use. --checks comes before NAME or just after it.
 # ARGS go to "kit step".
 #
 # The order:
@@ -32,11 +32,28 @@
 #      inotify, the file skipped.tsv gets a line for files.
 #      Both recorders get --parent with the pid of this script. They stop
 #      when this script is gone, also after a KILL.
+#   4b. ebpf: not on Linux, skip "ebpf not-linux". bt is KIT_BPFTRACE, or
+#      bpftrace on PATH. No file at bt: skip "ebpf no-bpftrace". No sudo,
+#      or "sudo -n true" fails: skip "ebpf no-sudo". Else write ebpf-clock
+#      (epoch ms minus boot ms), start the sentinel "sleep 7200" (the pid
+#      label "trace ebpf stop"), print the command to stderr, and start
+#      "sudo -n env ... bt -B line trace-ebpf.bt PID SENTINEL" (the pid
+#      label "trace ebpf") with its stdout in ebpf.txt and its stderr in
+#      ebpf.err. The shell opens both files as the user. bpftrace stops
+#      when this script or the sentinel ends, also after a KILL. The ready
+#      check: at most KIT_EBPF_READY_TURNS (default 60) turns of 0.5 s.
+#      Each turn runs the canary "sleep 0.2", and the check is ready when
+#      ebpf.txt has the exec of a canary. When bpftrace ends first: print
+#      the first 5 lines of ebpf.err with the prefix "kit: " and skip
+#      "ebpf bpftrace-failed". After the last turn: skip "ebpf no-ready".
+#      Each skip stops the pids of the check. A skip never fails the trace.
+#      When bpftrace ends during the step: skip "ebpf tracer-ended".
 #   5. Run "kit step NAME@BACKEND ARGS" with KIT_TRACE (the raw folder) and
 #      KIT_TRACE_CHECKS (LIST) in the environment, and TMPDIR set to a
 #      folder in the raw folder. Keep its exit code and its output lines.
 #   6. Stop each session of the trace that still runs. Stop the recorders
-#      by pid: TERM, then KILL after 5 s. Remove their pid files.
+#      by pid: TERM, then KILL after 5 s. Wait 10 s at most for bpftrace
+#      (kit_trace_end_recorders in lib.sh). Remove their pid files.
 #   7. Write the meta file: the run facts of manifest.tsv, the agent and
 #      the step of the step line, the agent version from "kit doctor"
 #      (which never runs the agent), the runner image, the machine and
@@ -60,32 +77,34 @@
 # gets "terminal<tab>no-cast".
 #
 # A recorder that does not start gives "trace: NAME@BACKEND fail REASON"
-# and exit 1 before the step runs. A signal (INT, TERM) stops the step and
-# its sessions, stops the recorders, and deletes RUN/.trace.
-# Exit codes: the code of the step, 1 fail, 2 bad use, 3 no python3.
+# and exit 1 before the step runs. The ebpf check is different: when it
+# does not start, the trace skips it with a reason and goes on. A signal
+# (INT, TERM) stops the step and its sessions, stops the recorders, and
+# deletes RUN/.trace.
+# Exit codes: the code of the step, 1 fail, 2 bad use, 3 no python3. A
+# skip of a check does not change the exit code.
 set -u
 . "$(dirname "$0")/lib.sh"
 
 usage() { kit_die "$KIT_USAGE" "usage: kit trace NAME@BACKEND [--checks LIST] [ARGS]"; }
 
 # set_checks LIST: check LIST and set checks to its words in the fixed
-# order terminal, network, files.
+# order terminal, network, files, ebpf.
 checks=
 set_checks() {
-  [ -n "$1" ] || kit_die "$KIT_USAGE" "--checks needs a list: terminal, network, files"
+  [ -n "$1" ] || kit_die "$KIT_USAGE" "--checks needs a list: terminal, network, files, ebpf"
   _old=$IFS
   IFS=,
   for _w in $1; do
     case $_w in
-      terminal | network | files) ;;
-      ebpf) kit_die "$KIT_USAGE" "the ebpf check is not in this kit yet" ;;
-      *) kit_die "$KIT_USAGE" "unknown check: '$_w'. Use terminal, network, files" ;;
+      terminal | network | files | ebpf) ;;
+      *) kit_die "$KIT_USAGE" "unknown check: '$_w'. Use terminal, network, files, ebpf" ;;
     esac
   done
   IFS=$_old
   case $1 in ,* | *, | *,,*) kit_die "$KIT_USAGE" "unknown check: an empty word in '$1'" ;; esac
   checks=
-  for _w in terminal network files; do
+  for _w in terminal network files ebpf; do
     kit_has_word "$1" "$_w" && checks=${checks:+$checks,}$_w
   done
 }
@@ -287,6 +306,66 @@ if kit_has_word "$checks" files; then
   fi
 fi
 
+# 4b. The ebpf check. A skip never fails the trace.
+ebpf_skip() {
+  printf 'ebpf\t%s\n' "$1" >>"$raw/skipped.tsv"
+  kit_trace_end_ebpf "$run"
+}
+if kit_has_word "$checks" ebpf; then
+  bt=${KIT_BPFTRACE:-$(command -v bpftrace 2>/dev/null)}
+  if [ "$(uname -s)" != Linux ]; then
+    ebpf_skip not-linux
+  elif [ -z "$bt" ] || [ ! -f "$bt" ]; then
+    ebpf_skip no-bpftrace
+  elif ! command -v sudo >/dev/null 2>&1 || ! sudo -n true </dev/null >/dev/null 2>&1; then
+    ebpf_skip no-sudo
+  else
+    python3 -I -c 'import time; print(time.time_ns() // 1000000 - time.clock_gettime_ns(time.CLOCK_BOOTTIME) // 1000000)' \
+      >"$raw/ebpf-clock" 2>/dev/null || rm -f "$raw/ebpf-clock"
+    # The sentinel: bpftrace stops when this pid ends. It holds no file of
+    # the caller open.
+    # shellcheck disable=SC2217
+    sleep 7200 </dev/null >/dev/null 2>&1 &
+    espid=$!
+    kit_add_pid "$run" "$espid" "trace ebpf stop"
+    echo "kit: the ebpf check runs: sudo -n env BPFTRACE_MAX_STRLEN=200 BPFTRACE_MAP_KEYS_MAX=65536 $bt -B line $KIT_DIR/trace-ebpf.bt $$ $espid" >&2
+    # No -o: the shell opens both files as the user. The pid is the pid of
+    # sudo, which runs bpftrace as its child and passes TERM to it.
+    # shellcheck disable=SC2024
+    sudo -n env BPFTRACE_MAX_STRLEN=200 BPFTRACE_MAP_KEYS_MAX=65536 "$bt" -B line "$KIT_DIR/trace-ebpf.bt" "$$" "$espid" \
+      </dev/null >"$raw/ebpf.txt" 2>"$raw/ebpf.err" &
+    ebpid=$!
+    kit_add_pid "$run" "$ebpid" "trace ebpf"
+    # The ready check: the exec of a canary is in ebpf.txt. The canary
+    # lives 0.2 s, so that a check that polls /proc sees it too.
+    canaries=
+    ready=
+    _n=0
+    while [ "$_n" -lt "${KIT_EBPF_READY_TURNS:-60}" ]; do
+      if ! kit_pid_live "$ebpid"; then
+        sed -n '1,5s/^/kit: /p' "$raw/ebpf.err" >&2
+        ebpf_skip bpftrace-failed
+        ready=skip
+        break
+      fi
+      # shellcheck disable=SC2217
+      sleep 0.2 </dev/null >/dev/null 2>&1 &
+      canaries="$canaries $!"
+      wait "$!"
+      if awk -F '\t' -v c="$canaries" '
+        BEGIN { n = split(c, w, " "); for (i = 1; i <= n; i++) want[w[i]] = 1 }
+        $2 == "exec" && ($3 in want) { f = 1; exit }
+        END { exit f ? 0 : 1 }' "$raw/ebpf.txt"; then
+        ready=1
+        break
+      fi
+      sleep 0.3
+      _n=$((_n + 1))
+    done
+    [ -n "$ready" ] || ebpf_skip no-ready
+  fi
+fi
+
 # 5. The step.
 KIT_TRACE=$raw
 KIT_TRACE_CHECKS=$checks
@@ -309,6 +388,15 @@ printf '%s\t%s\n' "$step_pid" "$(kit_pid_start "$step_pid")" >"$raw/.step.tmp" &
 wait "$step_pid"
 code=$?
 step_pid=
+# bpftrace must run until the stop. When it ended during the step, the
+# record misses the events of the end of the step: skip the check with
+# the reason tracer-ended, so that no trace shows an incomplete record as
+# a full one.
+if [ "${ready:-}" = 1 ] && ! kit_pid_live "$ebpid"; then
+  echo "kit: bpftrace ended before the end of the step, so the trace skips the ebpf check" >&2
+  sed -n '1,5s/^/kit: /p' "$raw/ebpf.err" >&2
+  printf 'ebpf\ttracer-ended\n' >>"$raw/skipped.tsv"
+fi
 
 # 6. Stop the sessions that stay, and the recorders.
 end_sessions

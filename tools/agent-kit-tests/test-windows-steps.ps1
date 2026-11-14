@@ -38,8 +38,19 @@ function Expect-NoLine([string]$Name, [string]$Pattern, [string]$File) {
 function Get-StepFile([string]$Filter) {
     return @(Get-ChildItem -LiteralPath $run -Filter $Filter -File | Sort-Object Name | Select-Object -Last 1)[0].FullName
 }
+# Start-Stub: a stub claude in its own console. The guided watch counts a
+# session only when a console host runs below it, so wait for the conhost
+# of the stub: 15 s at most (a slow runner needed more than 2 s).
 function Start-Stub {
-    return (Start-Process -FilePath $Exe -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$bin\claude.ps1`"") -WindowStyle Hidden -PassThru)
+    $p = Start-Process -FilePath $Exe -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$bin\claude.ps1`"") -WindowStyle Hidden -PassThru
+    $end = (Get-Date).AddSeconds(15)
+    while ((Get-Date) -lt $end) {
+        $h = @(Get-CimInstance Win32_Process -Filter "ParentProcessId=$($p.Id)" -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -in @('conhost.exe', 'OpenConsole.exe') })
+        if ($h.Count -gt 0) { break }
+        Start-Sleep -Milliseconds 200
+    }
+    return $p
 }
 
 # The lines of a Claude welcome box that can show a name are blank.

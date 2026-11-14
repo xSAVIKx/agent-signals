@@ -85,8 +85,10 @@ trace_pids() {
 }
 
 # The fixture run. The first trace comes just after "kit start", so the
-# work root and RUN/home do not exist yet.
-WATCH=3
+# work root and RUN/home do not exist yet. WATCH caps each wait of a step.
+# With 3 s, the idle wait after the trust question of the stub ended too
+# early on a busy CPU (fail no-idle, seen on the one-CPU runners).
+WATCH=6
 export WATCH
 kitx start --home fixture --out "$D" >"$T/log" 2>&1
 expect_code "kit start exits 0" 0 $?
@@ -172,10 +174,15 @@ j=$run/traces/03-permission-claude@tmux/trace.json
 want "operator TMPDIR: summary.files.tmp holds the temp file of the stub" "$j" 'len(d["summary"]["files"]["tmp"]) > 0 and all(p.startswith("TMP/") for p in d["summary"]["files"]["tmp"])'
 want "operator TMPDIR: no path names the folder" "$j" '"optmp" not in json.dumps(d)'
 
+# The ebpf check with no bpftrace: a skip, not a failure. The folder number
+# is 04.
+: >"$T/mark"
+(KIT_BPFTRACE=$T/none && export KIT_BPFTRACE && kitx trace permission-claude@tmux --checks terminal,ebpf) >"$T/t3" 2>&1
+trace_code "ebpf, no bpftrace: exit 0" 0 $? "$T/t3"
+j=$run/traces/04-permission-claude@tmux/trace.json
+want "ebpf, no bpftrace: the skip no-bpftrace" "$j" '{"check": "ebpf", "reason": "no-bpftrace"} in d["meta"]["skipped"] and d["meta"]["checks"] == ["terminal"]'
+
 # Bad use.
-kitx trace permission-claude@tmux --checks ebpf >"$T/t3" 2>&1
-expect_code "ebpf: exit 2" 2 $?
-expect_line "ebpf: the text" 'the ebpf check is not in this kit yet' "$T/t3"
 kitx trace permission-claude@tmux --checks terminal,disk >"$T/t3" 2>&1
 expect_code "an unknown check: exit 2" 2 $?
 kitx trace --bogus permission-claude@tmux >"$T/t3" 2>&1
@@ -184,16 +191,18 @@ kitx trace >"$T/t3" 2>&1
 expect_code "no step: exit 2" 2 $?
 kitx trace no-such-step@tmux >"$T/t3" 2>&1
 expect_code "an unknown step: exit 2" 2 $?
-if [ ! -e "$run/.trace" ] && [ ! -e "$run/traces/04-permission-claude@tmux" ]; then pass "bad use: no trace folder"; else fail "bad use: no trace folder" "a folder exists"; fi
+if [ ! -e "$run/.trace" ] && [ ! -e "$run/traces/05-permission-claude@tmux" ]; then pass "bad use: no trace folder"; else fail "bad use: no trace folder" "a folder exists"; fi
 
 # A step that fails: the agent shows no idle screen.
 cp "$B/claude" "$T/stub-claude"
 cp "$T/other/claude" "$B/claude"
 kitx trace permission-claude@tmux >"$T/t4" 2>&1
-expect_code "failed step: exit 1" 1 $?
+rc4=$?
+expect_code "failed step: exit 1" 1 "$rc4"
+[ "$rc4" = 1 ] || sed "s/^/  | /" "$T/t4"
 cp "$T/stub-claude" "$B/claude"
 expect_line "failed step: the step line" '^step: permission-claude@tmux fail no-idle' "$T/t4"
-j=$run/traces/04-permission-claude@tmux/trace.json
+j=$run/traces/05-permission-claude@tmux/trace.json
 expect_file "failed step: trace.json exists" "$j"
 want "failed step: the state start" "$j" '"start" in [s["state"] for s in d["states"]]'
 if [ -z "$(trace_pids)" ]; then pass "failed step: no trace pid stays"; else fail "failed step: no trace pid stays" "$(trace_pids)"; fi
@@ -203,7 +212,7 @@ if [ -z "$(trace_pids)" ]; then pass "failed step: no trace pid stays"; else fai
 if [ -z "$(PATH="$B:$SYS_PATH" command -v codex)" ]; then
   (cd "$D" && HOME=$H PATH="$B:$SYS_PATH" AGENT_SIGNALS_WATCH=3 sh "$ROOT/probes/agent/kit.sh" trace permission-codex@tmux </dev/null) >"$T/t5" 2>&1
   expect_code "skipped step: exit 3" 3 $?
-  j=$run/traces/05-permission-codex@tmux/trace.json
+  j=$run/traces/06-permission-codex@tmux/trace.json
   want "skipped step: terminal no-cast" "$j" '{"check": "terminal", "reason": "no-cast"} in d["meta"]["skipped"] and d["terminal"] is None'
   want "skipped step: the step name is the meta step" "$j" 'd["meta"]["step"] == "permission-codex@tmux"'
 else
@@ -211,7 +220,8 @@ else
 fi
 
 # A second trace while a trace runs: exit 2.
-(WATCH=6 && export WATCH && kitx trace permission-claude@tmux) >"$T/t6" 2>&1 &
+: >"$T/mark"
+(WATCH=10 && export WATCH && kitx trace permission-claude@tmux) >"$T/t6" 2>&1 &
 first=$!
 bg_pid "$first"
 n=0
@@ -222,7 +232,7 @@ done
 kitx trace permission-claude@tmux --checks terminal >"$T/t7" 2>&1
 expect_code "a second trace: exit 2" 2 $?
 wait "$first"
-expect_code "the first trace: exit 0" 0 $?
+trace_code "the first trace: exit 0" 0 $? "$T/t6"
 if [ ! -e "$run/.trace" ]; then pass "the first trace deletes RUN/.trace"; else fail "the first trace deletes RUN/.trace" "it exists"; fi
 
 # TERM while the step runs: the trace stops the step, its session and the
@@ -370,14 +380,15 @@ mkdir -p "$R"
 D2=$T/out2
 mkdir -m 0700 "$D2"
 kitr() {
-  (cd "$D2" && HOME=$R PATH="$B:$PATH" AGENT_SIGNALS_WATCH=3 \
+  (cd "$D2" && HOME=$R PATH="$B:$PATH" AGENT_SIGNALS_WATCH=6 \
     KITSH=$ROOT/probes/agent/kit.sh "$T/orch/claude" "$@" </dev/null)
 }
 kitr start --home real --out "$D2" >"$T/log" 2>&1
 expect_code "real home: kit start exits 0" 0 $?
 run=$(run_of "$D2")
+: >"$T/mark"
 kitr trace permission-claude@tmux >"$T/t8" 2>&1
-expect_code "real home: exit 0" 0 $?
+trace_code "real home: exit 0" 0 $? "$T/t8"
 tr8=$run/traces/01-permission-claude@tmux
 j=$tr8/trace.json
 want "real home: home paths start with ~" "$j" 'any(e.get("path", "").startswith("~/.claude/") for e in ev) and all(not e.get("path", "").startswith("/") for e in ev if e["kind"] != "proxy")'
@@ -394,8 +405,9 @@ while [ "$k" -lt 80 ]; do
   mkdir -p "$R/folder$k"
   k=$((k + 1))
 done
+: >"$T/mark"
 (KIT_TRACE_WATCH_LIMIT=64 && export KIT_TRACE_WATCH_LIMIT && kitr trace permission-claude@tmux) >"$T/t10" 2>&1
-expect_code "real home, small limit: exit 0" 0 $?
+trace_code "real home, small limit: exit 0" 0 $? "$T/t10"
 j=$run/traces/02-permission-claude@tmux/trace.json
 want "real home, small limit: files_limit is true" "$j" 'd["meta"]["files_limit"] is True'
 want "real home, small limit: the file of the stub in WORK" "$j" '"WORK/stub-work.txt" in d["summary"]["files"]["work"]'
@@ -406,14 +418,15 @@ want "real home, small limit: a file in ~/.claude" "$j" 'any(p.startswith("~/.cl
 D3=$T/out3
 mkdir -m 0700 "$D3"
 kitt() {
-  (cd "$D3" && HOME=$H PATH="$B:$PATH" AGENT_SIGNALS_WATCH=3 \
+  (cd "$D3" && HOME=$H PATH="$B:$PATH" AGENT_SIGNALS_WATCH=6 \
     KITSH=$ROOT/probes/agent/kit.sh "$T/orch/claude" "$@" </dev/null)
 }
 kitt start --home throwaway --out "$D3" >"$T/log" 2>&1
 expect_code "throwaway home: kit start exits 0" 0 $?
 run=$(run_of "$D3")
+: >"$T/mark"
 kitt trace permission-claude@tmux >"$T/t11" 2>&1
-expect_code "throwaway home: exit 0" 0 $?
+trace_code "throwaway home: exit 0" 0 $? "$T/t11"
 expect_line "throwaway home: the step skips with no-login" '^step: permission-claude@tmux skip no-login' "$T/t11"
 j=$run/traces/01-permission-claude@tmux/trace.json
 want "throwaway home: the mode is none" "$j" 'd["meta"]["mode"] == "none" and d["meta"]["home"] == "throwaway"'

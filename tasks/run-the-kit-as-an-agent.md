@@ -369,6 +369,12 @@ Do the task as written, with these changes in step 5:
    kit trace NAME@BACKEND
    ```
 
+   Add `--checks terminal,network,files,ebpf` only when the prompt asks
+   for the ebpf check. That check runs bpftrace as root with `sudo -n`,
+   and works only on Linux. Do not run `sudo -v` yourself. When the trace
+   skips the check, `meta.skipped` of `trace.json` gives the reason. Tell
+   the operator that reason.
+
    Before each trace, read the `step` lines of `manifest.tsv` in the run
    folder. Give your shell tool a time limit of 10 minutes, as for
    `kit step`. Only one trace can run in a run at a time. The command prints the line
@@ -376,7 +382,9 @@ Do the task as written, with these changes in step 5:
    the code of the step.
 2. When the trace prints `operator` (exit code 4), do as for `kit step`.
    Tell the operator each action, and wait until the operator says that
-   the action is done. Then run the same trace again with `--ready`:
+   the action is done. Then run the same trace again with `--ready`. When
+   the first trace had a `--checks` argument, give the same argument
+   again:
 
    ```sh
    kit trace NAME@BACKEND --ready
