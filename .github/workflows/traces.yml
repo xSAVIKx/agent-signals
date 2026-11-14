@@ -283,6 +283,11 @@ jobs:
     if: ${{ !cancelled() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    # One issues job at a time, so that two runs do not plan from the same
+    # issue list and open one issue two times. A new run waits.
+    concurrency:
+      group: traces-issues
+      cancel-in-progress: false
     permissions:
       contents: read
       issues: write
