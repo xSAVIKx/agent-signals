@@ -178,7 +178,11 @@ jobs:
           curl -fsSL -o "$bin" "$BPFTRACE_URL$asset"
           echo "$digest  $bin" | sha256sum -c -
           chmod 755 "$bin"
-          echo "KIT_BPFTRACE=$bin" >>"$GITHUB_ENV"
+          # The binary is an AppImage. Some runner images have no working
+          # FUSE (kernel 7.0.0-1014-aws: "Cannot mount AppImage", exit
+          # 127). The extracted AppRun needs no FUSE.
+          (cd "$RUNNER_TEMP" && "$bin" --appimage-extract >/dev/null)
+          echo "KIT_BPFTRACE=$RUNNER_TEMP/squashfs-root/AppRun" >>"$GITHUB_ENV"
       - name: Versions
         run: |
           uname -r
