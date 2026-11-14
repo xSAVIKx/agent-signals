@@ -139,7 +139,7 @@ if [ -n "$ran" ]; then
   f=$run/$(last_file)
   expect_line "snapshot gap: the file gives the size" '^clock gap: the after snapshot of the watch took [0-9]+ s of wall time, at [0-9]+ s of counted time \(the guided watch\)$' "$f"
   expect_line "snapshot gap: the guided step has the gap line" '^watch: clock gap of [0-9]+ s: ' "$f"
-  grep -q '^watch: clock gap of ' "$f" || sed -n '/^################ log$/,$p' "$f" | sed 's/^/  log| /'
+  grep -Eq '^watch: clock gap of [0-9]+ s: ' "$f" || sed -n '/^################ log$/,$p' "$f" | sed 's/^/  log| /'
   (WATCH=4 && AGENT_SIGNALS_CLOCK_JUMP=9x && AGENT_SIGNALS_CLOCK_JUMP_AT=end && export WATCH AGENT_SIGNALS_CLOCK_JUMP AGENT_SIGNALS_CLOCK_JUMP_AT && kitx step "permission-claude@$ran") >"$T/step" 2>&1
   expect_no_line "bad jump: the kit ignores it" 'clock-gap' "$T/step"
 fi
