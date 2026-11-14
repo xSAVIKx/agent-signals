@@ -204,6 +204,23 @@ func TestPrivateTextIsAProblem(t *testing.T) {
 	}
 }
 
+// A word after session_ with no digit is not a session address: a file of
+// the plugin marketplace of Claude Code is test_review_session_persistence.py.
+func TestASessionWordIsAllowed(t *testing.T) {
+	root := corpus(t)
+	write(t, root, "corpus/claude/screens/ask.screen", goodScreen+" test_review_session_persistence.py\n")
+	if p := check(t, root); len(p) != 0 {
+		t.Fatalf("want no problem, got %v", p)
+	}
+}
+
+// A session address after a session word on the same text is still found.
+func TestASessionAddressAfterASessionWordIsAProblem(t *testing.T) {
+	root := corpus(t)
+	write(t, root, "corpus/claude/screens/ask.screen", goodScreen+" session_persistence session_0123456789abcdef\n")
+	wantOne(t, check(t, root), "corpus/claude/screens/ask.screen", "line 6 holds a session address")
+}
+
 func TestTheScrubbedPathIsAllowed(t *testing.T) {
 	root := corpus(t)
 	write(t, root, "corpus/claude/screens/ask.screen", goodScreen+" /work/example\n")
