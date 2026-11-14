@@ -271,7 +271,9 @@ different source.
    runs, also when your shell tool stops waiting for the first step. The
    kit refuses the second step with exit code 2 and the line `another kit
    step runs in this run`. Wait until the first step prints its `step:`
-   line, then go on.
+   line, then go on. When your shell tool ended the `kit step` command, the
+   step still runs to its end and adds its line to `summary.txt` in the run
+   folder. Read its result there.
 
    ```sh
    kit step NAME@BACKEND

@@ -29,7 +29,9 @@
 # manifest has the meta line "awake" with caffeinate (kit start on macOS,
 # unattended), "caffeinate -i -w PID" runs while the script runs.
 # Exit codes: the code of the script (0, 1, 3 or 4), 2 for bad use. A call
-# while another "kit step" of the same run runs is bad use.
+# while another "kit step" of the same run runs is bad use. A script that
+# ends on a signal (exit 129, 130 or 143) gives "fail interrupted". A
+# signal to this process waits for the end of the script.
 set -u
 . "$(dirname "$0")/lib.sh"
 
@@ -64,20 +66,36 @@ needs=$(kit_step_field "$name" needs)
 # the same file number and the same session name, and each one breaks the
 # session of the other. The lock is a symbolic link RUN/.step.lock to the
 # pid of the step: "ln -s" makes it in one operation. A lock whose pid does
-# not run is stale (a step that got kill -9), and the step deletes it.
+# not run is stale (a step that got kill -9), and the step deletes it. The
+# step script writes its pid to RUN/.step.script. After a kill -9 of "kit
+# step" only, that script runs on until it sees the end of "kit step" and
+# stops its session, so a stale lock with a running script still holds.
 lock=$run/.step.lock
+spid=$run/.step.script
 locked=
 take_lock() {
   ln -s "$$" "$lock" 2>/dev/null && return 0
   _p=$(readlink "$lock" 2>/dev/null) || _p=
   case $_p in '' | *[!0-9]*) ;; *) kill -0 "$_p" 2>/dev/null && return 1 ;; esac
-  rm -f "$lock"
+  _s=$(cat "$spid" 2>/dev/null) || _s=
+  case $_s in '' | *[!0-9]*) ;; *) kill -0 "$_s" 2>/dev/null && return 1 ;; esac
+  rm -f "$lock" "$spid"
   ln -s "$$" "$lock" 2>/dev/null
 }
 take_lock || kit_die "$KIT_USAGE" "another kit step runs in this run (pid $(readlink "$lock" 2>/dev/null)). Wait until it ends, then run $name@$backend again"
 locked=1
 awake=
-trap '[ -z "$awake" ] || kill "$awake" 2>/dev/null; [ -z "$locked" ] || rm -f "$lock"' EXIT
+trap '[ -z "$awake" ] || kill "$awake" 2>/dev/null; [ -z "$locked" ] || rm -f "$lock" "$spid"' EXIT
+# A signal (Ctrl+C, a closed terminal, a kill by the tool of an
+# orchestrator) must not end this process while the step script runs: the
+# script would then run on with no lock and no manifest line. The shell
+# runs the trap when the script ends, and the step ends as usual. The
+# script gets KIT_STEP_PID and ends itself when this process is gone (kill
+# -9).
+sig=
+trap 'sig=INT' INT
+trap 'sig=TERM' TERM
+trap 'sig=HUP' HUP
 
 # record RESULT START END FILE SHA REASON: add a step line, and write the
 # JSON manifest and the summary again.
@@ -128,9 +146,10 @@ KIT_RUN=$run KIT_ROOT=$KIT_ROOT KIT_DIR=$KIT_DIR KIT_STEP=$name KIT_KIND=$kind K
   KIT_BUSY_REGEX=$(kit_step_field "$name" busy_regex) \
   KIT_DIALOG_REGEX=$(kit_step_field "$name" dialog_regex) \
   KIT_WINDOWS=$(kit_step_field "$name" windows) \
-  KIT_HOME=$home KIT_OUT=$out \
-  sh "$script" "$@" </dev/null
+  KIT_HOME=$home KIT_OUT=$out KIT_STEP_PID=$$ \
+  sh -c 'echo "$$" >"$0" && exec sh "$@"' "$spid" "$script" "$@" </dev/null
 code=$?
+[ -z "$sig" ] || echo "kit: the step got SIG$sig. It ended first." >&2
 if [ -n "$awake" ]; then
   kill "$awake" 2>/dev/null
   wait "$awake" 2>/dev/null
@@ -144,6 +163,7 @@ case $code in
   3) result=skip ;;
   4) result=operator ;;
   1) result=fail ;;
+  129 | 130 | 143) result=fail reason=${reason:-interrupted} code=1 ;;
   *) result=fail reason=${reason:-exit-$code} code=1 ;;
 esac
 

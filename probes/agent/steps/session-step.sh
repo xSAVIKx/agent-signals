@@ -167,8 +167,17 @@ cleanup() {
 ses() { sh "$KIT_DIR/session.sh" "$@"; }
 
 # screen FILE: the screen of the session now. It fails when it reads no
-# screen.
-screen() { ses screen "$sess" >"$1" 2>/dev/null && [ -s "$1" ]; }
+# screen. Each wait reads the screen, so this is also where the step sees
+# that its "kit step" process is gone (kill -9 of it): then it stops its
+# session and ends.
+gone=
+screen() {
+  if [ -z "$gone" ] && [ -n "${KIT_STEP_PID:-}" ] && ! kill -0 "$KIT_STEP_PID" 2>/dev/null; then
+    gone=1
+    stop_now kit-step-ended
+  fi
+  ses screen "$sess" >"$1" 2>/dev/null && [ -s "$1" ]
+}
 
 # has RE FILE: true when RE is not empty and a line of FILE matches it.
 has() { [ -n "$1" ] && grep -Eq -- "$1" "$2"; }
@@ -275,6 +284,13 @@ wait_re() {
 # start_session [ARGS]: start the session with the agent command and ARGS.
 keep=
 start_session() {
+  # A session of this name that did not stop belongs to a step that ended
+  # with no cleanup (kill -9 of the step and its script). This step holds
+  # the step lock, so no other step uses it: stop it first.
+  if [ -d "$KIT_RUN/sessions/$sess" ] && [ ! -f "$KIT_RUN/sessions/$sess/stopped" ]; then
+    say "a session of an ended step stayed: stop it"
+    ses stop "$sess" >>"$tmp/log" 2>&1
+  fi
   # shellcheck disable=SC2086
   ses start "$sess" "$KIT_AGENT" --via "$KIT_BACKEND" --cmd "$cmd${1:+ $1}" \
     ${KIT_ARGS:+--args "$KIT_ARGS"} $keep >"$tmp/start" 2>&1
@@ -643,6 +659,8 @@ end=$(($(date +%s) + $(clip 60)))
 until grep -q '^kit: watch starts' "$tmp/watch.log"; do
   if ! watching; then
     say "the guided watch stopped before it started"
+    # The watch stops when it finds no agent. Then the agent is the cause.
+    alive || stop_now agent-ended
     stop_now no-watch
   fi
   if [ "$(date +%s)" -gt "$end" ]; then

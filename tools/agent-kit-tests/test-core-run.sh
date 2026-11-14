@@ -82,10 +82,20 @@ expect_line "the refusal names the other step" 'another kit step runs in this ru
 if [ "$(grep -c '^step' "$run/manifest.tsv")" = "$lines" ]; then pass "the refused step adds no manifest line"; else fail "the refused step adds no manifest line" "$(cat "$run/manifest.tsv")"; fi
 kill "$holder" 2>/dev/null
 wait "$holder" 2>/dev/null
+# A stale lock whose step script still runs (kill -9 of "kit step" only)
+# holds until that script ends.
+sleep 30 &
+holder=$!
+echo "$holder" >"$run/.step.script"
+(cd "$D" && HOME=$H PATH=$P kit step probe@none </dev/null) >"$T/out" 2>&1
+expect_code "a stale lock with a running step script is bad use" 2 $?
+kill "$holder" 2>/dev/null
+wait "$holder" 2>/dev/null
 # The lock of a step that ended without its cleanup (kill -9) is stale.
 (cd "$D" && HOME=$H PATH=$P kit step probe@none </dev/null) >"$T/out" 2>&1
 expect_code "a stale lock does not stop a step" 0 $?
 if [ -e "$run/.step.lock" ] || [ -L "$run/.step.lock" ]; then fail "the step deletes its lock" "$(ls -la "$run")"; else pass "the step deletes its lock"; fi
+if [ -e "$run/.step.script" ]; then fail "the step deletes its script pid file" "it stays"; else pass "the step deletes its script pid file"; fi
 
 # Bad use.
 (cd "$D" && kit step no-such@none) >"$T/out" 2>&1
