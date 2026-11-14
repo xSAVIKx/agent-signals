@@ -406,7 +406,21 @@ try {
     # Two sessions: the kit cannot know the session of the operator.
     $late2 = Start-Stub
     Start-Sleep -Seconds 2
-    Expect-Kit 'real-session --ready refuses two sessions' 4 'step' 'real-session-claude@operator' '--ready'
+    $c2 = Invoke-Kit 'step' 'real-session-claude@operator' '--ready'
+    Expect-Code 'real-session --ready refuses two sessions' 4 $c2
+    if ($c2 -ne 4) {
+        # This case failed at random on windows-2025 and windows-2022: the
+        # watch counted one session. Show the stubs and the processes that
+        # the step file names.
+        Show-Out
+        "  | stubs: late=$($late.Id) exited=$($late.HasExited) late2=$($late2.Id) exited=$($late2.HasExited)"
+        $f2 = Get-StepFile '*-real-session-claude@operator.txt'
+        if ($f2) {
+            @(Get-Content -LiteralPath $f2 -ErrorAction SilentlyContinue) |
+                Where-Object { $_ -match '^(processes|claude pid=|watch:|kit:)' } |
+                ForEach-Object { "  | $_" }
+        }
+    }
     Expect-Line 'the reason is many-sessions' '^step: real-session-claude@operator operator many-sessions$' $out
 
     # test_stop_ends_only_the_pids: a stop --all after the steps leaves
