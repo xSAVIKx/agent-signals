@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.18.0](https://github.com/xSAVIKx/agent-signals/compare/go/v0.17.0...go/v0.18.0) (2026-11-14)
+
+
+### Features
+
+* **kit:** run Gemini CLI with the fake model and measure when it asks ([7ec5bd5](https://github.com/xSAVIKx/agent-signals/commit/7ec5bd50ebad1a0402081ad30b813b1be3b0072c))
+* **kit:** run Gemini CLI with the fake model and measure when it asks ([eb3d8fc](https://github.com/xSAVIKx/agent-signals/commit/eb3d8fc22d4717d0cae2ce12df10b34451370ce2))
+
+
+### Bug Fixes
+
+* **kit:** accept the upper-case schema types of responseSchema in the fake model ([1bc433d](https://github.com/xSAVIKx/agent-signals/commit/1bc433d8762fde601fcbfc8620d6ec94fa64b100))
+
 ## [0.17.0](https://github.com/xSAVIKx/agent-signals/compare/go/v0.16.0...go/v0.17.0) (2026-11-09)
 
 
