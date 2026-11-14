@@ -50,3 +50,5 @@ None.
 - Whether the crash file stays after `kill -9` on macOS.
 - The process chain of the test sessions: the probe records only the
   process of the orchestrator.
+- Other macOS versions than 26.6.2, an Intel Mac, and agy versions other
+  than 1.5.8. Windows: fact 072 has older versions.

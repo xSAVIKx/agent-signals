@@ -51,3 +51,6 @@ None.
   in the data.
 - The open files: the laptop had no Sysinternals `handle.exe`.
 - The Codex version from the install: the doctor printed `unknown`.
+- Other Windows builds than 10.0.26300, Windows on arm64, Windows
+  PowerShell 5.1 as the pane shell, and Cursor CLI or Codex versions other
+  than the ones above. A pseudo-console without psmux: fact 051.
