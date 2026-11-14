@@ -32,18 +32,22 @@ const handBuilt = "hand-built"
 
 // private holds text that must not be published: host paths, account homes,
 // session addresses and tailnet names. A screen uses /work/example instead.
+// A match counts only when it also matches need, when need is set.
 var private = []struct {
 	re   *regexp.Regexp
+	need *regexp.Regexp
 	what string
 }{
-	{regexp.MustCompile(`/srv/`), "a host path (/srv/)"},
-	{regexp.MustCompile(`/home/[A-Za-z0-9_.-]+`), "a home folder (/home/<user>)"},
-	{regexp.MustCompile(`/var/lib/`), "a host path (/var/lib/)"},
-	{regexp.MustCompile(`/Users/[A-Za-z0-9_.-]+`), "a home folder (/Users/<user>)"},
-	{regexp.MustCompile(`(?i)[A-Z]:\\Users\\`), `a home folder (C:\Users\)`},
-	{regexp.MustCompile(`/tmp/claude-[0-9]+`), "a session scratch path"},
-	{regexp.MustCompile(`session_[A-Za-z0-9]{8,}`), "a session address"},
-	{regexp.MustCompile(`\.ts\.net\b`), "a tailnet name"},
+	{regexp.MustCompile(`/srv/`), nil, "a host path (/srv/)"},
+	{regexp.MustCompile(`/home/[A-Za-z0-9_.-]+`), nil, "a home folder (/home/<user>)"},
+	{regexp.MustCompile(`/var/lib/`), nil, "a host path (/var/lib/)"},
+	{regexp.MustCompile(`/Users/[A-Za-z0-9_.-]+`), nil, "a home folder (/Users/<user>)"},
+	{regexp.MustCompile(`(?i)[A-Z]:\\Users\\`), nil, `a home folder (C:\Users\)`},
+	{regexp.MustCompile(`/tmp/claude-[0-9]+`), nil, "a session scratch path"},
+	// A session address holds digits. A word such as session_persistence
+	// (a file name in the plugin marketplace of Claude Code) does not.
+	{regexp.MustCompile(`session_[A-Za-z0-9]{8,}`), regexp.MustCompile(`[0-9]`), "a session address"},
+	{regexp.MustCompile(`\.ts\.net\b`), nil, "a tailnet name"},
 }
 
 // Check validates the corpus under root and returns every problem it finds,
@@ -281,9 +285,13 @@ func checkMeta(root, path, agent string, schema *jsonschema.Schema, screens map[
 
 func checkPrivate(path string, data []byte, add addFunc) {
 	for _, p := range private {
-		if loc := p.re.FindIndex(data); loc != nil {
+		for _, loc := range p.re.FindAllIndex(data, -1) {
+			if p.need != nil && !p.need.Match(data[loc[0]:loc[1]]) {
+				continue
+			}
 			line := bytes.Count(data[:loc[0]], []byte("\n")) + 1
 			add(path, "line %d holds %s; scrub it (paths use /work/example)", line, p.what)
+			break
 		}
 	}
 }
