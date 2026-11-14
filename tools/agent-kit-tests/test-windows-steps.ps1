@@ -240,6 +240,9 @@ try {
         Expect-Kit "${b}: interrupt of a stream exits 0" 0 'step' "stream-claude@$b"
         $f = Get-StepFile "*-stream-claude@$b.txt"
         Expect-Line "${b}: the screen changes saw the stream" 'busy: seen by screen changes$' $f
+        if ($f -and -not (Select-String -LiteralPath $f -Pattern 'busy: seen by' -Quiet)) {
+            Get-Content -LiteralPath $f | Select-Object -Last 60 | ForEach-Object { "  | $_" }
+        }
         Expect-Line "${b}: Escape ended the stream" '^interrupted$' $f
 
         # A line with no wait_regex is not measured.
