@@ -265,10 +265,16 @@ if [ -z "$(ebpf_pids)" ]; then pass "tracer ends early: no ebpf pid stays"; else
 sleep 300 &
 zstop=$!
 bg_pid "$zstop"
-python3 -I "$T/fake-bpftrace.py" -B line none "$$" "$zstop" >"$T/z.txt" 2>"$T/z.err" &
+FAKE_BPFTRACE_READY=$T/z.ready python3 -I "$T/fake-bpftrace.py" -B line none "$$" "$zstop" >"$T/z.txt" 2>"$T/z.err" &
 zfake=$!
 bg_pid "$zfake"
-sleep 1
+# Start the child after the first scan of the fake: 10 s at most.
+i=0
+while [ ! -e "$T/z.ready" ] && [ "$i" -lt 100 ]; do
+  sleep 0.1
+  i=$((i + 1))
+done
+[ -e "$T/z.ready" ] || fail "fake tracer: the first scan ends" "no ready file in 10 s"
 # The child lives 0.3 s, then stays a zombie until its parent ends at 3 s.
 # The fake stops at 1.5 s, while the zombie is still in /proc.
 python3 -I -c '

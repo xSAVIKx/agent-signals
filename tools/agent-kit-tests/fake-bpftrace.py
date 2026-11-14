@@ -24,6 +24,7 @@ FAKE_BPFTRACE=fail: write "ERROR: test" to stderr and exit 1 at once.
 FAKE_BPFTRACE=silent: write nothing until the end.
 FAKE_BPFTRACE=short: exit 4 s after the start, as a tracer that ends
 during the step.
+FAKE_BPFTRACE_READY=FILE: make FILE when the first scan of /proc is done.
 """
 
 import os
@@ -118,6 +119,11 @@ def main():
     uid = os.getuid()
     seen = {pid: read("/proc/%d/cmdline" % pid) for pid in ours(uid)}
     first = set(seen)
+    # FAKE_BPFTRACE_READY: a file to make when the first scan is done, so
+    # that a test starts its processes after it.
+    ready = os.environ.get("FAKE_BPFTRACE_READY")
+    if ready:
+        open(ready, "w").close()
     start = time.monotonic()
     while not ended(root) and not ended(stop):
         if mode == "short" and time.monotonic() - start > 4:
