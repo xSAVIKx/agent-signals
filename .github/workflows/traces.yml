@@ -125,7 +125,10 @@ jobs:
           curl -fsSL -o "$bin" "$BPFTRACE_URL$asset"
           echo "$digest  $bin" | sha256sum -c -
           chmod 755 "$bin"
-          echo "KIT_BPFTRACE=$bin" >>"$GITHUB_ENV"
+          # The binary is an AppImage. Some runner images have no working
+          # FUSE, so the job runs the extracted AppRun, as probes.yml does.
+          (cd "$RUNNER_TEMP" && "$bin" --appimage-extract >/dev/null)
+          echo "KIT_BPFTRACE=$RUNNER_TEMP/squashfs-root/AppRun" >>"$GITHUB_ENV"
       # The install commands of scenarios.yml, job kit-no-login. agy goes
       # to ~/.local/bin.
       - name: Install the agent

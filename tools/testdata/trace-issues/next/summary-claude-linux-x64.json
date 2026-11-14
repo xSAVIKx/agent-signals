@@ -1,0 +1,87 @@
+[
+  {
+    "agent": "claude",
+    "agent_version": "2.1.320",
+    "mode": "fixture",
+    "runner_image": "ubuntu-24.04",
+    "step": "permission",
+    "checks": [
+      "terminal",
+      "network",
+      "files",
+      "ebpf"
+    ],
+    "skipped": [],
+    "summary": {
+      "files": {
+        "home": [
+          "~/.claude/projects/abc/session.jsonl",
+          "~/.claude.json"
+        ],
+        "work": [
+          "WORK/src/main.py",
+          "WORK/note.txt"
+        ],
+        "tmp": [],
+        "other": []
+      },
+      "hosts": [
+        {
+          "host": "api.anthropic.com",
+          "port": 443,
+          "connections": 1,
+          "up": 10,
+          "down": 20
+        }
+      ],
+      "model_requests": 2,
+      "programs": [
+        {
+          "path": "/usr/bin/git",
+          "runs": 1
+        },
+        {
+          "path": "/usr/bin/we`ird",
+          "runs": 1
+        },
+        {
+          "path": "/usr/bin/rg",
+          "runs": 1
+        }
+      ],
+      "processes_left": [],
+      "opened": {
+        "home": [],
+        "work": [],
+        "tmp": [],
+        "other": [
+          "/usr/lib/node_modules/x/index.js",
+          "/etc/hosts"
+        ]
+      },
+      "direct": [],
+      "dns": [
+        "api.anthropic.com",
+        "@scope.example"
+      ],
+      "timeline": [
+        {
+          "state": "start",
+          "t": 0,
+          "near": []
+        },
+        {
+          "state": "dialog",
+          "t": 4200,
+          "near": [
+            {
+              "t": 4300,
+              "kind": "exec",
+              "text": "exec /usr/bin/git"
+            }
+          ]
+        }
+      ]
+    }
+  }
+]

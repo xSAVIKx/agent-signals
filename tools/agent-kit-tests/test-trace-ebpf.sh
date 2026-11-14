@@ -145,17 +145,37 @@ kitf() {
   (PATH=$T/sbin:$PATH && KIT_BPFTRACE=$T/fake-bpftrace.py && export PATH KIT_BPFTRACE && kitx "$@")
 }
 
-WATCH=3
+# WATCH caps each wait of a step. 3 s was too short for the idle wait on a
+# busy CPU.
+WATCH=6
 export WATCH
 kitx start --home fixture --out "$D" >"$T/log" 2>&1
 expect_code "kit start exits 0" 0 $?
 run=$(run_of "$D")
 stub_set STUB_TRUST=yes STUB_SPAWN=yes STUB_LEAVE=yes
 
-# The full trace with all checks.
-kitx trace permission-claude@tmux --checks terminal,network,files,ebpf >"$T/t1" 2>"$T/t1.err"
+# The full trace with all checks. While it runs, the test keeps a copy of
+# the raw ebpf.txt and sessions.tsv: the trace deletes its raw folder at
+# the end. KIT_TEST_EBPF_RAW=DIR copies them to DIR after the trace.
+kitx trace permission-claude@tmux --checks terminal,network,files,ebpf >"$T/t1" 2>"$T/t1.err" &
+tpid=$!
+bg_pid "$tpid"
+while kill -0 "$tpid" 2>/dev/null; do
+  for f in ebpf.txt ebpf.err sessions.tsv; do
+    [ -s "$run/.trace/$f" ] && cat "$run/.trace/$f" >"$T/raw-$f.tmp" 2>/dev/null && mv "$T/raw-$f.tmp" "$T/raw-$f"
+  done
+  sleep 0.2
+done
+wait "$tpid"
 rc=$?
+if [ -n "${KIT_TEST_EBPF_RAW:-}" ]; then
+  mkdir -p "$KIT_TEST_EBPF_RAW"
+  for f in ebpf.txt ebpf.err sessions.tsv; do
+    [ -f "$T/raw-$f" ] && cat "$T/raw-$f" >"$KIT_TEST_EBPF_RAW/$f"
+  done
+fi
 expect_code "ebpf: exit 0" 0 "$rc"
+[ "$rc" = 0 ] || { sed "s/^/  out| /" "$T/t1"; sh "$ROOT/tools/scrub.sh" "$T/t1.err" 2>/dev/null | tail -n 20 | sed "s/^/  err| /"; }
 tr1=$(folder_of "$T/t1")
 j=$tr1/trace.json
 expect_file "ebpf: trace.json exists" "$j"
@@ -178,6 +198,8 @@ kinds = {}
 for e in d["events"]:
     kinds[e["kind"]] = kinds.get(e["kind"], 0) + 1
 print("  facts: ebpf_lost=%s kinds=%s" % (d["meta"]["ebpf_lost"], json.dumps(kinds, sort_keys=True)))' "$j" 2>/dev/null
+  # The open counters of the script: entries and returns.
+  grep '^counters' "$T/raw-ebpf.txt" 2>/dev/null | sed 's/^/  facts: /'
   # After a failure: the scrubbed open paths that are not system paths,
   # and the connect events.
   if [ "$_fail" != 0 ]; then
@@ -187,6 +209,14 @@ d = json.load(open(sys.argv[1], encoding="utf-8"))
 for e in d["events"]:
     if e["kind"] == "connect" or (e["kind"] == "open" and not e["path"].startswith(("/usr/", "/lib", "/etc/"))):
         print("  event:", json.dumps({k: e.get(k) for k in ("kind", "pid", "path", "mode", "ok", "host", "port", "family")}))' "$j" 2>/dev/null | head -n 40
+    # The raw lines of the agent pid, and each raw line about stub-work.
+    apid=$(cut -f4 "$T/raw-sessions.tsv" 2>/dev/null | head -n 1)
+    echo "  raw: agent pid '$apid', $(wc -l <"$T/raw-ebpf.txt" 2>/dev/null) lines"
+    grep -i 'lost' "$T/raw-ebpf.err" 2>/dev/null | head -n 5 | sed 's/^/  raw err| /'
+    awk -F '\t' '{ n[$2]++ } END { for (w in n) printf "  raw: %s %d\n", w, n[w] }' "$T/raw-ebpf.txt" 2>/dev/null | sort
+    awk -F '\t' '{ n[$3]++ } END { for (p in n) print n[p], p }' "$T/raw-ebpf.txt" 2>/dev/null | sort -rn | head -n 5 | sed 's/^/  raw: lines of pid: /'
+    awk -F '\t' -v a="$apid" '($3 == a && $2 != "fork" && $NF !~ /^\/(dev\/null|tmp\/tmp\.[A-Za-z0-9]+)$/) || /stub-work/' "$T/raw-ebpf.txt" 2>/dev/null |
+      sed "s|$T|\$T|g" | head -n 60 | sed 's/^/  raw| /'
   fi
 fi
 if [ "$_fail" != 0 ]; then show_err "$T/t1.err"; fi
@@ -220,6 +250,55 @@ if [ -z "$(ebpf_pids)" ]; then pass "bpftrace fails: no ebpf pid stays"; else fa
 expect_code "no ready: exit 0" 0 $?
 skip_case "no ready" "$T/t5" no-ready
 if [ -z "$(ebpf_pids)" ]; then pass "no ready: no ebpf pid stays"; else fail "no ready: no ebpf pid stays" "$(ebpf_pids)"; fi
+
+# bpftrace ends after the ready check and before the end of the step: a
+# skip, so that the trace does not show an incomplete record as a full one.
+(FAKE_BPFTRACE=short && export FAKE_BPFTRACE && kitf trace permission-claude@tmux --checks terminal,ebpf) >"$T/t6" 2>"$T/t6.err"
+expect_code "tracer ends early: exit 0" 0 $?
+skip_case "tracer ends early" "$T/t6" tracer-ended
+expect_line "tracer ends early: stderr says so" '^kit: bpftrace ended before the end of the step' "$T/t6.err"
+expect_line "tracer ends early: stderr holds its error" '^kit: ERROR: short$' "$T/t6.err"
+if [ -z "$(ebpf_pids)" ]; then pass "tracer ends early: no ebpf pid stays"; else fail "tracer ends early: no ebpf pid stays" "$(ebpf_pids)"; fi
+
+# The fake tracer: a zombie has ended. The parent of the zombie does not
+# wait for it, so the pid stays in /proc with the state Z.
+sleep 300 &
+zstop=$!
+bg_pid "$zstop"
+FAKE_BPFTRACE_READY=$T/z.ready python3 -I "$T/fake-bpftrace.py" -B line none "$$" "$zstop" >"$T/z.txt" 2>"$T/z.err" &
+zfake=$!
+bg_pid "$zfake"
+# Start the child after the first scan of the fake: 10 s at most.
+i=0
+while [ ! -e "$T/z.ready" ] && [ "$i" -lt 100 ]; do
+  sleep 0.1
+  i=$((i + 1))
+done
+[ -e "$T/z.ready" ] || fail "fake tracer: the first scan ends" "no ready file in 10 s"
+# The child lives 0.3 s, then stays a zombie until its parent ends at 3 s.
+# The fake stops at 1.5 s, while the zombie is still in /proc.
+python3 -I -c '
+import os, sys, time
+kid = os.fork()
+if kid == 0:
+    time.sleep(0.3)
+    os._exit(0)
+with open(sys.argv[1], "w") as f:
+    f.write("%d\n" % kid)
+time.sleep(3)' "$T/z.pid" &
+zpar=$!
+bg_pid "$zpar"
+sleep 1.5
+kill "$zstop"
+wait "$zstop" 2>/dev/null
+wait "$zfake" 2>/dev/null
+wait "$zpar" 2>/dev/null
+zpid=$(cat "$T/z.pid" 2>/dev/null)
+if [ -n "$zpid" ] && awk -F '\t' -v p="$zpid" '$2 == "exit" && $3 == p { f = 1 } END { exit f ? 0 : 1 }' "$T/z.txt"; then
+  pass "fake tracer: a zombie gives an exit line"
+else
+  fail "fake tracer: a zombie gives an exit line" "pid '$zpid'"
+fi
 
 # KIT_TRACE_KEEP_RAW=1: the trace folder gets raw/, with the scrubbed raw
 # files. trace-build.py can build a trace again from that copy.

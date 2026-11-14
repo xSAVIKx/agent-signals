@@ -69,7 +69,7 @@ commands and give comparable files.
 
 - POSIX `sh` on Linux and macOS, PowerShell 5.1 and 7 on Windows, as the
   probes now. Python 3 only where the current scenarios already need it.
-- The kit stays small (today about 35 KB) and needs no build.
+- The kit stays small (about 230 KB as an archive) and needs no build.
 - Each new command has a test in CI on the current runner matrix.
 - All prose in ASD-STE100 STE. Output files go through
   `tools/scrub.sh` or `tools/scrub.ps1`.
@@ -108,11 +108,14 @@ fails twice.
 
 | Command | Does |
 |---|---|
+| `kit start` | Makes the run folder and writes its path. Options: `--home real\|throwaway\|fixture`, `--unattended`, `--out DIR`. |
+| `kit version` | Prints the kit version. |
 | `kit doctor` | Prints `key: value` lines: os, cpu, shell, tools, agents and versions, the orchestrator agent (from the environment of its own process, fact 069). |
 | `kit plan` | Prints one line for each step: name, needs (`none`, `operator`, `login`, `fixture`, `screen`), cost (`none`, `turns:N`), and what it measures. |
 | `kit step NAME` | Runs one step. Writes `NN-NAME.txt` in the run folder. Prints one result line: `step: NAME ok|skip|fail <reason>`. |
 | `kit check` | Checks the run folder (part 5). Exit 0 means complete. |
 | `kit edit FILE REASON` | Records a manual change in the manifest. |
+| `kit trace NAME@BACKEND` | Runs one step and records a trace of it. Linux and macOS only: `kit.ps1 trace` exits 2. Read `docs/design/2026-11-09-harness-traces.md`. |
 | `kit session ...` | The session helpers (part 3), for the steps and for tests. |
 
 Exit codes: 0 ok, 1 fail, 2 bad use, 3 a needed tool is missing, 4 the
@@ -138,8 +141,8 @@ one backend where the signals can differ:
 | `psmux` | A private psmux session, as aw does. | Windows |
 | `operator` | The operator starts the agent in a real terminal app (Terminal, iTerm2, GNOME Terminal, a JetBrains IDE, Windows Terminal, the Android Terminal app). The kit tells the operator what to do and watches with `--wait N`. The kit never types into this session. | all |
 
-`kit session start AGENT --via tmux|pty|conpty|psmux`, `send TEXT`, `key KEY`,
-`screen`, `wait REGEX SECONDS`, `stop`. The `tmux` backend reuses
+`kit session start NAME AGENT --via tmux|pty|conpty|psmux`, `send NAME TEXT`,
+`key NAME KEY`, `screen NAME`, `wait NAME REGEX SECONDS`, `stop NAME`. The `tmux` backend reuses
 `scenarios/lib.sh`. The work folder is a new temporary folder. Each
 session has a name, and `stop` and an exit trap remove the session, the
 server and the folder.
@@ -214,7 +217,7 @@ and does not see it in its time limit fails and saves the last screen.
 
 ### 4. Steps
 
-Each step is a script `probes/steps/<name>.sh` (and `.ps1`) with a header:
+Each step is a script `probes/agent/steps/<kind>.sh` (and `.ps1`) with a header:
 needs, cost, what it measures, the facts it checks. First steps:
 
 | Step | Needs | Measures |
@@ -254,7 +257,7 @@ still runs.
 ### 6. The kit contents
 
 The release archive adds `scenarios/lib.sh`, `scenarios/conpty.py`,
-`probes/steps/`, `tools/check-probe-output.sh`, `kit` and `AGENTS.md`.
+`probes/agent/steps/`, `tools/check-probe-output.sh`, `kit` and `AGENTS.md`.
 The one-liners stay. A new one-liner prints the prompt.
 
 ## What the operator decided

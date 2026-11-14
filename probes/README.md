@@ -13,6 +13,7 @@ Paths:
 - `probes/lib.sh`, `probes/lib.ps1`: shared functions.
 - `probes/run.sh`, `probes/run.ps1`: the kit.
 - `probes/kit.sh`, `probes/kit.ps1`: the one-line start of the kit. The website serves them as `kit.sh` and `kit.ps1`.
+- `probes/agent/`: the agent kit, with the commands `kit.sh` and `kit.ps1`, the step list `steps.tsv`, and the step scripts in `steps/`.
 
 ## Rules for a probe
 
@@ -59,7 +60,7 @@ irm https://xsavikx.github.io/agent-signals/kit.ps1 | iex
 ```
 
 The one-liners download `agent-signals-kit.tar.gz` or `agent-signals-kit.zip`
-from the latest release: `probes/` and the scrub, about 30 KB. Each corpus
+from the latest release: `probes/` and the scrub, about 230 KB. Each corpus
 release has these files and `agent-signals-kit.sha256`. When the latest
 release has no kit file, the one-liners download `main`.
 `AGENT_SIGNALS_REF` selects a branch or a tag instead.
@@ -188,7 +189,9 @@ these checks on one clock:
   writes just at its start.
 - `ebpf` (Linux only, not in the default): the process tree of the agent,
   as the kernel sees it, with bpftrace. It records each fork, exec and
-  exit of a process, each `openat` (the path, the mode and the result),
+  exit of a process, each open (`open`, `openat`, `openat2` and
+  `creat`: the path, the mode and the result; not below `/proc` and
+  `/sys`),
   each `connect` (the address and the port, or the path of a unix
   socket), each name that the agent gives to `getaddrinfo` of libc, and
   each `kill`. It records the program path of each exec, but no
@@ -212,6 +215,9 @@ a reason in `meta.skipped` and records the other checks:
   the first 5 lines of its error output with the prefix `kit: `.
 - `no-ready`: no canary exec in the record after 30 s
   (`KIT_EBPF_READY_TURNS` turns of 0.5 s, 60 by default).
+- `tracer-ended`: bpftrace ended after the ready check and before the
+  end of the step, so the record is not complete. The kit prints the
+  first 5 lines of its error output with the prefix `kit: `.
 
 The kit runs these three commands with `sudo -n`:
 

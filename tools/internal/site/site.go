@@ -27,6 +27,10 @@ var assetFS embed.FS
 // BaseURL is the public address of the site, for the sitemap.
 const BaseURL = "https://xsavikx.github.io/agent-signals/"
 
+// notFoundOut is the page that GitHub Pages shows for a path that has no
+// file. GitHub Pages shows it at any depth, so its links are absolute.
+const notFoundOut = "404.html"
+
 // marker is the file that marks a folder as the output of this build. The
 // build deletes an existing output folder only when it holds this file.
 const marker = ".nojekyll"
@@ -245,7 +249,13 @@ func (b *builder) load() error {
 		}
 	}
 	b.tmpl, err = template.New("").Funcs(template.FuncMap{
-		"rel":       relURL,
+		"rel": func(from, to string) string {
+			if from == notFoundOut {
+				return BaseURL + to
+			}
+			return relURL(from, to)
+		},
+		"canonical": canonicalURL,
 		"github":    func(p string) string { return GitHubBlob + p },
 		"abs":       func(p string) string { return BaseURL + p },
 		"join":      strings.Join,
@@ -267,6 +277,12 @@ func (b *builder) load() error {
 		},
 	}).ParseFS(templateFS, "templates/*.html")
 	return err
+}
+
+// canonicalURL gives the public address of the output path p. The address
+// of an index.html page ends with its folder, as in the sitemap.
+func canonicalURL(p string) string {
+	return strings.TrimSuffix(BaseURL+p, "index.html")
 }
 
 func (b *builder) factURL(from string, n int) string {
@@ -346,7 +362,7 @@ func (b *builder) exec(p page, name string, data any) error {
 
 func (b *builder) pages() error {
 	steps := []func() error{b.home, b.docs, b.factsIndex, b.factPages, b.corpusIndex, b.screenPages,
-		b.tasksPages, b.releases, b.reference, b.assets, b.machine}
+		b.tasksPages, b.releases, b.reference, b.notFound, b.assets, b.machine}
 	for _, s := range steps {
 		if err := s(); err != nil {
 			return err
@@ -644,6 +660,12 @@ func (b *builder) reference() error {
 	}{p, items, titles})
 }
 
+// notFound writes the page that GitHub Pages shows for a missing path.
+func (b *builder) notFound() error {
+	p := page{Out: notFoundOut, Title: "Page not found", Section: "404"}
+	return b.exec(p, "notfound.html", p)
+}
+
 func (b *builder) assets() error {
 	entries, err := fs.ReadDir(assetFS, "assets")
 	if err != nil {
@@ -656,6 +678,11 @@ func (b *builder) assets() error {
 		}
 		b.files = append(b.files, File{Path: "assets/" + e.Name(), Data: data})
 	}
+	icons, err := iconFiles()
+	if err != nil {
+		return err
+	}
+	b.files = append(b.files, icons...)
 	// The one-line starts of the probe kit, at the root of the site.
 	for _, k := range []string{"kit.sh", "kit.ps1"} {
 		data, err := os.ReadFile(filepath.Join(b.root, "probes", k))
@@ -671,10 +698,8 @@ func (b *builder) assets() error {
 func (b *builder) sitemap() error {
 	var urls []string
 	for _, f := range b.files {
-		if strings.HasSuffix(f.Path, ".html") {
-			u := BaseURL + f.Path
-			u = strings.TrimSuffix(u, "index.html")
-			urls = append(urls, u)
+		if strings.HasSuffix(f.Path, ".html") && f.Path != notFoundOut {
+			urls = append(urls, canonicalURL(f.Path))
 		}
 	}
 	sort.Strings(urls)
@@ -686,6 +711,5 @@ func (b *builder) sitemap() error {
 	}
 	s.WriteString("</urlset>\n")
 	b.files = append(b.files, File{Path: "sitemap.xml", Data: []byte(s.String())})
-	b.files = append(b.files, File{Path: "robots.txt", Data: []byte("User-agent: *\nAllow: /\nSitemap: " + BaseURL + "sitemap.xml\n")})
 	return nil
 }

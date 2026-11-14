@@ -416,6 +416,17 @@ grep -v "$(printf '\tdns\t')" "$rawe/ebpf.txt" >"$T/nodns/.trace/ebpf.txt"
 run_build nodns "$H/meta.json"
 want "ebpf: no dns line gives an empty list" nodns 'd["summary"]["dns"] == [] and any(e["kind"] == "connect" for e in ev)'
 
+# bpftrace 0.27 writes the sum of the lost events at its end. The fixture
+# has one "Lost 3 events" line, so the sum 7 gives 7, and the sum 2 keeps 3.
+mkrawe losttotal
+printf 'WARNING: Total lost event count: 7\n' >>"$T/losttotal/.trace/ebpf.err"
+run_build losttotal "$H/meta.json"
+want "ebpf: the total lost count of bpftrace 0.27" losttotal 'd["meta"]["ebpf_lost"] == 7'
+mkrawe lostsmall
+printf 'WARNING: Total lost event count: 2\n' >>"$T/lostsmall/.trace/ebpf.err"
+run_build lostsmall "$H/meta.json"
+want "ebpf: a smaller total keeps the sum of the lines" lostsmall 'd["meta"]["ebpf_lost"] == 3'
+
 # No ebpf-clock: the check is skipped.
 mkrawe noclock
 rm "$T/noclock/.trace/ebpf-clock"
@@ -455,6 +466,22 @@ mkrawe reuse
 run_build reuse "$H/meta.json"
 expect_code "pid reuse: exit 0" 0 $?
 want "pid reuse: the new process is left, with the program at the fork" reuse '[(p["pid"], p["ppid"], p["program"]) for p in d["summary"]["processes_left"]] == [(4260, 4242, "/usr/bin/python3"), (4400, 4401, "/usr/local/bin/claude"), (4401, 4400, "/usr/local/bin/claude"), (4500, 4242, "/usr/bin/node")]'
+
+# A relative path has no prefix that the path rules can mask, so an open
+# or a unix socket with a relative path gives no event. A fork that gives
+# a pid again ends the old process, also with no exit line.
+mkrawe relative
+{
+  printf '1000905000000\topen\t4242\t0\t3\tnotes/secret-plan.txt\n'
+  printf '1000906000000\tconnectu\t4242\trun/agent.sock\n'
+  printf '1000907000000\tfork\t4242\t4600\tclaude\n'
+  printf '1000908000000\tfork\t4100\t4600\tbash\n'
+} >>"$T/relative/.trace/ebpf.txt"
+run_build relative "$H/meta.json"
+expect_code "relative path: exit 0" 0 $?
+want "relative path: no open event" relative 'not any(e["kind"] == "open" and not e["path"].startswith(("/", "~", "WORK", "TMP")) for e in ev) and "secret-plan" not in json.dumps(d)'
+want "relative path: no unix socket event" relative '"agent.sock" not in json.dumps(d) and {e["host"] for e in ev if e["kind"] == "connect" and e["family"] == "unix"} == {"/run/systemd/resolve/io.systemd.Resolve", "@"}'
+want "pid reuse with no exit: the old process is not left" relative '[p["pid"] for p in d["summary"]["processes_left"]] == [4260]'
 
 # A pane with no gate exec keeps the full tree. A connect4 with an
 # address that is not IPv4, an IPv4-mapped IPv6 address, and a lost line

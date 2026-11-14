@@ -38,6 +38,8 @@ Each job has a task file. Follow the task file step by step.
 | `scenarios/README.md` | The rules for a scenario. |
 | `facts/README.md` | The parts of a fact. |
 | `docs/format.md` | The format of a screen. |
+| `docs/versioning.md` | The versions of the corpus and of the libraries, and the tags. |
+| `docs/design/` | The design of the probes, of the agent kit and of the traces. |
 
 ## Checks before a commit
 

@@ -316,7 +316,11 @@ kit_trace_leftover() {
   kit_trace_end_recorders "$_lr"
   _fd=$(head -n 1 "$_lr/.trace/files-dir" 2>/dev/null)
   case $_fd in
-    /tmp/as-trace.*) [ -d "$_fd" ] && [ -O "$_fd" ] && rm -rf "$_fd" ;;
+    # Only a folder of this user. "test -O" is not POSIX.
+    /tmp/as-trace.*)
+      [ -d "$_fd" ] && [ -n "$(find "$_fd" -prune -user "$(id -u)" 2>/dev/null)" ] &&
+        rm -rf "$_fd"
+      ;;
   esac
   rm -rf "$_lr/.trace"
   echo "kit: removed the folder of a stopped trace: $_lr/.trace" >&2

@@ -214,6 +214,13 @@ function Test-Alive {
 # blank screen is not a failure: an agent can start slowly.
 function Update-Screen {
     $r = Invoke-Session @('screen', $name) (Get-Clip 30)
+    if ($r.Code -ne 0 -and (Test-Alive)) {
+        # psmux capture-pane can crash one time (exit -1073741819,
+        # 0xC0000005, in a Windows run of kit 0.22.0). Try again one time.
+        Add-Log "no screen: exit $($r.Code), try again in 1 s"
+        Start-Sleep -Seconds 1
+        $r = Invoke-Session @('screen', $name) (Get-Clip 30)
+    }
     if ($r.Code -ne 0) {
         if (-not (Test-Alive)) { Stop-Step 'agent-ended' }
         Add-Log "no screen: exit $($r.Code) $($r.Err.Trim())"
@@ -450,12 +457,13 @@ try {
         }
         'interrupt' {
             $keys = @($answer -split ' ' | Where-Object { $_ })
-            # A screen 2 s after the send: when the busy regex does not
-            # match, it shows what the agent drew while it worked.
-            Start-Sleep -Seconds 2
-            Update-Screen
+            # Look for the busy line from the send on. Codex shows its
+            # busy line only until the answer text starts, and that can be
+            # in 1 s. The screen at 2 s shows what the agent drew when the
+            # busy regex does not match.
+            $busy = Wait-Regex $waitRe 2
             $early = $sc
-            if (-not (Wait-Regex $waitRe $waitS)) {
+            if (-not $busy -and -not (Wait-Regex $waitRe $waitS)) {
                 Add-Screen '2 s after the prompt' $early
                 if ($keys.Count -gt 0) { Send-Keys @($keys[0]) }
                 Stop-Step 'no-busy'

@@ -23,6 +23,14 @@ function Expect-Kit([string]$Name, [int]$Want) {
     Expect-Code $Name $Want $c
     if ($c -ne $Want) { Show-Out }
 }
+# Show-StepLog FILE: the result line and the log section of a step file.
+function Show-StepLog([string]$File) {
+    $in = $false
+    foreach ($l in @(Get-Content -LiteralPath $File -ErrorAction SilentlyContinue)) {
+        if ($l -match '^### ') { $in = ($l -eq '### log') }
+        if ($in -or $l -match '^(result|clock gap): ') { "  | $l" }
+    }
+}
 function Expect-NoLine([string]$Name, [string]$Pattern, [string]$File) {
     if (Select-String -LiteralPath $File -Pattern $Pattern -Quiet) { Fail $Name "a line matches: $Pattern" } else { Pass $Name }
 }
@@ -30,8 +38,19 @@ function Expect-NoLine([string]$Name, [string]$Pattern, [string]$File) {
 function Get-StepFile([string]$Filter) {
     return @(Get-ChildItem -LiteralPath $run -Filter $Filter -File | Sort-Object Name | Select-Object -Last 1)[0].FullName
 }
+# Start-Stub: a stub claude in its own console. The guided watch counts a
+# session only when a console host runs below it, so wait for the conhost
+# of the stub: 15 s at most (a slow runner needed more than 2 s).
 function Start-Stub {
-    return (Start-Process -FilePath $Exe -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$bin\claude.ps1`"") -WindowStyle Hidden -PassThru)
+    $p = Start-Process -FilePath $Exe -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$bin\claude.ps1`"") -WindowStyle Hidden -PassThru
+    $end = (Get-Date).AddSeconds(15)
+    while ((Get-Date) -lt $end) {
+        $h = @(Get-CimInstance Win32_Process -Filter "ParentProcessId=$($p.Id)" -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -in @('conhost.exe', 'OpenConsole.exe') })
+        if ($h.Count -gt 0) { break }
+        Start-Sleep -Milliseconds 200
+    }
+    return $p
 }
 
 # The lines of a Claude welcome box that can show a name are blank.
@@ -274,7 +293,11 @@ try {
         Expect-Line "${b}: busy at end: the file has the result" '^result: fail busy-at-end$' $f
         Expect-Line "${b}: busy at end: the file keeps the last screen" '^### screen last$' $f
         Expect-Line "${b}: busy at end: the last screen shows the busy text" 'esc to interrupt' $f
+        Expect-NoLine "${b}: busy at end: the step has no error" '^t=\S+ error: ' $f
         Expect-NoLine "${b}: bad jump: the kit ignores it" '^clock gap: ' $f
+        # On a failure, show the result and the log of the step, so that the
+        # CI log tells why.
+        if (-not (Select-String -LiteralPath $f -Pattern '^result: fail busy-at-end$' -Quiet)) { Show-StepLog $f }
 
         # test_clock_gap: the first turn of the watch at 2 s of counted time
         # takes 600 s more wall time. The step fails with clock-gap and
