@@ -93,6 +93,7 @@ New-TextFile $steps ((@(
             "newchat-claude`tnew-chat`t$common`t/clear`t^stub idle`$`t-`tsend=Tab`ta slash prompt gets Enter`t-"
             "stays-claude`tnew-chat`t$common`thello`t^stub idle`$`t-`tsend=Tab`tthe prompt stays on the screen`t-"
             "nobusy-claude`tinterrupt`t$common`twrite`tno-such-text`tEscape C-c`t-`tno busy screen`t-"
+            "stream-claude`tinterrupt`t$common`tstream`tno-such-text`tEscape`t-`tanswer text with no busy line`t-"
             "unmeasured-claude`tnew-chat`t$common`t/new-chat`t-`t-`t-`tno wait_regex`t-"
             "ended-claude`tpermission`t$common`tnothing`tno-such-text`tEscape`t-`tthe agent ends`t-"
             "norecords-agy`tpermission`t$($common -replace '^claude', 'agy')`twrite`tDo you want to create`tEscape`t-`tno file changes`t-"
@@ -233,6 +234,13 @@ try {
         # no-dialog is only for permission.
         Expect-Kit "${b}: interrupt with no busy screen fails" 1 'step' "nobusy-claude@$b"
         Expect-Line "${b}: the reason is no-busy" "^step: nobusy-claude@$b fail no-busy$" $out
+
+        # Answer text with no busy line, as Codex 0.167.2 drew it on a real
+        # model: the screen changes show the busy turn.
+        Expect-Kit "${b}: interrupt of a stream exits 0" 0 'step' "stream-claude@$b"
+        $f = Get-StepFile "*-stream-claude@$b.txt"
+        Expect-Line "${b}: the screen changes saw the stream" 'busy: seen by screen changes$' $f
+        Expect-Line "${b}: Escape ended the stream" '^interrupted$' $f
 
         # A line with no wait_regex is not measured.
         Expect-Kit "${b}: a line with no wait_regex skips" 3 'step' "unmeasured-claude@$b"

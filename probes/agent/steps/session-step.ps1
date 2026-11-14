@@ -331,6 +331,31 @@ function Wait-Regex([string]$Re, [int]$Seconds) {
         Start-Sleep -Milliseconds 400
     }
 }
+# Wait-Busy RE SECONDS: wait for the busy screen. The screen is busy when
+# a line matches RE, or when the screen changed at each of 3 polls in a
+# row and the box line does not show the prompt. Codex 0.167.2 drew no
+# busy line while the answer text of a real model came (laptop runs of kit
+# 0.21.0 and 0.22.0). $script:busyBy gets "the busy regex" or "screen
+# changes". $script:early gets the screen of about 2 s after the start.
+$script:busyBy = ''
+$script:early = $null
+function Wait-Busy([string]$Re, [int]$Seconds) {
+    $start = Get-Date
+    $end = $start.AddSeconds((Get-Clip $Seconds))
+    $last = $null
+    $moves = 0
+    while ($true) {
+        if (-not (Test-Alive)) { Stop-Step 'agent-ended' }
+        Update-Screen
+        if ($null -eq $script:early -and ((Get-Date) - $start).TotalSeconds -ge 2) { $script:early = $sc }
+        if (Test-Line $sc $Re) { $script:busyBy = 'the busy regex'; return $true }
+        if ($null -ne $last -and $sc -cne $last -and -not (Test-InBox $prompt)) { $moves++ } else { $moves = 0 }
+        $last = $sc
+        if ($moves -ge 3) { $script:busyBy = 'screen changes'; return $true }
+        if ((Get-Date) -ge $end) { return $false }
+        Start-Sleep -Milliseconds 500
+    }
+}
 # Test-NoRecords TEXT: true when the guided file shows no changed file
 # (section 1) and no record (section 3).
 function Test-NoRecords([string]$Text) {
@@ -457,17 +482,18 @@ try {
         }
         'interrupt' {
             $keys = @($answer -split ' ' | Where-Object { $_ })
-            # Look for the busy line from the send on. Codex shows its
+            # Look for the busy screen from the send on. Codex shows its
             # busy line only until the answer text starts, and that can be
-            # in 1 s. The screen at 2 s shows what the agent drew when the
-            # busy regex does not match.
-            $busy = Wait-Regex $waitRe 2
-            $early = $sc
-            if (-not $busy -and -not (Wait-Regex $waitRe $waitS)) {
+            # in 1 s. The screen at 2 s shows what the agent drew when no
+            # busy screen came.
+            if (-not (Wait-Busy $waitRe $waitS)) {
+                $early = $script:early
+                if ($null -eq $early) { $early = $sc }
                 Add-Screen '2 s after the prompt' $early
                 if ($keys.Count -gt 0) { Send-Keys @($keys[0]) }
                 Stop-Step 'no-busy'
             }
+            Add-Log "busy: seen by $($script:busyBy)"
             Add-Screen 'busy' $sc
             foreach ($k in $keys) {
                 Add-Log "send $k"

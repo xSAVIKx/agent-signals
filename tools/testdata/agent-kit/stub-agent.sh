@@ -36,6 +36,10 @@
 #   STUB_BUSY=brief    "Count ..." shows the busy line for 2.5 s. Then the
 #                      stub shows numbers with no busy line until Escape, as
 #                      Codex does when the answer text starts.
+#   STUB_BUSY=stream   "Count ..." shows no busy line. The stub shows a new
+#                      number each 0.3 s until Escape, as Codex 0.167.2 did
+#                      on a real model (laptop runs of kit 0.21.0 and
+#                      0.22.0).
 #   STUB_KEEP=yes      "/clear" stays in the box after Enter.
 #   STUB_LOSE=N        the stub drops the first N characters of input, as an
 #                      agent that redraws its box after the idle screen.
@@ -108,7 +112,7 @@ draw() {
       printf 'stub busy\r\n\r\n* Counting (esc to interrupt)\r\n'
       ;;
     stream)
-      printf 'stub stream\r\n\r\n1\r\n2\r\n3\r\n'
+      printf 'stub stream\r\n\r\n%s\r\n%s\r\n%s\r\n' $((n + 1)) $((n + 2)) $((n + 3))
       ;;
     *)
       printf 'stub idle\r\n'
@@ -138,10 +142,20 @@ record() {
 }
 
 # key: read one byte into c. dd writes it to a file, and "read" gets it
-# with no subshell. At the end of the input, dd gives no byte: stop.
+# with no subshell. At the end of the input, dd gives no byte: stop. In the
+# stream state, the read waits 0.3 s at most, and key returns 1 when no
+# byte came.
+n=0
 key() {
-  dd bs=1 count=1 of="$kf" 2>/dev/null
-  [ -s "$kf" ] || exit 0
+  if [ "$state" = stream ]; then
+    stty min 0 time 3 2>/dev/null
+    dd bs=1 count=1 of="$kf" 2>/dev/null
+    stty min 1 time 0 2>/dev/null
+    [ -s "$kf" ] || return 1
+  else
+    dd bs=1 count=1 of="$kf" 2>/dev/null
+    [ -s "$kf" ] || exit 0
+  fi
   c=
   IFS= read -r c <"$kf" || :
   # "read" gives an empty value for a newline.
@@ -150,7 +164,11 @@ key() {
 
 draw
 while :; do
-  key
+  if ! key; then
+    n=$((n + 1))
+    draw
+    continue
+  fi
   if [ -n "${STUB_LOG:-}" ]; then
     case $c in
       "$cr") k="key Enter" ;;
@@ -240,6 +258,7 @@ while :; do
                   sleep 2.5
                   state=stream
                   ;;
+                stream) state=stream ;;
                 *) state=busy ;;
               esac
               ;;
