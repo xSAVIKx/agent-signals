@@ -184,6 +184,15 @@ validate "ebpf: trace.json passes the schema check" "$tr1"
 want "ebpf: meta.checks holds ebpf" "$j" 'd["meta"]["checks"] == ["terminal", "network", "files", "ebpf"]'
 want "ebpf: an exec of bin/claude" "$j" 'any(e["kind"] == "exec" and e["path"].endswith("/bin/claude") for e in ev)'
 want "ebpf: one process left, python3" "$j" 'len(d["summary"]["processes_left"]) == 1 and "python3" in d["summary"]["processes_left"][0]["program"]'
+# This case failed one time on ubuntu-26.04-arm: print the list then.
+python3 -I -c '
+import json, sys
+p = json.load(open(sys.argv[1], encoding="utf-8"))["summary"]["processes_left"]
+if not (p and len(p) == 1 and "python3" in (p[0].get("program") or "")):
+    if not p:
+        print("  left| %s" % json.dumps(p))
+    for x in p or []:
+        print("  left| %s %s %s" % (x.get("pid"), x.get("ppid"), x.get("program")))' "$j" 2>/dev/null
 want "ebpf: meta.ebpf_lost is an integer" "$j" 'isinstance(d["meta"]["ebpf_lost"], int)'
 if [ -n "$real" ]; then
   want "real: an open for write in WORK" "$j" 'any(e["kind"] == "open" and e["mode"] == "w" and e["path"].startswith("WORK/") for e in ev)'

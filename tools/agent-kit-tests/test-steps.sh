@@ -130,13 +130,16 @@ if [ -n "$ran" ]; then
   expect_line "end gap: the file gives the size" '^clock gap: a turn of the wait for the end of the watch took [0-9]+ s of wall time \(the end of the watch\)$' "$f"
   expect_no_line "end gap: the watch saw no gap" '^watch: clock gap' "$f"
   # test_clock_gap_in_the_snapshot: the "after" snapshot of the watch takes
-  # 100 s more wall time.
+  # 100 s more wall time. This case failed at random on slow runners with
+  # no gap line in the guided part. After that failure, the test prints the
+  # log of the step: it shows if the watch ended in time.
   (WATCH=4 && AGENT_SIGNALS_CLOCK_JUMP=100 && AGENT_SIGNALS_CLOCK_JUMP_AT=snapshot && export WATCH AGENT_SIGNALS_CLOCK_JUMP AGENT_SIGNALS_CLOCK_JUMP_AT && kitx step "permission-claude@$ran") >"$T/step" 2>&1
   expect_code "snapshot gap: the step exits 1" 1 $?
   expect_line "snapshot gap: the step is fail clock-gap" "^step: permission-claude@$ran fail clock-gap$" "$T/step"
   f=$run/$(last_file)
   expect_line "snapshot gap: the file gives the size" '^clock gap: the after snapshot of the watch took [0-9]+ s of wall time, at [0-9]+ s of counted time \(the guided watch\)$' "$f"
   expect_line "snapshot gap: the guided step has the gap line" '^watch: clock gap of [0-9]+ s: ' "$f"
+  grep -Eq '^watch: clock gap of [0-9]+ s: ' "$f" || sed -n '/^################ log$/,$p' "$f" | sed 's/^/  log| /'
   (WATCH=4 && AGENT_SIGNALS_CLOCK_JUMP=9x && AGENT_SIGNALS_CLOCK_JUMP_AT=end && export WATCH AGENT_SIGNALS_CLOCK_JUMP AGENT_SIGNALS_CLOCK_JUMP_AT && kitx step "permission-claude@$ran") >"$T/step" 2>&1
   expect_no_line "bad jump: the kit ignores it" 'clock-gap' "$T/step"
 fi
