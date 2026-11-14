@@ -159,8 +159,16 @@ try {
 } finally { $held.Dispose() }
 $after = @(Get-Content -LiteralPath $mf | Where-Object { $_ -like "step`t*" }).Count
 if ($after -eq $before) { Pass 'the refused step adds no manifest line' } else { Fail 'the refused step adds no manifest line' "$before -> $after" }
+# A stale script pid file whose pwsh still runs (a kill of "kit step"
+# only): a step waits.
+$sp = Join-Path $run '.step.script'
+Set-Content -LiteralPath $sp -Value ([string]$PID)
+Expect-Kit 'a step while the script of an ended step runs is bad use' 2 'step' 'probe@none'
+Expect-Line 'the refusal names the script' 'the script of an ended kit step still runs' $out
+Remove-Item -LiteralPath $sp -Force
 Expect-Kit 'step probe exits 0' 0 'step' 'probe@none'
 Expect-Line 'step probe prints ok' '^step: probe@none ok$' $out
+if (Test-Path -LiteralPath $sp) { Fail 'the step deletes its script pid file' 'it stays' } else { Pass 'the step deletes its script pid file' }
 $f1 = Join-Path $run '01-probe@none.txt'
 if (Test-Path -LiteralPath $f1) { Pass 'the probe file' } else { Fail 'the probe file' 'no 01-probe@none.txt' }
 Expect-Line 'the probe ran the claude probe' '^==== probe claude/windows\.ps1$' $f1
