@@ -188,7 +188,9 @@ want "ebpf: one process left, python3" "$j" 'len(d["summary"]["processes_left"])
 python3 -I -c '
 import json, sys
 p = json.load(open(sys.argv[1], encoding="utf-8"))["summary"]["processes_left"]
-if not (len(p) == 1 and "python3" in p[0]["program"]):
+if not (p and len(p) == 1 and "python3" in (p[0].get("program") or "")):
+    if not p:
+        print("  left| %s" % json.dumps(p))
     for x in p or []:
         print("  left| %s %s %s" % (x.get("pid"), x.get("ppid"), x.get("program")))' "$j" 2>/dev/null
 want "ebpf: meta.ebpf_lost is an integer" "$j" 'isinstance(d["meta"]["ebpf_lost"], int)'
