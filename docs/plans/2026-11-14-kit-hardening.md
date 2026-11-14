@@ -50,8 +50,7 @@ The failures in the last runs:
 4. Do not merge a PR that changes the meaning of a published fact. Put
    it in the last report.
 5. Write the progress to the ledger, a local file that git ignores,
-   after each item: what merged, what
-   is open, and why.
+   after each item: what merged, what is open, and why.
 
 ## Work items
 
