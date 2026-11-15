@@ -63,6 +63,11 @@
 #   ok restart-outside-watch resume: the watch ended before the new start.
 #   fail no-idle, no-busy, prompt-on-screen, agent-ended, screen-failed,
 #        send-failed, no-watch, watch-exit-N, watch-timeout, no-guided
+#   fail agent-error         a screen of the step shows an error of the
+#                            agent: a key that is not valid, a login
+#                            request, a usage limit or an API error. The
+#                            other results would be false then. The log
+#                            names the first such line.
 #   fail busy-at-end         permission only: no dialog in the time limit,
 #                            but the last screen matches KIT_BUSY_REGEX. The
 #                            agent still works, so the step does not know
@@ -499,6 +504,23 @@ clock_gap() {
   fi
 }
 
+# AGENT_ERROR_RE: the lines of an agent that cannot work: a key that is
+# not valid, a login request, a usage limit or an API error. Laptop runs of
+# kit 0.25.0 showed "API key not valid" (Gemini CLI) and kit 0.22.0 showed
+# "You've hit your usage limit" (Cursor CLI), with ok results.
+AGENT_ERROR_RE='API Error|API key not valid|[Ii]nvalid API key|Enter Gemini API Key|hit your usage limit|[Uu]sage limit reached|[Qq]uota exceeded|RESOURCE_EXHAUSTED|401 Unauthorized|[Aa]uthentication (failed|required)|[Nn]ot (logged|signed) in|Please (log in|login|sign in|run /login)'
+# agent_error: the first line of a kept screen that matches AGENT_ERROR_RE,
+# at most 120 characters, or nothing.
+agent_error() {
+  _i=1
+  while [ "$_i" -le "$n_screens" ]; do
+    _l=$(grep -E -m 1 -- "$AGENT_ERROR_RE" "$tmp/screen.$_i" 2>/dev/null | sed 's/^[[:space:]]*//' | cut -c1-120)
+    [ -n "$_l" ] && { printf '%s\n' "$_l"; return 0; }
+    _i=$((_i + 1))
+  done
+  return 0
+}
+
 # finish RESULT: end the watch, stop the session, and write the output
 # file. RESULT is ok or fail.
 finish() {
@@ -516,6 +538,12 @@ finish() {
     say "clock gap: $_gap"
     _r=fail
     why=clock-gap
+  fi
+  _err=$(agent_error)
+  if [ -n "$_err" ]; then
+    say "the agent shows an error: $_err"
+    _r=fail
+    why=agent-error
   fi
   if [ "$_r" = ok ] && [ -z "$why" ] && no_records; then
     why=no-records
