@@ -34,6 +34,10 @@
 set -u
 root=$(cd "$(dirname "$0")/.." && pwd)
 
+# Check 4 is a heuristic, not a shell parser. Known limits: a command in
+# "$( )" inside double quotes is not seen, a quoted program name such as
+# "tmux" is not seen, and a word after a prefix such as "env printf tmux"
+# can give a false fail. Checks 1, 2, 3 and 5 do not depend on it.
 # A command position: the start of the line, or after ; & | ( ` or $(,
 # then maybe sudo, env, exec, command, nohup or xargs with their words,
 # then maybe a path. The check removes the text in quotes first
