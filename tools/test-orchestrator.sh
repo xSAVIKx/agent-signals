@@ -35,20 +35,29 @@ set -u
 root=$(cd "$(dirname "$0")/.." && pwd)
 
 # A command position: the start of the line, or after ; & | ( ` or $(,
-# then maybe sudo, env, exec, command, nohup or xargs with their options,
-# then maybe a path. A word in quotes or after other words is an argument.
-pos='(^|[;&|(`]|[$][(])[[:space:]]*((sudo|env|exec|command|nohup|xargs)[[:space:]]+(-[^[:space:]]*[[:space:]]+)*)?([^[:space:];&|]*/)?'
-kill_re="${pos}(kill|pkill|killall|Stop-Process)([[:space:]]|$)"
-mux_re="${pos}(tmux|psmux)([[:space:]]|$)"
+# then maybe sudo, env, exec, command, nohup or xargs with their words,
+# then maybe a path. The check removes the text in quotes first
+# (unquoted), so that a word or a ";" in quotes is not a command.
+pos='(^|[;&|(`]|[$][(])[[:space:]]*((sudo|env|exec|command|nohup|xargs)([[:space:]]+[^[:space:];&|()]+)*[[:space:]]+)?([^[:space:];&|()]*/)?'
+end='([[:space:];&|)]|$)'
+kill_re="${pos}(kill|pkill|killall|Stop-Process)${end}"
+mux_re="${pos}(tmux|psmux)${end}"
+# unquoted: stdin with each text in '' or "" made empty.
+unquoted() { sed -e "s/'[^']*'/''/g" -e 's/"[^"]*"/""/g'; }
+# found RE FILE: the lines of FILE with a command that RE matches.
+found() { unquoted <"$2" | grep -E -- "$1"; }
 if [ "${1:-}" = --self-test ]; then
   st=$(mktemp -d) || exit 1
-  printf '%s\n' 'kill 1' '/bin/kill 12345' 'x; pkill -f a' 'Stop-Process -Id 4' 'sudo kill 5' 'a | xargs -r kill' 'y && $(kill 6)' >"$st/bad-kill"
-  printf '%s\n' '/usr/bin/tmux ls' 'tmux kill-server' 'env -i tmux new' 'x | psmux ls' 'a; tmux send-keys -t x y' >"$st/bad-mux"
-  printf '%s\n' 'sh kit.sh step a@tmux' 'echo skill set' 'kit session stop --all' 'cat tmux.log' 'ls killed/' 'grep -c send-keys log' "grep -n 'tmux ' AGENTS.md" "printf '%s\\n' 'kill 1'" >"$st/good"
+  printf '%s\n' 'kill 1' '/bin/kill 12345' 'x; pkill -f a' 'Stop-Process -Id 4' 'sudo kill 5' 'a | xargs -r kill' 'y && $(kill 6)' \
+    'sudo -u root kill 12345' 'a | xargs -n 1 kill' 'kill; echo done' >"$st/bad-kill"
+  printf '%s\n' '/usr/bin/tmux ls' 'tmux kill-server' 'env -i tmux new' 'x | psmux ls' 'a; tmux send-keys -t x y' \
+    'tmux; echo done' '(tmux ls)' >"$st/bad-mux"
+  printf '%s\n' 'sh kit.sh step a@tmux' 'echo skill set' 'kit session stop --all' 'cat tmux.log' 'ls killed/' 'grep -c send-keys log' \
+    "grep -n 'tmux ' AGENTS.md" "printf '%s\\n' 'kill 1'" "grep -n '; tmux ' AGENTS.md" 'echo "a | kill b"' >"$st/good"
   r=0
-  while IFS= read -r l; do printf '%s\n' "$l" | grep -Eq "$kill_re" || { echo "self-test: kill not found: $l"; r=1; }; done <"$st/bad-kill"
-  while IFS= read -r l; do printf '%s\n' "$l" | grep -Eq "$mux_re" || { echo "self-test: tmux not found: $l"; r=1; }; done <"$st/bad-mux"
-  while IFS= read -r l; do printf '%s\n' "$l" | grep -Eq "$kill_re|$mux_re" && { echo "self-test: false match: $l"; r=1; }; done <"$st/good"
+  while IFS= read -r l; do printf '%s\n' "$l" >"$st/l"; found "$kill_re" "$st/l" >/dev/null || { echo "self-test: kill not found: $l"; r=1; }; done <"$st/bad-kill"
+  while IFS= read -r l; do printf '%s\n' "$l" >"$st/l"; found "$mux_re" "$st/l" >/dev/null || { echo "self-test: tmux not found: $l"; r=1; }; done <"$st/bad-mux"
+  while IFS= read -r l; do printf '%s\n' "$l" >"$st/l"; found "$kill_re|$mux_re" "$st/l" >/dev/null && { echo "self-test: false match: $l"; r=1; }; done <"$st/good"
   rm -rf "$st"
   [ "$r" -eq 0 ] && echo "self-test: pass"
   exit "$r"
@@ -165,13 +174,13 @@ if [ -n "$run" ] && [ -f "$run/manifest.tsv" ]; then
 fi
 
 # 4. Forbidden commands.
-if grep -Eq "$kill_re" "$T/commands.txt"; then
-  bad "no kill command" "$(grep -E "$kill_re" "$T/commands.txt" | head -n 2 | cut -c1-120 | tr '\n' ' ')"
+if found "$kill_re" "$T/commands.txt" >/dev/null; then
+  bad "no kill command" "$(found "$kill_re" "$T/commands.txt" | head -n 2 | cut -c1-120 | tr '\n' ' ')"
 else
   pass "no kill command"
 fi
-if grep -Eq "$mux_re" "$T/commands.txt"; then
-  bad "no tmux command of its own" "$(grep -E "$mux_re" "$T/commands.txt" | head -n 2 | cut -c1-120 | tr '\n' ' ')"
+if found "$mux_re" "$T/commands.txt" >/dev/null; then
+  bad "no tmux command of its own" "$(found "$mux_re" "$T/commands.txt" | head -n 2 | cut -c1-120 | tr '\n' ' ')"
 else
   pass "no tmux command of its own"
 fi
