@@ -1026,6 +1026,12 @@ stop_session() {
     done
     sleep 0.5
     printf '%s\t%s\n' "$(kit_ms)" "$name" >>"$KIT_TRACE/hangup.tsv"
+    # A gap before the stop of the pids. The build compares the ebpf times
+    # (boot clock, through ebpf-clock) with this wall clock time. With no
+    # gap, a process that the stop ended could get an exit time before the
+    # hang-up time on a slow runner, and the trace lost it from
+    # processes_left.
+    sleep 0.5
   fi
   # shellcheck disable=SC2046
   end_pids $(session_pids)
