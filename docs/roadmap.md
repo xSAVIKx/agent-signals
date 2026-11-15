@@ -123,7 +123,7 @@ or says what is left.
 | 4 | Cursor: an end record after an interrupt | Open. Kit step `interrupt`. |
 | 5 | Claude, Codex, agy: the files that each process holds open | Facts 25, 26, 28 (Linux). Claude: the task folder keeps the first session ID after `/clear` (fact 34). agy: the presence file is a flock lock (fact 44). macOS and Ubuntu: the open files of agy (fact 68), the Claude pid files outside tmux (fact 66). |
 | 6 | macOS: bring a tab to the front by its tty | Open. Kit step `front-tab` (Terminal, iTerm2). JetBrains IDEs: `terminals/macos.sh` checks for an AppleScript dictionary. |
-| 7 | Cursor: the hash of the chats folder | Open. The kit scrubs the folder name, so the laptop runs cannot give the rule. It needs a probe that compares the hash on the machine. |
+| 7 | Cursor: the hash of the chats folder | Linux: fact 94. The folder name is the MD5 of the absolute work folder path. macOS and Windows: open. |
 | 8 | Cursor, Linux and Windows: the open-file link | Linux: fact 91. The parent `cursor-agent` process holds `store.db`; the child holds none. Windows: open, needs `handle.exe`. |
 | 9 | Cursor editor agent workers | macOS: fact 69. A worker has no tty and no `TERM`, has `VSCODE_PID`, and holds no chat database open. Linux and Windows: open. |
 | 10 | Codex: the sandbox helper parent, and `resume` | Fact 26 (resume). The helper did not run on the Linux server (no namespaces). |
