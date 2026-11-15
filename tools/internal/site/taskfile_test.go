@@ -113,7 +113,7 @@ func TestTaskFileNamesOnlyKitCommands(t *testing.T) {
 	if len(lines) == 0 {
 		t.Fatalf("%s: no sh or powershell code block", agentTask)
 	}
-	allowed := []string{"kit ", "sh ", "curl ", "irm ", "$env:AGENT_SIGNALS_GET=", "powershell "}
+	allowed := []string{"kit ", "sh ", "curl ", "irm ", "$env:AGENT_SIGNALS_GET=", "powershell ", "pwsh "}
 	used := map[string]bool{}
 	for _, l := range lines {
 		ok := false
