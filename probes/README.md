@@ -374,6 +374,7 @@ the variable.
 | `agy/windows.ps1` | Antigravity CLI | Windows | |
 | `cursor-agent/windows.ps1` | Cursor CLI (`agent`, `cursor-agent`) | Windows | |
 | `opencode/windows.ps1` | opencode | Windows | |
+| `gemini/windows.ps1` | Gemini CLI | Windows | |
 
 CI (`.github/workflows/probes.yml`) runs each probe and the kit with no
 agent installed, on ubuntu-22.04, ubuntu-24.04, ubuntu-26.04, the three
