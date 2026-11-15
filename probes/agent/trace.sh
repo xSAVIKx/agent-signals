@@ -483,7 +483,7 @@ with open(sys.argv[1], "w", encoding="utf-8") as f:
     f.write("\n")
 ' "$raw/out/trace.json" || fail build
 # cast_scrub IN OUT: scrub a cast with trace-cast-scrub.py. A cut path in
-# the cast ("/…/TAIL", for example the cwd in a welcome box) whose TAIL
+# the cast ("/.../TAIL" with U+2026, for example the cwd in a welcome box) whose TAIL
 # holds the name of the run folder or of the work root, or a start of
 # these names that the kit sets (agent-signals-run-, agent-signals-work),
 # or ends with the name of a session, becomes "/work/example/LAST".

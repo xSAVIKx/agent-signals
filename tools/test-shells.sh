@@ -37,6 +37,16 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 rc=0
 : >"$tmp/sum"
+# yash cannot read a script with bytes outside ASCII in the C locale, so
+# each script of the kit holds ASCII only. printf writes such bytes.
+na=
+for f in "$root"/probes/*.sh "$root"/probes/agent/*.sh "$root"/probes/agent/steps/*.sh "$root/tools/scrub.sh"; do
+  [ "$(LC_ALL=C tr -d '\000-\177' <"$f" | wc -c)" -eq 0 ] || na="$na ${f#"$root"/}"
+done
+if [ -n "$na" ]; then
+  echo "shells: a kit script holds bytes outside ASCII:$na" >>"$tmp/sum"
+  rc=1
+fi
 for s in $shells; do
   exe=$(command -v "$s" 2>/dev/null) || exe=
   if [ -z "$exe" ]; then
