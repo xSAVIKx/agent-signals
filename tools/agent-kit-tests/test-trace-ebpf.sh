@@ -200,8 +200,12 @@ if not (p and len(p) == 1 and "python3" in (p[0].get("program") or "")):
   sed 's/^/  sessions| /' "$T/raw-sessions.tsv" 2>/dev/null
   sed 's/^/  hangup| /' "$T/raw-hangup.tsv" 2>/dev/null
   awk '$2 == "exec" && $0 ~ /python3/ { p[$3] = 1 } $2 == "fork" && $0 ~ /python3/ { p[$4] = 1 }
-    { l[NR] = $0 } END { for (i = 1; i <= NR; i++) { split(l[i], f, " ")
-      if ((f[2] == "fork" && (f[3] in p || f[4] in p)) || ((f[2] == "exec" || f[2] == "exit") && f[3] in p)) print "  ebpf| " l[i] } }' \
+    { l[NR] = $0 } END {
+      # The parents of the python3 processes too.
+      for (i = 1; i <= NR; i++) { split(l[i], f, " "); if (f[2] == "fork" && f[4] in p) q[f[3]] = 1 }
+      for (k in q) p[k] = 1
+      for (i = 1; i <= NR; i++) { split(l[i], f, " ")
+        if ((f[2] == "fork" && (f[3] in p || f[4] in p)) || ((f[2] == "exec" || f[2] == "exit") && f[3] in p)) print "  ebpf| " l[i] } }' \
     "$T/raw-ebpf.txt" 2>/dev/null | head -n 30
 }
 want "ebpf: meta.ebpf_lost is an integer" "$j" 'isinstance(d["meta"]["ebpf_lost"], int)'
