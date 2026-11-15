@@ -1,0 +1,27 @@
+schema: 1
+agent: agy
+agent_version: 1.5.8
+measured: 2026-11-14
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - the path of the work folder (/tmp/agsig9/i or /tmp/agsig9/p, 13 characters) is replaced with /work/example (13 characters), so each line keeps its length
+description: >-
+  A command permission dialog for "touch agent-signals-test.txt": "Requesting
+  permission for:", the command, "Run this command?" and four options. It
+  draws in place of the input box. The footer still says "esc to cancel". The
+  screen is the capture of a kit session (kit session start NAME agy --via
+  tmux --home fixture) against the fake model of the kit (probes/agent/fake-
+  model.py), in a private tmux server on Linux (x64), 120x40.
+expect:
+  state: PERMISSION
+  dialog: permission
+  question: "Run this command?"
+  options:
+    - {n: 1, label: "Yes, run command", selected: true}
+    - {n: 2, label: "Yes, and always allow in this conversation for commands that start with 'touch'"}
+    - {n: 3, label: "Yes, and always allow for commands that start with 'touch' (Persist to settings.json)"}
+    - {n: 4, label: "No, cancel"}
+  box_text: null
+facts: [17]

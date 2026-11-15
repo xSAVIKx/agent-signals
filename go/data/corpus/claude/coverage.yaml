@@ -9,3 +9,14 @@ verified:
       AskUserQuestion wizard (two tabs and the review), and a background
       shell. Not checked: the folder-trust dialog, Rewind, plan mode, long
       pasted text.
+  - version: 2.1.325
+    date: 2026-11-14
+    method: >-
+      capture-pane -p, 120x40, of kit sessions with --home fixture and the
+      arguments of the interrupt and permission rows of steps.tsv, against
+      the fake model of the kit, on Linux (x64)
+    notes: >-
+      Covers the idle screen, the busy screen of a held turn and the shell
+      permission dialog (idle-v2-1-325, busy-v2-1-325 and permission-bash-v2-1-325). Not checked: a real model and a real
+      login, macOS and Windows, the other dialogs of this version, styled
+      captures, and a pane narrower than 120 columns.
