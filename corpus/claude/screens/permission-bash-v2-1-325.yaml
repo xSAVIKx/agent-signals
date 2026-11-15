@@ -11,8 +11,8 @@ description: >-
   A Bash permission dialog for "touch agent-signals-test.txt": "Do you want to
   proceed?" with four options. Option 2 holds the folder path. A tip line
   above the command names auto mode. The screen is the capture of a kit
-  session (kit session start NAME claude --via tmux --home fixture --args "--
-  permission-mode manual") against the fake model of the kit
+  session (kit session start NAME claude --via tmux --home fixture
+  --args "--permission-mode manual") against the fake model of the kit
   (probes/agent/fake-model.py), in a private tmux server on Linux (x64),
   120x40.
 expect:
