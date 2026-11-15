@@ -15,6 +15,7 @@
 #      OneDriveConsumer                              -> /work/example
 #   1. the home folder of this account               -> ~
 #   2. other home folders (/Users/<name>, /home/<name>, C:\Users\<name>) -> ~
+#   2a. a path that an agent shortened with "/…/" or "\…\" -> /work/example
 #   3. a path below ~ that is not in an agent or system folder:
 #      the folders up to the first hidden folder     -> /work/example
 #      (~/code/app/.claude/x -> /work/example/.claude/x, ~/code/app/a.go -> /work/example)
@@ -321,6 +322,12 @@ fi
 
 rule "home folder" "s#$(q "$home")([/\\\\\"' :]|\$)#~\\1#g"
 rule "other home folder" 's#/Users/[A-Za-z0-9._-]+#~#g; s#/home/[A-Za-z0-9._-]+#~#g; s#[A-Za-z]:\\+Users\\+[A-Za-z0-9._-]+#~#g'
+# 2a. A path that an agent shortened in the middle with "/…/" (Claude Code
+# does this for a long folder path in its welcome box). The start of the
+# path, with the home folder, is gone, so rules 1 to 4 do not see it, and
+# the visible end can hold any folder name. The whole path becomes
+# /work/example.
+rule "elided path" 's#~?[/\\]…[/\\][^[:space:]"'"'"':,]*#/work/example#g'
 
 # 3 and 4. A path is a run of characters that are not white space, quotes,
 # a colon or a comma. Folders up to the first hidden folder become

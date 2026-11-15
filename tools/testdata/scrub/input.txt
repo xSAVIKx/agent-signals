@@ -123,3 +123,5 @@ private 4: open ~/<private>
    src/a/b.go done
 private 5: "~/<private>" and (~/<private>) and ~/<private>, ok
 private 6: open ~/code/app/y.txt
+ ▝▝   ▝▝   /…/tg-sessions/agent-signals-work/agent-signals-run-linux-20261114T2241
+  cwd \…\Fabrikam\app\.claude done
