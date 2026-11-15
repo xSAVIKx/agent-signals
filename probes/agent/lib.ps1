@@ -691,6 +691,48 @@ function Get-KitConptyTool([string]$Python, [string]$Run) {
     return $null
 }
 
+# Get-KitUvDriverPython RUN: the Python of a uv environment that imports
+# the packages of the conpty driver, or ''. A Windows laptop of kit 0.22.0
+# had uv and no Python with these packages, and the plan then dropped each
+# session step on conpty. uv makes the environment one time and keeps it in
+# its cache. With RUN, the path goes to RUN\.kit\python, so that the next
+# command of the run reads it and does not start uv again.
+function Get-KitUvDriverPython([string]$Run) {
+    $uv = Get-KitCommandFile 'uv'
+    if (-not $uv) { return '' }
+    $a = @('run', '--no-project', '--python', '3.12')
+    foreach ($p in $script:KitConptyPackages) { $a += @('--with', $p) }
+    $a += @('python', '-I', '-c', 'import sys, winpty, pyte, wcwidth, psutil; print(sys.executable)')
+    $ErrorActionPreference = 'Continue'
+    # Python writes the path in UTF-8, and PowerShell reads it in UTF-8,
+    # also when the path has characters outside ASCII.
+    $oldEnc = [Console]::OutputEncoding
+    $oldIo = $env:PYTHONIOENCODING
+    try {
+        try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false } catch { }
+        $env:PYTHONIOENCODING = 'utf-8'
+        $out = @(& $uv @a 2>$null | ForEach-Object { "$_" })
+        $rc = $LASTEXITCODE
+    } finally {
+        try { [Console]::OutputEncoding = $oldEnc } catch { }
+        $env:PYTHONIOENCODING = $oldIo
+    }
+    if ($rc -ne 0) { return '' }
+    $py = @($out | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Leaf) } | Select-Object -Last 1)
+    if ($py.Count -eq 0) { return '' }
+    $py = [string]$py[0]
+    if ($Run -and (Test-Path -LiteralPath $Run -PathType Container)) {
+        $f = Join-Path $Run '.kit\python'
+        if (-not (Test-Path -LiteralPath $f)) {
+            New-Item -ItemType Directory -Force -Path (Join-Path $Run '.kit') | Out-Null
+            # Not Write-KitText: session.ps1 has a function of that name
+            # that writes to stdout.
+            [IO.File]::WriteAllText($f, $py + "`n", (New-Object System.Text.UTF8Encoding $false))
+        }
+    }
+    return $py
+}
+
 # Get-KitConptyCommand TOOL: the program and the first arguments that run
 # a Python script with the driver packages.
 function Get-KitConptyCommand($Tool) {

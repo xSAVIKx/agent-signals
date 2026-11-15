@@ -290,6 +290,43 @@ wait_re() {
   done
 }
 
+# wait_busy SECONDS FILE: wait for the busy screen. The screen is busy
+# when a line matches KIT_WAIT_REGEX, or when the screen changed at each of
+# 3 polls in a row and the box line does not show the prompt. Codex 0.167.2
+# drew no busy line while the answer text of a real model came (laptop runs
+# of kit 0.21.0 and 0.22.0). busy_by gets "the busy regex" or "screen
+# changes". "$tmp/early" gets the screen of about 2 s after the start.
+busy_by=
+wait_busy() {
+  _t0=$(date +%s)
+  _end=$((_t0 + $(clip "$1")))
+  _last=
+  _moves=0
+  rm -f "$tmp/early"
+  while :; do
+    alive || { screen "$2"; return 2; }
+    screen "$2" || return 3
+    [ -f "$tmp/early" ] || [ $(($(date +%s) - _t0)) -lt 2 ] || cp "$2" "$tmp/early"
+    if has "$KIT_WAIT_REGEX" "$2"; then
+      busy_by="the busy regex"
+      return 0
+    fi
+    _sum=$(cksum <"$2")
+    if [ -n "$_last" ] && [ "$_sum" != "$_last" ] && ! in_box "$2" "$KIT_PROMPT"; then
+      _moves=$((_moves + 1))
+    else
+      _moves=0
+    fi
+    _last=$_sum
+    if [ "$_moves" -ge 3 ]; then
+      busy_by="screen changes"
+      return 0
+    fi
+    [ "$(date +%s)" -lt "$_end" ] || return 1
+    sleep 0.5
+  done
+}
+
 # start_session [ARGS]: start the session with the agent command and ARGS.
 keep=
 start_session() {
@@ -738,23 +775,19 @@ case $KIT_KIND in
   interrupt)
     say "send the prompt, wait for the busy screen ($WAIT_S s)"
     send "$KIT_PROMPT"
-    # Look for the busy line from the send on. Codex shows its busy line
+    # Look for the busy screen from the send on. Codex shows its busy line
     # only until the answer text starts, and that can be in 1 s. The
-    # screen at 2 s shows what the agent drew when the busy regex does not
-    # match.
-    wait_re "$KIT_WAIT_REGEX" 2 "$tmp/s"
+    # screen at 2 s shows what the agent drew when no busy screen came.
+    wait_busy "$WAIT_S" "$tmp/s"
     rc=$?
-    cp "$tmp/s" "$tmp/early" 2>/dev/null || : >"$tmp/early"
-    if [ "$rc" -eq 1 ]; then
-      wait_re "$KIT_WAIT_REGEX" "$WAIT_S" "$tmp/s"
-      rc=$?
-    fi
+    [ -f "$tmp/early" ] || cp "$tmp/s" "$tmp/early" 2>/dev/null || : >"$tmp/early"
     bad "$rc"
     if [ "$rc" -ne 0 ]; then
       save "2 s after the prompt" "$tmp/early"
       keys_answer "${KIT_ANSWER%% *}"
       stop_now no-busy
     fi
+    say "busy: seen by $busy_by"
     kit_trace_state busy
     save busy "$tmp/s"
     for k in ${KIT_ANSWER:-}; do

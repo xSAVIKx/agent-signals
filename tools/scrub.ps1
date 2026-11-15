@@ -24,6 +24,7 @@
 #   0. extra     each extra root, the longest first -> /work/example
 #   1. home       the home folder -> ~
 #   2. other-home /Users/<name>, /home/<name>, C:\Users\<name> -> ~
+#   2a. elided    a path that an agent shortened with "/…/" -> /work/example
 #   3. project    a project path below ~, /srv/ or /work/<name>, or a drive
 #                 path such as D:\Projects\shop -> /work/example. C:\Windows,
 #                 C:\Program Files and C:\ProgramData stay.
@@ -115,7 +116,8 @@ function Test-ScrubMore([string]$J, [string]$Text, [int]$At, [bool]$First, [bool
 # wrapped path to just after it, so that the full path is on its first
 # line. Each line end and the line count stay. A path is wrapped when:
 #   - an anchor is cut by one or more line ends: each of ANCHORS, then
-#     /Users/, /home/, ~/, /srv/ and /work/, or
+#     /Users/, /home/, ~/, /srv/, /work/, /.../ and \...\ (with the
+#     character U+2026), or
 #   - the path after an anchor goes to the end of the line, the first word
 #     of the next line is made only of the characters A-Z a-z 0-9 . _ ~ -
 #     / and \, and one of these is true:
@@ -143,7 +145,7 @@ function Invoke-ScrubUnwrap([string]$Text, [string[]]$Anchors, [hashtable]$Count
   $nl = New-Object System.Text.RegularExpressions.Regex ('\G' + $script:WrapBreak)
   $own = @($Anchors | Where-Object { $_ -and $_.Length -gt 1 })
   $all = @($own | ForEach-Object { New-Object PSObject -Property @{ Value = [string]$_; Private = $true } }) +
-    @(@('/Users/', '/home/', '~/', '/srv/', '/work/') | ForEach-Object { New-Object PSObject -Property @{ Value = $_; Private = $false } })
+    @(@('/Users/', '/home/', '~/', '/srv/', '/work/', ('/' + [char]0x2026 + '/'), ('\' + [char]0x2026 + '\')) | ForEach-Object { New-Object PSObject -Property @{ Value = $_; Private = $false } })
   foreach ($e in $all) {
     $a = $e.Value
     $win = $a -match '^[A-Za-z]:'
@@ -278,6 +280,11 @@ function Invoke-Scrub([string]$Text, [string]$HomeDir, [string]$User, [string]$H
   # 2. Other home folders.
   $s = Invoke-ScrubReplace $s ('(?<![A-Za-z0-9_.~-])/(?:Users|home)/[^/\\\s"'':,;()]+') { '~' } $counts 'other-home'
   $s = Invoke-ScrubReplace $s ('(?i)(?<![A-Za-z0-9_.-])[A-Z]:[\\/]+Users[\\/]+[^/\\\s"'':,;()]+') { '~' } $counts 'other-home'
+  # 2a. A path that an agent shortened in the middle with "/…/" (Claude
+  # Code does this for a long folder path in its welcome box). Its start,
+  # with the home folder, is gone, and its visible end can hold any folder
+  # name. The whole path becomes /work/example.
+  $s = Invoke-ScrubReplace $s ('~?[/\\]' + [char]0x2026 + '[/\\][^\s"'':,]*') { '/work/example' } $counts 'elided'
 
   # 3. Project paths. The first pass takes a path just after a quote, up
   # to the next quote, so that it can hold spaces. The second pass takes

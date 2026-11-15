@@ -14,7 +14,8 @@
 #             files. A test session (permission, new-chat, interrupt):
 #             scenarios\conpty.py and a Python that imports winpty, pyte,
 #             wcwidth and psutil, as "kit session start --via conpty"
-#             finds it.
+#             finds it (also a uv environment). When the plan drops the
+#             session steps on conpty, it writes the reason to stderr.
 #   psmux     a test session: psmux (or pmux) on PATH.
 #   operator  the real session of the operator: no tool.
 $ErrorActionPreference = 'Stop'
@@ -74,8 +75,10 @@ function Test-SessionPython {
         $r = Invoke-KitNative $py @('-I', '-c', 'import winpty, pyte, wcwidth, psutil')
         if ($r.Code -eq 0) { $script:SessionPython = $true; break }
     }
+    if (-not $script:SessionPython -and (Get-KitUvDriverPython $run)) { $script:SessionPython = $true }
     return $script:SessionPython
 }
+$script:ConptyWhy = ''
 $psmux = [bool]((Get-KitCommandFile 'psmux') -or (Get-KitCommandFile 'pmux'))
 
 foreach ($s in @(Read-KitSteps)) {
@@ -87,7 +90,13 @@ foreach ($s in @(Read-KitSteps)) {
             if ($s.kind -eq 'first-run') {
                 # The conpty first run needs a driver Python and the scenario files.
                 if (-not $conpty -or -not $scenario) { continue }
-            } elseif (-not $conptyDriver -or -not (Test-SessionPython)) { continue }
+            } elseif (-not $conptyDriver) {
+                if (-not $script:ConptyWhy) { $script:ConptyWhy = 'the kit has no scenarios\conpty.py' }
+                continue
+            } elseif (-not (Test-SessionPython)) {
+                if (-not $script:ConptyWhy) { $script:ConptyWhy = 'no Python imports winpty, pyte, wcwidth and psutil, and uv is missing or failed (set AGENT_SIGNALS_PYTHON or kit start --python)' }
+                continue
+            }
         }
         if ($backend -eq 'psmux' -and -not $psmux) { continue }
         $cost = if ($homeMode -eq 'fixture') { 'none' } else { $s.cost }
@@ -98,4 +107,5 @@ foreach ($s in @(Read-KitSteps)) {
         Write-Output $line
     }
 }
+if ($script:ConptyWhy) { [Console]::Error.WriteLine("kit: the session steps on conpty do not run: $($script:ConptyWhy)") }
 exit 0
