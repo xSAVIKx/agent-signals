@@ -306,6 +306,12 @@ try {
         Invoke-Jump 'permission-claude' '600' '' 'clock gap' 1
         $f = Get-StepFile "*-permission-claude@$b.txt"
         Expect-Line "${b}: clock gap: the step is fail clock-gap" "^step: permission-claude@$b fail clock-gap$" $out
+        # This case failed at random on windows-11-arm with another reason.
+        # Print the result and the log of the step when it fails.
+        if (-not (Select-String -LiteralPath $out -Pattern 'fail clock-gap$' -Quiet)) {
+            Get-Content -LiteralPath $out | Select-Object -Last 3 | ForEach-Object { "  | $_" }
+            if ($f) { Get-Content -LiteralPath $f | Select-String -Pattern '^t=' | Select-Object -Last 15 | ForEach-Object { "  log| $_" } }
+        }
         Expect-Line "${b}: clock gap: the file has the result" '^result: fail clock-gap$' $f
         Expect-Line "${b}: clock gap: the file gives the size" '^clock gap: a turn of the watch took [0-9]+ s of wall time, at 2 s of counted time \(the guided watch\)$' $f
         Expect-Line "${b}: clock gap: the guided step has the gap line" '^watch: clock gap of [0-9]+ s: ' $f
