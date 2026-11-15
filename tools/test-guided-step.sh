@@ -38,14 +38,16 @@ PY
 fi
 
 # The stub agent: a process named agy that writes a presence lock and a
-# transcript record every second.
+# transcript record every 0.2 s. A step that reads Enter from a pipe ends
+# its watch in less than a second, and the records must fall between its
+# two snapshots.
 cat >"$tmp/bin/agy" <<'EOF'
 #!/bin/sh
 s=$HOME/.gemini/antigravity-cli
 while :; do
   touch "$s/presence/stub.lock"
   echo '{"type":"USER_INPUT"}' >>"$s/brain/b1/.system_generated/logs/transcript.jsonl"
-  sleep 1
+  sleep 0.2
 done
 EOF
 chmod +x "$tmp/bin/agy"
