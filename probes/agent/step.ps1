@@ -88,6 +88,7 @@ $code = 3
 $reason = ''
 $console = ''
 
+$p = $null
 try {
     if (-not (Test-KitStepRuns $step $backend)) {
         $reason = 'not-on-windows'
@@ -140,7 +141,11 @@ try {
     $why = if ($reason) { $reason } else { '-' }
     Add-KitManifest $run @('step', $name, $backend, $result, $start, (Get-KitIsoTime), "$base.txt", (Get-KitSha256 $file), $why)
 } finally {
-    Remove-Item -LiteralPath $scriptPidPath -Force -ErrorAction SilentlyContinue
+    # A script that did not stop at the time limit keeps its marker: the
+    # next step refuses to start while that process runs.
+    if (-not $p -or $p.HasExited) {
+        Remove-Item -LiteralPath $scriptPidPath -Force -ErrorAction SilentlyContinue
+    }
     $stepLock.Dispose()
     Remove-Item -LiteralPath $lockPath -Force -ErrorAction SilentlyContinue
     # Delete the raw files of this step, also after an error.
