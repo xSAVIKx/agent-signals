@@ -39,3 +39,14 @@ verified:
       the file-change approval dialog, the hooks review dialog of this
       version (fact 38 gives its text), styled captures, and a pane
       narrower than 120 columns.
+  - version: 0.169.0
+    date: 2026-11-14
+    method: >-
+      capture-pane -p, 120x40, of kit sessions with --home fixture and the
+      arguments of the interrupt and permission rows of steps.tsv, against
+      the fake model of the kit, on Linux (x64)
+    notes: >-
+      Covers the idle screen, the busy screen of a held turn and the shell
+      permission dialog (idle-logo-v0-169-0, busy-v0-169-0 and approval-v0-169-0). Not checked: a real model and a real
+      login, macOS and Windows, the other dialogs of this version, styled
+      captures, and a pane narrower than 120 columns.

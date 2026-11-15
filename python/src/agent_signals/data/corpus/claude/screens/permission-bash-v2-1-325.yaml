@@ -1,0 +1,28 @@
+schema: 1
+agent: claude
+agent_version: 2.1.325
+measured: 2026-11-14
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - the path of the work folder (/tmp/agsig9/i or /tmp/agsig9/p, 13 characters) is replaced with /work/example (13 characters), so each line keeps its length
+description: >-
+  A Bash permission dialog for "touch agent-signals-test.txt": "Do you want to
+  proceed?" with four options. Option 2 holds the folder path. A tip line
+  above the command names auto mode. The screen is the capture of a kit
+  session (kit session start NAME claude --via tmux --home fixture --args "--
+  permission-mode manual") against the fake model of the kit
+  (probes/agent/fake-model.py), in a private tmux server on Linux (x64),
+  120x40.
+expect:
+  state: PERMISSION
+  dialog: permission
+  question: "Do you want to proceed?"
+  options:
+    - {n: 1, label: "Yes", selected: true}
+    - {n: 2, label: "Yes, and always allow access to /work/example from this project"}
+    - {n: 3, label: "Yes, and switch to auto mode · auto mode handles these prompts for you"}
+    - {n: 4, label: "No"}
+  box_text: null
+facts: [24, 33]

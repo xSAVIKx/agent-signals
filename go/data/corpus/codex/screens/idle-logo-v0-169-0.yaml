@@ -1,0 +1,21 @@
+schema: 1
+agent: codex
+agent_version: 0.169.0
+measured: 2026-11-14
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - the path of the work folder (/tmp/agsig9/i or /tmp/agsig9/p, 13 characters) is replaced with /work/example (13 characters), so each line keeps its length
+description: >-
+  The idle screen of a new session, about 2 s after the box showed: Codex
+  0.169.0 draws a large logo of braille characters in place of the welcome
+  list at the start. The box "› Ask Codex to do anything" and the footer "?
+  for shortcuts" show below it. The screen is the capture of a kit session
+  (kit session start NAME codex --via tmux --home fixture) against the fake
+  model of the kit (probes/agent/fake-model.py), in a private tmux server on
+  Linux (x64), 120x40.
+expect:
+  state: IDLE
+  dialog: none
+facts: [20]

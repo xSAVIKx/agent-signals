@@ -1,0 +1,21 @@
+schema: 1
+agent: claude
+agent_version: 2.1.325
+measured: 2026-11-14
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - the path of the work folder (/tmp/agsig9/i or /tmp/agsig9/p, 13 characters) is replaced with /work/example (13 characters), so each line keeps its length
+description: >-
+  A turn runs: the spinner line "✢ Contemplating…" above the box, and "esc to
+  interrupt" in the footer. The fake model holds the turn (the prompt "Count
+  from 1 to 2000"). The screen is the capture of a kit session (kit session
+  start NAME claude --via tmux --home fixture) against the fake model of the
+  kit (probes/agent/fake-model.py), in a private tmux server on Linux (x64),
+  120x40.
+expect:
+  state: BUSY
+  dialog: none
+  box_text: null
+facts: [23]

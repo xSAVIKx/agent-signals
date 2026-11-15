@@ -1,0 +1,40 @@
+
+
+      ▄▀▀▄        Antigravity CLI 1.5.8
+     ▀▀▀▀▀▀       Enterprise Gateway
+    ▀▀▀▀▀▀▀▀      fixture-model
+   ▄▀▀    ▀▀▄     /work/example
+  ▄▀▀      ▀▀▄
+
+────────────────────────────────────────────────────────────
+> Create a file named agent-signals-test.txt that holds the word hello.
+
+● Ran (touch agent-signals-test.txt) (ctrl+o to expand)
+
+Command
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+Requesting permission for:
+   touch agent-signals-test.txt
+
+Run this command?
+> 1. Yes, run command
+  2. Yes, and always allow in this conversation for commands that start with 'touch'
+  3. Yes, and always allow for commands that start with 'touch' (Persist to settings.json)
+  4. No, cancel
+
+  ↑/↓ Navigate · tab Amend · ctrl+g edit/expand command
+esc to cancel                                                                                              fixture-model
+
+
+
+
+
+
+
+
+
+
+
+
+
