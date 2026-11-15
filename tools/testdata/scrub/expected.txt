@@ -123,3 +123,9 @@ private 4: open ~/<private>
    src/a/b.go done
 private 5: "~/<private>" and (~/<private>) and ~/<private>, ok
 private 6: open /work/example
+ ▝▝   ▝▝   /work/example
+  cwd /work/example done
+  path /work/example
+     end
+  cwd /work/example
+     ok

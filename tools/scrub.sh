@@ -15,6 +15,7 @@
 #      OneDriveConsumer                              -> /work/example
 #   1. the home folder of this account               -> ~
 #   2. other home folders (/Users/<name>, /home/<name>, C:\Users\<name>) -> ~
+#   2a. a path that an agent shortened with "/…/" or "\…\" -> /work/example
 #   3. a path below ~ that is not in an agent or system folder:
 #      the folders up to the first hidden folder     -> /work/example
 #      (~/code/app/.claude/x -> /work/example/.claude/x, ~/code/app/a.go -> /work/example)
@@ -133,7 +134,7 @@ done <"$tmp/extra"
 # after it, so that the full path is on its first line. Each line end and
 # the line count stay. A path is wrapped when:
 #   - an anchor is cut by one or more line ends: each extra root, the home
-#     folder, /Users/, /home/, ~/, /srv/ and /work/, or
+#     folder, /Users/, /home/, ~/, /srv/, /work/, /…/ and \…\, or
 #   - the path after an anchor goes to the end of the line, the first word
 #     of the next line is made only of the characters A-Z a-z 0-9 . _ ~ -
 #     / and \, and one of these is true:
@@ -165,7 +166,8 @@ done <"$tmp/extra"
 np=$(awk 'END { print NR }' "$tmp/anchors")
 # The ~ is text here: an agent writes it in a path.
 # shellcheck disable=SC2088
-printf '%s\n' /Users/ /home/ '~/' /srv/ /work/ >>"$tmp/anchors"
+# /…/ and \…\: an agent shortened the start of the path (rule 2a).
+printf '%s\n' /Users/ /home/ '~/' /srv/ /work/ '/…/' '\…\' >>"$tmp/anchors"
 # The pass works on bytes (LC_ALL=C). The awk of macOS reads UTF-8 in a
 # UTF-8 locale, and it stops with "towc: multibyte conversion failure" on
 # this pass. mawk and busybox awk work on bytes in each locale.
@@ -321,6 +323,12 @@ fi
 
 rule "home folder" "s#$(q "$home")([/\\\\\"' :]|\$)#~\\1#g"
 rule "other home folder" 's#/Users/[A-Za-z0-9._-]+#~#g; s#/home/[A-Za-z0-9._-]+#~#g; s#[A-Za-z]:\\+Users\\+[A-Za-z0-9._-]+#~#g'
+# 2a. A path that an agent shortened in the middle with "/…/" (Claude Code
+# does this for a long folder path in its welcome box). The start of the
+# path, with the home folder, is gone, so rules 1 to 4 do not see it, and
+# the visible end can hold any folder name. The whole path becomes
+# /work/example.
+rule "elided path" 's#~?[/\\]…[/\\][^[:space:]"'"'"':,]*#/work/example#g'
 
 # 3 and 4. A path is a run of characters that are not white space, quotes,
 # a colon or a comma. Folders up to the first hidden folder become
