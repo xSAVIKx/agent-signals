@@ -49,3 +49,6 @@ Each job has a task file. Follow the task file step by step.
    The sync script also makes the copy for the Python library.
 3. `shellcheck --severity=warning` on each changed `.sh` file.
 4. `sh tools/test-scrub.sh` when the scrub changed.
+5. `sh tools/kit-repeat.sh -n 3` when a change can make a kit step flaky.
+   It runs the fixture steps 3 times and names each step whose result
+   changes.
