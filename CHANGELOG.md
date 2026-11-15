@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.25.1](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.25.0...corpus-v0.25.1) (2026-11-15)
+
+
+### Bug Fixes
+
+* **scrub:** replace a path that an agent shortened with /…/ ([#183](https://github.com/xSAVIKx/agent-signals/issues/183)) ([c78de03](https://github.com/xSAVIKx/agent-signals/commit/c78de03ac48cd76670665bb39273c540cbc7b3f2))
+
 ## [0.25.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.24.0...corpus-v0.25.0) (2026-11-15)
 
 
