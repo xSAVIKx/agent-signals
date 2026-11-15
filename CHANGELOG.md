@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.25.2](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.25.1...corpus-v0.25.2) (2026-11-15)
+
+
+### Bug Fixes
+
+* **kit:** add a Windows probe of Gemini CLI, so that the guided watch knows the agent ([7683270](https://github.com/xSAVIKx/agent-signals/commit/7683270ad40556799b9416e10af66192d85f0192))
+* **kit:** add a Windows probe of Gemini CLI, so that the guided watch knows the agent ([5e9b998](https://github.com/xSAVIKx/agent-signals/commit/5e9b998c55655af0266594526849df9e4b142e26))
+* **kit:** do not see the Cursor CLI idle under its trust dialog ([b9dc6aa](https://github.com/xSAVIKx/agent-signals/commit/b9dc6aa41a537f6985ed4e12555cae916f7c4cd5))
+* **kit:** do not see the Cursor CLI idle under its trust dialog ([abf40af](https://github.com/xSAVIKx/agent-signals/commit/abf40afb9e12b64e61c3967ebeffaa8e0117c382))
+* **kit:** fail a session step with agent-error when a screen shows an agent error ([4409a8b](https://github.com/xSAVIKx/agent-signals/commit/4409a8b8947ae6aea5b258038b5362beb03a4f3c))
+* **kit:** fail a session step with agent-error when a screen shows an agent error ([a08036d](https://github.com/xSAVIKx/agent-signals/commit/a08036d2d73fe6db263145c54534b9155cf15e9c))
+* **kit:** keep clock-gap over agent-error as the final reason ([34529d1](https://github.com/xSAVIKx/agent-signals/commit/34529d10c23f4326ba05de483de3a8c436988327))
+* **kit:** read GEMINI_CLI_HOME and hide the project folder in the Gemini Windows probe ([07072d9](https://github.com/xSAVIKx/agent-signals/commit/07072d9d3bbb96ef4e6c842f8d241c212be2a157))
+* **kit:** retry the ready file of the ConPTY driver when Windows holds it ([82f4be0](https://github.com/xSAVIKx/agent-signals/commit/82f4be00281513f3d54ec590901fc579f8c2a907))
+* **kit:** retry the ready file of the ConPTY driver when Windows holds it ([b0e0c10](https://github.com/xSAVIKx/agent-signals/commit/b0e0c10e8ca83ded3898eff107a0e376e41aff64))
+* **kit:** wait 0.5 s after the hang-up time before the stop of the session pids ([69ecece](https://github.com/xSAVIKx/agent-signals/commit/69ecece951dca5f0b712e6bebdb78cee8bbb0309))
+* **kit:** wait 0.5 s after the hang-up time before the stop of the session pids ([b57b3c6](https://github.com/xSAVIKx/agent-signals/commit/b57b3c67a2320ac01af14b4d3130d22a947e3fe2))
+* run the kit the same way in ksh93, mksh and yash, and test 7 shells in CI ([c4018cb](https://github.com/xSAVIKx/agent-signals/commit/c4018cb2f369b0ec56a16210d28037f55c3621ab))
+
 ## [0.25.1](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.25.0...corpus-v0.25.1) (2026-11-15)
 
 
