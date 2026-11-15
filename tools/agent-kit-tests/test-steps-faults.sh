@@ -116,7 +116,9 @@ if script_ends; then pass "kill -9: the old script ends"; else fail "kill -9: th
 stub_set
 WATCH=4 kitx step "$step" >"$T/step" 2>&1
 expect_code "kill -9: the next step exits 0" 0 $?
-expect_line "kill -9: the next step is ok" "^step: $step ok$" "$T/step"
+# The case is about the stale lock, not the dialog: on a slow runner the
+# 4 s wait can give "ok no-dialog".
+expect_line "kill -9: the next step is ok" "^step: $step ok( |$)" "$T/step"
 grep -q "^step: $step ok$" "$T/step" || { sed 's/^/  out: /' "$T/step"; f=$run/$(last_file); sed -n '/################ guided step/,/^### 1/p' "$f" | head -12 | sed 's/^/  watch: /'; }
 
 
