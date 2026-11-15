@@ -533,17 +533,17 @@ finish() {
     [ "$_r" = fail ] || why=$watch_bad
     _r=fail
   fi
-  _gap=$(clock_gap)
-  if [ -n "$_gap" ]; then
-    say "clock gap: $_gap"
-    _r=fail
-    why=clock-gap
-  fi
   _err=$(agent_error)
   if [ -n "$_err" ]; then
     say "the agent shows an error: $_err"
     _r=fail
     why=agent-error
+  fi
+  _gap=$(clock_gap)
+  if [ -n "$_gap" ]; then
+    say "clock gap: $_gap"
+    _r=fail
+    why=clock-gap
   fi
   if [ "$_r" = ok ] && [ -z "$why" ] && no_records; then
     why=no-records

@@ -636,16 +636,16 @@ try {
         if ($code -eq 0) { $reason = $watchBad }
         $code = 1
     }
-    if ($gapText) {
-        Add-Log "clock gap: $gapText"
-        $code = 1
-        $reason = 'clock-gap'
-    }
     $errLine = Get-AgentError
     if ($errLine) {
         Add-Log "the agent shows an error: $errLine"
         $code = 1
         $reason = 'agent-error'
+    }
+    if ($gapText) {
+        Add-Log "clock gap: $gapText"
+        $code = 1
+        $reason = 'clock-gap'
     }
     if ($code -eq 0 -and -not $reason -and $watch -and (Test-NoRecords $watchText)) { $reason = 'no-records' }
     $result = 'ok'
