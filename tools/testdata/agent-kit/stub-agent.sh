@@ -27,6 +27,9 @@
 #                      "key Escape", "key C-c", "key C-d", or "char C" for
 #                      a character C.
 #   STUB_DIALOG=no     the prompt of the permission steps opens no dialog.
+#   STUB_DIALOG=error  the prompt of the permission steps opens no dialog,
+#                      and the stub shows the usage limit line of the
+#                      Cursor CLI.
 #   STUB_DIALOG=busy   the prompt of the permission steps opens no dialog,
 #                      and the stub stays busy until Escape.
 #   STUB_RECORDS=no    the stub writes no record (read record below).
@@ -241,6 +244,7 @@ while :; do
             write | "Create a file named"*)
               case ${STUB_DIALOG:-} in
                 no) note="no dialog" ;;
+                error) note="Error: You've hit your usage limit" ;;
                 busy) state=busy ;;
                 *) state=dialog ;;
               esac

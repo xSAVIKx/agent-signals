@@ -77,6 +77,13 @@ done
 
 # test_no_dialog_is_not_a_failure: a stub that never shows a dialog.
 if [ -n "$ran" ]; then
+  # test_agent_error: a usage limit line on the screen makes the step fail
+  # with agent-error, not "ok no-dialog".
+  stub_set STUB_DIALOG=error
+  WATCH=4 kitx step "permission-claude@$ran" >"$T/step" 2>&1
+  expect_code "agent error: the step exits 1" 1 $?
+  expect_line "agent error: the step is fail agent-error" "^step: permission-claude@$ran fail agent-error$" "$T/step"
+  expect_line "agent error: the log names the line" "the agent shows an error: Error: You've hit your usage limit" "$run/$(last_file)"
   stub_set STUB_DIALOG=no
   WATCH=4 kitx step "permission-claude@$ran" >"$T/step" 2>&1
   expect_code "no dialog: the step exits 0" 0 $?

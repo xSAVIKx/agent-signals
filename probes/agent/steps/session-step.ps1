@@ -44,6 +44,10 @@
 #                          but the last screen matches busy_regex. The
 #                          agent still works, so the step does not know if
 #                          a dialog comes. The file keeps the last screen.
+#   fail agent-error       a screen of the step shows an error of the agent:
+#                          a key that is not valid, a login request, a
+#                          usage limit or an API error. The log names the
+#                          first such line.
 #   fail clock-gap         one turn of the guided watch, its last snapshot,
 #                          or one turn of the wait for its end took more
 #                          than 60 s of wall time: the machine slept in the
@@ -137,6 +141,24 @@ $deadline = $t0.AddSeconds(225)
 function Add-Log([string]$Text) { [void]$log.Append([string]::Format([Globalization.CultureInfo]::InvariantCulture, 't={0:N1}s {1}', ((Get-Date) - $t0).TotalSeconds, $Text) + "`n") }
 $screens = New-Object System.Collections.ArrayList
 $blankValues = @()
+# The lines of an agent that cannot work, as AGENT_ERROR_RE of
+# session-step.sh.
+$AgentErrorRe = 'API Error|API key not valid|[Ii]nvalid API key|Enter Gemini API Key|hit your usage limit|[Uu]sage limit reached|[Qq]uota exceeded|RESOURCE_EXHAUSTED|401 Unauthorized|[Aa]uthentication (failed|required)|[Nn]ot (logged|signed) in|Please (log in|login|sign in|run /login)'
+# Get-AgentError: the first line of a kept screen that matches
+# $AgentErrorRe, at most 120 characters, or ''.
+function Get-AgentError {
+    foreach ($s in $screens) {
+        foreach ($l in ([string]$s[1] -split "`r?`n")) {
+            if ($l -cmatch $AgentErrorRe) {
+                $t = $l.Trim()
+                if ($t.Length -gt 120) { $t = $t.Substring(0, 120) }
+                return $t
+            }
+        }
+    }
+    return ''
+}
+
 function Add-Screen([string]$Name, [string]$Text) {
     if ($agent -eq 'claude') { $Text = Clear-KitWelcomeBox $Text $blankValues }
     [void]$screens.Add(@($Name, $Text))
@@ -613,6 +635,12 @@ try {
     if ($watchBad) {
         if ($code -eq 0) { $reason = $watchBad }
         $code = 1
+    }
+    $errLine = Get-AgentError
+    if ($errLine) {
+        Add-Log "the agent shows an error: $errLine"
+        $code = 1
+        $reason = 'agent-error'
     }
     if ($gapText) {
         Add-Log "clock gap: $gapText"
