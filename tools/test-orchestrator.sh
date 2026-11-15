@@ -34,15 +34,17 @@
 set -u
 root=$(cd "$(dirname "$0")/.." && pwd)
 
-# forbidden FILE: print the lines of FILE with a kill command or a tmux
-# command. A command can have a path (/bin/kill) or quotes ('tmux').
-kill_re="(^|[;&|(\`/'\" ])(kill|pkill|killall|Stop-Process)(['\"]?)( |$)"
-mux_re="(^|[;&|(\`/'\" ])(tmux|psmux)(['\"]?)( |$)|send-keys"
+# A command position: the start of the line, or after ; & | ( ` or $(,
+# then maybe sudo, env, exec, command, nohup or xargs with their options,
+# then maybe a path. A word in quotes or after other words is an argument.
+pos='(^|[;&|(`]|[$][(])[[:space:]]*((sudo|env|exec|command|nohup|xargs)[[:space:]]+(-[^[:space:]]*[[:space:]]+)*)?([^[:space:];&|]*/)?'
+kill_re="${pos}(kill|pkill|killall|Stop-Process)([[:space:]]|$)"
+mux_re="${pos}(tmux|psmux)([[:space:]]|$)"
 if [ "${1:-}" = --self-test ]; then
   st=$(mktemp -d) || exit 1
-  printf '%s\n' 'kill 1' '/bin/kill 12345' "'kill' 3" 'x; pkill -f a' 'Stop-Process -Id 4' >"$st/bad-kill"
-  printf '%s\n' '/usr/bin/tmux ls' 'tmux kill-server' '"tmux" new' 'x | psmux ls' 'a send-keys b' >"$st/bad-mux"
-  printf '%s\n' 'sh kit.sh step a@tmux' 'echo skill set' 'kit session stop --all' 'cat tmux.log' 'ls killed/' >"$st/good"
+  printf '%s\n' 'kill 1' '/bin/kill 12345' 'x; pkill -f a' 'Stop-Process -Id 4' 'sudo kill 5' 'a | xargs -r kill' 'y && $(kill 6)' >"$st/bad-kill"
+  printf '%s\n' '/usr/bin/tmux ls' 'tmux kill-server' 'env -i tmux new' 'x | psmux ls' 'a; tmux send-keys -t x y' >"$st/bad-mux"
+  printf '%s\n' 'sh kit.sh step a@tmux' 'echo skill set' 'kit session stop --all' 'cat tmux.log' 'ls killed/' 'grep -c send-keys log' "grep -n 'tmux ' AGENTS.md" "printf '%s\\n' 'kill 1'" >"$st/good"
   r=0
   while IFS= read -r l; do printf '%s\n' "$l" | grep -Eq "$kill_re" || { echo "self-test: kill not found: $l"; r=1; }; done <"$st/bad-kill"
   while IFS= read -r l; do printf '%s\n' "$l" | grep -Eq "$mux_re" || { echo "self-test: tmux not found: $l"; r=1; }; done <"$st/bad-mux"
