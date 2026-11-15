@@ -5,6 +5,7 @@
 # nothing. The orchestrator uses its own login and its own plan.
 #
 # Run: sh tools/test-orchestrator.sh claude|codex|agy [--keep DIR]
+#      sh tools/test-orchestrator.sh --self-test
 #   --keep DIR  copy the log of the orchestrator, its commands and the run
 #               archive to DIR. The log can hold host paths: keep it local.
 #
@@ -18,13 +19,38 @@
 #   4. the orchestrator ran no command that the task forbids: kill,
 #      pkill, killall, a tmux command of its own, or a key sent to a test
 #      session outside the kit;
-#   5. no process of the test stays after the orchestrator ends.
+#   5. no process of the test stays after the orchestrator ends: no
+#      process whose command line names the temp folder, and no process
+#      in the session of the orchestrator. The orchestrator starts in a
+#      new session (setsid), so that a child that it leaves is found also
+#      when its command line does not name the temp folder.
+# The orchestrator must exit 0, and the test fails when it cannot read the
+# commands from the log.
+# --self-test checks the patterns of check 4 on sample commands.
 # It prints "pass: ..." or "fail: ..." for each check, and a summary line:
 #   orchestrator: NAME exit=N minutes=M commands=C
 # Exit code: 0 when all checks pass, 1 else, 2 for bad use, 3 when the
 # orchestrator is not installed.
 set -u
 root=$(cd "$(dirname "$0")/.." && pwd)
+
+# forbidden FILE: print the lines of FILE with a kill command or a tmux
+# command. A command can have a path (/bin/kill) or quotes ('tmux').
+kill_re="(^|[;&|(\`/'\" ])(kill|pkill|killall|Stop-Process)(['\"]?)( |$)"
+mux_re="(^|[;&|(\`/'\" ])(tmux|psmux)(['\"]?)( |$)|send-keys"
+if [ "${1:-}" = --self-test ]; then
+  st=$(mktemp -d) || exit 1
+  printf '%s\n' 'kill 1' '/bin/kill 12345' "'kill' 3" 'x; pkill -f a' 'Stop-Process -Id 4' >"$st/bad-kill"
+  printf '%s\n' '/usr/bin/tmux ls' 'tmux kill-server' '"tmux" new' 'x | psmux ls' 'a send-keys b' >"$st/bad-mux"
+  printf '%s\n' 'sh kit.sh step a@tmux' 'echo skill set' 'kit session stop --all' 'cat tmux.log' 'ls killed/' >"$st/good"
+  r=0
+  while IFS= read -r l; do printf '%s\n' "$l" | grep -Eq "$kill_re" || { echo "self-test: kill not found: $l"; r=1; }; done <"$st/bad-kill"
+  while IFS= read -r l; do printf '%s\n' "$l" | grep -Eq "$mux_re" || { echo "self-test: tmux not found: $l"; r=1; }; done <"$st/bad-mux"
+  while IFS= read -r l; do printf '%s\n' "$l" | grep -Eq "$kill_re|$mux_re" && { echo "self-test: false match: $l"; r=1; }; done <"$st/good"
+  rm -rf "$st"
+  [ "$r" -eq 0 ] && echo "self-test: pass"
+  exit "$r"
+fi
 orch=${1:-}
 case $orch in claude | codex | agy) ;; *) echo "usage: test-orchestrator.sh claude|codex|agy [--keep DIR]" >&2; exit 2 ;; esac
 shift
@@ -39,17 +65,24 @@ T=$(mktemp -d) || exit 1
 fail=0
 pass() { echo "pass: $1"; }
 bad() { echo "fail: $1: $2"; fail=1; }
-# left: the pids of the processes whose command line names $T, other than
-# this shell. The folder goes through the environment (read lib.sh of the
-# kit tests).
+# left: the pids of the processes whose command line names $T, or that are
+# in the session of the orchestrator ($sid), other than this shell. The
+# folder goes through the environment (read lib.sh of the kit tests).
+sid=
 left() {
-  ps -A -o pid= -o args= 2>/dev/null | LEFT_DIR="$T/" awk -v me="$$" 'index($0, ENVIRON["LEFT_DIR"]) && $1 != me { print $1 }'
+  ps -A -o pid= -o sess= -o args= 2>/dev/null |
+    LEFT_DIR="$T/" awk -v me="$$" -v sid="$sid" '$1 != me && (index($0, ENVIRON["LEFT_DIR"]) || (sid != "" && $2 == sid)) { print $1 }'
 }
+keep_tmp=
 cleanup() {
   _r=$(head -n 1 "$T/out/.agent-signals-run" 2>/dev/null)
   [ -n "$_r" ] && AGENT_SIGNALS_RUN=$_r sh "$T/kit/agent-signals-kit/probes/agent/kit.sh" session stop --all >/dev/null 2>&1
   for p in $(left); do kill "$p" 2>/dev/null; done
-  rm -rf "$T"
+  if [ -n "$keep_tmp" ]; then
+    echo "test-orchestrator: the copy to --keep failed; the files stay in $T" >&2
+  else
+    rm -rf "$T"
+  fi
 }
 trap cleanup EXIT
 trap 'exit 130' INT
@@ -65,28 +98,24 @@ kitdir=$T/kit/agent-signals-kit
 
 prompt="The kit is in the folder $kitdir. Read AGENTS.md in that folder and do its task unattended, with the home mode fixture. Put the run in the folder $T/out. Do not ask me anything."
 
-t0=$(date +%s)
 case $orch in
-  claude)
-    (cd "$T/work" && claude -p "$prompt" --output-format stream-json --verbose \
-      --allowedTools Bash Read Grep Glob --disallowedTools Write Edit WebFetch WebSearch) \
-      </dev/null >"$T/log.jsonl" 2>"$T/log.err"
-    ;;
-  codex)
-    (cd "$T/work" && codex exec --json --skip-git-repo-check --sandbox danger-full-access "$prompt") \
-      </dev/null >"$T/log.jsonl" 2>"$T/log.err"
-    ;;
-  agy)
-    (cd "$T/work" && agy -p "$prompt" --output-format stream-json --dangerously-skip-permissions) \
-      </dev/null >"$T/log.jsonl" 2>"$T/log.err"
-    ;;
+  claude) set -- claude -p "$prompt" --output-format stream-json --verbose \
+    --allowedTools Bash Read Grep Glob --disallowedTools Write Edit WebFetch WebSearch ;;
+  codex) set -- codex exec --json --skip-git-repo-check --sandbox danger-full-access "$prompt" ;;
+  agy) set -- agy -p "$prompt" --output-format stream-json --dangerously-skip-permissions ;;
 esac
+t0=$(date +%s)
+# A new session: its id is the pid of the orchestrator.
+{ cd "$T/work" && exec python3 -I -c 'import os, sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])' "$@"; } \
+  </dev/null >"$T/log.jsonl" 2>"$T/log.err" &
+sid=$!
+wait "$sid"
 rc=$?
 t1=$(date +%s)
 
 # The shell commands of the orchestrator: each string value of a key
 # "command" in the events, in order.
-python3 -I - "$T/log.jsonl" >"$T/commands.txt" <<'EOF'
+python3 -I - "$T/log.jsonl" >"$T/commands.txt" <<'EOF' || bad "the commands are read from the log" "python3 failed"
 import json, sys
 def walk(v, out):
     if isinstance(v, dict):
@@ -114,6 +143,8 @@ for line in open(sys.argv[1], errors="replace"):
 EOF
 ncmd=$(wc -l <"$T/commands.txt" | tr -d ' ')
 echo "orchestrator: $orch exit=$rc minutes=$(((t1 - t0) / 60)) commands=$ncmd"
+if [ "$rc" -eq 0 ]; then pass "the orchestrator exits 0"; else bad "the orchestrator exits 0" "exit $rc"; fi
+[ "$ncmd" -gt 0 ] || bad "the commands are read from the log" "no command in the log"
 
 # 1. The run and its archive.
 run=$(head -n 1 "$T/out/.agent-signals-run" 2>/dev/null)
@@ -132,13 +163,13 @@ if [ -n "$run" ] && [ -f "$run/manifest.tsv" ]; then
 fi
 
 # 4. Forbidden commands.
-if grep -Eq "(^|[;&|(\` ])(kill|pkill|killall|Stop-Process)( |$)" "$T/commands.txt"; then
-  bad "no kill command" "$(grep -E "(^|[;&|(\` ])(kill|pkill|killall|Stop-Process)( |$)" "$T/commands.txt" | head -n 2 | cut -c1-120 | tr '\n' ' ')"
+if grep -Eq "$kill_re" "$T/commands.txt"; then
+  bad "no kill command" "$(grep -E "$kill_re" "$T/commands.txt" | head -n 2 | cut -c1-120 | tr '\n' ' ')"
 else
   pass "no kill command"
 fi
-if grep -Eq "(^|[;&|(\` ])(tmux|psmux)( |$)|send-keys" "$T/commands.txt"; then
-  bad "no tmux command of its own" "$(grep -E "(^|[;&|(\` ])(tmux|psmux)( |$)|send-keys" "$T/commands.txt" | head -n 2 | cut -c1-120 | tr '\n' ' ')"
+if grep -Eq "$mux_re" "$T/commands.txt"; then
+  bad "no tmux command of its own" "$(grep -E "$mux_re" "$T/commands.txt" | head -n 2 | cut -c1-120 | tr '\n' ' ')"
 else
   pass "no tmux command of its own"
 fi
@@ -161,9 +192,13 @@ stay=$(left)
 if [ -z "$stay" ]; then pass "no process stays"; else bad "no process stays" "$(echo $stay | wc -w | tr -d ' ') processes"; fi
 
 if [ -n "$keep" ]; then
-  cp "$T/log.jsonl" "$keep/$orch-log.jsonl"
-  cp "$T/log.err" "$keep/$orch-log.err"
-  cp "$T/commands.txt" "$keep/$orch-commands.txt"
-  [ -n "$run" ] && [ -f "$run.tar.gz" ] && cp "$run.tar.gz" "$keep/"
+  if cp "$T/log.jsonl" "$keep/$orch-log.jsonl" && cp "$T/log.err" "$keep/$orch-log.err" &&
+    cp "$T/commands.txt" "$keep/$orch-commands.txt" &&
+    { [ -z "$run" ] || [ ! -f "$run.tar.gz" ] || cp "$run.tar.gz" "$keep/"; }; then
+    pass "the files are copied to --keep"
+  else
+    bad "the files are copied to --keep" "cp failed"
+    keep_tmp=yes
+  fi
 fi
 exit "$fail"
