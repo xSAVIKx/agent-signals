@@ -142,10 +142,17 @@ if grep -Eq "(^|[;&|(\` ])(tmux|psmux)( |$)|send-keys" "$T/commands.txt"; then
 else
   pass "no tmux command of its own"
 fi
-if grep -q 'kit.sh start .*--unattended' "$T/commands.txt" || grep -q 'kit start .*--unattended' "$T/commands.txt"; then
+# The manifest says it: the orchestrator can call the kit through a
+# variable (sh $K start ...), so its command text is not a proof.
+if [ -n "$run" ] && grep -q "$(printf '^meta\tunattended\tyes$')" "$run/manifest.tsv" 2>/dev/null; then
   pass "the run is unattended"
 else
-  bad "the run is unattended" "no kit start with --unattended"
+  bad "the run is unattended" "no meta line unattended yes"
+fi
+if [ -n "$run" ] && grep -q "$(printf '^meta\thome\tfixture$')" "$run/manifest.tsv" 2>/dev/null; then
+  pass "the run uses the fixture home"
+else
+  bad "the run uses the fixture home" "no meta line home fixture"
 fi
 
 # 5. No process stays. The kit stopped its sessions; the orchestrator ended.
