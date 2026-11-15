@@ -11,23 +11,23 @@ mkdir -p "$H"
 # The folder checks of kit start.
 mkdir -m 0770 "$T/gw"
 chmod 0770 "$T/gw"
-(cd "$T" && HOME=$H kit start --out "$T/gw") >"$T/out" 2>&1
+(cd "$T" && export HOME=$H && kit start --out "$T/gw") >"$T/out" 2>&1
 expect_code "a group-writable folder is bad use" 2 $?
 mkdir -p "$T/repo/.git" "$T/repo/sub"
-(cd "$T" && HOME=$H kit start --out "$T/repo/sub") >"$T/out" 2>&1
+(cd "$T" && export HOME=$H && kit start --out "$T/repo/sub") >"$T/out" 2>&1
 expect_code "a folder in a git work tree is bad use" 2 $?
 mkdir -p "$H/.claude/x"
-(cd "$T" && HOME=$H kit start --out "$H/.claude/x") >"$T/out" 2>&1
+(cd "$T" && export HOME=$H && kit start --out "$H/.claude/x") >"$T/out" 2>&1
 expect_code "a folder in ~/.claude is bad use" 2 $?
-(cd "$T" && HOME=$H kit start --home other --out "$T") >"$T/out" 2>&1
+(cd "$T" && export HOME=$H && kit start --home other --out "$T") >"$T/out" 2>&1
 expect_code "a bad home mode is bad use" 2 $?
-(cd "$T" && HOME=$H kit start --out "$T/no-such") >"$T/out" 2>&1
+(cd "$T" && export HOME=$H && kit start --out "$T/no-such") >"$T/out" 2>&1
 expect_code "a missing folder is bad use" 2 $?
 
 # A run in a folder with a space.
 D="$T/a b"
 mkdir -m 0700 "$D"
-(cd "$D" && HOME=$H PATH=$P kit start --out "$D") >"$T/start" 2>&1
+(cd "$D" && export HOME=$H PATH=$P && kit start --out "$D") >"$T/start" 2>&1
 expect_code "kit start exits 0" 0 $?
 run=$(run_of "$D")
 expect_line "kit start prints the run as its last line" "^run: " "$(printf '%s' "$T/start")"
@@ -43,7 +43,7 @@ expect_line "the manifest has the kit version" '^meta	kit	' "$run/manifest.tsv"
 expect_no_line "the manifest has no host name" "$(hostname 2>/dev/null || uname -n)" "$run/manifest.tsv"
 
 # The probe step, with no stdin.
-(cd "$D" && HOME=$H PATH=$P kit step probe@none </dev/null) >"$T/step" 2>&1
+(cd "$D" && export HOME=$H PATH=$P && kit step probe@none </dev/null) >"$T/step" 2>&1
 expect_code "kit step probe@none exits 0" 0 $?
 expect_line "kit step prints the result line" '^step: probe@none ok$' "$T/step"
 expect_file "the step wrote 01-probe@none.txt" "$run/01-probe@none.txt"
@@ -76,7 +76,7 @@ sleep 30 &
 holder=$!
 ln -s "$holder" "$run/.step.lock"
 lines=$(grep -c '^step' "$run/manifest.tsv")
-(cd "$D" && HOME=$H PATH=$P kit step probe@none </dev/null) >"$T/out" 2>&1
+(cd "$D" && export HOME=$H PATH=$P && kit step probe@none </dev/null) >"$T/out" 2>&1
 expect_code "a step while another step runs is bad use" 2 $?
 expect_line "the refusal names the other step" 'another kit step runs in this run' "$T/out"
 if [ "$(grep -c '^step' "$run/manifest.tsv")" = "$lines" ]; then pass "the refused step adds no manifest line"; else fail "the refused step adds no manifest line" "$(cat "$run/manifest.tsv")"; fi
@@ -92,7 +92,7 @@ expect_code "a stale lock with a running step script is bad use" 2 $?
 kill "$holder" 2>/dev/null
 wait "$holder" 2>/dev/null
 # The lock of a step that ended without its cleanup (kill -9) is stale.
-(cd "$D" && HOME=$H PATH=$P kit step probe@none </dev/null) >"$T/out" 2>&1
+(cd "$D" && export HOME=$H PATH=$P && kit step probe@none </dev/null) >"$T/out" 2>&1
 expect_code "a stale lock does not stop a step" 0 $?
 if [ -e "$run/.step.lock" ] || [ -L "$run/.step.lock" ]; then fail "the step deletes its lock" "$(ls -la "$run")"; else pass "the step deletes its lock"; fi
 if [ -e "$run/.step.script" ]; then fail "the step deletes its script pid file" "it stays"; else pass "the step deletes its script pid file"; fi
@@ -106,16 +106,16 @@ if [ "$(uname -s)" != Darwin ]; then
   (cd "$D" && kit step terminals@none) >"$T/out" 2>&1
   expect_code "the terminal probe on Linux is bad use" 2 $?
 fi
-(cd "$T" && AGENT_SIGNALS_RUN="$T/none" kit step probe@none) >"$T/out" 2>&1
+(cd "$T" && export AGENT_SIGNALS_RUN="$T/none" && kit step probe@none) >"$T/out" 2>&1
 expect_code "a step with no run is bad use" 2 $?
 
 # The step contract, with a fake step script in a kit copy.
 kit_copy "$T/k"
 fake_step "$T/k" permission
 mkdir -m 0700 "$T/r"
-(cd "$T/r" && HOME=$H kitc "$T/k" start --out "$T/r") >/dev/null 2>&1
+(cd "$T/r" && export HOME=$H && kitc "$T/k" start --out "$T/r") >/dev/null 2>&1
 run2=$(run_of "$T/r")
-(cd "$T/r" && HOME=$H kitc "$T/k" step permission-claude@pty --ready) >"$T/out" 2>&1
+(cd "$T/r" && export HOME=$H && kitc "$T/k" step permission-claude@pty --ready) >"$T/out" 2>&1
 expect_code "a fake step exits 0" 0 $?
 f=$run2/01-permission-claude@pty.txt
 expect_line "the script gets the variables" '^step=permission-claude kind=permission agent=claude backend=pty home=real$' "$f"
@@ -123,32 +123,32 @@ expect_line "the script gets the fixed prompt" '^prompt=Create a file named agen
 expect_line "the script gets the answer" '^answer=Escape$' "$f"
 expect_line "the script gets the arguments" '^args=--ready$' "$f"
 expect_no_line "the file is scrubbed" "$H" "$f"
-(cd "$T/r" && HOME=$H FAKE_CODE=3 FAKE_REASON=needs-pyte kitc "$T/k" step permission-claude@pty) >"$T/out" 2>&1
+(cd "$T/r" && export HOME=$H FAKE_CODE=3 FAKE_REASON=needs-pyte && kitc "$T/k" step permission-claude@pty) >"$T/out" 2>&1
 expect_code "a script skip exits 3" 3 $?
 expect_line "a script skip prints its reason" '^step: permission-claude@pty skip needs-pyte$' "$T/out"
-(cd "$T/r" && HOME=$H FAKE_CODE=1 kitc "$T/k" step permission-claude@pty) >"$T/out" 2>&1
+(cd "$T/r" && export HOME=$H FAKE_CODE=1 && kitc "$T/k" step permission-claude@pty) >"$T/out" 2>&1
 expect_code "a script fail exits 1" 1 $?
 expect_line "a fail prints fail" '^step: permission-claude@pty fail$' "$T/out"
-(cd "$T/r" && HOME=$H FAKE_CODE=4 FAKE_REASON=start-the-agent kitc "$T/k" step permission-claude@pty) >"$T/out" 2>&1
+(cd "$T/r" && export HOME=$H FAKE_CODE=4 FAKE_REASON=start-the-agent && kitc "$T/k" step permission-claude@pty) >"$T/out" 2>&1
 expect_code "an operator step exits 4" 4 $?
 expect_line "an operator step prints operator" '^step: permission-claude@pty operator start-the-agent$' "$T/out"
 n=$(grep -c '^step	' "$run2/manifest.tsv")
 if [ "$n" = 3 ]; then pass "an operator result adds no step line"; else fail "an operator result adds no step line" "$n lines"; fi
-(cd "$T/r" && HOME=$H FAKE_NO_OUT=yes kitc "$T/k" step permission-claude@pty) >"$T/out" 2>&1
+(cd "$T/r" && export HOME=$H FAKE_NO_OUT=yes && kitc "$T/k" step permission-claude@pty) >"$T/out" 2>&1
 expect_code "ok with no output is a fail" 1 $?
 expect_line "ok with no output prints no-output" 'fail no-output$' "$T/out"
 
 # The reason keeps only a-z, 0-9, "." and "-".
-(cd "$T/r" && HOME=$H FAKE_CODE=3 FAKE_REASON='Need "x"/y z' kitc "$T/k" step permission-claude@pty) >"$T/out" 2>&1
+(cd "$T/r" && export HOME=$H FAKE_CODE=3 FAKE_REASON='Need "x"/y z' && kitc "$T/k" step permission-claude@pty) >"$T/out" 2>&1
 expect_line "the reason keeps only safe characters" '^step: permission-claude@pty skip -eed--x--y-z$' "$T/out"
-(cd "$T/r" && HOME=$H kitc "$T/k" step 'permission-claude@T1') >"$T/out" 2>&1
+(cd "$T/r" && export HOME=$H && kitc "$T/k" step 'permission-claude@T1') >"$T/out" 2>&1
 expect_code "a backend with other characters is bad use" 2 $?
 
 # A step script must not write in a run folder that others can read.
 mkdir -m 0700 "$T/m"
-(cd "$T/m" && HOME=$H kitc "$T/k" start --out "$T/m") >/dev/null 2>&1
+(cd "$T/m" && export HOME=$H && kitc "$T/k" start --out "$T/m") >/dev/null 2>&1
 chmod 0755 "$(run_of "$T/m")"
-(cd "$T/m" && HOME=$H kitc "$T/k" step permission-claude@pty) >"$T/out" 2>&1
+(cd "$T/m" && export HOME=$H && kitc "$T/k" step permission-claude@pty) >"$T/out" 2>&1
 expect_code "a step in a run folder with mode 0755 is bad use" 2 $?
 
 # A scrub that fails gives "fail scrub" and no file.
@@ -156,8 +156,8 @@ kit_copy "$T/k2"
 fake_step "$T/k2" permission
 printf '#!/bin/sh\necho partial\nexit 1\n' >"$T/k2/tools/scrub.sh"
 mkdir -m 0700 "$T/s"
-(cd "$T/s" && HOME=$H kitc "$T/k2" start --out "$T/s") >/dev/null 2>&1
-(cd "$T/s" && HOME=$H kitc "$T/k2" step permission-claude@pty) >"$T/out" 2>&1
+(cd "$T/s" && export HOME=$H && kitc "$T/k2" start --out "$T/s") >/dev/null 2>&1
+(cd "$T/s" && export HOME=$H && kitc "$T/k2" step permission-claude@pty) >"$T/out" 2>&1
 expect_code "a failed scrub fails the step" 1 $?
 expect_line "a failed scrub prints fail scrub" '^step: permission-claude@pty fail scrub$' "$T/out"
 run3=$(run_of "$T/s")
@@ -171,34 +171,35 @@ cat >"$T/k/probes/agent/steps/probe.sh" <<'EOF'
 echo "fake probe" >"$KIT_OUT"
 EOF
 # The start in "$T/m" is newer, so this test names the run.
-(cd "$T/r" && HOME=$H AGENT_SIGNALS_RUN=$run2 kitc "$T/k" step probe) >"$T/out" 2>&1
+(cd "$T/r" && export HOME=$H AGENT_SIGNALS_RUN=$run2 && kitc "$T/k" step probe) >"$T/out" 2>&1
 expect_code "a step with one backend runs with no @" 0 $?
 expect_file "the next step has the next number" "$run2/05-probe@none.txt"
 
 # A throwaway home skips a login step.
 mkdir -m 0700 "$T/t"
-(cd "$T/t" && HOME=$H kitc "$T/k" start --home throwaway --out "$T/t") >/dev/null 2>&1
-(cd "$T/t" && HOME=$H kitc "$T/k" step permission-claude@tmux) >"$T/out" 2>&1
+(cd "$T/t" && export HOME=$H && kitc "$T/k" start --home throwaway --out "$T/t") >/dev/null 2>&1
+(cd "$T/t" && export HOME=$H && kitc "$T/k" step permission-claude@tmux) >"$T/out" 2>&1
 expect_code "a login step in a throwaway home exits 0" 0 $?
 expect_line "a login step in a throwaway home skips" '^step: permission-claude@tmux skip no-login$' "$T/out"
 expect_line "the skip is in the manifest" '^step	permission-claude	tmux	skip	[^	]+	[^	]+	-	-	no-login$' "$(run_of "$T/t")/manifest.tsv"
 
 # An unattended run skips a step that needs the operator.
 mkdir -m 0700 "$T/u"
-(cd "$T/u" && HOME=$H kitc "$T/k" start --unattended --out "$T/u") >/dev/null 2>&1
+(cd "$T/u" && export HOME=$H && kitc "$T/k" start --unattended --out "$T/u") >/dev/null 2>&1
 expect_line "the manifest records an unattended run" '^meta	unattended	yes$' "$(run_of "$T/u")/manifest.tsv"
 expect_line "manifest.json records an unattended run" '"unattended": true' "$(run_of "$T/u")/manifest.json"
-(cd "$T/u" && HOME=$H kitc "$T/k" step real-session-claude@operator) >"$T/out" 2>&1
+(cd "$T/u" && export HOME=$H && kitc "$T/k" step real-session-claude@operator) >"$T/out" 2>&1
 expect_code "an operator step in an unattended run exits 0" 0 $?
 expect_line "an operator step in an unattended run skips" '^step: real-session-claude@operator skip unattended$' "$T/out"
 # kit plan lists a step only when its agent is on PATH.
 mkdir -p "$T/ubin"
 printf '#!/bin/sh\nexit 0\n' >"$T/ubin/claude"
 chmod +x "$T/ubin/claude"
-(cd "$T/u" && HOME=$H PATH="$T/ubin:$PATH" kitc "$T/k" plan) >"$T/out" 2>&1
+(cd "$T/u" && export HOME=$H PATH="$T/ubin:$PATH" && kitc "$T/k" plan) >"$T/out" 2>&1
 expect_line "the plan of an unattended run marks an operator step" '^step: real-session-claude@operator needs=operator cost=[^ ]+ skip=unattended ' "$T/out"
 expect_line "the plan of an unattended run keeps the probe" '^step: probe@none needs=none cost=none measures=' "$T/out"
-(cd "$T/t" && HOME=$H AGENT_SIGNALS_RUN=$(run_of "$T/t") kitc "$T/k" plan) >"$T/out" 2>&1
+rt=$(run_of "$T/t")
+(cd "$T/t" && export HOME=$H AGENT_SIGNALS_RUN="$rt" && kitc "$T/k" plan) >"$T/out" 2>&1
 expect_no_line "a run with a person has no unattended skip" 'skip=unattended' "$T/out"
 
 done_tests

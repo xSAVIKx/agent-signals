@@ -85,7 +85,10 @@ take_lock() {
 take_lock || kit_die "$KIT_USAGE" "another kit step runs in this run (pid $(readlink "$lock" 2>/dev/null)). Wait until it ends, then run $name@$backend again"
 locked=1
 awake=
-trap '[ -z "$awake" ] || kill "$awake" 2>/dev/null; [ -z "$locked" ] || rm -f "$lock" "$spid"' EXIT
+# The trap keeps the exit status: mksh gives the status of the last
+# command of the EXIT trap after an exit in a signal trap.
+_trap_rc=0
+trap '_trap_rc=$?; [ -z "$awake" ] || kill "$awake" 2>/dev/null; [ -z "$locked" ] || rm -f "$lock" "$spid"; exit "$_trap_rc"' EXIT
 # A signal (Ctrl+C, a closed terminal, a kill by the tool of an
 # orchestrator) must not end this process while the step script runs: the
 # script would then run on with no lock and no manifest line. The shell
@@ -130,7 +133,9 @@ start=$(kit_now)
 case $(kit_manifest_value "$run" awake) in
   caffeinate*)
     if command -v caffeinate >/dev/null 2>&1; then
-      caffeinate -i -w "$$" </dev/null >/dev/null 2>&1 &
+      # "{ exec ...; } &": in each shell $! is then the pid of the
+      # program. yash and ksh93 can keep a shell process between them.
+      { exec caffeinate -i -w "$$"; } </dev/null >/dev/null 2>&1 &
       awake=$!
     fi
     ;;

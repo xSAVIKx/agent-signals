@@ -40,7 +40,10 @@ sandbox_start() {
   SCN_OUT=${SCN_OUT:-$PWD/out/$SCN_NAME-$(date -u +%Y%m%dT%H%M%SZ)}
   mkdir -p "$SCN_OUT"
   SCN_SOCK=agent-signals-$$
-  trap sandbox_stop EXIT
+  # The trap keeps the exit status: mksh gives the status of the last
+  # command of the EXIT trap after an exit in a signal trap.
+  _trap_rc=0
+  trap '_trap_rc=$?; sandbox_stop; exit "$_trap_rc"' EXIT
   trap 'exit 130' INT
   trap 'exit 143' TERM
   echo "scenario: $SCN_NAME"

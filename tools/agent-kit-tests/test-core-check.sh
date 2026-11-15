@@ -12,18 +12,18 @@ fake_step "$T/k" permission
 # $run.
 new_run() {
   mkdir -m 0700 "$T/$1"
-  (cd "$T/$1" && HOME=$H kitc "$T/k" start --out "$T/$1") >/dev/null 2>&1
+  (cd "$T/$1" && export HOME=$H && kitc "$T/k" start --out "$T/$1") >/dev/null 2>&1
   run=$(run_of "$T/$1")
-  (cd "$T/$1" && HOME=$H kitc "$T/k" step permission-claude@pty) >/dev/null 2>&1
+  (cd "$T/$1" && export HOME=$H && kitc "$T/k" step permission-claude@pty) >/dev/null 2>&1
   file=$run/01-permission-claude@pty.txt
 }
 # check NAME: kit check in the folder $T/NAME, output in $T/out.
-check() { (cd "$T/$1" && HOME=$H kitc "$T/k" check) >"$T/out" 2>&1; }
+check() { (cd "$T/$1" && export HOME=$H && kitc "$T/k" check) >"$T/out" 2>&1; }
 
 new_run clean
 mkdir -p "$run/sessions/s1" "$run/pids"
 echo "API_KEY=LEAK-CANARY-SESSION" >"$run/sessions/s1/env"
-(cd "$T/clean" && HOME=$H FAKE_CODE=1 FAKE_NO_OUT=yes kitc "$T/k" step permission-claude@pty) >/dev/null 2>&1
+(cd "$T/clean" && export HOME=$H FAKE_CODE=1 FAKE_NO_OUT=yes && kitc "$T/k" step permission-claude@pty) >/dev/null 2>&1
 check clean
 expect_code "kit check passes a clean run" 0 $?
 expect_line "kit check prints the archive" "^archive: $(basename "$run")\.tar\.gz$|^archive: .*/$(basename "$run")\.tar\.gz$" "$T/out"
@@ -55,7 +55,7 @@ tar -tzf "$run.tar.gz" >"$T/list"
 expect_line "the archive holds the doctor file" "/00-doctor\.txt$" "$T/list"
 
 # The next step after the doctor line gets the next number.
-(cd "$T/clean" && HOME=$H kitc "$T/k" step permission-claude@pty) >/dev/null 2>&1
+(cd "$T/clean" && export HOME=$H && kitc "$T/k" step permission-claude@pty) >/dev/null 2>&1
 expect_file "the next step gets the next number" "$run/02-permission-claude@pty.txt"
 
 new_run raw
@@ -116,7 +116,7 @@ expect_code "kit check finds a home folder over a line break" 1 $?
 new_run secret
 echo "key: abcd1234efgh5678" >>"$file"
 (cd "$T/secret" && kitc "$T/k" edit 01-permission-claude@pty.txt other) >/dev/null 2>&1
-(cd "$T/secret" && HOME=$H TEST_KIT_API_KEY=abcd1234efgh5678 kitc "$T/k" check) >"$T/out" 2>&1
+(cd "$T/secret" && export HOME=$H TEST_KIT_API_KEY=abcd1234efgh5678 && kitc "$T/k" check) >"$T/out" 2>&1
 expect_code "kit check fails the value of an API key variable" 1 $?
 expect_line "the failure names the variable, not the value" 'holds the value of TEST_KIT_API_KEY$' "$T/out"
 expect_no_line "the failure does not print the value" 'abcd1234efgh5678' "$T/out"
@@ -131,7 +131,7 @@ printf '%s\\n' "\$*" >>"$T/argv.log"
 exec "$realgrep" "\$@"
 EOF
 chmod +x "$T/argv/grep"
-(cd "$T/secret" && HOME=$H PATH=$T/argv:$PATH TEST_KIT_API_KEY=abcd1234efgh5678 kitc "$T/k" check) >"$T/out" 2>&1
+(cd "$T/secret" && export HOME=$H PATH=$T/argv:$PATH TEST_KIT_API_KEY=abcd1234efgh5678 && kitc "$T/k" check) >"$T/out" 2>&1
 expect_code "kit check with a grep stub finds the value" 1 $?
 expect_line "the grep stub ran" '.' "$T/argv.log"
 expect_no_line "no grep gets the value as an argument" 'abcd1234efgh5678' "$T/argv.log"
@@ -194,12 +194,12 @@ cat >"$T/k/probes/agent/steps/probe.sh" <<'EOF'
 { echo "header"; echo "################ claude"; echo "### 1. Probe"; echo "os: linux"; } >"$KIT_OUT"
 EOF
 new_run probe
-(cd "$T/probe" && HOME=$H kitc "$T/k" step probe@none) >/dev/null 2>&1
+(cd "$T/probe" && export HOME=$H && kitc "$T/k" step probe@none) >/dev/null 2>&1
 check probe
 expect_code "kit check fails a probe part with too few sections" 1 $?
 expect_line "the failure names the probe" '^check: 02-probe@none\.txt: probes/claude/unix\.sh: ' "$T/out"
 
-(cd "$T" && AGENT_SIGNALS_RUN="$T/no-such" kitc "$T/k" check) >"$T/out" 2>&1
+(cd "$T" && export AGENT_SIGNALS_RUN="$T/no-such" && kitc "$T/k" check) >"$T/out" 2>&1
 expect_code "kit check with no run is bad use" 2 $?
 
 done_tests

@@ -240,7 +240,10 @@ cleanup() {
   tidy
   rm -rf "$raw"
 }
-trap cleanup EXIT
+# The trap keeps the exit status: mksh gives the status of the last
+# command of the EXIT trap after an exit in a signal trap.
+_trap_rc=0
+trap '_trap_rc=$?; cleanup; exit "$_trap_rc"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
@@ -257,8 +260,9 @@ printf '%s\n' "$checks" >"$raw/checks"
 
 # 3. The network check.
 if kit_has_word "$checks" network; then
-  python3 -I "$KIT_DIR/trace-proxy.py" --log "$raw/proxy.jsonl" --port-file "$raw/proxy.port" \
-    --parent "$$" </dev/null >/dev/null 2>"$raw/proxy.err" &
+  # "{ exec ...; } &" makes $! the pid of the program in each shell.
+  { exec python3 -I "$KIT_DIR/trace-proxy.py" --log "$raw/proxy.jsonl" --port-file "$raw/proxy.port" \
+    --parent "$$"; } </dev/null >/dev/null 2>"$raw/proxy.err" &
   kit_add_pid "$run" "$!" "trace proxy"
   _n=0
   while [ ! -s "$raw/proxy.port" ] && [ "$_n" -lt 100 ]; do
@@ -285,9 +289,10 @@ if kit_has_word "$checks" files; then
     printf '%s\n' "$fdir" >"$raw/files-dir"
     # The order of the first watches: the work root, then the home root.
     # A test can set KIT_TRACE_WATCH_LIMIT to a small limit.
-    python3 -I "$KIT_DIR/trace-files.py" --out "$fdir/files.jsonl" --ready "$fdir/ready" \
+    # "{ exec ...; } &" makes $! the pid of the program in each shell.
+    { exec python3 -I "$KIT_DIR/trace-files.py" --out "$fdir/files.jsonl" --ready "$fdir/ready" \
       --parent "$$" ${KIT_TRACE_WATCH_LIMIT:+--watch-limit "$KIT_TRACE_WATCH_LIMIT"} \
-      --top "$top" "$work" "$hroot" </dev/null >/dev/null 2>"$raw/files.err" &
+      --top "$top" "$work" "$hroot"; } </dev/null >/dev/null 2>"$raw/files.err" &
     fpid=$!
     kit_add_pid "$run" "$fpid" "trace files"
     _n=0
@@ -328,14 +333,14 @@ if kit_has_word "$checks" ebpf; then
     # The sentinel: bpftrace stops when this pid ends. It holds no file of
     # the caller open.
     # shellcheck disable=SC2217
-    sleep 7200 </dev/null >/dev/null 2>&1 &
+    { exec sleep 7200; } </dev/null >/dev/null 2>&1 &
     espid=$!
     kit_add_pid "$run" "$espid" "trace ebpf stop"
     echo "kit: the ebpf check runs: sudo -n env BPFTRACE_MAX_STRLEN=200 BPFTRACE_MAP_KEYS_MAX=65536 $bt -B line $KIT_DIR/trace-ebpf.bt $$ $espid" >&2
     # No -o: the shell opens both files as the user. The pid is the pid of
     # sudo, which runs bpftrace as its child and passes TERM to it.
     # shellcheck disable=SC2024
-    sudo -n env BPFTRACE_MAX_STRLEN=200 BPFTRACE_MAP_KEYS_MAX=65536 "$bt" -B line "$KIT_DIR/trace-ebpf.bt" "$$" "$espid" \
+    { exec sudo -n env BPFTRACE_MAX_STRLEN=200 BPFTRACE_MAP_KEYS_MAX=65536 "$bt" -B line "$KIT_DIR/trace-ebpf.bt" "$$" "$espid"; } \
       </dev/null >"$raw/ebpf.txt" 2>"$raw/ebpf.err" &
     ebpid=$!
     kit_add_pid "$run" "$ebpid" "trace ebpf"
@@ -352,7 +357,7 @@ if kit_has_word "$checks" ebpf; then
         break
       fi
       # shellcheck disable=SC2217
-      sleep 0.2 </dev/null >/dev/null 2>&1 &
+      { exec sleep 0.2; } </dev/null >/dev/null 2>&1 &
       canaries="$canaries $!"
       wait "$!"
       if awk -F '\t' -v c="$canaries" '
@@ -379,11 +384,11 @@ before=$(awk -F '\t' '$1 == "step"' "$run/manifest.tsv" | wc -l | tr -d ' ')
 # it: "kit session start" gives the agent a clean environment.
 mkdir "$raw/tmp" || fail no-temp-folder
 # "exec" makes step_pid the pid of step.sh.
-(
+{
   TMPDIR=$raw/tmp
   export TMPDIR
   exec sh "$KIT_DIR/step.sh" "$name@$backend" "$@"
-) </dev/null >"$raw/step.out" &
+} </dev/null >"$raw/step.out" &
 step_pid=$!
 # The step file: after a KILL of this script, the next trace or
 # "kit session stop --all" stops the step by its pid (kit_trace_end_step).
@@ -478,7 +483,7 @@ with open(sys.argv[1], "w", encoding="utf-8") as f:
     f.write("\n")
 ' "$raw/out/trace.json" || fail build
 # cast_scrub IN OUT: scrub a cast with trace-cast-scrub.py. A cut path in
-# the cast ("/…/TAIL", for example the cwd in a welcome box) whose TAIL
+# the cast ("/.../TAIL" with U+2026, for example the cwd in a welcome box) whose TAIL
 # holds the name of the run folder or of the work root, or a start of
 # these names that the kit sets (agent-signals-run-, agent-signals-work),
 # or ends with the name of a session, becomes "/work/example/LAST".

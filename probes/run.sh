@@ -64,7 +64,10 @@ out=$PWD/agent-signals-probe-$PROBE_OS-$stamp.txt
 raw=$(mktemp)
 # The EXIT trap deletes the temporary files. A signal runs it too, so a
 # step that a caller stops in the background leaves no file.
-trap 'rm -f "$raw" "$raw".* "$out.part"' EXIT
+# The trap keeps the exit status: mksh gives the status of the last
+# command of the EXIT trap after an exit in a signal trap.
+_trap_rc=0
+trap '_trap_rc=$?; rm -f "$raw" "$raw".* "$out.part"; exit "$_trap_rc"' EXIT
 trap 'exit 143' TERM
 trap 'exit 130' INT
 trap 'exit 129' HUP
@@ -319,13 +322,15 @@ roots() {
 in_scope() {
   [ -n "$scoped" ] || return 0
   cut -d' ' -f3- "$raw.before.open" "$raw.after.open" 2>/dev/null | grep -Fqx -- "$1" && return 0
-  printf '%s\n' "$scope" | {
+  # A subshell: ksh93 runs the last part of a pipeline in this shell, so an
+  # exit in a { } group would end the watch.
+  printf '%s\n' "$scope" | (
     while read -r _d; do
       [ -n "$_d" ] || continue
       case $1 in "$_d"/*) exit 0 ;; esac
     done
     exit 1
-  }
+  )
 }
 
 # scope_sizes: read the "SIZE PATH" lines of wc -c on stdin, and print
