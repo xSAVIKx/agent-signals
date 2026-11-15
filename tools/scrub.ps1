@@ -116,7 +116,8 @@ function Test-ScrubMore([string]$J, [string]$Text, [int]$At, [bool]$First, [bool
 # wrapped path to just after it, so that the full path is on its first
 # line. Each line end and the line count stay. A path is wrapped when:
 #   - an anchor is cut by one or more line ends: each of ANCHORS, then
-#     /Users/, /home/, ~/, /srv/ and /work/, or
+#     /Users/, /home/, ~/, /srv/, /work/, /.../ and \...\ (with the
+#     character U+2026), or
 #   - the path after an anchor goes to the end of the line, the first word
 #     of the next line is made only of the characters A-Z a-z 0-9 . _ ~ -
 #     / and \, and one of these is true:
@@ -144,7 +145,7 @@ function Invoke-ScrubUnwrap([string]$Text, [string[]]$Anchors, [hashtable]$Count
   $nl = New-Object System.Text.RegularExpressions.Regex ('\G' + $script:WrapBreak)
   $own = @($Anchors | Where-Object { $_ -and $_.Length -gt 1 })
   $all = @($own | ForEach-Object { New-Object PSObject -Property @{ Value = [string]$_; Private = $true } }) +
-    @(@('/Users/', '/home/', '~/', '/srv/', '/work/') | ForEach-Object { New-Object PSObject -Property @{ Value = $_; Private = $false } })
+    @(@('/Users/', '/home/', '~/', '/srv/', '/work/', ('/' + [char]0x2026 + '/'), ('\' + [char]0x2026 + '\')) | ForEach-Object { New-Object PSObject -Property @{ Value = $_; Private = $false } })
   foreach ($e in $all) {
     $a = $e.Value
     $win = $a -match '^[A-Za-z]:'
