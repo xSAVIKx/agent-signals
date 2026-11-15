@@ -56,6 +56,18 @@ try {
     # PowerShell wraps the IOException of a .NET call; a plain catch gets it.
     Stop-Kit 2 "another kit step runs in this run ($($_.Exception.InnerException.Message)). Wait until it ends, then run $name@$backend again"
 }
+# RUN\.step.script holds the pid of the step script. After a kill of "kit
+# step" only, Windows frees the lock, but the script runs on until it sees
+# the end of "kit step" and stops its session. Until then, a step waits.
+$scriptPidPath = Join-Path $run '.step.script'
+$old = ([string](Read-KitText $scriptPidPath)).Trim()
+if ($old -match '^\d+$') {
+    $op = Get-Process -Id ([int]$old) -ErrorAction SilentlyContinue
+    if ($op -and $op.ProcessName -in 'pwsh', 'powershell') {
+        $stepLock.Dispose()
+        Stop-Kit 2 "the script of an ended kit step still runs (pid $old). Wait until it ends, then run $name@$backend again"
+    }
+}
 
 # The number of the file: one more than the highest number in the manifest.
 $n = 0
@@ -76,6 +88,7 @@ $code = 3
 $reason = ''
 $console = ''
 
+$p = $null
 try {
     if (-not (Test-KitStepRuns $step $backend)) {
         $reason = 'not-on-windows'
@@ -97,10 +110,13 @@ try {
         $env:KIT_ANSWER = [string]$step.answer
         $env:KIT_HOME = $homeMode
         $env:KIT_OUT = $kitOut
+        # The script ends itself when this process is gone.
+        $env:KIT_STEP_PID = [string]$PID
         $exe = (Get-Process -Id $PID).Path
         $argText = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File ' + (Format-KitArg $scriptFile)
         foreach ($x in $extra) { $argText += ' ' + (Format-KitArg $x) }
         $p = Start-KitProcess $run "step $name@$backend" $exe $argText "$kitOut.console" "$kitOut.err" $run
+        Write-KitText $scriptPidPath ([string]$p.Id + "`n")
         $w = Wait-KitProcess $run $p 1800
         $code = $w.Code
         if ($w.TimedOut) { $code = 1; $reason = 'time-limit' }
@@ -125,6 +141,11 @@ try {
     $why = if ($reason) { $reason } else { '-' }
     Add-KitManifest $run @('step', $name, $backend, $result, $start, (Get-KitIsoTime), "$base.txt", (Get-KitSha256 $file), $why)
 } finally {
+    # A script that did not stop at the time limit keeps its marker: the
+    # next step refuses to start while that process runs.
+    if (-not $p -or $p.HasExited) {
+        Remove-Item -LiteralPath $scriptPidPath -Force -ErrorAction SilentlyContinue
+    }
     $stepLock.Dispose()
     Remove-Item -LiteralPath $lockPath -Force -ErrorAction SilentlyContinue
     # Delete the raw files of this step, also after an error.

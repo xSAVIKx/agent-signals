@@ -87,9 +87,9 @@ answers in the prompt. In an unattended run, these rules replace rules 2,
 3, 11 and 12, and the questions of the steps:
 
 1. Do not ask the operator a question, and do not wait for an answer.
-2. Use the home mode that the prompt names, `real` or `throwaway`. The
-   prompt is the yes of rule 3. When the prompt names no home mode, use
-   `throwaway`.
+2. Use the home mode that the prompt names: `real`, `throwaway`, or
+   `fixture` (a test of this task, with a fake model). The prompt is the
+   yes of rule 3. When the prompt names no home mode, use `throwaway`.
 3. Start the run with `kit start --unattended`. The kit then skips each
    step that needs the operator or the screen of the operator, with the
    reason `unattended`. Run every step of the plan in the order of the
@@ -195,7 +195,8 @@ different source.
    output shows no network, tell the operator. A test session in a sandbox
    can fail or give wrong signals.
 
-3. Start the run. Do not use the home mode `fixture`: it is for CI. In an
+3. Start the run. Do not use the home mode `fixture`: it is for CI and
+   for tests of this task. Use it only when the prompt names it. In an
    unattended run, use the home mode of the prompt and add `--unattended`:
 
    ```sh
@@ -271,7 +272,12 @@ different source.
    runs, also when your shell tool stops waiting for the first step. The
    kit refuses the second step with exit code 2 and the line `another kit
    step runs in this run`. Wait until the first step prints its `step:`
-   line, then go on.
+   line, then go on. When your shell tool ended the `kit step` command with
+   SIGINT, SIGTERM or SIGHUP, the step stops its session, adds its line to
+   `summary.txt` in the run folder and ends. Read its result there. When
+   the tool ended the command with SIGKILL, the step adds no line. Then
+   wait until `kit step` no longer refuses with exit code 2, and run the
+   step again.
 
    ```sh
    kit step NAME@BACKEND

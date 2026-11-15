@@ -906,7 +906,11 @@ session_pids() {
 end_home_daemons() {
   hd=${run:?}/home/$name/
   [ -d "$hd" ] || return 0
-  hp=$(ps -A -o pid= -o args= 2>/dev/null | awk -v h="$hd" 'index($0, h) { print $1 }')
+  # The guided watch of a step (probes/run.sh) has the home in its --scope
+  # argument. It is not a daemon of the agent: the resume step stops the
+  # session in the middle of its watch, and this killed the watch
+  # (watch-exit-137 or watch-exit-143).
+  hp=$(ps -A -o pid= -o args= 2>/dev/null | awk -v h="$hd" -v w="$KIT_ROOT/probes/run.sh" 'index($0, h) && !index($0, w) { print $1 }')
   for p in $hp; do
     echo "stop: $p daemon"
     kill "$p" 2>/dev/null

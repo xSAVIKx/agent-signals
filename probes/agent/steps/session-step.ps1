@@ -212,7 +212,15 @@ function Test-Alive {
 }
 # Update-Screen: read the screen into $sc. A failed read ends the step. A
 # blank screen is not a failure: an agent can start slowly.
+# Each wait reads the screen, so Update-Screen also sees that the "kit
+# step" process is gone (a kill of it): then the step ends, and its
+# finally block stops the session.
+$script:stepGone = $false
 function Update-Screen {
+    if (-not $script:stepGone -and $env:KIT_STEP_PID -match '^\d+$' -and -not (Get-Process -Id ([int]$env:KIT_STEP_PID) -ErrorAction SilentlyContinue)) {
+        $script:stepGone = $true
+        Stop-Step 'kit-step-ended'
+    }
     $r = Invoke-Session @('screen', $name) (Get-Clip 30)
     if ($r.Code -ne 0 -and (Test-Alive)) {
         # psmux capture-pane can crash one time (exit -1073741819,
