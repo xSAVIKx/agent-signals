@@ -153,7 +153,10 @@ watched=
 outside=
 # dash runs no EXIT trap on a signal, so a signal exits first.
 trap 'exit 130' INT TERM
-trap 'cleanup' EXIT
+# The trap keeps the exit status: mksh gives the status of the last
+# command of the EXIT trap after an exit in a signal trap.
+_trap_rc=0
+trap '_trap_rc=$?; cleanup; exit "$_trap_rc"' EXIT
 cleanup() {
   [ -n "$watch" ] && kill "$watch" 2>/dev/null
   sh "$KIT_DIR/session.sh" stop "$sess" >/dev/null 2>&1
@@ -634,8 +637,9 @@ fi
 
 wsecs=$(clip "$WATCH_S")
 say "start the guided watch ($wsecs s at most)"
-sh "$KIT_ROOT/probes/run.sh" --guided "$KIT_KIND" "$KIT_AGENT" --wait "$wsecs" \
-  --pids "$KIT_RUN/pids" --files-of-pids "$@" --stop-file "$tmp/stop" --out "$tmp/watch.txt" \
+# "{ exec ...; } &" makes $! the pid of the watch in each shell.
+{ exec sh "$KIT_ROOT/probes/run.sh" --guided "$KIT_KIND" "$KIT_AGENT" --wait "$wsecs" \
+  --pids "$KIT_RUN/pids" --files-of-pids "$@" --stop-file "$tmp/stop" --out "$tmp/watch.txt"; } \
   </dev/null >"$tmp/watch.log" 2>&1 &
 watch=$!
 watched=yes

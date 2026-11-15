@@ -64,7 +64,10 @@ out=$PWD/agent-signals-probe-$PROBE_OS-$stamp.txt
 raw=$(mktemp)
 # The EXIT trap deletes the temporary files. A signal runs it too, so a
 # step that a caller stops in the background leaves no file.
-trap 'rm -f "$raw" "$raw".* "$out.part"' EXIT
+# The trap keeps the exit status: mksh gives the status of the last
+# command of the EXIT trap after an exit in a signal trap.
+_trap_rc=0
+trap '_trap_rc=$?; rm -f "$raw" "$raw".* "$out.part"; exit "$_trap_rc"' EXIT
 trap 'exit 143' TERM
 trap 'exit 130' INT
 trap 'exit 129' HUP

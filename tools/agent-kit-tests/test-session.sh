@@ -158,7 +158,7 @@ for via in tmux pty; do
   # the session, as the Codex app-server does (fact 067).
   mkdir -p "$run/home/s2/.codex/packages"
   printf 'sleep 300\n' >"$run/home/s2/.codex/packages/fake-daemon.sh"
-  sh "$run/home/s2/.codex/packages/fake-daemon.sh" </dev/null >/dev/null 2>&1 &
+  { exec sh "$run/home/s2/.codex/packages/fake-daemon.sh"; } </dev/null >/dev/null 2>&1 &
   daemon=$!
   # The control socket of the daemon is a link to a file in a folder
   # codex-daemon-UID (fact 088).
@@ -329,7 +329,7 @@ if have tmux; then
   # folder. A home path there is a home file, not a project file.
   mkdir -p "$T/h3/.claude"
   echo '{"permissions": {}}' >"$T/h3/.claude/settings.json"
-  (HOME=$T/h3 && export HOME && AGENT_SIGNALS_WORK=$T/h3/proj kit session start w2 claude --via tmux --cmd "sh '$stub'" --home real) >"$T/out" 2>&1
+  (HOME=$T/h3 && export HOME && export AGENT_SIGNALS_WORK=$T/h3/proj && kit session start w2 claude --via tmux --cmd "sh '$stub'" --home real) >"$T/out" 2>&1
   expect_code "home walk: a real-home start" 0 $?
   c=$run/sessions/w2/conditions
   expect_line "home walk: the home file is named" '^home file: \.claude/settings\.json, sha256 ' "$c"

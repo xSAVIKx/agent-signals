@@ -41,7 +41,10 @@ say() {
 tmp=$(mktemp -d) || exit 1
 # dash runs no EXIT trap on a signal, so a signal exits first.
 trap 'exit 130' INT TERM
-trap 'rm -rf "$tmp"' EXIT
+# The trap keeps the exit status: mksh gives the status of the last
+# command of the EXIT trap after an exit in a signal trap.
+_trap_rc=0
+trap '_trap_rc=$?; rm -rf "$tmp"; exit "$_trap_rc"' EXIT
 
 # 1 and 2. The step files and their SHA-256.
 awk -F '\t' '$1 == "step" { print $2 "\t" $3 "\t" $4 "\t" $7 "\t" $8 }' "$m" >"$tmp/steps"

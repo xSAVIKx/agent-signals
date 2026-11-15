@@ -177,7 +177,7 @@ cp "$FAKE/bin/claude" "$FAKE/bin/agy" "$FAKE/tools/tmux" "$T/bin/"
 P=$T/bin:$SYS_PATH
 os=$(uname -s)
 
-(cd "$T" && PATH=$P AGENT_SIGNALS_RUN='' kitc "$T/k" plan --home real) >"$T/plan" 2>&1
+(cd "$T" && export PATH=$P AGENT_SIGNALS_RUN='' && kitc "$T/k" plan --home real) >"$T/plan" 2>&1
 expect_code "kit plan exits 0" 0 $?
 expect_line "the plan has the probe" '^step: probe@none needs=none cost=none measures=' "$T/plan"
 expect_line "the plan has permission-claude on tmux" '^step: permission-claude@tmux needs=login cost=turns:1 measures=' "$T/plan"
@@ -199,7 +199,7 @@ fi
 grep -v ' needs=fixture ' "$T/plan" >"$T/plan-login"
 expect_no_line "a real home gives no skip to a step with no fixture need" 'skip=' "$T/plan-login"
 
-(cd "$T" && PATH=$P AGENT_SIGNALS_RUN='' kitc "$T/k" plan --home throwaway) >"$T/plan2" 2>&1
+(cd "$T" && export PATH=$P AGENT_SIGNALS_RUN='' && kitc "$T/k" plan --home throwaway) >"$T/plan2" 2>&1
 expect_code "kit plan --home throwaway exits 0" 0 $?
 if grep 'needs=login' "$T/plan2" | grep -vq ' skip=no-login '; then
   fail "each login step skips in a throwaway home" "a line has no skip=no-login"
@@ -210,16 +210,16 @@ expect_line "a login step is still in the plan" '^step: permission-claude@tmux n
 expect_line "a step with no login does not skip" '^step: probe@none needs=none cost=none measures=' "$T/plan2"
 expect_line "a fixture step skips in a throwaway home" '^step: write-outside-claude-auto-deny@tmux needs=fixture cost=turns:1 skip=needs-fixture ' "$T/plan2"
 expect_line "a fixture step skips in a real home" '^step: write-outside-claude-auto-deny@tmux needs=fixture cost=turns:1 skip=needs-fixture ' "$T/plan"
-(cd "$T" && PATH=$P AGENT_SIGNALS_RUN='' kitc "$T/k" plan --home fixture) >"$T/plan3" 2>&1
+(cd "$T" && export PATH=$P AGENT_SIGNALS_RUN='' && kitc "$T/k" plan --home fixture) >"$T/plan3" 2>&1
 expect_line "a fixture step runs in the fixture" '^step: write-outside-claude-auto-deny@tmux needs=fixture cost=none measures=' "$T/plan3"
 expect_line "a mode step is in the plan" '^step: write-claude-accept-edits@tmux needs=login cost=none measures=' "$T/plan3"
 
-(cd "$T" && PATH=$P kitc "$T/k" plan --home other) >"$T/out" 2>&1
+(cd "$T" && export PATH=$P && kitc "$T/k" plan --home other) >"$T/out" 2>&1
 expect_code "a bad home mode is bad use" 2 $?
 
 # With no tmux, the tmux lines go.
 rm "$T/bin/tmux"
-(cd "$T" && PATH=$P AGENT_SIGNALS_RUN='' kitc "$T/k" plan) >"$T/plan3" 2>&1
+(cd "$T" && export PATH=$P AGENT_SIGNALS_RUN='' && kitc "$T/k" plan) >"$T/plan3" 2>&1
 if PATH=$SYS_PATH command -v tmux >/dev/null 2>&1; then
   pass "with no tmux, no tmux step (skipped: tmux is in $SYS_PATH)"
 else

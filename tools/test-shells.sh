@@ -13,9 +13,9 @@
 #
 # It prints the output of each test file with the shell name before each
 # line, and at the end one line for each shell:
-#   shells: NAME pass=P fail=F
+#   shells: NAME pass=P fail=F exit=N
 # A shell that is not installed prints "shells: NAME missing". Exit code: 0
-# when no case fails, 1 else.
+# when no case fails and the runner exits 0 for each shell, 1 else.
 set -u
 root=$(cd "$(dirname "$0")/.." && pwd)
 shells=
@@ -29,7 +29,10 @@ if [ "$#" -eq 0 ]; then
   set -- "$root"/tools/agent-kit-tests/test-core-*.sh "$root/tools/agent-kit-tests/test-session.sh"
 fi
 tmp=$(mktemp -d) || exit 1
-trap 'rm -rf "$tmp"' EXIT
+# The trap keeps the exit status: mksh gives the status of the last
+# command of the EXIT trap after an exit in a signal trap.
+_trap_rc=0
+trap '_trap_rc=$?; rm -rf "$tmp"; exit "$_trap_rc"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 rc=0
@@ -46,11 +49,14 @@ for s in $shells; do
   # take their sh mode from it.
   ln -s "$exe" "$bin/sh"
   PATH="$bin:$PATH" sh "$root/tools/test-agent-kit.sh" "$@" >"$tmp/out-$s" 2>&1
+  code=$?
   p=$(grep -c '^pass:' "$tmp/out-$s")
   f=$(grep -c '^fail:' "$tmp/out-$s")
   sed "s/^/$s: /" "$tmp/out-$s"
-  echo "shells: $s pass=$p fail=$f" >>"$tmp/sum"
-  [ "$f" -eq 0 ] || rc=1
+  echo "shells: $s pass=$p fail=$f exit=$code" >>"$tmp/sum"
+  # The runner can end with no "fail:" line, for example when a test
+  # file cannot run.
+  [ "$f" -eq 0 ] && [ "$code" -eq 0 ] || rc=1
 done
 cat "$tmp/sum"
 exit "$rc"

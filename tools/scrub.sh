@@ -66,7 +66,10 @@ q() { printf '%s' "$1" | sed 's/[][\.*^$+?(){}|#]/\\&/g'; }
 tmp=$(mktemp -d)
 # dash runs no EXIT trap on a signal, so a signal exits first.
 trap 'exit 130' INT TERM
-trap 'rm -rf "$tmp"' EXIT
+# The trap keeps the exit status: mksh gives the status of the last
+# command of the EXIT trap after an exit in a signal trap.
+_trap_rc=0
+trap '_trap_rc=$?; rm -rf "$tmp"; exit "$_trap_rc"' EXIT
 # A path after <sandbox> is below a throwaway folder of a scenario. Its home
 # is <sandbox>/home/, and no home rule may read the next word as an account
 # name. So the "/" after <sandbox> is @S@ until all rules are done.

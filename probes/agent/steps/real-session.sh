@@ -73,7 +73,10 @@ fi
 
 tmp=$(mktemp -d "$(dirname "$KIT_OUT")/real.XXXXXX") || exit 1
 trap 'exit 130' INT TERM
-trap 'rm -rf "$tmp"' EXIT
+# The trap keeps the exit status: mksh gives the status of the last
+# command of the EXIT trap after an exit in a signal trap.
+_trap_rc=0
+trap '_trap_rc=$?; rm -rf "$tmp"; exit "$_trap_rc"' EXIT
 
 # no_session: the session has gone, or none started.
 no_session() {
