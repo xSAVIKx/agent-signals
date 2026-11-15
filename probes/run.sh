@@ -284,13 +284,15 @@ roots() {
 in_scope() {
   [ -n "$scoped" ] || return 0
   cut -d' ' -f3- "$raw.before.open" "$raw.after.open" 2>/dev/null | grep -Fqx -- "$1" && return 0
-  printf '%s\n' "$scope" | {
+  # A subshell: ksh93 runs the last part of a pipeline in this shell, so an
+  # exit in a { } group would end the watch.
+  printf '%s\n' "$scope" | (
     while read -r _d; do
       [ -n "$_d" ] || continue
       case $1 in "$_d"/*) exit 0 ;; esac
     done
     exit 1
-  }
+  )
 }
 
 # snapshot NAME AGENTS: the open state files of each agent process, and the

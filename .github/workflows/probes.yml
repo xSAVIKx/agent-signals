@@ -143,9 +143,7 @@ jobs:
 
   # The kit tests with other POSIX shells as "sh" (tools/test-shells.sh).
   # The unix job runs them with the sh of each image: dash on Ubuntu, bash
-  # 3.2 on macOS. Known gap: with ksh93 as sh, the guided watch of a
-  # session step writes no file (step result no-guided). The cause is not
-  # found yet, so the ksh job does not run test-steps.sh.
+  # 3.2 on macOS.
   shells:
     name: Shell (${{ matrix.os }}, ${{ matrix.shell }})
     strategy:
@@ -156,7 +154,7 @@ jobs:
           - { os: ubuntu-24.04, shell: zsh, apt: zsh }
           - { os: ubuntu-24.04, shell: busybox, apt: busybox }
           - { os: ubuntu-24.04, shell: mksh, apt: mksh }
-          - { os: ubuntu-24.04, shell: ksh, apt: ksh, no_steps: "yes" }
+          - { os: ubuntu-24.04, shell: ksh, apt: ksh }
           - { os: ubuntu-24.04, shell: yash, apt: yash }
           - { os: macos-15, shell: zsh, apt: "" }
     runs-on: ${{ matrix.os }}
@@ -180,13 +178,10 @@ jobs:
       - name: Kit tests with the shell
         env:
           SHELL_NAME: ${{ matrix.shell }}
-          NO_STEPS: ${{ matrix.no_steps }}
         run: |
           t=tools/agent-kit-tests
-          steps=$t/test-steps.sh
-          [ "$NO_STEPS" = yes ] && steps=
           sh tools/test-shells.sh "$SHELL_NAME" -- $t/test-core-*.sh $t/test-session.sh \
-            $steps $t/test-doctor.sh $t/test-dispatch.sh $t/test-get-wait.sh
+            $t/test-steps.sh $t/test-doctor.sh $t/test-dispatch.sh $t/test-get-wait.sh
 
   # The ebpf check of "kit trace" with the real bpftrace and sudo. The
   # runner account has "sudo -n". The test fails when bpftrace does not
