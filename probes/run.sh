@@ -187,12 +187,22 @@ ours() {
 #   ends and a last line with no line end.
 listed() {
   if [ -d "$pids_from" ]; then
+    # The start times of the pids that ours accepted before, from one ps
+    # call, as lines "PID START". A pid that the system gave again to a
+    # new process has a different start time and does not count.
+    _starts=
+    _okl=$(echo $ours_ok | tr ' ' ',')
+    [ -n "$_okl" ] && _starts=$(LC_ALL=C ps -o pid= -o lstart= -p "$_okl" 2>/dev/null | tr -s ' ' | sed 's/^ //; s/ $//')
     for _f in "$pids_from"/*; do
       _p=${_f##*/}
       case $_p in '' | *[!0-9]*) continue ;; esac
-      # A pid that ours accepted before needs only a check that it runs.
       case $ours_ok in
-        *" $_p "*) kill -0 "$_p" 2>/dev/null && echo "$_p" ;;
+        *" $_p "*)
+          _l=
+          IFS= read -r _l <"$_f" || :
+          _l=${_l%"$cr"}
+          case "$nl$_starts$nl" in *"$nl$_p ${_l#*"$tab"}$nl"*) echo "$_p" ;; esac
+          ;;
         *) ours "$_f" "$_p" && echo "$_p" ;;
       esac
     done
@@ -221,6 +231,10 @@ listed() {
 mux_seen=
 # ours_ok: the pids that ours accepted, as " PID ". mux_prime fills it.
 ours_ok=
+tab=$(printf '\t')
+cr=$(printf '\r')
+nl='
+'
 mux_prime() {
   for _w in $(listed); do
     case $ours_ok in *" $_w "*) ;; *) ours_ok="$ours_ok $_w " ;; esac
@@ -342,7 +356,11 @@ scope_sizes() {
         if (!ok) next
       }
       print p "\t" size
-    }' | sort | awk -F '\t' '{ print $2 " " $1 }'
+    }' | sort | awk '{
+      # The size is after the last tab. A path can hold a tab.
+      n = split($0, a, "\t")
+      print a[n] " " substr($0, 1, length($0) - length(a[n]) - 1)
+    }'
   rm -f "$raw.scope" "$raw.openpaths"
 }
 
