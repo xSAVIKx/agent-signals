@@ -12,7 +12,12 @@
 # The name "gemini" alone must not match the agy folder .gemini\antigravity-cli.
 $script:Pattern = '(?i)(^|[\\/ "])gemini(\.exe|\.cmd)?("|\s|$)|@google[\\/]gemini-cli'
 $script:Procs = @()
-$g = if ($env:USERPROFILE) { Join-Path $env:USERPROFILE '.gemini' } else { '' }
+# Gemini CLI keeps .gemini below GEMINI_CLI_HOME when it is set.
+$gh = if ($env:GEMINI_CLI_HOME) { $env:GEMINI_CLI_HOME } else { $env:USERPROFILE }
+$g = if ($gh) { Join-Path $gh '.gemini' } else { '' }
+# Hide-Project: the folder below .gemini\tmp is named after the project, so
+# it becomes <project>, as in gemini/unix.sh.
+function Hide-Project([string]$Line) { return ($Line -replace '(?i)(\\\.gemini\\tmp\\)[^\\]+', '$1<project>') }
 
 Header 'gemini/windows' '1' @('gemini')
 
@@ -33,7 +38,7 @@ Invoke-Section 'Parent chain and terminal of each process' {
 Invoke-Section 'Open Gemini files of each process' {
   foreach ($p in $script:Procs) {
     "== $($p.ProcessId)"
-    Get-OpenFiles ([int]$p.ProcessId) '(?i)\\\.gemini\\(?!antigravity-cli\\)'
+    Get-OpenFiles ([int]$p.ProcessId) '(?i)\\\.gemini\\(?!antigravity-cli\\)' | ForEach-Object { Hide-Project ([string]$_) }
   }
 }
 
@@ -51,7 +56,7 @@ Invoke-Section 'Layout of .gemini (one level, agy folders left out)' {
 Invoke-Section 'Newest session file below .gemini\tmp: name, size and time (no content)' {
   if ($g) {
     $f = Get-NewestFile (Join-Path $g 'tmp') '*.json*'
-    if ($f) { "newest file: $($f.FullName) size=$($f.Length) mtime=$(ConvertTo-UnixTime $f.LastWriteTimeUtc)" } else { 'none' }
+    if ($f) { "newest file: $(Hide-Project $f.FullName) size=$($f.Length) mtime=$(ConvertTo-UnixTime $f.LastWriteTimeUtc)" } else { 'none' }
   }
 }
 
