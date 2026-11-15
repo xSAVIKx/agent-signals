@@ -219,6 +219,18 @@ EOF
   WATCH=4 kitx step "interrupt-claude@$ran" >"$T/step" 2>&1
   expect_code "brief busy: the step exits 0" 0 $?
   expect_line "brief busy: the step is ok" "^step: interrupt-claude@$ran ok$" "$T/step"
+  expect_line "brief busy: the busy regex saw it" "busy: seen by the busy regex$" "$T/step"
+
+  # No busy line at all, only answer text that grows, as Codex 0.167.2
+  # drew it on a real model: the screen changes show the busy turn.
+  stub_set STUB_BUSY=stream
+  WATCH=4 kitx step "interrupt-claude@$ran" >"$T/step" 2>&1
+  expect_code "stream: the step exits 0" 0 $?
+  expect_line "stream: the step is ok" "^step: interrupt-claude@$ran ok$" "$T/step"
+  expect_line "stream: the screen changes saw it" "busy: seen by screen changes$" "$T/step"
+  f=$run/$(last_file)
+  expect_line "stream: the file has the busy screen" '^################ screen: busy$' "$f"
+  expect_line "stream: Escape ended the stream" '^interrupted$' "$f"
 
   # new-chat needs a screen with no prompt text.
   stub_set STUB_KEEP=yes

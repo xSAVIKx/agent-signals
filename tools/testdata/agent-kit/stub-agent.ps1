@@ -5,7 +5,9 @@
 # draws a permission dialog. On "1" it writes agent-signals-test.txt in
 # its working folder. On "2" or Escape it goes back to idle. On the text
 # "busy" and Enter it draws a busy screen with the text "esc to
-# interrupt", and it stays busy until Escape. C-u clears the prompt line.
+# interrupt", and it stays busy until Escape. On the text "stream" and
+# Enter it draws a new number each 0.3 s with no busy line until Escape, as
+# Codex 0.167.2 did on a real model. C-u clears the prompt line.
 #
 # When STUB_LOG is set, it writes one line for each key to that file:
 # "key Enter", "key Escape", "key Tab", or "char N" (N is the code of the
@@ -21,6 +23,30 @@ $ErrorActionPreference = 'Stop'
 $code = @'
 using System;
 using System.Runtime.InteropServices;
+// StubStream draws a new number each 0.3 s from a timer thread while the
+// main thread waits in ReadKey. A loop on Console.KeyAvailable did not
+// redraw under ConPTY in CI.
+public static class StubStream {
+    static System.Threading.Timer timer;
+    static int n;
+    public static void Start() {
+        n = 0;
+        timer = new System.Threading.Timer(delegate(object o) {
+            n++;
+            Console.Out.Write("\x1b[2J\x1b[3J\x1b[Hstub output\r\n\r\n" + (n + 1) + "\r\n" + (n + 2) + "\r\n" + (n + 3));
+            Console.Out.Flush();
+        }, null, 300, 300);
+    }
+    public static void Stop() {
+        // Wait until a callback that runs now ends, so that it does not
+        // draw over the next screen.
+        if (timer != null) {
+            var done = new System.Threading.ManualResetEvent(false);
+            if (timer.Dispose(done)) { done.WaitOne(5000); }
+            timer = null;
+        }
+    }
+}
 public static class StubConsole {
     [DllImport("kernel32.dll")] static extern IntPtr GetStdHandle(int n);
     [DllImport("kernel32.dll")] static extern bool GetConsoleMode(IntPtr h, out uint m);
@@ -74,6 +100,14 @@ function Show-Screen {
         $lines += ''
         $lines += '* Counting (esc to interrupt)'
         $last = ''
+    } elseif ($script:State -eq 'stream') {
+        # Not "stub stream": the step must not see its prompt "stream" on
+        # the screen.
+        $lines += 'stub output'
+        $lines += ''
+        $lines += '1'
+        $lines += '2'
+        $last = '3'
     } else {
         $lines += 'Do you want to create agent-signals-test.txt?'
         $lines += '1. Yes'
@@ -98,6 +132,7 @@ while ($true) {
         if ($k.Key -eq 'Enter') {
             if ($script:Buffer -eq 'write') { $script:State = 'dialog' }
             elseif ($script:Buffer -eq 'busy') { $script:State = 'busy' }
+            elseif ($script:Buffer -eq 'stream') { $script:State = 'stream'; [StubStream]::Start() }
             $script:Buffer = ''
         } elseif ($k.Key -eq 'Escape') {
             $script:Buffer = ''
@@ -111,8 +146,12 @@ while ($true) {
         } elseif ([int]$k.KeyChar -ge 32) {
             $script:Buffer += $k.KeyChar
         }
-    } elseif ($script:State -eq 'busy') {
-        if ($k.Key -eq 'Escape') { $script:State = 'idle' }
+    } elseif ($script:State -eq 'busy' -or $script:State -eq 'stream') {
+        if ($k.Key -eq 'Escape') {
+            if ($script:State -eq 'stream') { [StubStream]::Stop() }
+            $script:State = 'idle'
+            $script:Note = 'interrupted'
+        }
     } else {
         if ($k.KeyChar -eq '1') {
             Set-Content -LiteralPath (Join-Path (Get-Location).Path 'agent-signals-test.txt') -Value 'agent-signals test'
