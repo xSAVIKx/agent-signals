@@ -145,11 +145,21 @@ chain() {
   done
 }
 
-# children PID: PID and all its descendants.
+# children PID: PID and all its descendants, PID first. One ps call gives
+# the whole tree: a pgrep for each process took about 0.2 s for each
+# process on a loaded host, and the guided watch calls this every 2 s.
 children() {
   [ "${1:-0}" -gt 0 ] || return 0
-  echo "$1"
-  for _c in $(pgrep -P "$1" 2>/dev/null); do children "$_c"; done
+  ps -A -o pid= -o ppid= 2>/dev/null | awk -v root="$1" '
+    { kids[$2] = kids[$2] " " $1 }
+    END {
+      n = 1; q[1] = root; i = 1
+      while (i <= n) {
+        p = q[i++]; print p
+        m = split(kids[p], a, " ")
+        for (j = 1; j <= m; j++) if (a[j] != p) q[++n] = a[j]
+      }
+    }'
 }
 
 # cwd PID: the working folder of PID.
