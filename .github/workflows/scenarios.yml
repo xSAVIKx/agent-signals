@@ -499,16 +499,17 @@ jobs:
           - macos-26
           - macos-15-intel
           - macos-26-intel
-        # The agents of each job. Set a: Claude Code, Codex, the Cursor
-        # CLI and agy. Set b: opencode 2 and Gemini CLI. One job for all
-        # six would pass its time limit on macOS Intel.
-        set: [a, b]
+        # The agents of each job. Set a: Claude Code and Codex. Set b:
+        # opencode 2 and Gemini CLI. Set c: the Cursor CLI and agy. With
+        # the write steps, a job for four agents passed its time limit.
+        set: [a, b, c]
     runs-on: ${{ matrix.os }}
-    # The fixture steps of set a take about 35 min on macOS Intel.
+    # With four agents in one set, the fixture steps took about 35 min on
+    # macOS Intel.
     timeout-minutes: 50
     env:
       # The steps of the set: a step name holds the agent name.
-      KIT_AGENTS: ${{ matrix.set == 'a' && '-(claude|codex|cursor-agent|agy)(-|@)' || '-(opencode|gemini)(-|@)' }}
+      KIT_AGENTS: ${{ matrix.set == 'a' && '-(claude|codex)(-|@)' || matrix.set == 'c' && '-(cursor-agent|agy)(-|@)' || '-(opencode|gemini)(-|@)' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -544,11 +545,11 @@ jobs:
         continue-on-error: true
         run: npm install -g @openai/codex >"$RUNNER_TEMP/install-codex.txt" 2>&1
       - name: Install Cursor CLI
-        if: matrix.set == 'a'
+        if: matrix.set == 'c'
         continue-on-error: true
         run: curl -fsS https://cursor.com/install | bash >"$RUNNER_TEMP/install-cursor.txt" 2>&1
       - name: Install agy
-        if: matrix.set == 'a'
+        if: matrix.set == 'c'
         continue-on-error: true
         run: curl -fsSL https://antigravity.google/cli/install.sh | bash >"$RUNNER_TEMP/install-agy.txt" 2>&1
       # opencode 2: the kit steps use its --standalone mode (fact 86). The
@@ -679,11 +680,12 @@ jobs:
         # The Windows images of scenarios.yml.
         os: [windows-2022, windows-2025, windows-11-arm]
         # The agents of each job, as in kit-no-login.
-        set: [a, b]
+        set: [a, b, c]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    # A conpty step takes about 45 s. Set a has about 24 fixture steps.
+    timeout-minutes: 45
     env:
-      KIT_AGENTS: ${{ matrix.set == 'a' && '-(claude|codex|cursor-agent|agy)(-|@)' || '-(opencode|gemini)(-|@)' }}
+      KIT_AGENTS: ${{ matrix.set == 'a' && '-(claude|codex)(-|@)' || matrix.set == 'c' && '-(cursor-agent|agy)(-|@)' || '-(opencode|gemini)(-|@)' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -701,16 +703,17 @@ jobs:
           uv venv --managed-python --python 3.12 .venv-driver
           uv pip install --python .venv-driver pywinpty==3.1.2 pyte==0.8.2 wcwidth==0.9.4 psutil==7.2.2
       # Group a of scenarios.yml holds claude, codex and the Cursor CLI. The
-      # script scrubs its output. A failed install skips that agent.
+      # script scrubs its output. A failed install skips that agent. Set c
+      # needs the Cursor CLI of this group; KIT_AGENTS selects the steps.
       - name: Install the agents
-        if: matrix.set == 'a'
+        if: matrix.set == 'a' || matrix.set == 'c'
         shell: pwsh
         run: ./scenarios/install-windows-agents.ps1 -Group a
       # The agy install command of
       # https://antigravity.google/docs/getting-started?tab=cli. It puts agy
       # in %LOCALAPPDATA%\agy\bin and takes no version.
       - name: Install agy
-        if: matrix.set == 'a'
+        if: matrix.set == 'c'
         continue-on-error: true
         shell: pwsh
         run: |
