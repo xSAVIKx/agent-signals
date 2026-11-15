@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.13.0](https://github.com/xSAVIKx/agent-signals/compare/python-v0.12.0...python-v0.13.0) (2026-11-15)
+
+
+### Features
+
+* **corpus:** add the idle, busy and permission screens of Claude Code 2.1.325, Codex 0.169.0 and agy 1.5.8 ([da9719b](https://github.com/xSAVIKx/agent-signals/commit/da9719b6279f1d8c949b5c7b1ae02385098942c3))
+* **corpus:** add the screens of Claude Code 2.1.325, Codex 0.169.0 and agy 1.5.8 ([16b54fa](https://github.com/xSAVIKx/agent-signals/commit/16b54fa4a63db3f40be7eadc9890c4971e817a76))
+
+
+### Documentation
+
+* add fact 94: the Cursor chats folder is the MD5 of the work folder path ([74ab6d1](https://github.com/xSAVIKx/agent-signals/commit/74ab6d1eafa5ed5448c215384ca48abe75497497))
+* add facts 91 to 93 from the laptop kit runs ([60910fd](https://github.com/xSAVIKx/agent-signals/commit/60910fd5ee0c8528628ea3527a9b8e001a4a4aae))
+* add facts 91 to 93 from the laptop kit runs ([be354da](https://github.com/xSAVIKx/agent-signals/commit/be354daf5dce3e844766c5f03ec47bb0977e2ca0))
+* keep the permission mode option on one line in the screen text ([93216a5](https://github.com/xSAVIKx/agent-signals/commit/93216a5317a6b8f05978f0f22b553837007b2c90))
+* limit the Cursor chats folder rule to the measured case ([2ed1a7e](https://github.com/xSAVIKx/agent-signals/commit/2ed1a7e8e804b6247dea7afbd14adf2f45501129))
+* list the versions that facts 92 and 93 did not measure ([72ebdc7](https://github.com/xSAVIKx/agent-signals/commit/72ebdc787e7947b065dbe0f26e5d9319960f4bcb))
+
 ## [0.12.0](https://github.com/xSAVIKx/agent-signals/compare/python-v0.11.1...python-v0.12.0) (2026-11-14)
 
 
