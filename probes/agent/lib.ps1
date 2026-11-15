@@ -704,8 +704,20 @@ function Get-KitUvDriverPython([string]$Run) {
     foreach ($p in $script:KitConptyPackages) { $a += @('--with', $p) }
     $a += @('python', '-I', '-c', 'import sys, winpty, pyte, wcwidth, psutil; print(sys.executable)')
     $ErrorActionPreference = 'Continue'
-    $out = @(& $uv @a 2>$null | ForEach-Object { "$_" })
-    if ($LASTEXITCODE -ne 0) { return '' }
+    # Python writes the path in UTF-8, and PowerShell reads it in UTF-8,
+    # also when the path has characters outside ASCII.
+    $oldEnc = [Console]::OutputEncoding
+    $oldIo = $env:PYTHONIOENCODING
+    try {
+        try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false } catch { }
+        $env:PYTHONIOENCODING = 'utf-8'
+        $out = @(& $uv @a 2>$null | ForEach-Object { "$_" })
+        $rc = $LASTEXITCODE
+    } finally {
+        try { [Console]::OutputEncoding = $oldEnc } catch { }
+        $env:PYTHONIOENCODING = $oldIo
+    }
+    if ($rc -ne 0) { return '' }
     $py = @($out | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Leaf) } | Select-Object -Last 1)
     if ($py.Count -eq 0) { return '' }
     $py = [string]$py[0]
@@ -713,7 +725,9 @@ function Get-KitUvDriverPython([string]$Run) {
         $f = Join-Path $Run '.kit\python'
         if (-not (Test-Path -LiteralPath $f)) {
             New-Item -ItemType Directory -Force -Path (Join-Path $Run '.kit') | Out-Null
-            Write-KitText $f ($py + "`n")
+            # Not Write-KitText: session.ps1 has a function of that name
+            # that writes to stdout.
+            [IO.File]::WriteAllText($f, $py + "`n", (New-Object System.Text.UTF8Encoding $false))
         }
     }
     return $py

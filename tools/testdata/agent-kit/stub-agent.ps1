@@ -38,7 +38,13 @@ public static class StubStream {
         }, null, 300, 300);
     }
     public static void Stop() {
-        if (timer != null) { timer.Dispose(); timer = null; }
+        // Wait until a callback that runs now ends, so that it does not
+        // draw over the next screen.
+        if (timer != null) {
+            var done = new System.Threading.ManualResetEvent(false);
+            if (timer.Dispose(done)) { done.WaitOne(5000); }
+            timer = null;
+        }
     }
 }
 public static class StubConsole {
@@ -142,7 +148,7 @@ while ($true) {
         }
     } elseif ($script:State -eq 'busy' -or $script:State -eq 'stream') {
         if ($k.Key -eq 'Escape') {
-            if ($script:State -eq 'stream') { [StubStream]::Stop(); Start-Sleep -Milliseconds 400 }
+            if ($script:State -eq 'stream') { [StubStream]::Stop() }
             $script:State = 'idle'
             $script:Note = 'interrupted'
         }
