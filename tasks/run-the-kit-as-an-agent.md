@@ -170,10 +170,12 @@ different source.
      ```
 
    - Windows, in PowerShell. Keep `-ExecutionPolicy Bypass`. Without it,
-     PowerShell can refuse to run the script.
+     PowerShell can refuse to run the script. Use `pwsh` (PowerShell 7)
+     when the command `pwsh` exists. Else use `powershell` (Windows
+     PowerShell 5.1). The steps run in the same PowerShell as the kit.
 
      ```powershell
-     powershell -NoProfile -ExecutionPolicy Bypass -File DIR\agent-signals-kit\probes\agent\kit.ps1 version
+     pwsh -NoProfile -ExecutionPolicy Bypass -File DIR\agent-signals-kit\probes\agent\kit.ps1 version
      ```
 
    In Git Bash on Windows, the `sh` command also works: `kit.sh` gives the

@@ -254,13 +254,35 @@ def read_key(path):
         return f.read().strip().encode("ascii")
 
 
+def _retry(fn, seconds=5.0):
+    """Call fn until it does not raise PermissionError, for seconds at
+    most. On Windows a scan or the other process can hold a new file for a
+    short time: the open or the rename then fails with errno 13 (seen on
+    windows-11-arm in CI)."""
+    end = time.monotonic() + seconds
+    while True:
+        try:
+            return fn()
+        except PermissionError:
+            if time.monotonic() > end:
+                raise
+            time.sleep(0.05)
+
+
 def _write_json(path, obj):
     if not path:
         return
     tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(obj, f)
-    os.replace(tmp, path)
+    _retry(lambda: os.replace(tmp, path))
+
+
+def _read_json(path):
+    def read():
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    return _retry(read)
 
 
 def _kill_tree(proc):
@@ -404,8 +426,7 @@ def detach(argv, wait_seconds=30):
             sys.stderr.write("conpty: the server did not start in %d s\n" % wait_seconds)
             return 1
         time.sleep(0.05)
-    with open(o["ready"], encoding="utf-8") as f:
-        r = json.load(f)
+    r = _read_json(o["ready"])
     if r.get("error"):
         sys.stderr.write("conpty: %s\n" % r["error"])
         return 1
