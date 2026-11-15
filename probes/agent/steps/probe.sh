@@ -8,7 +8,10 @@ set -u
 w=$(mktemp -d) || exit 1
 # dash runs no EXIT trap on a signal, so a signal exits first.
 trap 'exit 130' INT TERM
-trap 'rm -rf "$w"' EXIT
+# The trap keeps the exit status: mksh gives the status of the last
+# command of the EXIT trap after an exit in a signal trap.
+_trap_rc=0
+trap '_trap_rc=$?; rm -rf "$w"; exit "$_trap_rc"' EXIT
 cd "$w" || exit 1
 AGENT_SIGNALS_TERMINALS=no sh "$KIT_ROOT/probes/run.sh" --all </dev/null >"$w/log" 2>&1
 code=$?

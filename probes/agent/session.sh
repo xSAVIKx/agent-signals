@@ -264,9 +264,10 @@ start_fake_model() {
     _log=$KIT_TRACE/model-$name.log
     _times=--log-times
   fi
+  # "{ exec ...; } &" makes $! the pid of the fake model in each shell.
   # shellcheck disable=SC2086
-  python3 "$KIT_DIR/fake-model.py" --agent "$1" --home "$2" --env-file "$sdir/fake-model.env" \
-    --log "$_log" $_times \
+  { exec python3 "$KIT_DIR/fake-model.py" --agent "$1" --home "$2" --env-file "$sdir/fake-model.env" \
+    --log "$_log" $_times; } \
     </dev/null >/dev/null 2>&1 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- &
   add_pid "$!" "session $name fake model"
   _n=0
@@ -370,7 +371,9 @@ write_conditions() {
       if [ -n "$_c" ]; then
         # A time limit of 10 s: a program that does not know the command
         # can wait for input. It stops by its pid.
-        (cd "$work" && exec env -i "$@" "$_c" sandbox -- true) </dev/null >"$sdir/sandbox.out" 2>&1 &
+        # "{ ...; exec ...; } &" makes $! the pid of the program in each
+        # shell: yash keeps a shell process for "( ... ) >FILE &".
+        { cd "$work" && exec env -i "$@" "$_c" sandbox -- true; } </dev/null >"$sdir/sandbox.out" 2>&1 &
         _p=$!
         _n=0
         while kill -0 "$_p" 2>/dev/null && [ "$_n" -lt 50 ]; do
@@ -1023,6 +1026,12 @@ stop_session() {
     done
     sleep 0.5
     printf '%s\t%s\n' "$(kit_ms)" "$name" >>"$KIT_TRACE/hangup.tsv"
+    # A gap before the stop of the pids. The build compares the ebpf times
+    # (boot clock, through ebpf-clock) with this wall clock time. With no
+    # gap, a process that the stop ended could get an exit time before the
+    # hang-up time on a slow runner, and the trace lost it from
+    # processes_left.
+    sleep 0.5
   fi
   # shellcheck disable=SC2046
   end_pids $(session_pids)

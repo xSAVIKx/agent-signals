@@ -43,7 +43,10 @@ trap 'exit 130' INT TERM
 # The throwaway folders of the scenario go in the run folder, not in
 # ~/.cache of the real HOME. The scenario deletes each of them.
 sroot=$KIT_RUN/scenario
-trap 'rm -rf "$w"; rmdir "$sroot" 2>/dev/null' EXIT
+# The trap keeps the exit status: mksh gives the status of the last
+# command of the EXIT trap after an exit in a signal trap.
+_trap_rc=0
+trap '_trap_rc=$?; rm -rf "$w"; rmdir "$sroot" 2>/dev/null; exit "$_trap_rc"' EXIT
 echo "kit: $KIT_STEP@$KIT_BACKEND: run scenarios/first-run.sh $KIT_AGENT (about 25 s)" >&2
 (cd "$w" && SCN_ROOT=$sroot SCN_OUT="$w/out" sh "$scn/first-run.sh" "$KIT_AGENT" "$cmd") </dev/null >"$w/log" 2>&1
 code=$?

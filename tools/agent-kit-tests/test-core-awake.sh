@@ -24,7 +24,18 @@ chmod +x "$T/cb/caffeinate"
 P=$T/cb:$PATH
 
 # kit_awake gives a line for macOS only, and only in an unattended run.
-awake() { (. "$ROOT/probes/agent/lib.sh" && PATH=$1 && kit_awake "$2" "$3"); }
+# yash runs its built-in "[" and "echo" only when PATH has the command, so
+# $T/sys holds links to them.
+mkdir "$T/sys"
+for c in '[' echo test printf; do
+  for d in /bin /usr/bin; do
+    if [ -x "$d/$c" ]; then
+      ln -s "$d/$c" "$T/sys/$c"
+      break
+    fi
+  done
+done
+awake() { (. "$ROOT/probes/agent/lib.sh" && PATH=$1:$T/sys && kit_awake "$2" "$3"); }
 v=$(awake "$T/cb" macos yes)
 case $v in caffeinate*) pass "kit_awake names caffeinate on macOS" ;; *) fail "kit_awake names caffeinate on macOS" "$v" ;; esac
 v=$(awake "$T/empty" macos yes)

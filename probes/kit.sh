@@ -48,7 +48,10 @@ tmp=$(mktemp -d 2>/dev/null || mktemp -d -t agent-signals)
 # With --get, the kit extracts into a new folder in DIR, and then renames
 # it. The rename is in one file system, so DIR never holds a part of a kit.
 stage=
-trap 'rm -rf "$tmp" ${stage:+"$stage"}' EXIT
+# The trap keeps the exit status: mksh gives the status of the last
+# command of the EXIT trap after an exit in a signal trap.
+_trap_rc=0
+trap '_trap_rc=$?; rm -rf "$tmp" ${stage:+"$stage"}; exit "$_trap_rc"' EXIT
 trap 'exit 143' TERM
 trap 'exit 130' INT
 trap 'exit 129' HUP

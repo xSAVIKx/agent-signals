@@ -24,6 +24,7 @@ on:
       - "tools/kit-archive.sh"
       - "tools/test-guided-step.sh"
       - "tools/test-agent-kit*"
+      - "tools/test-shells.sh"
       - "tools/agent-kit-tests/**"
       - "tools/testdata/agent-kit/**"
       - "scenarios/**"
@@ -139,6 +140,48 @@ jobs:
           AGENT_SIGNALS_URL="file://$RUNNER_TEMP/kit.tar.gz" sh -c 'cat probes/kit.sh | sh -s -- --all'
           f=$(ls agent-signals-probe-*.txt)
           grep -c '^### ' "$f"
+
+  # The kit tests with other POSIX shells as "sh" (tools/test-shells.sh).
+  # The unix job runs them with the sh of each image: dash on Ubuntu, bash
+  # 3.2 on macOS.
+  shells:
+    name: Shell (${{ matrix.os }}, ${{ matrix.shell }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, shell: bash, apt: "" }
+          - { os: ubuntu-24.04, shell: zsh, apt: zsh }
+          - { os: ubuntu-24.04, shell: busybox, apt: busybox }
+          - { os: ubuntu-24.04, shell: mksh, apt: mksh }
+          - { os: ubuntu-24.04, shell: ksh, apt: ksh }
+          - { os: ubuntu-24.04, shell: yash, apt: yash }
+          - { os: macos-15, shell: zsh, apt: "" }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: false
+      - name: Install tmux and the shell
+        env:
+          APT: ${{ matrix.apt }}
+        run: |
+          if [ "$RUNNER_OS" = macOS ]; then
+            command -v tmux >/dev/null || brew install tmux
+          else
+            sudo apt-get update -q && sudo apt-get install -y -q tmux $APT
+          fi
+      - name: Kit tests with the shell
+        env:
+          SHELL_NAME: ${{ matrix.shell }}
+        run: |
+          t=tools/agent-kit-tests
+          sh tools/test-shells.sh "$SHELL_NAME" -- $t/test-core-*.sh $t/test-session.sh \
+            $t/test-steps.sh $t/test-doctor.sh $t/test-dispatch.sh $t/test-get-wait.sh
 
   # The ebpf check of "kit trace" with the real bpftrace and sudo. The
   # runner account has "sudo -n". The test fails when bpftrace does not

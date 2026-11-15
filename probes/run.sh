@@ -64,7 +64,10 @@ out=$PWD/agent-signals-probe-$PROBE_OS-$stamp.txt
 raw=$(mktemp)
 # The EXIT trap deletes the temporary files. A signal runs it too, so a
 # step that a caller stops in the background leaves no file.
-trap 'rm -f "$raw" "$raw".* "$out.part"' EXIT
+# The trap keeps the exit status: mksh gives the status of the last
+# command of the EXIT trap after an exit in a signal trap.
+_trap_rc=0
+trap '_trap_rc=$?; rm -f "$raw" "$raw".* "$out.part"; exit "$_trap_rc"' EXIT
 trap 'exit 143' TERM
 trap 'exit 130' INT
 trap 'exit 129' HUP
@@ -187,10 +190,24 @@ ours() {
 #   ends and a last line with no line end.
 listed() {
   if [ -d "$pids_from" ]; then
+    # The start times of the pids that ours accepted before, from one ps
+    # call, as lines "PID START". A pid that the system gave again to a
+    # new process has a different start time and does not count.
+    _starts=
+    _okl=$(echo $ours_ok | tr ' ' ',')
+    [ -n "$_okl" ] && _starts=$(LC_ALL=C ps -o pid= -o lstart= -p "$_okl" 2>/dev/null | tr -s ' ' | sed 's/^ //; s/ $//')
     for _f in "$pids_from"/*; do
       _p=${_f##*/}
       case $_p in '' | *[!0-9]*) continue ;; esac
-      ours "$_f" "$_p" && echo "$_p"
+      case $ours_ok in
+        *" $_p "*)
+          _l=
+          IFS= read -r _l <"$_f" || :
+          _l=${_l%"$cr"}
+          case "$nl$_starts$nl" in *"$nl$_p ${_l#*"$tab"}$nl"*) echo "$_p" ;; esac
+          ;;
+        *) ours "$_f" "$_p" && echo "$_p" ;;
+      esac
     done
     return 0
   fi
@@ -209,9 +226,33 @@ listed() {
 
 # watched: the pids of the --pids file or folder, and their children. A
 # listed tmux or psmux process does not count itself, only its children.
+# mux_seen: the answer of is_mux for each listed pid, as " PID:1" or
+# " PID:0". A pid of the --pids set keeps its program while it runs, and
+# the watch calls watched every 2 s, so it asks ps one time for each pid.
+# watched runs in a subshell ($(...)), so mux_prime fills mux_seen in the
+# main shell first.
+mux_seen=
+# ours_ok: the pids that ours accepted, as " PID ". mux_prime fills it.
+ours_ok=
+tab=$(printf '\t')
+cr=$(printf '\r')
+nl='
+'
+mux_prime() {
+  for _w in $(listed); do
+    case $ours_ok in *" $_w "*) ;; *) ours_ok="$ours_ok $_w " ;; esac
+    case $mux_seen in *" $_w:"[01]*) continue ;; esac
+    if is_mux "$_w"; then mux_seen="$mux_seen $_w:1"; else mux_seen="$mux_seen $_w:0"; fi
+  done
+}
 watched() {
-  listed | while read -r _w; do
-    if is_mux "$_w"; then
+  for _w in $(listed); do
+    case $mux_seen in
+      *" $_w:1"*) _m=1 ;;
+      *" $_w:0"*) _m=0 ;;
+      *) if is_mux "$_w"; then _m=1; else _m=0; fi ;;
+    esac
+    if [ "$_m" = 1 ]; then
       children "$_w" | sed 1d
     else
       children "$_w"
@@ -281,13 +322,51 @@ roots() {
 in_scope() {
   [ -n "$scoped" ] || return 0
   cut -d' ' -f3- "$raw.before.open" "$raw.after.open" 2>/dev/null | grep -Fqx -- "$1" && return 0
-  printf '%s\n' "$scope" | {
+  # A subshell: ksh93 runs the last part of a pipeline in this shell, so an
+  # exit in a { } group would end the watch.
+  printf '%s\n' "$scope" | (
     while read -r _d; do
       [ -n "$_d" ] || continue
       case $1 in "$_d"/*) exit 0 ;; esac
     done
     exit 1
-  }
+  )
+}
+
+# scope_sizes: read the "SIZE PATH" lines of wc -c on stdin, and print
+# "SIZE PATH" one time for each absolute PATH that the step can show (the
+# rule of in_scope), sorted by PATH. One awk for all files: a test and a wc
+# for each file took seconds at the end of a watch.
+scope_sizes() {
+  : >"$raw.scope"
+  : >"$raw.openpaths"
+  if [ -n "$scoped" ]; then
+    printf '%s\n' "$scope" | sed '/^$/d' >"$raw.scope"
+    cut -d' ' -f3- "$raw.before.open" "$raw.after.open" >"$raw.openpaths" 2>/dev/null
+  fi
+  awk -v scoped="$scoped" -v sf="$raw.scope" -v of="$raw.openpaths" '
+    BEGIN {
+      if (scoped != "") {
+        while ((getline l < sf) > 0) sc[++ns] = l "/"
+        while ((getline l < of) > 0) op[l] = 1
+      }
+    }
+    {
+      size = $1; p = $0; sub(/^ *[0-9]+ /, "", p)
+      if (substr(p, 1, 1) != "/" || (p in seen)) next
+      seen[p] = 1
+      if (scoped != "") {
+        ok = (p in op)
+        for (i = 1; !ok && i <= ns; i++) if (index(p, sc[i]) == 1) ok = 1
+        if (!ok) next
+      }
+      print p "\t" size
+    }' | sort | awk '{
+      # The size is after the last tab. A path can hold a tab.
+      n = split($0, a, "\t")
+      print a[n] " " substr($0, 1, length($0) - length(a[n]) - 1)
+    }'
+  rm -f "$raw.scope" "$raw.openpaths"
 }
 
 # snapshot NAME AGENTS: the open state files of each agent process, and the
@@ -298,6 +377,7 @@ in_scope() {
 snapshot() {
   name=$1
   shift
+  [ -n "$pids_from" ] && mux_prime
   for a in "$@"; do
     for x in $(agent_pids "$a"); do
       for k in $(children "$x"); do
@@ -339,6 +419,7 @@ PY
 # claude_status: the status field of each Claude pid file (fact 23). With
 # --files-of-pids, only the files named by a watched pid.
 claude_status() {
+  [ -n "$scoped" ] && mux_prime
   _cs=
   [ -n "$scoped" ] && _cs=" $(watched | tr '\n' ' ') "
   for f in "$HOME"/.claude/sessions/*.json; do
@@ -479,7 +560,13 @@ guided() {
   agy_sample() {
     if [ -n "$scoped" ]; then : >"$1"; else agy_status >"$1"; fi
   }
-  claude_status >"$raw.status.0"
+  # Section 4 is only for claude: the other agents do not read the Claude
+  # pid files every 2 s.
+  case " $which " in
+    *" claude "*) status_of() { claude_status; } ;;
+    *) status_of() { :; } ;;
+  esac
+  status_of >"$raw.status.0"
   agy_sample "$raw.agy.0"
   echo
   if [ -n "$wait_s" ]; then
@@ -546,7 +633,7 @@ guided() {
     sleep 2
     t=$((t + 2))
     i=$((i + 1))
-    claude_status >"$raw.status.$i"
+    status_of >"$raw.status.$i"
     agy_sample "$raw.agy.$i"
     turn_check
   done
@@ -569,10 +656,8 @@ guided() {
         roots "$a"
         [ -n "$scoped" ] && cut -d' ' -f3- "$raw.before.open" "$raw.after.open"
       } | while read -r d; do
-        [ -e "$d" ] && find "$d" -type f -newer "$marker" 2>/dev/null
-      done | sort -u | while read -r f; do
-        in_scope "$f" && echo "$a $(wc -c <"$f" | tr -d ' ') $f"
-      done
+        [ -e "$d" ] && find "$d" -type f -newer "$marker" -exec wc -c {} + 2>/dev/null
+      done | scope_sizes | sed "s#^#$a #"
     done
     echo
     echo "### 2. Open state files: before (<) and after (>)"

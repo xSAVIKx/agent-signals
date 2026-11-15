@@ -39,9 +39,15 @@ say() {
   bad=1
 }
 tmp=$(mktemp -d) || exit 1
+# The box lines U+2502 and U+2503 as bytes: the kit scripts hold ASCII
+# only, because yash cannot read other bytes in the C locale.
+printf 's/^([[:space:]|]|\342\224\202|\342\224\203)+//; s/([[:space:]|]|\342\224\202|\342\224\203)+$//\n' >"$tmp/edge.sed"
 # dash runs no EXIT trap on a signal, so a signal exits first.
 trap 'exit 130' INT TERM
-trap 'rm -rf "$tmp"' EXIT
+# The trap keeps the exit status: mksh gives the status of the last
+# command of the EXIT trap after an exit in a signal trap.
+_trap_rc=0
+trap '_trap_rc=$?; rm -rf "$tmp"; exit "$_trap_rc"' EXIT
 
 # 1 and 2. The step files and their SHA-256.
 awk -F '\t' '$1 == "step" { print $2 "\t" $3 "\t" $4 "\t" $7 "\t" $8 }' "$m" >"$tmp/steps"
@@ -109,7 +115,7 @@ env | awk -F '=' '$1 ~ /^[A-Za-z0-9_]*_(API_KEY|TOKEN|SECRET|PASSWORD|PAT|KEY)$/
 while read -r b; do
   # The joined text: no box border and no white space at the edge of a
   # line, and no line break.
-  sed -E 's/^([[:space:]|]|│|┃)+//; s/([[:space:]|]|│|┃)+$//' "$run/$b" | tr -d '\n' >"$tmp/joined"
+  sed -E -f "$tmp/edge.sed" "$run/$b" | tr -d '\n' >"$tmp/joined"
   while IFS='	' read -r what re; do
     if grep -Eq -- "$re" "$run/$b" || grep -Eq -- "$re" "$tmp/joined"; then
       say "$b: the file holds $what"

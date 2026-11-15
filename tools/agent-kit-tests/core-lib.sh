@@ -8,6 +8,10 @@ FAKE=$ROOT/tools/testdata/agent-kit
 # a user folder.
 # shellcheck disable=SC2034
 SYS_PATH=/usr/bin:/bin:/usr/sbin:/sbin
+# tools/test-shells.sh puts a folder with the selected "sh" first on PATH.
+# Keep it first here too, so that each test with SYS_PATH runs that shell.
+_sh_dir=$(dirname "$(command -v sh)")
+case ":$SYS_PATH:" in *":$_sh_dir:"*) ;; *) SYS_PATH=$_sh_dir:$SYS_PATH ;; esac
 
 # kit_copy DIR: copy the kit (probes/ and the tools that it uses) to DIR.
 # A test adds fake step scripts to DIR/probes/agent/steps/ there.

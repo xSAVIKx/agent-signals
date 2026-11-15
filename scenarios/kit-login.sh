@@ -60,7 +60,10 @@ key=${KIT_KEY:-}
 unset KIT_KEY
 # dash runs no EXIT trap on a signal, so a signal exits first.
 trap 'exit 130' INT TERM
-trap 'rm -f "$raw" "$kd/$agent" "$HOME/.codex/auth.json"' EXIT
+# The trap keeps the exit status: mksh gives the status of the last
+# command of the EXIT trap after an exit in a signal trap.
+_trap_rc=0
+trap '_trap_rc=$?; rm -f "$raw" "$kd/$agent" "$HOME/.codex/auth.json"; exit "$_trap_rc"' EXIT
 
 fail() {
   echo "$agent: $1" >>"$RUNNER_TEMP/kit-failed.txt"

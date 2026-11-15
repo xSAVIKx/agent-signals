@@ -148,6 +148,9 @@ if [ -z "$cmd" ]; then
 fi
 
 tmp=$(mktemp -d "$(dirname "$KIT_OUT")/session.XXXXXX") || exit 1
+# The kit scripts hold ASCII only: yash cannot read other bytes in a
+# script in the C locale. printf writes the bytes of the prompt marks.
+printf '^[[:space:]]*(\342\235\257|\342\200\272|\342\206\222|>)\n' >"$tmp/prompt-mark.re"
 # The session name: letters, digits and "-", 40 characters at most.
 sess=$(printf '%s' "$KIT_STEP" | cut -c1-30)-$KIT_BACKEND
 watch=
@@ -155,7 +158,10 @@ watched=
 outside=
 # dash runs no EXIT trap on a signal, so a signal exits first.
 trap 'exit 130' INT TERM
-trap 'cleanup' EXIT
+# The trap keeps the exit status: mksh gives the status of the last
+# command of the EXIT trap after an exit in a signal trap.
+_trap_rc=0
+trap '_trap_rc=$?; cleanup; exit "$_trap_rc"' EXIT
 cleanup() {
   [ -n "$watch" ] && kill "$watch" 2>/dev/null
   sh "$KIT_DIR/session.sh" stop "$sess" >/dev/null 2>&1
@@ -242,12 +248,13 @@ pre_answer() {
 }
 
 # in_box FILE TEXT: TEXT is at the end of the box line, the last line that
-# starts with a prompt mark (❯, ›, → or >). With no such line, at the end
+# starts with a prompt mark (U+276F, U+203A, U+2192 or >). With no such
+# line, at the end
 # of any line. Claude Code 2.1.318 shows a sent "/clear" on a line above the
 # box, and the path of the work folder of a new-chat step holds "/new" too.
 in_box() {
   _re="(^|[[:space:]]|$(printf '\302\240'))$(kit_text_re "$2")[[:space:]]*\$"
-  _box=$(grep -E '^[[:space:]]*(❯|›|→|>)' "$1" | tail -n 1)
+  _box=$(grep -E -f "$tmp/prompt-mark.re" "$1" | tail -n 1)
   if [ -n "$_box" ]; then
     printf '%s\n' "$_box" | grep -Eq -- "$_re"
   else
@@ -360,7 +367,7 @@ blank() {
   KIT_BLANK_1=$(login_value displayName) KIT_BLANK_2=$(login_value organizationName) awk '
     BEGIN { a = ENVIRON["KIT_BLANK_1"]; b = ENVIRON["KIT_BLANK_2"]; x = "<blanked by the kit>" }
     /Welcome back|Organi[sz]ation/ || (length(a) > 2 && index($0, a)) || (length(b) > 2 && index($0, b)) { print x; next }
-    match($0, / · Claude [A-Z][A-Za-z]*( [A-Za-z]+)? · /) { print substr($0, 1, RSTART + RLENGTH - 1) x; next }
+    match($0, / \302\267 Claude [A-Z][A-Za-z]*( [A-Za-z]+)? \302\267 /) { print substr($0, 1, RSTART + RLENGTH - 1) x; next }
     { print }' "$1"
 }
 
@@ -689,8 +696,9 @@ fi
 
 wsecs=$(clip "$WATCH_S")
 say "start the guided watch ($wsecs s at most)"
-sh "$KIT_ROOT/probes/run.sh" --guided "$KIT_KIND" "$KIT_AGENT" --wait "$wsecs" \
-  --pids "$KIT_RUN/pids" --files-of-pids "$@" --stop-file "$tmp/stop" --out "$tmp/watch.txt" \
+# "{ exec ...; } &" makes $! the pid of the watch in each shell.
+{ exec sh "$KIT_ROOT/probes/run.sh" --guided "$KIT_KIND" "$KIT_AGENT" --wait "$wsecs" \
+  --pids "$KIT_RUN/pids" --files-of-pids "$@" --stop-file "$tmp/stop" --out "$tmp/watch.txt"; } \
   </dev/null >"$tmp/watch.log" 2>&1 &
 watch=$!
 watched=yes
