@@ -26,8 +26,10 @@ This answers request 7 of aw in `docs/roadmap.md` for Linux.
 
 ## Mechanism
 
-A reader can find the chats of a work folder with no process: compute the
-MD5 of the absolute path, then list `~/.cursor/chats/<md5>/`. Each chat is
+On Linux with Cursor CLI 2026.11.05, a reader can find the chats of a
+work folder with no process: compute the MD5 of the absolute path, then
+list `~/.cursor/chats/<md5>/`. This run did not show that the rule
+applies to other OSes, other versions or a path through a link. Each chat is
 one folder `<chat id>/store.db` in it (fact 021). A reader that has a
 Cursor process can also read the path from its open `store.db` (fact
 091).
