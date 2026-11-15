@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.19.0](https://github.com/xSAVIKx/agent-signals/compare/go/v0.18.0...go/v0.19.0) (2026-11-15)
+
+
+### Features
+
+* **corpus:** add the idle, busy and permission screens of Claude Code 2.1.325, Codex 0.169.0 and agy 1.5.8 ([da9719b](https://github.com/xSAVIKx/agent-signals/commit/da9719b6279f1d8c949b5c7b1ae02385098942c3))
+* **corpus:** add the screens of Claude Code 2.1.325, Codex 0.169.0 and agy 1.5.8 ([16b54fa](https://github.com/xSAVIKx/agent-signals/commit/16b54fa4a63db3f40be7eadc9890c4971e817a76))
+
 ## [0.18.0](https://github.com/xSAVIKx/agent-signals/compare/go/v0.17.0...go/v0.18.0) (2026-11-14)
 
 

@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.25.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.24.0...corpus-v0.25.0) (2026-11-15)
+
+
+### Features
+
+* **corpus:** add the idle, busy and permission screens of Claude Code 2.1.325, Codex 0.169.0 and agy 1.5.8 ([da9719b](https://github.com/xSAVIKx/agent-signals/commit/da9719b6279f1d8c949b5c7b1ae02385098942c3))
+* **corpus:** add the screens of Claude Code 2.1.325, Codex 0.169.0 and agy 1.5.8 ([16b54fa](https://github.com/xSAVIKx/agent-signals/commit/16b54fa4a63db3f40be7eadc9890c4971e817a76))
+
+
+### Bug Fixes
+
+* keep the step marker while a timed-out step script runs ([3900850](https://github.com/xSAVIKx/agent-signals/commit/3900850382e7f2af336043a8f3685fb54c18683c))
+* **kit:** do not stop the guided watch with the daemons of a throwaway home ([2a1878b](https://github.com/xSAVIKx/agent-signals/commit/2a1878b5d4903fd49bd0fbe5c533ff9e635bcd07))
+* **kit:** end a Windows step script and its session when kit step is killed ([0349eb4](https://github.com/xSAVIKx/agent-signals/commit/0349eb42533485dac8e53d766d2d3bfc3fab5d05))
+* **kit:** finish a step and stop its session when kit step gets a signal or a kill ([68166d8](https://github.com/xSAVIKx/agent-signals/commit/68166d88229b3abb3cbef5b6bf63e80508da821b))
+* **kit:** finish a step and stop its session when kit step gets a signal or a kill ([3433165](https://github.com/xSAVIKx/agent-signals/commit/34331654d6d69e2c192ffdb6284c7e2370bd7672))
+* **kit:** give the end of the watch 20 s also with short test waits ([5b05dd5](https://github.com/xSAVIKx/agent-signals/commit/5b05dd5b5d2be1169bcec6e2de5da64773de0d94))
+* **kit:** run the conpty session steps with a uv Python on Windows ([4cc3d13](https://github.com/xSAVIKx/agent-signals/commit/4cc3d13de2aad4d2caddda2f4a78281acb3e0026))
+* **kit:** see a busy turn from screen changes when the agent draws no busy line ([28708e4](https://github.com/xSAVIKx/agent-signals/commit/28708e4856bb5882279095f4dc493bf36c5b6a01))
+* **kit:** see busy turns with no busy line, and run conpty steps with a uv Python ([9f24e87](https://github.com/xSAVIKx/agent-signals/commit/9f24e87f4c9f13bf5ab17aa37bbe39f53fad5827))
+* **kit:** see the write dialog of the Cursor CLI ([0d68aa1](https://github.com/xSAVIKx/agent-signals/commit/0d68aa10aa0719c03d35eb9c40a77b9cea86c3eb))
+* read the uv Python path in UTF-8 and wait for the stub timer ([0ce44b0](https://github.com/xSAVIKx/agent-signals/commit/0ce44b00cacf0d9fed9e7068db8089ff1dd2d824))
+* **test:** count the fixture steps, a lost record and a bad regex in kit-repeat.sh ([5079c65](https://github.com/xSAVIKx/agent-signals/commit/5079c653ddce40bbdcbb207674fa1abaab1d9c4f))
+
 ## [0.24.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.23.0...corpus-v0.24.0) (2026-11-14)
 
 
