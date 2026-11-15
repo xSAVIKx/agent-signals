@@ -19,7 +19,7 @@
 # watch starts at once. The line "kit: watch starts, N s" tells a caller
 # in the background that the first snapshot is done.
 #   KIND           permission | new-chat | resume | interrupt
-#   AGENT          claude | codex | agy | cursor-agent | opencode (default: all)
+#   AGENT          claude | codex | agy | cursor-agent | opencode | gemini (default: all)
 #   -Wait N        watch for N seconds (1 to 600). The default is
 #                  AGENT_SIGNALS_WATCH, else 30.
 #   -PidsFile F    count only the pids in F and the processes below them.
@@ -145,6 +145,7 @@ if ($Guided) {
       'agy' { @((Join-Path $h '.gemini\antigravity-cli')) }
       'cursor-agent' { @((Join-Path $h '.cursor\chats'), (Join-Path $h '.cursor\projects')) }
       'opencode' { @((Join-Path $h '.local\share\opencode')) }
+      'gemini' { @((Join-Path $h '.gemini\tmp'), (Join-Path $h '.gemini\history')) }
     }
   }
 
@@ -695,6 +696,7 @@ $commands = @{
   'agy'      = @('agy')
   'cursor-agent' = @('agent', 'cursor-agent')
   'opencode' = @('opencode')
+  'gemini'   = @('gemini')
 }
 
 $exe = (Get-Process -Id $PID).Path
