@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.25.3](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.25.2...corpus-v0.25.3) (2026-11-16)
+
+
+### Bug Fixes
+
+* **kit:** see the Cursor CLI idle after its trust dialog ([c1ae120](https://github.com/xSAVIKx/agent-signals/commit/c1ae120d5d6d5eb14ce39d4d20335ea01daecb0a))
+* **kit:** see the Cursor CLI idle after its trust dialog ([b9febb0](https://github.com/xSAVIKx/agent-signals/commit/b9febb08855472a4d6ed0dc06134c82ca1c90365))
+
 ## [0.25.2](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.25.1...corpus-v0.25.2) (2026-11-15)
 
 
