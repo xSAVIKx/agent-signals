@@ -338,6 +338,9 @@ try {
         Expect-Line "${b}: end gap: the step is fail clock-gap" "^step: permission-claude@$b fail clock-gap$" $out
         Expect-Line "${b}: end gap: the file gives the size" '^clock gap: a turn of the wait for the end of the watch took [0-9]+ s of wall time \(the end of the watch\)$' $f
         Expect-NoLine "${b}: end gap: the watch saw no gap" '^watch: clock gap' $f
+        # This case failed on windows-11-arm with no clock-gap result: show
+        # the result and the log of the step then.
+        if (-not (Select-String -LiteralPath $f -Pattern '^result: fail clock-gap$' -Quiet)) { Show-StepLog $f }
 
         # Invoke-Watch NAME JUMP AT: the guided watch alone (probes\run.ps1)
         # for 4 s on the other stub, with a fake jump of the wall clock. The
