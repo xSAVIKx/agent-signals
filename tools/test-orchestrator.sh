@@ -129,13 +129,14 @@ rc=$?
 t1=$(date +%s)
 
 # The shell commands of the orchestrator: each string value of a key
-# "command" in the events, in order.
+# "command" (Claude Code, Codex) or "CommandLine" (agy) in the events, in
+# order.
 python3 -I - "$T/log.jsonl" >"$T/commands.txt" <<'EOF' || bad "the commands are read from the log" "python3 failed"
 import json, sys
 def walk(v, out):
     if isinstance(v, dict):
         for k, x in v.items():
-            if k == "command" and isinstance(x, (str, list)):
+            if k in ("command", "CommandLine") and isinstance(x, (str, list)):
                 out.append(" ".join(x) if isinstance(x, list) else x)
             else:
                 walk(x, out)
@@ -150,6 +151,10 @@ for line in open(sys.argv[1], errors="replace"):
     # Codex gives each command in "item.started" and again in
     # "item.completed": count the end only.
     if isinstance(ev, dict) and str(ev.get("type", "")).endswith(".started"):
+        continue
+    # agy gives each command in a step_update with the state ACTIVE and
+    # again with the state DONE: count the end only.
+    if isinstance(ev, dict) and isinstance(ev.get("step_update"), dict) and ev["step_update"].get("state") == "ACTIVE":
         continue
     found = []
     walk(ev, found)
