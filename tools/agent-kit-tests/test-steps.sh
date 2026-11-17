@@ -84,6 +84,10 @@ if [ -n "$ran" ]; then
   expect_code "agent error: the step exits 1" 1 $?
   expect_line "agent error: the step is fail agent-error" "^step: permission-claude@$ran fail agent-error$" "$T/step"
   expect_line "agent error: the log names the line" "the agent shows an error: Error: You've hit your usage limit" "$run/$(last_file)"
+  stub_set STUB_DIALOG=auth
+  WATCH=4 kitx step "permission-claude@$ran" >"$T/step" 2>&1
+  expect_line "login error: the step is fail agent-error" "^step: permission-claude@$ran fail agent-error$" "$T/step"
+  expect_line "login error: the log names the line" "the agent shows an error: Error: Authentication error" "$run/$(last_file)"
   stub_set STUB_DIALOG=no
   WATCH=4 kitx step "permission-claude@$ran" >"$T/step" 2>&1
   expect_code "no dialog: the step exits 0" 0 $?
