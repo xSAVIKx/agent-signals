@@ -20,6 +20,8 @@
 #   3. a path below ~ that is not in an agent or system folder:
 #      the folders up to the first hidden folder     -> /work/example
 #      (~/code/app/.claude/x -> /work/example/.claude/x, ~/code/app/a.go -> /work/example)
+#   3b. the temp folders of Claude Code and Cursor, and the macOS temp
+#       folder of the account /var/folders/XX/ID/    -> /var/folders/<dir>/
 #   3a. a Windows account SID, S-1-5-21-...          -> <sid>
 #      It comes before 4: a project key also matches a bare SID. The
 #      well-known SIDs (S-1-5-18, S-1-5-32-544) name no machine, and stay.
@@ -39,6 +41,8 @@
 #   8. UUIDs                                         -> <uuid>
 #   9. hex runs of 16 characters or more             -> <hex>
 #  10. e-mail addresses                              -> <email>
+#  10a. the plan of a login: Claude Max, (Google AI Pro), and the other plan
+#      names                                         -> Claude <plan>, (<plan>)
 #  11. IPv4 addresses, except 127.0.0.1 and 0.0.0.0  -> <ip>
 #      (not a version number: after v or version, or before a letter, - or +)
 #      The exact placeholder ~/<private> (a private folder under a home, from
@@ -447,6 +451,9 @@ count "project path"
 # The temporary folders of Claude Code and Cursor hold the account number or
 # a run name.
 rule "agent temp folder" 's#/tmp/claude-[A-Za-z0-9._-]+#/tmp/claude-example#g; s#/tmp/cursor-agent-logs-[0-9]+#/tmp/cursor-agent-logs-example#g'
+# The macOS temp folder of an account, /var/folders/XX/ID/ (also after
+# /private), holds a fixed ID of the account.
+rule "agent temp folder" 's#/var/folders/[A-Za-z0-9_+-]+/[A-Za-z0-9_+-]+/#/var/folders/<dir>/#g'
 
 # Windows account SIDs. This rule comes before the project keys, because a
 # project key also matches a bare SID.
@@ -512,6 +519,11 @@ kb='none|tmux|pty|conpty|psmux|operator'
 at=$(printf '\001')
 keep="s#(^|[^A-Za-z0-9._%+-])([0-9]+-[a-z0-9-]+)@($kb)\\.txt(\\.?([^A-Za-z0-9.-]|\$))#\\1\\2$at\\3.txt\\4#g"
 rule "email" "$keep; $keep; s#[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}#<email>#g; s#$at#@#g"
+# The plan of the login: "Claude Max" in the Claude Code welcome box, and
+# "(Google AI Pro)" after the account of agy. The Claude rule runs twice,
+# because a match takes the character after it.
+pl='(^|[^A-Za-z0-9_])Claude (Max|Pro|Plus|Team|Ultra|Enterprise)([^A-Za-z0-9_]|$)'
+rule "plan name" "s#$pl#\\1Claude <plan>\\3#g; s#$pl#\\1Claude <plan>\\3#g; s#\\(Google AI (Pro|Plus|Ultra)\\)#(<plan>)#g"
 # A dotted quad after "v" or "version", or before a letter, "-" or "+", is a
 # version number. Its dots become @D@ until the IP rule is done.
 q4='([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})'

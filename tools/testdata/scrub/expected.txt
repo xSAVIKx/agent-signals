@@ -129,3 +129,8 @@ private 6: open /work/example
      end
   cwd /work/example
      ok
+ ▝▜█████▛▘  Opus 5.5 · Claude <plan>
+▝▜██████▀  Sonnet 5.5 · Claude <plan> · <blanked by the kit>
+     ▀▀▀▀▀▀       <email> (<plan>)
+not a plan: Claude Code, Claude Maxim, Google AI Studio
+macos temp: /private/var/folders/<dir>/T/tmp.a3VQc0CdIT and /var/folders/<dir>/C/x

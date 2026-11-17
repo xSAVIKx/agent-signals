@@ -44,6 +44,8 @@
 #   8. uuid       UUIDs -> <uuid>
 #   9. hex        hex runs of 16 or more characters -> <hex>
 #  10. email      e-mail addresses -> <email>
+#  10a. plan      the plan of a login: Claude Max -> Claude <plan>,
+#                 (Google AI Pro) -> (<plan>), and the other plan names
 #  11. ip         IPv4 addresses -> <ip>, but not 127.0.0.1 and 0.0.0.0, and
 #                 not a version number (after v or version, or before a
 #                 letter, - or +)
@@ -59,7 +61,7 @@
 
 param([string]$Path)
 
-$script:ScrubKinds = @('wrap', 'extra', 'home', 'other-home', 'project', 'temp', 'sid', 'key', 'user', 'domain', 'host', 'secret', 'uuid', 'hex', 'email', 'ip')
+$script:ScrubKinds = @('wrap', 'extra', 'home', 'other-home', 'project', 'temp', 'sid', 'key', 'user', 'domain', 'host', 'secret', 'uuid', 'hex', 'email', 'plan', 'ip')
 
 # A path ends at white space, a quote, a colon, a comma, a semicolon or a
 # parenthesis.
@@ -324,6 +326,9 @@ function Invoke-Scrub([string]$Text, [string]$HomeDir, [string]$User, [string]$H
   # number or a run name.
   $s = Invoke-ScrubReplace $s '/tmp/claude-[A-Za-z0-9._-]+' { '/tmp/claude-example' } $counts 'temp'
   $s = Invoke-ScrubReplace $s '/tmp/cursor-agent-logs-[0-9]+' { '/tmp/cursor-agent-logs-example' } $counts 'temp'
+  # The macOS temp folder of an account, /var/folders/XX/ID/ (also after
+  # /private), holds a fixed ID of the account.
+  $s = Invoke-ScrubReplace $s '/var/folders/[A-Za-z0-9_+-]+/[A-Za-z0-9_+-]+/' { '/var/folders/<dir>/' } $counts 'temp'
 
   # 3a. Windows account SIDs. This rule comes before the project keys,
   # because a project key also matches a bare SID.
@@ -386,6 +391,10 @@ function Invoke-Scrub([string]$Text, [string]$HomeDir, [string]$User, [string]$H
   # 10. E-mail addresses. The file name of a kit step,
   # NN-NAME@BACKEND.txt (probes/agent/step.ps1), is not an e-mail address.
   $s = Invoke-ScrubReplace $s '(?<![A-Za-z0-9._%+-])(?![0-9]+-[a-z0-9-]+@(?:none|tmux|pty|conpty|psmux|operator)\.txt(?!\.?[A-Za-z0-9-]))[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}' { '<email>' } $counts 'email'
+  # The plan of the login: "Claude Max" in the Claude Code welcome box, and
+  # "(Google AI Pro)" after the account of agy.
+  $s = Invoke-ScrubReplace $s '(?<![A-Za-z0-9_])Claude (?:Max|Pro|Plus|Team|Ultra|Enterprise)(?![A-Za-z0-9_])' { 'Claude <plan>' } $counts 'plan'
+  $s = Invoke-ScrubReplace $s '\(Google AI (?:Pro|Plus|Ultra)\)' { '(<plan>)' } $counts 'plan'
 
   # 11. IPv4 addresses. A dotted quad after "v" or "version", or before a
   # letter, "-" or "+", is a version number and stays.

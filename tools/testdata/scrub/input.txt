@@ -129,3 +129,8 @@ private 6: open ~/code/app/y.txt
     project/data end
   cwd \…\Contoso-
     Fin\ledger ok
+ ▝▜█████▛▘  Opus 5.5 · Claude Team
+▝▜██████▀  Sonnet 5.5 · Claude Max · <blanked by the kit>
+     ▀▀▀▀▀▀       alice@example.org (Google AI Pro)
+not a plan: Claude Code, Claude Maxim, Google AI Studio
+macos temp: /private/var/folders/s2/kzd00yj50xgbwgc3ych10fqw0000gn/T/tmp.a3VQc0CdIT and /var/folders/ab/xyz123/C/x
