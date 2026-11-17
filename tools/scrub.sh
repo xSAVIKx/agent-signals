@@ -21,7 +21,7 @@
 #      the folders up to the first hidden folder     -> /work/example
 #      (~/code/app/.claude/x -> /work/example/.claude/x, ~/code/app/a.go -> /work/example)
 #   3b. the temp folders of Claude Code and Cursor, and the macOS temp
-#       folder of the account /var/folders/XX/ID/    -> /var/folders/<dir>/
+#       folder of the account /var/folders/XX/ID     -> /var/folders/<dir>
 #   3a. a Windows account SID, S-1-5-21-...          -> <sid>
 #      It comes before 4: a project key also matches a bare SID. The
 #      well-known SIDs (S-1-5-18, S-1-5-32-544) name no machine, and stay.
@@ -142,8 +142,8 @@ done <"$tmp/extra"
 # after it, so that the full path is on its first line. Each line end and
 # the line count stay. A path is wrapped when:
 #   - an anchor is cut by one or more line ends: each extra root, the home
-#     folder, /Users/, /home/, ~/, /srv/, /work/, /.../ and \...\ (with
-#     U+2026), or
+#     folder, /Users/, /home/, ~/, /srv/, /work/, /private/var/folders/,
+#     /var/folders/, /.../ and \...\ (with U+2026), or
 #   - the path after an anchor goes to the end of the line, the first word
 #     of the next line is made only of the characters A-Z a-z 0-9 . _ ~ -
 #     / and \, and one of these is true:
@@ -175,7 +175,7 @@ done <"$tmp/extra"
 np=$(awk 'END { print NR }' "$tmp/anchors")
 # The ~ is text here: an agent writes it in a path.
 # shellcheck disable=SC2088
-printf '%s\n' /Users/ /home/ '~/' /srv/ /work/ >>"$tmp/anchors"
+printf '%s\n' /Users/ /home/ '~/' /srv/ /work/ /private/var/folders/ /var/folders/ >>"$tmp/anchors"
 # /.../ and \...\ with U+2026: an agent shortened the start of the path
 # (rule 2a). printf writes the bytes: this script holds ASCII only, because
 # yash cannot read other bytes in the C locale.
@@ -453,7 +453,7 @@ count "project path"
 rule "agent temp folder" 's#/tmp/claude-[A-Za-z0-9._-]+#/tmp/claude-example#g; s#/tmp/cursor-agent-logs-[0-9]+#/tmp/cursor-agent-logs-example#g'
 # The macOS temp folder of an account, /var/folders/XX/ID/ (also after
 # /private), holds a fixed ID of the account.
-rule "agent temp folder" 's#/var/folders/[A-Za-z0-9_+-]+/[A-Za-z0-9_+-]+/#/var/folders/<dir>/#g'
+rule "agent temp folder" 's#/var/folders/[A-Za-z0-9_+-]+/[A-Za-z0-9_+-]+([^A-Za-z0-9_+-]|$)#/var/folders/<dir>\1#g'
 
 # Windows account SIDs. This rule comes before the project keys, because a
 # project key also matches a bare SID.

@@ -134,3 +134,6 @@ private 6: open /work/example
      ▀▀▀▀▀▀       <email> (<plan>)
 not a plan: Claude Code, Claude Maxim, Google AI Studio
 macos temp: /private/var/folders/<dir>/T/tmp.a3VQc0CdIT and /var/folders/<dir>/C/x
+tmpdir ends at the id: /var/folders/<dir>
+  wrapped: /private/var/folders/<dir>/T/tmp.a3VQc0CdIT
+   end

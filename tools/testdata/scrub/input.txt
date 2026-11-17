@@ -134,3 +134,6 @@ private 6: open ~/code/app/y.txt
      ▀▀▀▀▀▀       alice@example.org (Google AI Pro)
 not a plan: Claude Code, Claude Maxim, Google AI Studio
 macos temp: /private/var/folders/s2/kzd00yj50xgbwgc3ych10fqw0000gn/T/tmp.a3VQc0CdIT and /var/folders/ab/xyz123/C/x
+tmpdir ends at the id: /var/folders/ab/xyz123
+  wrapped: /private/var/folders/s2/kzd00yj50xg
+  bwgc3ych10fqw0000gn/T/tmp.a3VQc0CdIT end
