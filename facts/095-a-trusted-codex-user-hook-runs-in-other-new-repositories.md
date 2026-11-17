@@ -1,8 +1,9 @@
-# 095. A trusted Codex user hook runs in every folder
+# 095. A trusted Codex user hook runs in other new repositories
 
 ## Measured
 
-2026-11-17, Codex CLI 0.169.0, on Linux. The TUI ran as
+2026-11-17, Codex CLI 0.169.0, on Linux. The CPU type was not recorded.
+The TUI ran as
 `codex --no-daemon -s danger-full-access -a on-request` in a private tmux
 server, in a new git repository for each run, with no
 `--dangerously-bypass-hook-trust`. The hooks were command hooks for
@@ -40,8 +41,8 @@ results to this repository. Measured on: real machine.
 
    The key holds the hooks file, the event and two indexes. It holds no
    project.
-4. A trusted user hook runs in each later session, also in a different
-   folder. No review dialog shows.
+4. A trusted user hook ran in each later session, also in a different new
+   git repository. No review dialog showed.
 5. A project file `.codex/hooks.json` gets its own review dialog
    ("1 hook is new or changed."). After `3. Continue without trusting`, the
    trusted user hooks ran (`UserPromptSubmit` and `Stop`), and the project
@@ -70,12 +71,13 @@ results to this repository. Measured on: real machine.
 ## Mechanism
 
 Codex keeps the hook trust for each hook, not for each project. The key
-names the hooks file, so one trust of a user hook covers all folders. A
-project hook needs its own trust. When a user does not trust a project
+names the hooks file and no project, so the trust does not depend on the
+folder. The runs showed this only in new git repositories. A project hook
+needs its own trust. When a user does not trust a project
 hook, the user hooks still run.
 
 A tool that installs a user hook must expect the review dialog at the
-next start. After one trust, the hook runs in each folder. A tool that
+next start. After one trust, the hook ran in each new repository. A tool that
 waits for the input box must also handle the review dialog and the
 folder trust dialog (fact 020).
 
@@ -93,4 +95,7 @@ None.
   new review.
 - The input of the `trusted_hash` digest.
 - The default daemon mode: all runs used `--no-daemon`.
-- The OS version, macOS and Windows.
+- The OS version, the CPU type, macOS and Windows.
+- Other Codex CLI versions.
+- Hook events other than `UserPromptSubmit` and `Stop`.
+- A folder that is not a new git repository.
