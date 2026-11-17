@@ -1,0 +1,40 @@
+  │                                                                                                                  │
+  │  Cursor Agent can execute code and access files in this directory.                                               │
+  │                                                                                                                  │
+  │  Do you trust the contents of this directory?                                                                    │
+  │                                                                                                                  │
+  │    /work/example  │
+  │                                                                                                                │
+  │                                                                                                                  │
+  │                                                                                                                  │
+  │    [a] Trust this workspace                                                                                      │
+  │    [q] Quit                                                                                                      │
+  │                                                                                                                  │
+  │  ⏳ Trusting workspace...                                                                                        │
+  │                                                                                                                  │
+  ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+  Cursor Agent
+  v2026.11.13-eacade1
+  Tip: Use /mcp to connect Cursor to your tools and data sources.
+
+
+  Count from 1 to 2000, with one number on each line.
+
+
+ ⠀⠞ Working
+    Tip: Try Cursor Grok 4.7 via /model, frontier intelligence at a fraction of the cost.
+
+
+  → Add a follow-up                                                                                     ctrl+c to stop
+
+
+  Auto
+  /work/example
+
+
+
+
+
+

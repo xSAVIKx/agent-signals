@@ -1,0 +1,16 @@
+schema: 1
+agent: cursor
+agent_version: 2026.11.05-86047df
+measured: 2026-11-07
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - the kit scrubbed the paths (home folder to ~, work folder to /work/example)
+  - the kit removed the blank lines at the end; this tool added them back to 40 lines
+description: >-
+  The screen "idle" of the kit step new-chat-cursor-agent@psmux (kit 0.16.0, home real, windows ).
+  The screen was saved by the kit after its own check of the state. It stands for 4 screens
+  (4 different texts) of the same agent version, OS, state and step kind in the laptop runs.
+expect:
+  state: IDLE

@@ -1,0 +1,40 @@
+^[[?6c
+
+      ▄▀▀▄        Antigravity CLI 1.5.6
+     ▀▀▀▀▀▀       <email> (<plan>)
+    ▀▀▀▀▀▀▀▀      Gemini 3.8 Flash (Medium)
+   ▄▀▀    ▀▀▄     /work/example
+  ▄▀▀      ▀▀▄
+
+────────────────────────────────────────────────────────────
+> Write outside the work folder: make the file
+  /work/example
+  
+  that holds the word hello.
+
+○ Thought for 5.7s (The request involves writing a file outside the active workspace. Initial assessment suggests t...)
+● Edited 1 file (agent-signals-write.txt) (ctrl+o to expand)
+
+Create file
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+/work/example
+  1  +  hello
+
+Allow creation of this file?
+> 1. Yes, allow creation
+  2. No, deny creation
+
+  ↑/↓ Navigate · f full diff
+esc to cancel                                                                                  Gemini 3.8 Flash · medium
+
+
+
+
+
+
+
+
+
+
+

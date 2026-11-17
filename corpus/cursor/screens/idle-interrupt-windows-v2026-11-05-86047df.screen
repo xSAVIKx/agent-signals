@@ -1,0 +1,40 @@
+  ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+  │                                                                                                                  │
+  │  ⚠ Workspace Trust Required                                                                                      │
+  │                                                                                                                  │
+  │  Cursor Agent can execute code and access files in this directory.                                               │
+  │                                                                                                                  │
+  │  Do you trust the contents of this directory?                                                                    │
+  │                                                                                                                  │
+  │    ~\AppData\Local\Temp\agent-signals-<hex>\agent-signals-run-windows-2  │
+  │    0261107T180132Z\work\st-8354f146                                                                              │
+  │                                                                                                                  │
+  │                                                                                                                  │
+  │    [a] Trust this workspace                                                                                      │
+  │    [q] Quit                                                                                                      │
+  │                                                                                                                  │
+  │  ⏳ Trusting workspace...                                                                                        │
+  │                                                                                                                  │
+  ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+  Cursor Agent
+  v2026.11.05-86047df
+  Tip: Use /run-everything to skip all approvals.
+
+
+
+
+  → Plan, search, build anything
+
+
+  Auto
+  ~\AppData\Local\Temp\agent-signals-<hex>\agent-signals-run-windows-20261107T180132Z\work\s
+  t-8354f146
+
+
+
+
+
+
+

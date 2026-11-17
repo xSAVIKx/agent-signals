@@ -1,0 +1,40 @@
+      ▄▀▀▄        Antigravity CLI 1.5.8
+     ▀▀▀▀▀▀       <email> (<plan>)
+    ▀▀▀▀▀▀▀▀      Gemini 3.8 Flash (Medium)
+   ▄▀▀    ▀▀▄     /work/example
+  ▄▀▀      ▀▀▄
+
+────────────────────────────────────────────────────────────
+> Write outside the work folder: make the file
+  /work/example
+  
+  that holds the word hello.
+
+○ Thought for 6.2s (The request attempts to write a file outside the designated work directory; this seems unusual...)
+● Edited 1 file (agent-signals-write.txt)
+● Explored 1 file (agent-signals-write.txt) (ctrl+o to expand)
+
+File access
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+Read:
+/work/example
+@psmux.out.outside/agent-signals-write.txt
+
+Allow access to this file?
+> 1. Yes, allow access
+  2. No, deny access
+
+  ↑/↓ Navigate
+esc to cancel                                                                           auto · Gemini 3.8 Flash · medium
+
+
+
+
+
+
+
+
+
+
+

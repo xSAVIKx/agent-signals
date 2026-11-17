@@ -28,3 +28,47 @@ verified:
       permission dialog (idle-v1-5-8, busy-v1-5-8 and permission-v1-5-8). Not checked: a real model and a real
       login, macOS and Windows, the other dialogs of this version, styled
       captures, and a pane narrower than 120 columns.
+  - version: 1.5.3
+    date: 2026-11-09
+    method: >-
+      screens of kit runs with the home of the operator (home real, a real
+      login and model) on laptops: linux, macos, windows, 120x40, imported
+      by tools/import-run-screens.py
+    notes: >-
+      Covers 15 screens (busy, idle, permission), with the OS in the
+      file name. Not checked: the screens that the kit saved with no check of
+      the state (last, after Escape, after C-c), styled captures, and a pane
+      narrower than 120 columns.
+  - version: 1.5.6
+    date: 2026-11-12
+    method: >-
+      screens of kit runs with the home of the operator (home real, a real
+      login and model) on laptops: macos, 120x40, imported
+      by tools/import-run-screens.py
+    notes: >-
+      Covers 7 screens (busy, idle, permission), with the OS in the
+      file name. Not checked: the screens that the kit saved with no check of
+      the state (last, after Escape, after C-c), styled captures, and a pane
+      narrower than 120 columns.
+  - version: 1.5.8
+    date: 2026-11-13
+    method: >-
+      screens of kit runs with the home of the operator (home real, a real
+      login and model) on laptops: macos, windows, 120x40, imported
+      by tools/import-run-screens.py
+    notes: >-
+      Covers 10 screens (busy, idle, permission), with the OS in the
+      file name. Not checked: the screens that the kit saved with no check of
+      the state (last, after Escape, after C-c), styled captures, and a pane
+      narrower than 120 columns.
+  - version: 1.5.9
+    date: 2026-11-15
+    method: >-
+      screens of kit runs with the home of the operator (home real, a real
+      login and model) on laptops: linux, macos, windows, 120x40, imported
+      by tools/import-run-screens.py
+    notes: >-
+      Covers 17 screens (busy, idle, permission), with the OS in the
+      file name. Not checked: the screens that the kit saved with no check of
+      the state (last, after Escape, after C-c), styled captures, and a pane
+      narrower than 120 columns.

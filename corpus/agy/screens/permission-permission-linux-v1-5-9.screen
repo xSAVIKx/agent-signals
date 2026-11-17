@@ -1,0 +1,40 @@
+      ▄▀▀▄        Antigravity CLI 1.5.9
+     ▀▀▀▀▀▀       <email> (<plan>)
+    ▀▀▀▀▀▀▀▀      Gemini 4 Hydrogen (Medium)
+   ▄▀▀    ▀▀▄     /work/example
+  ▄▀▀      ▀▀▄
+
+────────────────────────────────────────────────────────────
+> Create a file named agent-signals-test.txt that holds the word hello.
+
+○ Thought for 2.0s (Initial attempt to create the file `agent-signals-test.txt` in the active workspace using the f...)
+● Edited 1 file (agent-signals-test.txt) (ctrl+o to expand)
+
+Create file
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+/work/example
+    +  hello
+
+Allow creation of this file?
+> 1. Yes, allow creation
+  2. No, deny creation
+
+  ↑/↓ Navigate · f full diff
+esc to cancel                                                                                 Gemini 4 Hydrogen · medium
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

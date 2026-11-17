@@ -1,0 +1,40 @@
+  ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+  │                                                                                                                  │
+  │  ⚠ Workspace Trust Required                                                                                      │
+  │                                                                                                                  │
+  │  Cursor Agent can execute code and access files in this directory.                                               │
+  │                                                                                                                  │
+  │  Do you trust the contents of this directory?                                                                    │
+  │                                                                                                                  │
+  │    ~\AppData\Local\Temp\agent-signals-<hex>\agent-signals-run-windows-2  │
+  │    0261108T191250Z\work\st-1345b88d                                                                              │
+  │                                                                                                                  │
+  │                                                                                                                  │
+  │    [a] Trust this workspace                                                                                      │
+  │    [q] Quit                                                                                                      │
+  │                                                                                                                  │
+  │  ⏳ Trusting workspace...                                                                                        │
+  │                                                                                                                  │
+  ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+  Cursor Agent
+  v2026.11.05-86047df
+  Tip: Use /mcp to connect Cursor to your tools and data sources.
+
+
+  Count from 1 to 2000, with one number on each line.
+
+
+ ⠠⠜ Thinking  12 tokens
+    Tip: Type ? in the prompt bar to show in-app hints.
+
+
+  → Add a follow-up                                                                                     ctrl+c to stop
+
+
+  Auto
+  ~\AppData\Local\Temp\agent-signals-<hex>\agent-signals-run-windows-20261108T191250Z\work\s
+  t-1345b88d
+
+

@@ -1,0 +1,18 @@
+schema: 1
+agent: agy
+agent_version: 1.5.9
+measured: 2026-11-15
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - the kit scrubbed the paths (home folder to ~, work folder to /work/example)
+  - the kit removed the blank lines at the end; this tool added them back to 40 lines
+  - the plan name after the account is replaced with <plan>
+  - the kit replaced the account e-mail address (or, by mistake, a folder name with @ in it) with <email>
+description: >-
+  The screen "before stop" of the kit step resume-agy@tmux (kit 0.25.0, home real, linux Ubuntu 24.04.5 LTS).
+  The screen was saved by the kit after its own check of the state. It stands for 4 screens
+  (3 different texts) of the same agent version, OS, state and step kind in the laptop runs.
+expect:
+  state: IDLE

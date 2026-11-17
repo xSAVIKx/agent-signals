@@ -1,0 +1,18 @@
+schema: 1
+agent: agy
+agent_version: 1.5.3
+measured: 2026-11-08
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - the kit scrubbed the paths (home folder to ~, work folder to /work/example)
+  - the kit removed the blank lines at the end; this tool added them back to 40 lines
+  - the plan name after the account is replaced with <plan>
+  - the kit replaced the account e-mail address (or, by mistake, a folder name with @ in it) with <email>
+description: >-
+  The screen "dialog" of the kit step write-outside-agy-ask-writes@tmux (kit 0.18.1, home real, linux Ubuntu 24.04.5 LTS).
+  The screen was saved by the kit after its own check of the state. It stands for 3 screens
+  (3 different texts) of the same agent version, OS, state and step kind in the laptop runs.
+expect:
+  state: PERMISSION

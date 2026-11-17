@@ -1,0 +1,40 @@
+  │                                                                                                                  │
+  │    /work/example  │
+  │                                                                                                              │
+  │                                                                                                                  │
+  │                                                                                                                  │
+  │    [a] Trust this workspace                                                                                      │
+  │    [q] Quit                                                                                                      │
+  │                                                                                                                  │
+  │  ⏳ Trusting workspace...                                                                                        │
+  │                                                                                                                  │
+  ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+  Cursor Agent
+  v2026.11.13-eacade1
+  Tip: Type ? in the prompt bar to show in-app hints.
+
+
+  Create a file named agent-signals-test.txt that holds the word hello.
+
+
+  I'll create agent-signals-test.txt with the word hello.
+
+    Editing agent-signals-test.txt
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ...ission-cursor-agent-tmux/agent-signals-test.txt
+ ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+     1  hello
+     2
+
+ Write to this file?
+ in /work/example
+ 
+  → Proceed (y)
+    Reject & propose changes (esc or n or p)
+    Add Write(~) to allowlist? (tab)
+    Run Everything (shift+tab)
+
+

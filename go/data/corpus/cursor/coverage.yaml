@@ -11,3 +11,36 @@ verified:
       Covers the first screen with no login (login-v2026-10-22-27dcf5f). Not
       checked: the screens after a login, any turn, a permission dialog, styled
       captures, and a pane narrower than 120 columns.
+  - version: 2026.11.05-86047df
+    date: 2026-11-09
+    method: >-
+      screens of kit runs with the home of the operator (home real, a real
+      login and model) on laptops: linux, macos, windows, 120x40, imported
+      by tools/import-run-screens.py
+    notes: >-
+      Covers 14 screens (busy, idle), with the OS in the
+      file name. Not checked: the screens that the kit saved with no check of
+      the state (last, after Escape, after C-c), styled captures, and a pane
+      narrower than 120 columns.
+  - version: 2026.11.11-b912975
+    date: 2026-11-15
+    method: >-
+      screens of kit runs with the home of the operator (home real, a real
+      login and model) on laptops: macos, windows, 120x40, imported
+      by tools/import-run-screens.py
+    notes: >-
+      Covers 7 screens (busy, idle), with the OS in the
+      file name. Not checked: the screens that the kit saved with no check of
+      the state (last, after Escape, after C-c), styled captures, and a pane
+      narrower than 120 columns.
+  - version: 2026.11.13-eacade1
+    date: 2026-11-15
+    method: >-
+      screens of kit runs with the home of the operator (home real, a real
+      login and model) on laptops: linux, macos, 120x40, imported
+      by tools/import-run-screens.py
+    notes: >-
+      Covers 11 screens (busy, idle, permission), with the OS in the
+      file name. Not checked: the screens that the kit saved with no check of
+      the state (last, after Escape, after C-c), styled captures, and a pane
+      narrower than 120 columns.

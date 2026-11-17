@@ -1,0 +1,40 @@
+  >_ OpenAI Codex (v0.169.0)
+     /work/example
+
+  To get started, describe a task or try one of these commands:
+
+  /init - create an AGENTS.md file with instructions for Codex
+  /status - show current session configuration
+  /permissions - choose what Codex is allowed to do
+  /model - choose what model and reasoning effort to use
+  /review - review any changes and find issues
+
+
+› Write a file named agent-signals-write.txt that holds the word hello.
+
+
+• I’ll create the requested file in the workspace. The current filesystem policy is read-only, so I’ll request write
+  access for this specific file.
+
+• Running python3 -c 'from pathlib import Path; Path("agent-signals-write.txt").write_text("hello")'
+
+
+
+
+
+  Would you like to run the following command?
+
+  Environment: local
+
+  Reason: May I write agent-signals-write.txt containing the word hello in the workspace?
+
+  $ python3 -c 'from pathlib import Path; Path("agent-signals-write.txt").write_text("hello")'
+
+
+› 1. Yes, proceed (y)
+  2. Yes, and don't ask again for commands that start with `python3 -c 'from pathlib import Path; Path("agent-signals-
+     write.txt").write_text("hello")'` (p)
+  3. No, and tell Codex what to do differently (esc)
+
+  Press enter to confirm or esc to cancel
+
