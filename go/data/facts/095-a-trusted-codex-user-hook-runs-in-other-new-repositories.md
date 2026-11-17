@@ -71,9 +71,10 @@ results to this repository. Measured on: real machine.
 ## Mechanism
 
 Codex keeps the hook trust for each hook, not for each project. The key
-names the hooks file and no project, so the trust does not depend on the
-folder. The runs showed this only in new git repositories. A project hook
-needs its own trust. When a user does not trust a project
+names the hooks file and no project. In the runs, a trust from one new git
+repository applied in a different new git repository. The runs do not
+show that no other check depends on the folder. A project hook needs its
+own trust. When a user does not trust a project
 hook, the user hooks still run.
 
 A tool that installs a user hook must expect the review dialog at the
