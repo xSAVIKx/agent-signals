@@ -1,0 +1,17 @@
+schema: 1
+agent: claude
+agent_version: 2.1.322
+measured: 2026-11-12
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - the kit scrubbed the paths (home folder to ~, work folder to /work/example)
+  - the kit removed the blank lines at the end; this tool added them back to 40 lines
+  - the plan name in the welcome box is replaced with <plan>
+description: >-
+  The screen "idle" of the kit step new-chat-claude@pty (kit 0.21.0, home real, macos macOS 26.6.2).
+  The screen was saved by the kit after its own check of the state. It stands for 7 screens
+  (4 different texts) of the same agent version, OS, state and step kind in the laptop runs.
+expect:
+  state: IDLE

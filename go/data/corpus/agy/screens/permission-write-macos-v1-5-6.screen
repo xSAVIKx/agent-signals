@@ -1,0 +1,40 @@
+      ▄▀▀▄        Antigravity CLI 1.5.6
+     ▀▀▀▀▀▀       <email> (<plan>)
+    ▀▀▀▀▀▀▀▀      Gemini 3.8 Flash (Medium)
+   ▄▀▀    ▀▀▄     /work/example
+  ▄▀▀      ▀▀▄
+
+────────────────────────────────────────────────────────────
+> Write a file named agent-signals-write.txt that holds the word hello.
+
+○ Thought for 5.0s (Checking if the `write_file` tool is correctly configured for the target path and content. The...)
+● Edited 1 file (agent-signals-write.txt) (ctrl+o to expand)
+
+Create file
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+/work/example
+    +  hello
+
+Allow creation of this file?
+> 1. Yes, allow creation
+  2. No, deny creation
+
+  ↑/↓ Navigate · f full diff
+esc to cancel                                                                                  Gemini 3.8 Flash · medium
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

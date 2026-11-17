@@ -50,3 +50,36 @@ verified:
       permission dialog (idle-logo-v0-169-0, busy-v0-169-0 and approval-v0-169-0). Not checked: a real model and a real
       login, macOS and Windows, the other dialogs of this version, styled
       captures, and a pane narrower than 120 columns.
+  - version: 0.167.0
+    date: 2026-11-09
+    method: >-
+      screens of kit runs with the home of the operator (home real, a real
+      login and model) on laptops: linux, macos, windows, 120x40, imported
+      by tools/import-run-screens.py
+    notes: >-
+      Covers 15 screens (busy, idle, permission), with the OS in the
+      file name. Not checked: the screens that the kit saved with no check of
+      the state (last, after Escape, after C-c), styled captures, and a pane
+      narrower than 120 columns.
+  - version: 0.167.2
+    date: 2026-11-12
+    method: >-
+      screens of kit runs with the home of the operator (home real, a real
+      login and model) on laptops: macos, 120x40, imported
+      by tools/import-run-screens.py
+    notes: >-
+      Covers 7 screens (busy, idle, permission), with the OS in the
+      file name. Not checked: the screens that the kit saved with no check of
+      the state (last, after Escape, after C-c), styled captures, and a pane
+      narrower than 120 columns.
+  - version: 0.169.0
+    date: 2026-11-15
+    method: >-
+      screens of kit runs with the home of the operator (home real, a real
+      login and model) on laptops: linux, macos, windows, 120x40, imported
+      by tools/import-run-screens.py
+    notes: >-
+      Covers 15 screens (busy, idle, permission), with the OS in the
+      file name. Not checked: the screens that the kit saved with no check of
+      the state (last, after Escape, after C-c), styled captures, and a pane
+      narrower than 120 columns.

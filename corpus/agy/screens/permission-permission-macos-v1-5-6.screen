@@ -1,0 +1,40 @@
+      ▄▀▀▄        Antigravity CLI 1.5.6
+     ▀▀▀▀▀▀       <email> (<plan>)
+    ▀▀▀▀▀▀▀▀      Gemini 3.8 Flash (Medium)
+   ▄▀▀    ▀▀▄     /work/example
+  ▄▀▀      ▀▀▄
+
+────────────────────────────────────────────────────────────
+> Create a file named agent-signals-test.txt that holds the word hello.
+
+○ Thought for 3.6s (Initial hypothesis: File creation requires writing the string "hello" to a new file. The target...)
+● Edited 1 file (agent-signals-test.txt) (ctrl+o to expand)
+
+Create file
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+/work/example
+    +  hello
+
+Allow creation of this file?
+> 1. Yes, allow creation
+  2. No, deny creation
+
+  ↑/↓ Navigate · f full diff
+esc to cancel                                                                                  Gemini 3.8 Flash · medium
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

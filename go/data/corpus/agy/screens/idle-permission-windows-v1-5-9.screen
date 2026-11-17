@@ -1,0 +1,40 @@
+      ▄▀▀▄        Antigravity CLI 1.5.9
+     ▀▀▀▀▀▀       <email> (<plan>)
+    ▀▀▀▀▀▀▀▀      Gemini 4 Hydrogen (Medium)
+   ▄▀▀    ▀▀▄     /work/example
+  ▄▀▀      ▀▀▄
+
+────────────────────────────────────────────────────────────
+> Write outside the work folder: make the file
+  /work/example
+  @psmux.out.outside\agent-signals-write.txt
+  that holds the word hello.
+
+○ Thought for 3.1s (Attempting to write the file outside the designated work directory. The file path seems correct...)
+● Edited 1 file (agent-signals-write.txt)
+● Explored 1 file (agent-signals-write.txt) (ctrl+o to expand)
+
+  ⎿  Interrupted · What should Antigravity CLI do instead?
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+>
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+? for shortcuts                                                                        auto · Gemini 4 Hydrogen · medium
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

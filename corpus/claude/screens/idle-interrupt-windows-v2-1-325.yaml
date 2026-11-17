@@ -1,0 +1,17 @@
+schema: 1
+agent: claude
+agent_version: 2.1.325
+measured: 2026-11-15
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - the kit scrubbed the paths (home folder to ~, work folder to /work/example)
+  - the kit removed the blank lines at the end; this tool added them back to 40 lines
+  - the plan name in the welcome box is replaced with <plan>
+description: >-
+  The screen "idle" of the kit step interrupt-claude@psmux (kit 0.25.1, home real, windows ).
+  The screen was saved by the kit after its own check of the state. It stands for 2 screens
+  (2 different texts) of the same agent version, OS, state and step kind in the laptop runs.
+expect:
+  state: IDLE
