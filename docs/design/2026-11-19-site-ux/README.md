@@ -53,9 +53,10 @@ the corpus". It does not redo the design of the Traces section
 
 - The smallest text is 12.9 px (the badge). Code is 13.7 px.
 - The page has a skip link, landmarks, table captions, `scope` on each
-  header cell, and a visible focus ring. The menu, the filter and the
-  buttons of the header are 44 px high.
-- A page with no script shows all its content.
+  header cell, and a visible focus ring. The menu button, each menu
+  link and the filter input are 44 px high.
+- By the templates, a page with no script shows all its content. A
+  filter and a copy button stay hidden.
 
 ### What stops a tool author
 
@@ -106,8 +107,8 @@ the corpus". It does not redo the design of the Traces section
 
 - The fact links in a corpus table are 19 by 18 px (129 links). WCAG 2.2
   criterion 2.5.8 (AA) asks for 24 by 24 px, or for enough space round a
-  smaller target. The rows are 34 px apart by calculation, so the links
-  probably pass by the space rule. This round did not test that rule. The
+  smaller target. By calculation from the cell padding, the rows are 34 px or more
+  apart, so the links probably pass by the space rule. This round did not test that rule. The
   link text is a bare number, for example "7".
 - `layout.html` sets `theme-color` to `#ffffff` and `#0f1216`. The header
   background is `#f1f5f9` and `#21252c` (`--ys-surface-2`). The browser bar
@@ -156,7 +157,7 @@ Before (375 px)                      After (375 px)
 | ## Who it is for         |         | reader against them.     |
 | ## How to use the corpus |         | ## Start here            |
 | ## Run every check with  |         | [1. Learn the states   ] |
-|    an agent (522 words)  |         | [2. Find the screens   ] |
+|    an agent              |         | [2. Find the screens   ] |
 | ## Run the probe kit     |         | [3. Test your reader   ] |
 | ## Let an agent run ...  |         | [4. Read the facts     ] |
 | ## Three kinds of signals|         | ## Three kinds of signals|
@@ -167,7 +168,7 @@ Before (375 px)                      After (375 px)
 
 In the mockup at 390 px, the four steps end at about 1,580 px, and the
 link of step 2 is at about 1,040 px. The mockup has a note box of about
-230 px at the top that the real page does not have.
+200 px at the top that the real page does not have.
 
 **The parts.**
 
@@ -278,7 +279,7 @@ the way to get the same bytes into a debugger.
 ```text
 Before (375 px)                      After (375 px)
 | Screen claude/idle-...   |         | Screen claude/idle-...   |
-| (lead, 49 words)         |         | (lead)                   |
+| (lead)                   |         | (lead)                   |
 | Expected state  IDLE     |         | Expected state           |
 | Agent version   ...      |         |  [IDLE] A framed input   |
 | Provenance  measured-    |         |  box waits ... (link)    |
@@ -311,15 +312,14 @@ Before (375 px)                      After (375 px)
 4. The frame of the screen gets the edge shadow that a table frame has.
    The caption tells the reader to scroll when the display is narrow. The
    rule is in `mock.css`. The font size stays 14 px: 120 columns in 324 px
-   need a font of about 4.5 px, which nobody can read.
+   need a font of about 4 px, which nobody can read.
 5. A box "Use this screen in a test": both files from the site, the Go and
    the Python call for this screen, and a link to the page "Use".
 
 **Size.** 4 hours.
 
 **Risk.** Low to medium. The shadow uses a background on the scroll
-frame. A screen with a `styled` capture shows ESC bytes as text and has no
-colour, so the shadow hides no content. Test the shadow in dark mode: this
+frame. The shadow is a background, so it covers no text. Test the shadow in dark mode: this
 round looked at it only in light mode at 390 px. The box adds about 300 px
 to each of the 310 pages.
 
