@@ -69,6 +69,11 @@ for a in claude codex agy gemini; do
   busy=$(field "permission-$a" busy_regex)
   dialog=$(field "permission-$a" dialog_regex)
   write=$(field "permission-$a" wait_regex)
+  # A write-outside dialog: the wait regex of the first write-outside row
+  # of $a, or the write regex when $a has no such row.
+  wo=$(awk -F '\t' -v a="$a" '/^#/ { next } !h { for (i = 1; i <= NF; i++) col[$i] = i; h = 1; next }
+    $1 ~ ("^write-outside-" a "-") { print $col["wait_regex"]; exit }' "$steps")
+  [ -n "$wo" ] || wo=$write
   iwait=$(field "interrupt-$a" wait_regex)
   case $iwait in
     "$busy" | "$busy|"*) ;;
@@ -101,7 +106,12 @@ for a in claude codex agy gemini; do
         ! has "$busy" "$s" || echo "$b ($st) matches busy_regex" >>"$T/bad"
         ;;
     esac
+    # The name of a dialog screen of a permission step holds "permission"
+    # or starts with "approval". An idle or a busy screen of such a step
+    # starts with its state.
     case $b in
+      idle-* | busy-*) ;;
+      *write-outside*) has "$wo" "$s" || echo "$b does not match the write-outside regex" >>"$T/bad" ;;
       *permission* | approval*) has "$write" "$s" || echo "$b does not match the write regex" >>"$T/bad" ;;
     esac
   done
