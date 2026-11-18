@@ -199,7 +199,7 @@ function Invoke-Session([string[]]$List, [int]$Seconds) {
 function Read-Shared([string]$File) {
     try {
         $fs = New-Object System.IO.FileStream($File, [IO.FileMode]::Open, [IO.FileAccess]::Read, ([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete))
-        try { return (New-Object System.IO.StreamReader($fs, $Utf8)).ReadToEnd() } finally { $fs.Dispose() }
+        try { return (New-Object System.IO.StreamReader($flStream, $Utf8)).ReadToEnd() } finally { $flStream.Dispose() }
     } catch { return '' }
 }
 
@@ -602,7 +602,10 @@ try {
         if (Test-Path -LiteralPath $fl) {
             $counts = @{}
             # The fake model can still hold the log open: read it shared.
-            foreach ($l in ((Read-Shared $fl) -split "`r?`n")) {
+            # A failed open goes to the catch of the conditions.
+            $flStream = New-Object System.IO.FileStream($fl, [IO.FileMode]::Open, [IO.FileAccess]::Read, ([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete))
+            try { $flText = (New-Object System.IO.StreamReader($flStream, $Utf8)).ReadToEnd() } finally { $flStream.Dispose() }
+            foreach ($l in ($flText -split "`r?`n")) {
                 $w = $l -split ' '
                 if ($w.Count -ge 4 -and $w[0] -eq 'POST') { $k = ($w[3..($w.Count - 1)] -join ' '); $counts[$k] = 1 + [int]$counts[$k] }
             }
