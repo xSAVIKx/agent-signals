@@ -38,7 +38,9 @@ mkdir -m 0700 "$DS"
 (D=$DS; AGENT_SIGNALS_WORK=$WS; export AGENT_SIGNALS_WORK; kitx start --out "$DS") >"$T/log" 2>&1
 expect_code "spaces: kit start exits 0" 0 $?
 rs=$(run_of "$DS")
-case $rs in "$DS"/*) pass "spaces: the run folder is in the folder with a space" ;; *) fail "spaces: the run folder is in the folder with a space" "$rs" ;; esac
+# macOS gives /private/var for /var: also accept the physical path.
+DSP=$(cd "$DS" && pwd -P)
+case $rs in "$DS"/*|"$DSP"/*) pass "spaces: the run folder is in the folder with a space" ;; *) fail "spaces: the run folder is in the folder with a space" "$rs" ;; esac
 (D=$DS; AGENT_SIGNALS_WORK=$WS; export AGENT_SIGNALS_WORK; WATCH=4 kitx step "$step") >"$T/step" 2>&1
 expect_code "spaces: the step exits 0" 0 $?
 expect_line "spaces: the step is ok" "^step: $step ok$" "$T/step"
@@ -85,7 +87,9 @@ path_without() {
   _pd=$T/path-$(echo "$*" | tr ' ' '-')
   mkdir -p "$_pd"
   _uv=$(command -v uv 2>/dev/null) && _uv=$(dirname "$_uv")
-  for _dir in $(echo "$SYS_PATH" | tr ':' ' ') $_uv; do
+  # Homebrew puts tmux out of SYS_PATH on macOS.
+  _tm=$(command -v tmux 2>/dev/null) && _tm=$(dirname "$_tm")
+  for _dir in $(echo "$SYS_PATH" | tr ':' ' ') $_uv $_tm; do
     for _f in "$_dir"/*; do
       _n=${_f##*/}
       case " $* claude codex agy gemini cursor-agent opencode " in *" $_n "*) continue ;; esac
