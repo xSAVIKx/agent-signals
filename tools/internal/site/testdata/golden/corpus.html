@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Corpus | agent-signals</title>
+<meta name="description" content="The measured terminal screens of each agent, with the result that a reader must give.">
+<link rel="canonical" href="https://xsavikx.github.io/agent-signals/corpus/">
+<meta property="og:url" content="https://xsavikx.github.io/agent-signals/corpus/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="agent-signals">
+<meta property="og:title" content="Corpus | agent-signals">
+<meta property="og:description" content="The measured terminal screens of each agent, with the result that a reader must give.">
+<meta property="og:image" content="https://xsavikx.github.io/agent-signals/icon-512.png">
+<meta property="og:image:alt" content="The agent-signals mark: a terminal prompt">
+<meta name="twitter:card" content="summary">
+<link rel="icon" href="../favicon.ico" sizes="32x32">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<link rel="manifest" href="../site.webmanifest">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1216" media="(prefers-color-scheme: dark)">
+<link rel="alternate" type="text/plain" title="llms.txt" href="../llms.txt">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/ys-tokens.css">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to the main content</a>
+<header class="site-header">
+<div class="header-inner">
+<a class="brand" href="../index.html"><span class="brand-mark" aria-hidden="true">&gt;_</span> agent-signals</a>
+<nav class="site-nav" aria-label="Main">
+<details class="nav-menu">
+<summary>Menu</summary>
+<ul>
+<li><a href="../facts/index.html">Facts</a></li>
+<li><a href="index.html" aria-current="page">Corpus</a></li>
+<li><a href="../protocol/index.html">Protocol</a></li>
+<li><a href="../probes/index.html">Probes</a></li>
+<li><a href="../scenarios/index.html">Scenarios</a></li>
+<li><a href="../docs/roadmap.html">Roadmap</a></li>
+<li><a href="../tasks/index.html">Tasks</a></li>
+<li><a href="../releases/index.html">Releases</a></li>
+<li><a href="../reference.html">Reference</a></li>
+</ul>
+</details>
+<ul class="nav-wide">
+<li><a href="../facts/index.html">Facts</a></li>
+<li><a href="index.html" aria-current="page">Corpus</a></li>
+<li><a href="../protocol/index.html">Protocol</a></li>
+<li><a href="../probes/index.html">Probes</a></li>
+<li><a href="../scenarios/index.html">Scenarios</a></li>
+<li><a href="../docs/roadmap.html">Roadmap</a></li>
+<li><a href="../tasks/index.html">Tasks</a></li>
+<li><a href="../releases/index.html">Releases</a></li>
+<li><a href="../reference.html">Reference</a></li>
+</ul>
+</nav>
+</div>
+</header>
+<main id="main" tabindex="-1">
+<nav class="crumbs" aria-label="Breadcrumb">
+<ol>
+<li><a href="../index.html">Home</a></li>
+<li><span aria-current="page">Corpus</span></li>
+</ol>
+</nav>
+<h1>Corpus</h1>
+<p class="lead">The corpus holds 1 measured terminal screens of 1 agents. Each screen is a pair of files: the <code>.screen</code> file holds the exact bytes, and the <code>.yaml</code> file holds the metadata and the expected result.</p>
+<p>Read <a href="../docs/format.html">the format of a screen</a> for each field and each state.</p>
+<form class="facets" id="corpus-filter-box" aria-describedby="corpus-filter-status" hidden>
+<fieldset>
+<legend>Show only the screens that match</legend>
+<div class="facet-row">
+<div class="facet"><label for="facet-agent">Agent</label>
+<select id="facet-agent" name="agent" data-facet="agent"><option value="">All</option><option value="demo">demo</option></select></div>
+<div class="facet"><label for="facet-state">State</label>
+<select id="facet-state" name="state" data-facet="state"><option value="">All</option><option value="IDLE">IDLE</option></select></div>
+<div class="facet"><label for="facet-dialog">Dialog</label>
+<select id="facet-dialog" name="dialog" data-facet="dialog"><option value="">All</option><option value="none">none</option></select></div>
+<div class="facet"><label for="facet-version">Agent version</label>
+<select id="facet-version" name="version" data-facet="version"><option value="">All</option><option value="1.0.0">1.0.0</option></select></div>
+<div class="facet"><label for="facet-provenance">Provenance</label>
+<select id="facet-provenance" name="provenance" data-facet="provenance"><option value="">All</option><option value="derived">derived</option></select></div>
+<div class="facet"><button type="reset" id="corpus-filter-reset">Reset the filters</button></div>
+</div>
+</fieldset>
+<p id="corpus-filter-status" class="filter-status" role="status" aria-live="polite"></p>
+</form>
+<ul class="toc" id="corpus-toc">
+<li data-agent="demo"><a href="#agent-demo">demo</a> (1 screen)</li>
+</ul>
+
+<section class="agent-block" data-agent="demo">
+<h2 id="agent-demo">demo <span class="muted">(<code>corpus/demo</code>)</span></h2>
+<h3 id="agent-demo-screens">Screens</h3>
+<div class="table-wrap" role="region" tabindex="0" aria-labelledby="caption-demo">
+<table>
+<caption id="caption-demo">The 1 screens of demo</caption>
+<thead><tr><th scope="col">Screen</th><th scope="col">State</th><th scope="col">Dialog</th><th scope="col">Version</th><th scope="col">Provenance</th><th scope="col">Facts</th></tr></thead>
+<tbody>
+<tr data-agent="demo" data-state="IDLE" data-dialog="none" data-version="1.0.0" data-provenance="derived">
+<th scope="row"><a href="demo/idle.html"><code>idle</code></a></th>
+<td><code>IDLE</code></td>
+<td><span class="muted">none given</span></td>
+<td class="nowrap">1.0.0</td>
+<td>derived</td>
+<td><a href="../facts/001-a-demo-fact.html" aria-label="Fact 1" title="001. A demo fact for the tests">1</a></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+
+</main>
+<footer class="site-footer">
+<div class="footer-inner">
+<p>The Markdown files and the corpus in the repository are the source of this site.</p>
+<p><a href="https://github.com/xSAVIKx/agent-signals">The agent-signals repository on GitHub</a>. License: <a href="https://github.com/xSAVIKx/agent-signals/blob/main/LICENSE">Apache License 2.0</a>.</p>
+<p>Maintained by Yurii Serhiichuk, <a href="https://serhiichuk.dev/">serhiichuk.dev</a>. <a href="https://xsavikx.github.io/">Part of Yurii Serhiichuk's open-source projects</a>.</p>
+</div>
+</footer>
+<script src="../assets/corpus-filter.js" defer></script>
+</body>
+</html>

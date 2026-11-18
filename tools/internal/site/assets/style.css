@@ -437,10 +437,32 @@ dl.pages dt a { font-size: 1.05rem; }
 }
 .filter-status { margin: 0.35rem 0 0; min-height: 1.6em; color: var(--muted); font-size: 0.95rem; }
 
+/* The facet filter of the corpus page. JavaScript shows it. The controls
+   wrap at a narrow width. */
+.facets { margin: 0 0 1rem; }
+.facets fieldset { margin: 0; padding: 0.5rem 0.75rem 0.75rem; border: 1px solid var(--border-strong); border-radius: 6px; }
+.facets legend { padding: 0 0.35rem; font-weight: 600; }
+.facet-row { display: flex; flex-wrap: wrap; gap: 0.75rem 1rem; align-items: flex-end; }
+.facet { flex: 1 1 12rem; min-width: 0; }
+.facet label { display: block; font-weight: 600; margin-bottom: 0.25rem; }
+.facet select, .facet button {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.4rem 0.6rem;
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+}
+.facet button { cursor: pointer; font-weight: 600; }
+.facet button:hover { background: var(--surface); }
+.facets .filter-status { font-weight: 600; }
+
 /* When the browser runs scripts, show the filter box from the first paint,
-   so that the table does not move down when filter.js starts. */
+   so that the table does not move down when the page script starts. */
 @media (scripting: enabled) {
-  .filter[hidden] { display: block; }
+  .filter[hidden], .facets[hidden] { display: block; }
 }
 
 /* Footer */
