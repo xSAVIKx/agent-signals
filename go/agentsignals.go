@@ -12,7 +12,9 @@ import (
 	"fmt"
 	"io/fs"
 	"path"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
@@ -49,6 +51,15 @@ type Expect struct {
 	// BoxText is nil when the screen does not pin the text of the input box.
 	// It points to an empty string when the box is empty.
 	BoxText *string
+}
+
+// Fact is one measured fact: the file facts/NNN-<slug>.md. Title is the first
+// heading without the number. Text is the full Markdown text of the file.
+type Fact struct {
+	Number int
+	Slug   string
+	Title  string
+	Text   string
 }
 
 // Screen is one measured screen with its metadata.
@@ -242,4 +253,41 @@ func loadScreen(dir, agent, slug string) (Screen, error) {
 		s.Expect.Options = append(s.Expect.Options, Option(o))
 	}
 	return s, nil
+}
+
+var (
+	factName  = regexp.MustCompile(`^([0-9]{3})-(.+)\.md$`)
+	factTitle = regexp.MustCompile(`^#\s+[0-9]+\.\s+(.*?)\s*$`)
+)
+
+// Facts returns all facts, sorted by number.
+func Facts() ([]Fact, error) {
+	entries, err := fs.ReadDir(data, "data/facts")
+	if err != nil {
+		return nil, err
+	}
+	var out []Fact
+	for _, e := range entries {
+		m := factName.FindStringSubmatch(e.Name())
+		if m == nil || e.IsDir() {
+			continue
+		}
+		raw, err := data.ReadFile(path.Join("data/facts", e.Name()))
+		if err != nil {
+			return nil, err
+		}
+		n, err := strconv.Atoi(m[1])
+		if err != nil {
+			return nil, fmt.Errorf("agentsignals: fact %s: %w", e.Name(), err)
+		}
+		text := string(raw)
+		first, _, _ := strings.Cut(text, "\n")
+		title := strings.TrimSpace(strings.TrimLeft(first, "# "))
+		if t := factTitle.FindStringSubmatch(first); t != nil {
+			title = t[1]
+		}
+		out = append(out, Fact{Number: n, Slug: m[2], Title: title, Text: text})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Number < out[j].Number })
+	return out, nil
 }
