@@ -28,9 +28,23 @@
     `date`. In the `ubuntu:26.04` container, 2000 samples of the new
     `kit_ms` were all between two reads of `date +%s%N`.
 
+- Commit f5a1ffd holds the fix. The branch is pushed.
+- Local runs (p1-slot, fake tracer, CPU-saturated host):
+  - Run A of test-trace-states, test-trace-cast and test-trace-ebpf:
+    the kit_ms cases and "one process left, python3" passed. One case
+    failed: "keep raw: exit 0" (kit trace exit 1). The output of that
+    trace was not kept.
+  - Runs B and C of test-trace-ebpf only: run C passed all. In run B,
+    the first "kit trace" exited 1, so "ebpf: exit 0" and "one process
+    left, python3" failed. The stderr of that trace was not kept.
+  - These "kit trace exit 1" failures are a different failure mode from
+    the CI flake. In each CI failure, "ebpf: exit 0" passed. I did not
+    find their cause. The host was CPU-saturated at that time.
+
 ## Next
 
-- Run the kit tests locally, commit, push.
+- CI on a PR shows if the case stays green on ubuntu-26.04 and
+  ubuntu-26.04-arm.
 
 ## Blocked
 
