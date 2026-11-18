@@ -319,7 +319,10 @@ td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .matrix tfoot > tr > * { border-top: 2px solid var(--border-strong); border-bottom: 0; font-weight: 700; }
 @media (max-width: 36em) {
   .matrix th, .matrix td { padding: 0.45rem 0.5rem; }
-  .matrix th:first-child { max-width: 7rem; }
+  .matrix th:first-child { max-width: 8rem; }
+  /* On a narrow screen the text of an empty cell wraps, so that more
+     state columns are in view. */
+  .matrix td.none { white-space: normal; min-width: 5.5ch; }
 }
 
 /* Definition lists */
