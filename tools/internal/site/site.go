@@ -269,6 +269,7 @@ func (b *builder) load() error {
 			}
 			return ""
 		},
+		"filterURL": corpusFilterURL,
 		"plural": func(n int, one, many string) string {
 			if n == 1 {
 				return one
@@ -361,7 +362,7 @@ func (b *builder) exec(p page, name string, data any) error {
 }
 
 func (b *builder) pages() error {
-	steps := []func() error{b.home, b.docs, b.factsIndex, b.factPages, b.corpusIndex, b.screenPages,
+	steps := []func() error{b.home, b.docs, b.factsIndex, b.factPages, b.corpusIndex, b.matrixPage, b.screenPages,
 		b.tasksPages, b.releases, b.reference, b.notFound, b.assets, b.machine}
 	for _, s := range steps {
 		if err := s(); err != nil {

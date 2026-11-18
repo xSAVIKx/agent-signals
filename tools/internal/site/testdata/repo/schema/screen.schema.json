@@ -1,0 +1,9 @@
+{
+  "properties": {
+    "expect": {
+      "properties": {
+        "state": {"enum": ["IDLE", "BUSY", "PERMISSION"]}
+      }
+    }
+  }
+}
