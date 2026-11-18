@@ -1,7 +1,8 @@
 # Plan: how users get the corpus
 
-Status: a proposal. The operator selects the channels. Nothing in this plan
-is built yet.
+Status: a proposal. The operator selects the channels. Channel 1 is built:
+the job `corpus-assets` in `.github/workflows/release-please.yml`. The other
+channels are not built.
 
 ## The users and what each user needs
 
