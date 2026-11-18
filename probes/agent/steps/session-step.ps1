@@ -601,7 +601,8 @@ try {
         $fl = Join-Path $sdir 'fake-model.log'
         if (Test-Path -LiteralPath $fl) {
             $counts = @{}
-            foreach ($l in [IO.File]::ReadAllLines($fl)) {
+            # The fake model can still hold the log open: read it shared.
+            foreach ($l in ((Read-Shared $fl) -split "`r?`n")) {
                 $w = $l -split ' '
                 if ($w.Count -ge 4 -and $w[0] -eq 'POST') { $k = ($w[3..($w.Count - 1)] -join ' '); $counts[$k] = 1 + [int]$counts[$k] }
             }
