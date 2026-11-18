@@ -91,6 +91,9 @@ if [ -n "$ran" ]; then
   stub_set STUB_DIALOG=authtext
   WATCH=4 kitx step "permission-claude@$ran" >"$T/step" 2>&1
   expect_line "login words in an answer: the step is ok no-dialog" "^step: permission-claude@$ran ok no-dialog$" "$T/step"
+  stub_set STUB_DIALOG=authmid
+  WATCH=4 kitx step "permission-claude@$ran" >"$T/step" 2>&1
+  expect_line "login error inside a line: the step is ok no-dialog" "^step: permission-claude@$ran ok no-dialog$" "$T/step"
   stub_set STUB_DIALOG=no
   WATCH=4 kitx step "permission-claude@$ran" >"$T/step" 2>&1
   expect_code "no dialog: the step exits 0" 0 $?
