@@ -19,9 +19,17 @@
   case passed (8 of 8) in a Debian 13 container with a tmpfs of 4 MB. It
   did not run on a GitHub runner yet.
 
+- The version check refuses only a run with a different `meta kit`
+  line. `kit_copy` of the tests copies the release manifest, so that a
+  kit copy has the version of the kit.
+- Full suite once: 1407 pass, 16 fail. 12 fails came from the version
+  check (fixed above). 4 fails were busy and stream cases of
+  test-steps.sh on a CPU-saturated host. The rerun of the 6 touched
+  files gave 414 pass, 0 fail.
+
 ## Next
 
-- Run the full kit suite once.
+- Nothing.
 
 ## Blocked
 

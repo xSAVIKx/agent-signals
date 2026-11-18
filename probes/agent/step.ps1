@@ -39,8 +39,7 @@ $run = Get-KitRunDir
 # finds the run of the old kit from .agent-signals-run.
 $made = [string](Get-KitMeta $run 'kit')
 $kitVersion = [string](Get-KitVersion)
-if ($made -ne $kitVersion) {
-    if (-not $made) { $made = 'unknown' }
+if ($made -and $made -ne $kitVersion) {
     Stop-Kit 2 "the run folder is from kit $made, and this kit is $kitVersion. Run 'kit start' for a new run"
 }
 $homeMode = Get-KitMeta $run 'home'

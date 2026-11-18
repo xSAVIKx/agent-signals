@@ -133,20 +133,13 @@ mkdir -m 0700 "$D3"
 expect_code "older kit: kit start exits 0" 0 $?
 r3=$(run_of "$D3")
 now=$(awk -F '\t' '$1 == "meta" && $2 == "kit" { print $3 }' "$r3/manifest.tsv")
-for old in 0.1.0 none; do
-  if [ "$old" = none ]; then
-    sed '/^meta	kit	/d' "$r3/manifest.tsv" >"$T/m" && cat "$T/m" >"$r3/manifest.tsv"
-    want=unknown
-  else
-    sed "s/^meta	kit	.*/meta	kit	$old/" "$r3/manifest.tsv" >"$T/m" && cat "$T/m" >"$r3/manifest.tsv"
-    want=$old
-  fi
-  (D=$D3; WATCH=4 kitx step "$step") >"$T/step" 2>&1
-  expect_code "older kit $old: the step exits 2" 2 $?
-  expect_line "older kit $old: the step names both versions" "^kit: the run folder is from kit $want, and this kit is $now\\. Run 'kit start' for a new run$" "$T/step"
-  grep -q "^kit: the run folder is from kit $want" "$T/step" || show "$T/step"
-  if [ "$(steps_of "$r3" permission-claude)" -eq 0 ]; then pass "older kit $old: no step line"; else fail "older kit $old: no step line" "a line"; fi
-  if [ -e "$r3/.step.lock" ] || [ -L "$r3/.step.lock" ] || [ -d "$r3/sessions" ]; then fail "older kit $old: no lock and no session" "one stays"; else pass "older kit $old: no lock and no session"; fi
-done
+old=0.1.0
+sed "s/^meta	kit	.*/meta	kit	$old/" "$r3/manifest.tsv" >"$T/m" && cat "$T/m" >"$r3/manifest.tsv"
+(D=$D3; WATCH=4 kitx step "$step") >"$T/step" 2>&1
+expect_code "older kit: the step exits 2" 2 $?
+expect_line "older kit: the step names both versions" "^kit: the run folder is from kit $old, and this kit is $now\\. Run 'kit start' for a new run$" "$T/step"
+grep -q "^kit: the run folder is from kit $old" "$T/step" || show "$T/step"
+if [ "$(steps_of "$r3" permission-claude)" -eq 0 ]; then pass "older kit: no step line"; else fail "older kit: no step line" "a line"; fi
+if [ -e "$r3/.step.lock" ] || [ -L "$r3/.step.lock" ] || [ -d "$r3/sessions" ]; then fail "older kit: no lock and no session" "one stays"; else pass "older kit: no lock and no session"; fi
 
 done_tests

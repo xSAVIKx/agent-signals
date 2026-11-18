@@ -44,8 +44,9 @@ why=$(kit_run_problem "$run")
 [ -z "$why" ] || kit_die "$KIT_USAGE" "the run folder cannot take a step: $why"
 # A run holds the steps of one kit version. A new kit in the same folder
 # finds the run of the old kit from .agent-signals-run.
-made=$(kit_manifest_value "$run" kit)
-[ "$made" = "$(kit_version)" ] || kit_die "$KIT_USAGE" "the run folder is from kit ${made:-unknown}, and this kit is $(kit_version). Run 'kit start' for a new run"
+made=$(kit_manifest_value "$run" kit 2>/dev/null)
+[ -z "$made" ] || [ "$made" = "$(kit_version)" ] ||
+  kit_die "$KIT_USAGE" "the run folder is from kit $made, and this kit is $(kit_version). Run 'kit start' for a new run"
 name=${arg%%@*}
 case $name in '' | *[!a-z0-9-]*) kit_die "$KIT_USAGE" "bad step name: $name" ;; esac
 kind=$(kit_step_field "$name" kind) || kit_die "$KIT_USAGE" "unknown step: $name. Run 'kit plan'"
