@@ -11,11 +11,17 @@
 - Fix: the step prints the last line of the watch log when the watch
   stops before it starts.
 - Fix: `kit step` refuses a run folder from another kit version (exit 2).
+- Fix: `kit step` writes 64 KB in the run folder first. On a full disk it
+  stops with exit 1 and the reason "the disk can be full". Before the
+  fix, it printed "echo: I/O error" and a fail with no reason.
+- `tools/agent-kit-tests/test-steps-disk.sh`: the full disk case. CI runs
+  it on `ubuntu-24.04` on a tmpfs of 4 MB that `sudo mount` makes. The
+  case passed (8 of 8) in a Debian 13 container with a tmpfs of 4 MB. It
+  did not run on a GitHub runner yet.
 
 ## Next
 
-- `tools/agent-kit-tests/test-steps-disk.sh`: the full disk case. It runs
-  only in CI, on `ubuntu-24.04`, on a tmpfs that `sudo mount` makes.
+- Run the full kit suite once.
 
 ## Blocked
 
