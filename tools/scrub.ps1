@@ -125,7 +125,8 @@ function Test-ScrubMore([string]$J, [string]$Text, [int]$At, [bool]$First, [bool
 #     / and \, and one of these is true:
 #     - the path ends with / or \,
 #     - the word holds a / or a \,
-#     - the path starts at a private anchor (one of ANCHORS), this is the
+#     - the path starts at a private anchor (one of ANCHORS, or a macOS
+#       temp folder /private/var/folders/ or /var/folders/), this is the
 #       first line end after the anchor, and the path does not end with a
 #       full file extension such as .txt. So the tail of a hash, of a
 #       folder name or of a file name joins too.
@@ -146,8 +147,13 @@ function Invoke-ScrubUnwrap([string]$Text, [string[]]$Anchors, [hashtable]$Count
   $word = New-Object System.Text.RegularExpressions.Regex ('\G' + $script:WrapChar + '*')
   $nl = New-Object System.Text.RegularExpressions.Regex ('\G' + $script:WrapBreak)
   $own = @($Anchors | Where-Object { $_ -and $_.Length -gt 1 })
-  $all = @($own | ForEach-Object { New-Object PSObject -Property @{ Value = [string]$_; Private = $true } }) +
-    @(@('/Users/', '/home/', '~/', '/srv/', '/work/', '/private/var/folders/', '/var/folders/', ('/' + [char]0x2026 + '/'), ('\' + [char]0x2026 + '\')) | ForEach-Object { New-Object PSObject -Property @{ Value = $_; Private = $false } })
+  # The ID of a macOS temp folder holds no /, so its wrapped tail joins as
+  # the tail of a private path does. A word at the start of an indented
+  # line after a line that ends at the ID then joins too, and the scrub
+  # removes it: the scrub cannot tell it from the tail of the ID.
+  $all = @($own | ForEach-Object { New-Object PSObject -Property @{ Value = [string]$_; Private = $true; TempId = $false } }) +
+    @(@('/private/var/folders/', '/var/folders/') | ForEach-Object { New-Object PSObject -Property @{ Value = $_; Private = $true; TempId = $true } }) +
+    @(@('/Users/', '/home/', '~/', '/srv/', '/work/', ('/' + [char]0x2026 + '/'), ('\' + [char]0x2026 + '\')) | ForEach-Object { New-Object PSObject -Property @{ Value = $_; Private = $false } })
   foreach ($e in $all) {
     $a = $e.Value
     $win = $a -match '^[A-Za-z]:'
@@ -181,7 +187,10 @@ function Invoke-ScrubUnwrap([string]$Text, [string[]]$Anchors, [hashtable]$Count
         $whole = ($whole -and $w.Length -eq 0 -and $j -notmatch '[/\\]$')
         $j += $w.Value
         $end += $w.Length
-        if (-not (Test-ScrubMore $j $s $end $first $whole)) { break }
+        # A macOS temp folder joins its tail only inside its two ID
+        # folders, XX/ID.
+        $f = ($first -and (-not $e.TempId -or $j -match 'folders/[^/]+(/[^/]*)?$'))
+        if (-not (Test-ScrubMore $j $s $end $f $whole)) { break }
         $first = $false
         $whole = $false
         $b = $nl.Match($s, $end)

@@ -139,3 +139,5 @@ tmpdir ends at the id: /var/folders/ab/xyz123
   bwgc3ych10fqw0000gn/T/tmp.a3VQc0CdIT end
 temp extra root: /private/var/folders/q7/x8k2n4b5c9w0000gn/T/tmp.Kit0123456/out/run1/work/st-1/a.txt
 temp extra root, scrubbed before: /private/var/folders/<dir>/T/tmp.Kit0123456/out/run1/work/st-1/a.txt
+  id wrap: /var/folders/s2/kzd00yj50xg
+  bwgc3ych10fqw0000gn end

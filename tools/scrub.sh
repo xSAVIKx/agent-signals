@@ -153,10 +153,11 @@ done <"$tmp/extra"
 #     / and \, and one of these is true:
 #     - the path ends with / or \,
 #     - the word holds a / or a \,
-#     - the path starts at a private anchor (an extra root or the home
-#       folder), this is the first line end after the anchor, and the path
-#       does not end with a full file extension such as .txt. So the tail
-#       of a hash, of a folder name or of a file name joins too.
+#     - the path starts at a private anchor (an extra root, the home
+#       folder, or a macOS temp folder /private/var/folders/ or
+#       /var/folders/), this is the first line end after the anchor, and
+#       the path does not end with a full file extension such as .txt. So
+#       the tail of a hash, of a folder name or of a file name joins too.
 #     A word that fills its line can be a part of the path too: then the
 #     next line decides. A word such as [Y/n], (y/n) or Esc/Ctrl+C does
 #     not join. When the line ends just after a whole anchor that does
@@ -175,11 +176,16 @@ done <"$tmp/extra"
 {
   cat "$tmp/extra"
   printf '%s\n' "$home"
+  # The ID of a macOS temp folder holds no /, so its wrapped tail joins as
+  # the tail of a private path does. A word at the start of an indented
+  # line after a line that ends at the ID then joins too, and the scrub
+  # removes it: the scrub cannot tell it from the tail of the ID.
+  printf '%s\n' /private/var/folders/ /var/folders/
 } | awk 'length($0) > 1' >"$tmp/anchors"
 np=$(awk 'END { print NR }' "$tmp/anchors")
 # The ~ is text here: an agent writes it in a path.
 # shellcheck disable=SC2088
-printf '%s\n' /Users/ /home/ '~/' /srv/ /work/ /private/var/folders/ /var/folders/ >>"$tmp/anchors"
+printf '%s\n' /Users/ /home/ '~/' /srv/ /work/ >>"$tmp/anchors"
 # /.../ and \...\ with U+2026: an agent shortened the start of the path
 # (rule 2a). printf writes the bytes: this script holds ASCII only, because
 # yash cannot read other bytes in the C locale.
@@ -284,7 +290,9 @@ function unwrap(t,    a, out, rest, src, s, l, pre, m, j, nb, b, after, k, first
         match(after, "^" pc "*")
         whole = (whole && RLENGTH == 0 && j !~ /[\/\\]$/)
         j = j substr(after, 1, RLENGTH); after = substr(after, RLENGTH + 1)
-        if (!more(j, after, first, whole)) break
+        # A macOS temp folder (the last two private anchors) joins its tail
+        # only inside its two ID folders, XX/ID.
+        if (!more(j, after, first && (a <= np - 2 || j ~ /folders\/[^\/]+(\/[^\/]*)?$/), whole)) break
         first = 0; whole = 0
         match(after, "^" nl)
         b[++nb] = substr(after, 1, RLENGTH); after = substr(after, RLENGTH + 1)
