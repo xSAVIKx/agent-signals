@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="robots" content="noindex">
+<title>Mockup: the home page | agent-signals</title>
+<link rel="stylesheet" href="../../../tools/internal/site/assets/style.css">
+<link rel="stylesheet" href="../../../tools/internal/site/assets/ys-tokens.css">
+<link rel="stylesheet" href="mock.css">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to the main content</a>
+<header class="site-header">
+<div class="header-inner">
+<a class="brand" href="mock-home.html"><span class="brand-mark" aria-hidden="true">&gt;_</span> agent-signals</a>
+<nav class="site-nav" aria-label="Main">
+<details class="nav-menu">
+<summary>Menu</summary>
+<ul>
+<li><a href="mock-use.html">Use</a></li>
+<li><a href="mock-corpus.html">Corpus</a></li>
+<li><a href="#">Facts</a></li>
+<li><a href="#">Protocol</a></li>
+<li><a href="#">Probes</a></li>
+<li><a href="#">Scenarios</a></li>
+<li><a href="#">Roadmap</a></li>
+<li><a href="#">Tasks</a></li>
+<li><a href="#">Releases</a></li>
+<li><a href="#">Reference</a></li>
+</ul>
+</details>
+</nav>
+</div>
+</header>
+<main id="main" tabindex="-1">
+<p class="mock-note">This page is a mockup of the design round of 2026-11-19. It is not a page of the site. It loads the real <code>style.css</code> and <code>ys-tokens.css</code> by a relative path, so open it from a checkout of the repository. The menu shows the proposed item "Use". The counts are the counts of the live site on 2026-11-18.</p>
+<h1>agent-signals</h1>
+<p class="lead">Measured signals of AI coding agents, as a language-neutral test corpus.</p>
+<p>Your tool reads the screen of an agent and gives a state. This site holds 310 measured screens of 33 agents, and the state that a reader must give for each screen. Test your reader against them.</p>
+<h2 id="start-here">Start here: test a reader in four steps</h2>
+<ol class="start-path">
+<li>
+<h3>Learn the states</h3>
+<p>A screen has one of seven states, for example <span class="state">IDLE</span>, <span class="state">BUSY</span> and <span class="state state-ask">PERMISSION</span>.</p>
+<p><a class="go" href="mock-corpus.html#the-states">Read the seven states</a></p>
+</li>
+<li>
+<h3>Find the screens</h3>
+<p>Each state has measured screens. Each screen gives the agent version and how it was made.</p>
+<p><a class="go" href="mock-corpus.html">Read the screens of each agent</a><br>
+<a class="go" href="#">Read the states by agent</a></p>
+</li>
+<li>
+<h3>Test your reader</h3>
+<p>Load the corpus with the Go library, with the Python library, or as files. Write one table test.</p>
+<p><a class="go" href="mock-use.html">Test your reader against the corpus</a></p>
+</li>
+<li>
+<h3>Read the facts</h3>
+<p>93 facts tell what was measured behind the screens: hooks, session files, and what a tool must not do.</p>
+<p><a class="go" href="#">Read the facts</a></p>
+</li>
+</ol>
+<h2 id="three-kinds-of-signals">Three kinds of signals</h2>
+<p>[The three cards of the home page stay here with no change.]</p>
+<h2 id="help-to-measure">Help to measure: run the kit on your machine</h2>
+<p>[The sections "Run every check with an agent", "Let an agent run the kit" and "Run the probe kit by hand" move here. They are for a person who adds measurements. A tool author does not need them to test a reader.]</p>
+<p>Linux and macOS:</p>
+<div class="code-wrap wrap" role="region" tabindex="0" aria-label="The prompt for Linux and macOS"><pre><code>Run this command: `curl -fsSL https://xsavikx.github.io/agent-signals/kit.sh | sh -s -- --get "$(mktemp -d)"`. It prints the kit folder. Read AGENTS.md in that folder and do its task unattended, with the home mode real. Do not ask me anything.</code></pre></div>
+<p class="prompt-actions"><button type="button">Copy the prompt</button></p>
+<h2 id="pages-in-this-site">Pages in this site</h2>
+<p>[The list of pages stays here. It gets one new item: "Use".]</p>
+<h2 id="what-is-in-the-repository">What is in the repository</h2>
+<p>[The other sections of the README stay here with no change.]</p>
+</main>
+<footer class="site-footer">
+<div class="footer-inner">
+<p>Built from main after <a href="#">corpus v0.26.0</a>.</p>
+<p>The Markdown files and the corpus in the repository are the source of this site.</p>
+</div>
+</footer>
+</body>
+</html>

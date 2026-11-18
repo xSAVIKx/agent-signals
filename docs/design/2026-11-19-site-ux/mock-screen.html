@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="robots" content="noindex">
+<title>Mockup: a screen page | agent-signals</title>
+<link rel="stylesheet" href="../../../tools/internal/site/assets/style.css">
+<link rel="stylesheet" href="../../../tools/internal/site/assets/ys-tokens.css">
+<link rel="stylesheet" href="mock.css">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to the main content</a>
+<header class="site-header">
+<div class="header-inner">
+<a class="brand" href="mock-home.html"><span class="brand-mark" aria-hidden="true">&gt;_</span> agent-signals</a>
+<nav class="site-nav" aria-label="Main">
+<details class="nav-menu">
+<summary>Menu</summary>
+<ul>
+<li><a href="mock-use.html">Use</a></li>
+<li><a href="mock-corpus.html" aria-current="true">Corpus</a></li>
+<li><a href="#">Facts</a></li>
+<li><a href="#">Protocol</a></li>
+<li><a href="#">Probes</a></li>
+<li><a href="#">Scenarios</a></li>
+<li><a href="#">Roadmap</a></li>
+<li><a href="#">Tasks</a></li>
+<li><a href="#">Releases</a></li>
+<li><a href="#">Reference</a></li>
+</ul>
+</details>
+</nav>
+</div>
+</header>
+<main id="main" tabindex="-1">
+<p class="mock-note">This page is a mockup of the design round of 2026-11-19. It is not a page of the site. It loads the real <code>style.css</code> and <code>ys-tokens.css</code> by a relative path, so open it from a checkout of the repository. The menu shows the proposed item "Use". The text in the frame is example text. It is not a screen of the corpus.</p>
+<nav class="crumbs" aria-label="Breadcrumb">
+<ol>
+<li><a href="mock-home.html">Home</a></li>
+<li><a href="mock-corpus.html">Corpus</a></li>
+<li><a href="mock-corpus.html#agent-example">Example Agent</a></li>
+<li><span aria-current="page">Screen example/permission-bash-v1-0-0</span></li>
+</ol>
+</nav>
+<h1>Screen <code>example/permission-bash-v1-0-0</code></h1>
+<p class="lead">A permission dialog for one shell command.</p>
+<dl class="summary">
+<div><dt>Expected state</dt><dd><a class="state state-ask" href="mock-corpus.html#the-states">PERMISSION</a> A dialog waits for an answer.</dd></div>
+<div><dt>Dialog</dt><dd><code>permission</code>, 3 options, option 1 selected. <a href="#expected-result">Read the expected result</a>.</dd></div>
+<div><dt>Agent version</dt><dd>Example Agent 1.0.0</dd></div>
+<div><dt>Provenance</dt><dd>measured-edited: captured, then edited. <a href="#metadata">Read the 1 edit</a>.</dd></div>
+</dl>
+<figure class="screen">
+<figcaption id="screen-caption">The text of the screen: 120 columns by 12 rows, a plain capture. On a narrow display, scroll the frame to the right to see all columns.</figcaption>
+<div class="screen-scroll" role="region" tabindex="0" aria-labelledby="screen-caption">
+<pre class="screen-text" style="--cols: 120">
+> Create a file
+
+  The agent wants to run a command.
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Bash command                                                                                                         │
+│   touch /work/example/file.txt                                                                                       │
+│ Do you want to proceed?                                                                                              │
+│ ❯ 1. Yes                                                                                                             │
+│   2. Yes, and do not ask again                                                                                       │
+│   3. No                                                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯</pre>
+</div>
+</figure>
+<div class="use-box">
+<h2 id="use-this-screen">Use this screen in a test</h2>
+<ul class="link-list">
+<li><a href="#" download>Download the exact bytes (<code>permission-bash-v1-0-0.screen</code>, 1,132 bytes)</a></li>
+<li><a href="#" download>Download the metadata (<code>permission-bash-v1-0-0.yaml</code>)</a></li>
+</ul>
+<p>The libraries give the same screen with no download:</p>
+<div class="code-wrap" role="region" tabindex="0" aria-label="How to load this screen in Go and in Python"><pre><code>// Go: one of the screens of agentsignals.ScreensFor("example"), with s.Slug == "permission-bash-v1-0-0"
+# Python: agent_signals.screen("example", "permission-bash-v1-0-0")</code></pre></div>
+<p><a class="go" href="mock-use.html">Test your reader against the corpus</a></p>
+</div>
+<h2 id="expected-result">Expected result</h2>
+<p>[The list and the table of options stay with no change.]</p>
+<h2 id="metadata">Metadata</h2>
+<p>[The list stays with no change.]</p>
+</main>
+<footer class="site-footer">
+<div class="footer-inner">
+<p>Built from main after <a href="#">corpus v0.26.0</a>.</p>
+<p>The Markdown files and the corpus in the repository are the source of this site.</p>
+</div>
+</footer>
+</body>
+</html>

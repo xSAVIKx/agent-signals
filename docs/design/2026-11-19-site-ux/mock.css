@@ -1,0 +1,132 @@
+/* The rules that this design round proposes for
+   tools/internal/site/assets/style.css. A mockup loads the real style.css
+   and ys-tokens.css first, then this file. This file adds no colour: each
+   rule uses a variable that style.css or ys-tokens.css defines. */
+
+/* A note at the top of each mockup. It is not a part of the design. */
+.mock-note {
+  margin: 0 0 1.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 2px dashed var(--border-strong);
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+/* Change 1: the start path on the home page. */
+.start-path {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 1rem;
+  counter-reset: step;
+  max-width: none;
+}
+.start-path > li {
+  counter-increment: step;
+  margin: 0;
+  padding: 1rem 1.1rem;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+}
+.start-path h3 { margin: 0 0 0.5rem; }
+.start-path h3::before {
+  content: counter(step) ". ";
+  font-family: var(--mono);
+}
+.start-path p:last-child { margin-bottom: 0; }
+/* A link that is the one action of a step or of a box. */
+.go {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-weight: 600;
+}
+
+/* Change 4: a state is a chip with a text mark. The mark and the border
+   give the group, so colour is not the only sign. */
+.state {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  padding: 0 0.4rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--fg);
+  font-family: var(--mono);
+  font-size: 0.85em;
+  font-weight: 600;
+  white-space: nowrap;
+  text-decoration: none;
+}
+a.state { text-decoration: underline; }
+.state-ask { background: var(--badge-bg); color: var(--badge-fg); border-color: currentColor; }
+.state-unknown { border-style: dashed; }
+.state-legend {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: 0.35rem 1.5rem;
+  max-width: none;
+}
+.state-legend li { margin: 0; }
+
+/* Change 3: the screen page. The frame of the screen gets the same edge
+   shadow as a table, so that a reader sees that columns are out of view. */
+.screen-scroll {
+  background:
+    linear-gradient(to right, var(--screen-bg) 40%, transparent) left / 2.5rem 100% no-repeat local,
+    linear-gradient(to left, var(--screen-bg) 40%, transparent) right / 2.5rem 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, var(--scroll-shadow), transparent) left / 0.85rem 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, var(--scroll-shadow), transparent) right / 0.85rem 100% no-repeat scroll,
+    var(--screen-bg);
+}
+.use-box {
+  margin: 0 0 1.25rem;
+  padding: 0.75rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  max-width: 60rem;
+}
+.use-box h2, .use-box h3 { margin-top: 0; padding-top: 0; border-top: 0; }
+.use-box .code-wrap { background: var(--bg); }
+.use-box > :last-child { margin-bottom: 0; }
+
+/* Change 5: an empty state, and a prompt that wraps. */
+.empty {
+  margin: 0 0 1.25rem;
+  padding: 1rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  max-width: 60rem;
+}
+.empty > :last-child { margin-bottom: 0; }
+.code-wrap.wrap pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.link-list { list-style: none; padding: 0; }
+.link-list a { display: inline-block; padding: 0.6rem 0; }
+
+/* The filter box of pull request 216. These rules are a copy, so that the
+   mockup of the corpus page shows the box. They are not a proposal. */
+.facets { margin: 0 0 1rem; }
+.facets fieldset { margin: 0; padding: 0.5rem 0.75rem 0.75rem; border: 1px solid var(--border-strong); border-radius: 6px; }
+.facets legend { padding: 0 0.35rem; font-weight: 600; }
+.facet-row { display: flex; flex-wrap: wrap; gap: 0.75rem 1rem; align-items: flex-end; }
+.facet { flex: 1 1 12rem; min-width: 0; }
+.facet label { display: block; font-weight: 600; margin-bottom: 0.25rem; }
+.facet select, .empty button {
+  min-height: 44px;
+  padding: 0.4rem 0.6rem;
+  font: inherit;
+  font-weight: 600;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+}
+.facet select { width: 100%; font-weight: 400; }
+.facets .filter-status { font-weight: 600; }
+details > summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-weight: 600; }

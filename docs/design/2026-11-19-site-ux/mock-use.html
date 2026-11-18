@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="robots" content="noindex">
+<title>Mockup: the page Use | agent-signals</title>
+<link rel="stylesheet" href="../../../tools/internal/site/assets/style.css">
+<link rel="stylesheet" href="../../../tools/internal/site/assets/ys-tokens.css">
+<link rel="stylesheet" href="mock.css">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to the main content</a>
+<header class="site-header">
+<div class="header-inner">
+<a class="brand" href="mock-home.html"><span class="brand-mark" aria-hidden="true">&gt;_</span> agent-signals</a>
+<nav class="site-nav" aria-label="Main">
+<details class="nav-menu">
+<summary>Menu</summary>
+<ul>
+<li><a href="mock-use.html" aria-current="page">Use</a></li>
+<li><a href="mock-corpus.html">Corpus</a></li>
+<li><a href="#">Facts</a></li>
+<li><a href="#">Protocol</a></li>
+<li><a href="#">Probes</a></li>
+<li><a href="#">Scenarios</a></li>
+<li><a href="#">Roadmap</a></li>
+<li><a href="#">Tasks</a></li>
+<li><a href="#">Releases</a></li>
+<li><a href="#">Reference</a></li>
+</ul>
+</details>
+</nav>
+</div>
+</header>
+<main id="main" tabindex="-1">
+<p class="mock-note">This page is a mockup of the design round of 2026-11-19. It is not a page of the site. It loads the real <code>style.css</code> and <code>ys-tokens.css</code> by a relative path, so open it from a checkout of the repository. The menu shows the proposed item "Use". The commands are example text. This round did not run them.</p>
+<nav class="crumbs" aria-label="Breadcrumb">
+<ol>
+<li><a href="mock-home.html">Home</a></li>
+<li><span aria-current="page">Test your reader against the corpus</span></li>
+</ol>
+</nav>
+<h1>Test your reader against the corpus</h1>
+<p class="lead">A reader is the function of your tool that gets the bytes of a screen and gives a state. This page shows how to run it against each screen of the corpus.</p>
+<p>The corpus holds no code that your tool runs. Each tool keeps its own reader. Choose one of three ways to load the screens:</p>
+<ul>
+<li><a href="#go">Go: the library <code>agentsignals</code></a></li>
+<li><a href="#python">Python: the package <code>agent_signals</code></a></li>
+<li><a href="#files">Other languages: the files</a></li>
+</ul>
+<h2 id="go">Go</h2>
+<ol>
+<li><p>Add the library. It embeds the corpus, so the test needs no file and no network.</p>
+<div class="code-wrap" role="region" tabindex="0" aria-label="The command to add the Go library"><pre><code>go get github.com/xSAVIKx/agent-signals/go@v0.20.0</code></pre></div></li>
+<li><p>Write one table test.</p>
+<div class="code-wrap" role="region" tabindex="0" aria-label="A table test in Go"><pre><code>func TestReader(t *testing.T) {
+	screens, err := agentsignals.ScreensFor("claude")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range screens {
+		t.Run(s.Slug, func(t *testing.T) {
+			if s.KnownFalsePositive {
+				t.Skip(s.KnownFalsePositiveReason)
+			}
+			if got := myReader(s.Bytes); got != s.Expect.State {
+				t.Errorf("got %s, want %s", got, s.Expect.State)
+			}
+		})
+	}
+}</code></pre></div></li>
+<li><p>Run <code>go test ./...</code>. The test passes when each screen gives its expected state.</p></li>
+</ol>
+<p><a class="go" href="#">Read the guide to the Go library</a></p>
+<h2 id="python">Python</h2>
+<ol>
+<li><p>Install the package from a release tag. It needs Python 3.11 or later.</p>
+<div class="code-wrap wrap" role="region" tabindex="0" aria-label="The command to install the Python package"><pre><code>pip install "agent-signals @ git+https://github.com/xSAVIKx/agent-signals@python-v0.14.0#subdirectory=python"</code></pre></div></li>
+<li><p>Write one test with the pytest helper.</p>
+<div class="code-wrap" role="region" tabindex="0" aria-label="A test in Python"><pre><code>import pytest
+import agent_signals
+from agent_signals.testing import parametrize_screens
+
+
+@parametrize_screens("claude")
+def test_reader(screen: agent_signals.Screen) -> None:
+    if screen.known_false_positive:
+        pytest.skip(screen.known_false_positive_reason)
+    assert my_reader(screen.bytes) == screen.expect.state, screen.id</code></pre></div></li>
+<li><p>Run <code>pytest</code>. The test passes when each screen gives its expected state.</p></li>
+</ol>
+<p><a class="go" href="#">Read the guide to the Python library</a></p>
+<h2 id="files">Other languages: the files</h2>
+<ol>
+<li>Pin a corpus release tag, for example <code>corpus-v0.26.0</code>.</li>
+<li>Copy <code>corpus/</code>, <code>schema/</code> and <code>facts/</code> from that tag into your tree.</li>
+<li>For each <code>.screen</code> file, give the exact bytes to your reader.</li>
+<li>Compare the result with <code>expect.state</code> in the <code>.yaml</code> file beside it.</li>
+</ol>
+<p>A program can also read <a href="#"><code>corpus.json</code></a>. It lists each screen with its fields and the URLs of its two files.</p>
+<h2 id="rules">Four rules for a correct test</h2>
+<dl class="fields">
+<div><dt>Give the exact bytes</dt><dd>Do not trim a line, and do not change a line ending. A <code>.screen</code> file holds the output of <code>tmux capture-pane -p</code>.</dd></div>
+<div><dt>Prove <span class="state">IDLE</span></dt><dd>A reader must not give <code>IDLE</code> because no other rule matched. A tool types into an idle box.</dd></div>
+<div><dt>Send no key to <span class="state state-unknown">UNKNOWN</span></dt><dd>A screen that the reader cannot read is <code>UNKNOWN</code>.</dd></div>
+<div><dt>Read the reason of a known false positive</dt><dd>2 screens have an expected state that is wrong on purpose. Read the reason before you skip the screen or change your reader.</dd></div>
+</dl>
+<h2 id="when-a-test-fails">When a test fails</h2>
+<div class="table-wrap" role="region" tabindex="0" aria-labelledby="fail-caption">
+<table>
+<caption id="fail-caption">What to read for each kind of failure</caption>
+<thead><tr><th scope="col">The test shows</th><th scope="col">Read</th></tr></thead>
+<tbody>
+<tr><th scope="row">A wrong state for one screen</th><td>The page of that screen: the text, the expected result, and the facts that it names.</td></tr>
+<tr><th scope="row">A wrong state for each screen of one agent version</th><td>The verified versions of that agent on the corpus page.</td></tr>
+<tr><th scope="row">A new failure after you move the pin</th><td>The changelog of the corpus. It names each new screen.</td></tr>
+<tr><th scope="row">A screen of your agent that the corpus does not have</th><td>The task "Run the kit". It tells how to send a measurement.</td></tr>
+</tbody>
+</table>
+</div>
+</main>
+<footer class="site-footer">
+<div class="footer-inner">
+<p>Built from main after <a href="#">corpus v0.26.0</a>.</p>
+<p>The Markdown files and the corpus in the repository are the source of this site.</p>
+</div>
+</footer>
+</body>
+</html>

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="robots" content="noindex">
+<title>Mockup: the corpus page | agent-signals</title>
+<link rel="stylesheet" href="../../../tools/internal/site/assets/style.css">
+<link rel="stylesheet" href="../../../tools/internal/site/assets/ys-tokens.css">
+<link rel="stylesheet" href="mock.css">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to the main content</a>
+<header class="site-header">
+<div class="header-inner">
+<a class="brand" href="mock-home.html"><span class="brand-mark" aria-hidden="true">&gt;_</span> agent-signals</a>
+<nav class="site-nav" aria-label="Main">
+<details class="nav-menu">
+<summary>Menu</summary>
+<ul>
+<li><a href="mock-use.html">Use</a></li>
+<li><a href="mock-corpus.html" aria-current="page">Corpus</a></li>
+<li><a href="#">Facts</a></li>
+<li><a href="#">Protocol</a></li>
+<li><a href="#">Probes</a></li>
+<li><a href="#">Scenarios</a></li>
+<li><a href="#">Roadmap</a></li>
+<li><a href="#">Tasks</a></li>
+<li><a href="#">Releases</a></li>
+<li><a href="#">Reference</a></li>
+</ul>
+</details>
+</nav>
+</div>
+</header>
+<main id="main" tabindex="-1">
+<p class="mock-note">This page is a mockup of the design round of 2026-11-19. It is not a page of the site. It loads the real <code>style.css</code> and <code>ys-tokens.css</code> by a relative path, so open it from a checkout of the repository. The menu shows the proposed item "Use". The counts are the counts of the live site on 2026-11-18. The filter box is the box of pull request 216, shown with no match.</p>
+<nav class="crumbs" aria-label="Breadcrumb">
+<ol>
+<li><a href="mock-home.html">Home</a></li>
+<li><span aria-current="page">Corpus</span></li>
+</ol>
+</nav>
+<h1>Corpus</h1>
+<p class="lead">The corpus holds 310 measured terminal screens of 33 agents. Each screen gives the state that a reader must give for it.</p>
+<p><a class="go" href="mock-use.html">Test your reader against the corpus</a></p>
+<h2 id="the-states">The states</h2>
+<p>Each number is a link to the screens with that state.</p>
+<ul class="state-legend">
+<li><span class="state">IDLE</span> A framed input box waits for a message. <a href="#">141 screens</a></li>
+<li><span class="state">BUSY</span> The agent works on a turn. <a href="#">41 screens</a></li>
+<li><span class="state state-ask">PERMISSION</span> A dialog waits for an answer. <a href="#">82 screens</a></li>
+<li><span class="state state-ask">TRUST</span> The folder-trust question. <a href="#">10 screens</a></li>
+<li><span class="state state-ask">DIALOG_OVER_BOX</span> A dialog draws above a live input box. <a href="#">2 screens</a></li>
+<li><span class="state">NO_BOX</span> The agent has not drawn its input box yet. <a href="#">24 screens</a></li>
+<li><span class="state state-unknown">UNKNOWN</span> The reader cannot read the screen. Send no key. <a href="#">10 screens</a></li>
+</ul>
+<p>A chip with a filled background is a state that waits for an answer of the user. A chip with a dashed border is <code>UNKNOWN</code>. Read <a href="#">the format of a screen</a> for each field.</p>
+<h2 id="screens">The screens</h2>
+<form class="facets">
+<fieldset>
+<legend>Show only the screens that match</legend>
+<div class="facet-row">
+<div class="facet"><label for="f-agent">Agent</label> <select id="f-agent"><option>Example Agent</option></select></div>
+<div class="facet"><label for="f-state">State</label> <select id="f-state"><option>TRUST</option></select></div>
+</div>
+</fieldset>
+<p class="filter-status" role="status">0 of 310 screens shown.</p>
+</form>
+<div class="empty">
+<p><strong>No screen matches these filters.</strong> The corpus has no screen of Example Agent with the state <code>TRUST</code>. This does not tell that the agent cannot show that state.</p>
+<p><button type="button">Reset the filters</button></p>
+<ul>
+<li><a href="#">Read the states by agent</a> to see which states each agent has in the corpus.</li>
+<li><a href="#">Read the task "Run the kit"</a> to measure a screen and send it.</li>
+</ul>
+</div>
+<h3 id="agent-example">Example Agent <span class="muted">(<code>corpus/example</code>)</span></h3>
+<details>
+<summary>Verified versions (2)</summary>
+<p>[The list of the verified versions is here. It is closed at the start, so that the table of screens comes first.]</p>
+</details>
+<div class="table-wrap" role="region" tabindex="0" aria-labelledby="caption-example">
+<table>
+<caption id="caption-example">The 3 screens of Example Agent</caption>
+<thead><tr><th scope="col">Screen</th><th scope="col">State</th><th scope="col">Dialog</th><th scope="col">Version</th><th scope="col">Provenance</th><th scope="col">Facts</th></tr></thead>
+<tbody>
+<tr><th scope="row"><a href="mock-screen.html"><code>permission-bash-v1-0-0</code></a></th><td><span class="state state-ask">PERMISSION</span></td><td><code>permission</code></td><td class="nowrap">1.0.0</td><td>measured-edited</td><td><a href="#">Fact 7</a>, <a href="#">Fact 15</a></td></tr>
+<tr><th scope="row"><a href="#"><code>idle-v1-0-0</code></a></th><td><span class="state">IDLE</span></td><td><span class="muted">none given</span></td><td class="nowrap">1.0.0</td><td>measured</td><td><span class="muted">none</span></td></tr>
+<tr><th scope="row"><a href="#"><code>quoted-dialog-v1-0-0</code></a></th><td><span class="state state-unknown">UNKNOWN</span> <strong class="badge">known false positive</strong></td><td><span class="muted">none given</span></td><td class="nowrap">1.0.0</td><td>derived</td><td><a href="#">Fact 31</a></td></tr>
+</tbody>
+</table>
+</div>
+<hr>
+<h2 id="page-not-found">The page "Page not found", in the same round</h2>
+<div class="empty">
+<p><strong>Page not found.</strong> This site has no page at this address.</p>
+<p>The name of a screen changes when the corpus gets a new version of that screen. Find the screen again in the corpus.</p>
+<ul class="link-list">
+<li><a href="mock-corpus.html">Find a screen in the corpus</a></li>
+<li><a href="#">Find a fact</a></li>
+<li><a href="mock-use.html">Test your reader against the corpus</a></li>
+<li><a href="mock-home.html">Go to the home page</a></li>
+</ul>
+</div>
+</main>
+<footer class="site-footer">
+<div class="footer-inner">
+<p>Built from main after <a href="#">corpus v0.26.0</a>.</p>
+<p>The Markdown files and the corpus in the repository are the source of this site.</p>
+</div>
+</footer>
+</body>
+</html>
