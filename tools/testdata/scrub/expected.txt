@@ -141,3 +141,6 @@ temp extra root: /work/example/work/st-1/a.txt
 temp extra root, scrubbed before: /work/example/work/st-1/a.txt
   id wrap: /var/folders/<dir>
    end
+  id wrap twice: /var/folders/<dir>
+
+   end

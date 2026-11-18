@@ -141,3 +141,6 @@ temp extra root: /private/var/folders/q7/x8k2n4b5c9w0000gn/T/tmp.Kit0123456/out/
 temp extra root, scrubbed before: /private/var/folders/<dir>/T/tmp.Kit0123456/out/run1/work/st-1/a.txt
   id wrap: /var/folders/s2/kzd00yj50xg
   bwgc3ych10fqw0000gn end
+  id wrap twice: /var/folders/s2/kzd00y
+  j50xgbwgc3
+  ych10fqw0000gn end

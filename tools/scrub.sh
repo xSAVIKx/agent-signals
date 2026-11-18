@@ -291,8 +291,9 @@ function unwrap(t,    a, out, rest, src, s, l, pre, m, j, nb, b, after, k, first
         whole = (whole && RLENGTH == 0 && j !~ /[\/\\]$/)
         j = j substr(after, 1, RLENGTH); after = substr(after, RLENGTH + 1)
         # A macOS temp folder (the last two private anchors) joins its tail
-        # only inside its two ID folders, XX/ID.
-        if (!more(j, after, first && (a <= np - 2 || j ~ /folders\/[^\/]+(\/[^\/]*)?$/), whole)) break
+        # at each line end while the path is inside its two ID folders,
+        # XX/ID, because an ID can wrap more than once.
+        if (!more(j, after, (a <= np - 2) ? first : (j ~ /folders\/[^\/]+(\/[^\/]*)?$/), whole)) break
         first = 0; whole = 0
         match(after, "^" nl)
         b[++nb] = substr(after, 1, RLENGTH); after = substr(after, RLENGTH + 1)

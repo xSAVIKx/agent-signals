@@ -187,9 +187,10 @@ function Invoke-ScrubUnwrap([string]$Text, [string[]]$Anchors, [hashtable]$Count
         $whole = ($whole -and $w.Length -eq 0 -and $j -notmatch '[/\\]$')
         $j += $w.Value
         $end += $w.Length
-        # A macOS temp folder joins its tail only inside its two ID
-        # folders, XX/ID.
-        $f = ($first -and (-not $e.TempId -or $j -match 'folders/[^/]+(/[^/]*)?$'))
+        # A macOS temp folder joins its tail at each line end while the
+        # path is inside its two ID folders, XX/ID, because an ID can wrap
+        # more than once.
+        $f = if ($e.TempId) { $j -match 'folders/[^/]+(/[^/]*)?$' } else { $first }
         if (-not (Test-ScrubMore $j $s $end $f $whole)) { break }
         $first = $false
         $whole = $false
