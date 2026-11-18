@@ -115,7 +115,7 @@ def agent_error_re(path):
     for line in open(path, encoding="utf-8"):
         m = re.match(r"^AGENT_ERROR_RE='(.*)'$", line.rstrip("\n"))
         if m:
-            return re.compile(m.group(1))
+            return re.compile(m.group(1), re.M)
     raise SystemExit(f"no AGENT_ERROR_RE in {path}")
 
 
