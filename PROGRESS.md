@@ -16,7 +16,7 @@ with a proved cause, and docs. A1 to A5, A8 and A10 stay PRs.
 | A6 kit fault tests | test/kit-fault-cases | started |
 | A3 corpus filter facets | feat/site-corpus-filters | done: PR #216, operator merge |
 | A4 states-by-agent matrix | feat/site-state-matrix | done: PR #217 (stacks on #216), operator merge |
-| A7 two CI flakes | fix/ci-flakes-a7 | PR #218: ebpf flake fixed (uutils date %3N); Windows end-gap blocked, no data; review and CI running |
+| A7 two CI flakes | fix/ci-flakes-a7 | ebpf flake: PR #218 merged (43c0c24) after review and green CI. Windows end-gap: blocked, no failure data since the print of #188 |
 | A1 corpus release assets | feat/corpus-release-assets | done: PR #215, operator merge and check of the first release |
 | A5 current agent versions, release-drift.md | - | next |
 | A9 aw 17 (5xx, 529, time-out records) | fact/claude-api-error-records | done: PR #220 (fact 096), operator merge; ai-world-visualizer told |
@@ -25,3 +25,5 @@ with a proved cause, and docs. A1 to A5, A8 and A10 stay PRs.
 ## Done
 
 ## Blocked
+
+- 2026-11-19: merged #218 (squash, 43c0c24). Review subagent: no problem. CI all green. CodeRabbit: no comments.
