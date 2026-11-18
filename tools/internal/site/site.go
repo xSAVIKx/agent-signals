@@ -102,6 +102,7 @@ type page struct {
 	Script      bool
 	Markdown    string // the output path of the Markdown copy, or ""
 	Nav         []navItem
+	JSONLD      template.JS // the structured data, or ""
 }
 
 // File is one output file: its path in the output folder and its bytes.
@@ -352,6 +353,11 @@ func (b *builder) exec(p page, name string, data any) error {
 		p.Body = template.HTML(body)
 	}
 	p.Nav = nav
+	ld, err := jsonLD(p)
+	if err != nil {
+		return fmt.Errorf("%s: %w", p.Out, err)
+	}
+	p.JSONLD = ld
 	var buf bytes.Buffer
 	if err := b.tmpl.ExecuteTemplate(&buf, "layout.html", p); err != nil {
 		return fmt.Errorf("%s: %w", p.Out, err)
