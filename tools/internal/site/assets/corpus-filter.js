@@ -15,8 +15,15 @@
   function readQuery() {
     var params = new URLSearchParams(window.location.search);
     selects.forEach(function (sel) {
+      // The match ignores case, so ?state=trust selects TRUST.
       // A value that is not an option leaves the select on "All".
-      sel.value = params.get(sel.dataset.facet) || "";
+      var want = (params.get(sel.dataset.facet) || "").toLowerCase();
+      sel.value = "";
+      Array.prototype.forEach.call(sel.options, function (o) {
+        if (want && o.value.toLowerCase() === want) {
+          sel.value = o.value;
+        }
+      });
     });
   }
 
