@@ -88,6 +88,9 @@ if [ -n "$ran" ]; then
   WATCH=4 kitx step "permission-claude@$ran" >"$T/step" 2>&1
   expect_line "login error: the step is fail agent-error" "^step: permission-claude@$ran fail agent-error$" "$T/step"
   expect_line "login error: the log names the line" "the agent shows an error: Error: Authentication error" "$run/$(last_file)"
+  stub_set STUB_DIALOG=authtext
+  WATCH=4 kitx step "permission-claude@$ran" >"$T/step" 2>&1
+  expect_line "login words in an answer: the step is ok no-dialog" "^step: permission-claude@$ran ok no-dialog$" "$T/step"
   stub_set STUB_DIALOG=no
   WATCH=4 kitx step "permission-claude@$ran" >"$T/step" 2>&1
   expect_code "no dialog: the step exits 0" 0 $?

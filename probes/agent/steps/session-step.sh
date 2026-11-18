@@ -509,8 +509,10 @@ clock_gap() {
 # kit 0.25.0 showed "API key not valid" (Gemini CLI) and kit 0.22.0 showed
 # "You've hit your usage limit" (Cursor CLI), with ok results. Kit 0.25.1
 # on Windows showed "Error: Authentication error" (Cursor CLI), with the
-# results no-busy and "ok no-dialog".
-AGENT_ERROR_RE='API Error|API key not valid|[Ii]nvalid API key|Enter Gemini API Key|hit your usage limit|[Uu]sage limit reached|[Qq]uota exceeded|RESOURCE_EXHAUSTED|401 Unauthorized|[Aa]uthentication (failed|required|error)|[Nn]ot (logged|signed) in|Please (log in|login|sign in|run /login)'
+# results no-busy and "ok no-dialog". That rule needs the "Error: " start,
+# so that answer text such as "Authentication error handling" is not an
+# agent error.
+AGENT_ERROR_RE='API Error|API key not valid|[Ii]nvalid API key|Enter Gemini API Key|hit your usage limit|[Uu]sage limit reached|[Qq]uota exceeded|RESOURCE_EXHAUSTED|401 Unauthorized|Error: [Aa]uthentication (failed|required|error)|[Nn]ot (logged|signed) in|Please (log in|login|sign in|run /login)'
 # agent_error: the first line of a kept screen that matches AGENT_ERROR_RE,
 # at most 120 characters, or nothing.
 agent_error() {

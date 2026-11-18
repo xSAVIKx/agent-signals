@@ -32,6 +32,8 @@
 #                      Cursor CLI.
 #   STUB_DIALOG=auth   the same, with the login error line of the Cursor
 #                      CLI on Windows.
+#   STUB_DIALOG=authtext the same, with answer text that names an
+#                      authentication error but is not an error line.
 #   STUB_DIALOG=busy   the prompt of the permission steps opens no dialog,
 #                      and the stub stays busy until Escape.
 #   STUB_RECORDS=no    the stub writes no record (read record below).
@@ -248,6 +250,7 @@ while :; do
                 no) note="no dialog" ;;
                 error) note="Error: You've hit your usage limit" ;;
                 auth) note="Error: Authentication error" ;;
+                authtext) note="Authentication error handling was added." ;;
                 busy) state=busy ;;
                 *) state=dialog ;;
               esac
