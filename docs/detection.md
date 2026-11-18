@@ -44,6 +44,8 @@ this repository run `--version`; the agent kit doctor will not.
 | Link | Two pid files with one session ID (a resume): the live file with the matching start wins, then the later start, then the later status time. | aw |
 | State | `status`: `idle`, `busy`, `waiting` (a dialog), `shell`. `waitingFor` names the kind of wait. | facts 023, 031 |
 | State | A dialog on the screen wins over the pid file. | aw |
+| State | After a turn that started background agents, `status` can stay `busy` while the pane is idle. aw saw `busy` for 9 min with 2 background agents on the screen (Claude Code 2.1.325, Windows). A tool reads the screen too. | aw (v0.48.2, v0.48.3) |
+| State | A usage limit in the transcript: an assistant record with `isApiErrorMessage: true`, an `apiError` field and `apiErrorStatus: 429`. aw has no record of another API error (5xx, overloaded, time-out). | aw (v0.48.2, v0.48.3) |
 | Pane | `tmux` in the pid file, only when the process runs in tmux. | facts 023, 066 |
 
 ## Codex CLI
@@ -58,6 +60,7 @@ this repository run `--version`; the agent kit doctor will not.
 | Home | `CODEX_HOME`, else `~/.codex`, on all three systems. | fact 062 |
 | State | The last turn record of the rollout file: `task_complete` = idle, `turn_aborted` = idle, `*_call` = busy. The tool call is written before the approval, so the file never shows a permission wait. | facts 027, 036, aw |
 | State | On the screen: "esc to interrupt" = busy; `? for shortcuts` = idle. While Codex 0.164.0 streams an answer, the screen can look idle; an open turn in the rollout file then means busy. | fact 020, aw |
+| State | On a fast model a turn can end in less than 5 s. A reader that reads the screen each 5 s then sees no busy screen. The rollout records `task_complete` and `turn_aborted` show the turn. | fact 027, aw (Codex 0.16x on its stand-in model) |
 
 ## agy
 
@@ -80,6 +83,7 @@ this repository run `--version`; the agent kit doctor will not.
 | Link | The project folder name: the folder path with `:` removed and each `\` or `/` changed to `-`, for example `D-Projects-shop`. | fact 072, aw |
 | State | On the screen: "Run this command?" with `(y)` … `(esc or n)` = permission; `ctrl+c to stop` or a spinner = busy; the placeholder `Plan, search, build anything` or `Add a follow-up` in the box = idle. | aw |
 | State | The transcript ends with `{"type": "turn_ended", "status": "success"}` after a turn. | facts 021, 072 |
+| Start | macOS, with a locked login keychain: the Cursor CLI showed a keychain error first, and its trust question came more than 20 s after the start. aw now waits 45 s. | aw (v0.48.2, v0.48.3) |
 
 ## psmux on Windows
 
@@ -88,6 +92,8 @@ this repository run `--version`; the agent kit doctor will not.
 | Each pane is a `pwsh.exe` child of `tmux.exe`, with a start script of about 4 KB. | fact 070 |
 | A tool finds the sessions from the `<session>.port` file names in the psmux data folder. | aw |
 | The process names are `psmux.exe`, `pmux.exe` and `tmux.exe`. | facts 070, aw |
+| Windows can give the pid of a stopped parent to a new process. A walk up the parent pids stops when a parent started after its child. Without this check, aw linked a Codex pane to an unrelated process. | aw (v0.48.2, v0.48.3) |
+| An agent that a `.ps1` script starts has one more PowerShell level: the pane shell is the grandparent of the agent. aw saw this for agy. | aw (v0.48.2, v0.48.3) |
 
 ## Open questions
 
