@@ -16,7 +16,7 @@
 # Part "clear" uses a UserPromptSubmit hook that blocks each prompt, so no
 # prompt reaches the model. The hook log shows each submission.
 #
-# Needs: Linux (date +%s%3N), claude, tmux, python3, and a Claude login in
+# Needs: Linux (date +%s.%N), claude, tmux, python3, and a Claude login in
 # REAL_HOME (copied).
 # Cost: part "digit" sends TRIALS x (the number of DELAYS) short prompts.
 # Each prompt takes one model turn, and one more turn when the dialog gets
@@ -50,7 +50,13 @@ copy_login claude || die "no Claude login that is valid for 30 minutes or more"
 "$CLAUDE_BIN" --version >"$SCN_OUT/version.txt" 2>&1 || true
 note "version $(cat "$SCN_OUT/version.txt")"
 
-now_ms() { date +%s%3N; }
+# now_ms: the epoch ms from "date +%s.%N". Not %3N: the uutils date of
+# Ubuntu 26.04 gives a wrong %3N when the nanoseconds start with a zero.
+now_ms() {
+  _t=$(date +%s.%N)
+  _n=${_t#*.}
+  echo "${_t%%.*}${_n%??????}"
+}
 
 # The hook adds one line for each event: the time in ms, the event name and
 # the tool name. It writes no prompt text. With "block" as its third
