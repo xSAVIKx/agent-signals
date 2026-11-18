@@ -102,7 +102,9 @@ $stepArgs = Get-Field 'args'
 $outside = ''
 if ($prompt.Contains('@OUTSIDE@')) {
     # Next to the work folder, so that it is also out of the temp folders.
-    $outside = Join-Path (Get-KitWorkRoot $run) ((Split-Path -Leaf $out) + '.outside')
+    # The name has no "@": the scrub reads NAME@psmux.out as an e-mail
+    # address.
+    $outside = Join-Path (Get-KitWorkRoot $run) (((Split-Path -Leaf $out) -replace '@', '-') + '.outside')
     if (Test-Path -LiteralPath $outside) { Remove-Item -Recurse -Force -LiteralPath $outside }
     New-Item -ItemType Directory -Force -Path $outside | Out-Null
     $prompt = $prompt.Replace('@OUTSIDE@', (Join-Path $outside 'agent-signals-write.txt'))

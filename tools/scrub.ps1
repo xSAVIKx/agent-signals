@@ -44,6 +44,8 @@
 #   8. uuid       UUIDs -> <uuid>
 #   9. hex        hex runs of 16 or more characters -> <hex>
 #  10. email      e-mail addresses -> <email>
+#  10a. plan      the plan of a login: Claude Max -> Claude <plan>,
+#                 (Google AI Pro) -> (<plan>), and the other plan names
 #  11. ip         IPv4 addresses -> <ip>, but not 127.0.0.1 and 0.0.0.0, and
 #                 not a version number (after v or version, or before a
 #                 letter, - or +)
@@ -59,7 +61,7 @@
 
 param([string]$Path)
 
-$script:ScrubKinds = @('wrap', 'extra', 'home', 'other-home', 'project', 'temp', 'sid', 'key', 'user', 'domain', 'host', 'secret', 'uuid', 'hex', 'email', 'ip')
+$script:ScrubKinds = @('wrap', 'extra', 'home', 'other-home', 'project', 'temp', 'sid', 'key', 'user', 'domain', 'host', 'secret', 'uuid', 'hex', 'email', 'plan', 'ip')
 
 # A path ends at white space, a quote, a colon, a comma, a semicolon or a
 # parenthesis.
@@ -116,14 +118,15 @@ function Test-ScrubMore([string]$J, [string]$Text, [int]$At, [bool]$First, [bool
 # wrapped path to just after it, so that the full path is on its first
 # line. Each line end and the line count stay. A path is wrapped when:
 #   - an anchor is cut by one or more line ends: each of ANCHORS, then
-#     /Users/, /home/, ~/, /srv/, /work/, /.../ and \...\ (with the
-#     character U+2026), or
+#     /Users/, /home/, ~/, /srv/, /work/, /private/var/folders/,
+#     /var/folders/, /.../ and \...\ (with the character U+2026), or
 #   - the path after an anchor goes to the end of the line, the first word
 #     of the next line is made only of the characters A-Z a-z 0-9 . _ ~ -
 #     / and \, and one of these is true:
 #     - the path ends with / or \,
 #     - the word holds a / or a \,
-#     - the path starts at a private anchor (one of ANCHORS), this is the
+#     - the path starts at a private anchor (one of ANCHORS, or a macOS
+#       temp folder /private/var/folders/ or /var/folders/), this is the
 #       first line end after the anchor, and the path does not end with a
 #       full file extension such as .txt. So the tail of a hash, of a
 #       folder name or of a file name joins too.
@@ -144,7 +147,12 @@ function Invoke-ScrubUnwrap([string]$Text, [string[]]$Anchors, [hashtable]$Count
   $word = New-Object System.Text.RegularExpressions.Regex ('\G' + $script:WrapChar + '*')
   $nl = New-Object System.Text.RegularExpressions.Regex ('\G' + $script:WrapBreak)
   $own = @($Anchors | Where-Object { $_ -and $_.Length -gt 1 })
-  $all = @($own | ForEach-Object { New-Object PSObject -Property @{ Value = [string]$_; Private = $true } }) +
+  # The ID of a macOS temp folder holds no /, so its wrapped tail joins as
+  # the tail of a private path does. A word at the start of an indented
+  # line after a line that ends at the ID then joins too, and the scrub
+  # removes it: the scrub cannot tell it from the tail of the ID.
+  $all = @($own | ForEach-Object { New-Object PSObject -Property @{ Value = [string]$_; Private = $true; TempId = $false } }) +
+    @(@('/private/var/folders/', '/var/folders/') | ForEach-Object { New-Object PSObject -Property @{ Value = $_; Private = $true; TempId = $true } }) +
     @(@('/Users/', '/home/', '~/', '/srv/', '/work/', ('/' + [char]0x2026 + '/'), ('\' + [char]0x2026 + '\')) | ForEach-Object { New-Object PSObject -Property @{ Value = $_; Private = $false } })
   foreach ($e in $all) {
     $a = $e.Value
@@ -179,7 +187,11 @@ function Invoke-ScrubUnwrap([string]$Text, [string[]]$Anchors, [hashtable]$Count
         $whole = ($whole -and $w.Length -eq 0 -and $j -notmatch '[/\\]$')
         $j += $w.Value
         $end += $w.Length
-        if (-not (Test-ScrubMore $j $s $end $first $whole)) { break }
+        # A macOS temp folder joins its tail at each line end while the
+        # path is inside its two ID folders, XX/ID, because an ID can wrap
+        # more than once.
+        $f = if ($e.TempId) { $j -match 'folders/[^/]+(/[^/]*)?$' } else { $first }
+        if (-not (Test-ScrubMore $j $s $end $f $whole)) { break }
         $first = $false
         $whole = $false
         $b = $nl.Match($s, $end)
@@ -254,7 +266,14 @@ function Invoke-Scrub([string]$Text, [string]$HomeDir, [string]$User, [string]$H
   }
 
   # 0. The extra roots, the longest first.
-  $roots = @($Extra | Where-Object { $_ -and $_.TrimEnd('/', '\').Length -gt 1 } | ForEach-Object { $_.TrimEnd('/', '\') } | Sort-Object -Property Length -Descending)
+  # A root in a macOS temp folder also counts in its scrubbed form, as in
+  # tools/scrub.sh.
+  $roots = @($Extra | Where-Object { $_ -and $_.TrimEnd('/', '\').Length -gt 1 } | ForEach-Object {
+      $t = $_.TrimEnd('/', '\')
+      $t
+      $u = $t -replace '/var/folders/[A-Za-z0-9_+-]+/[A-Za-z0-9_+-]+(?![A-Za-z0-9_+-])', '/var/folders/<dir>'
+      if ($u -cne $t) { $u }
+    } | Select-Object -Unique | Sort-Object -Property Length -Descending)
   # A wrapped path: its line ends move to just after it, so that the rules
   # below see the full path.
   $s = Invoke-ScrubUnwrap $s (@($roots) + @($HomeDir)) $counts
@@ -324,6 +343,9 @@ function Invoke-Scrub([string]$Text, [string]$HomeDir, [string]$User, [string]$H
   # number or a run name.
   $s = Invoke-ScrubReplace $s '/tmp/claude-[A-Za-z0-9._-]+' { '/tmp/claude-example' } $counts 'temp'
   $s = Invoke-ScrubReplace $s '/tmp/cursor-agent-logs-[0-9]+' { '/tmp/cursor-agent-logs-example' } $counts 'temp'
+  # The macOS temp folder of an account, /var/folders/XX/ID/ (also after
+  # /private), holds a fixed ID of the account.
+  $s = Invoke-ScrubReplace $s '/var/folders/[A-Za-z0-9_+-]+/[A-Za-z0-9_+-]+(?![A-Za-z0-9_+-])' { '/var/folders/<dir>' } $counts 'temp'
 
   # 3a. Windows account SIDs. This rule comes before the project keys,
   # because a project key also matches a bare SID.
@@ -386,6 +408,10 @@ function Invoke-Scrub([string]$Text, [string]$HomeDir, [string]$User, [string]$H
   # 10. E-mail addresses. The file name of a kit step,
   # NN-NAME@BACKEND.txt (probes/agent/step.ps1), is not an e-mail address.
   $s = Invoke-ScrubReplace $s '(?<![A-Za-z0-9._%+-])(?![0-9]+-[a-z0-9-]+@(?:none|tmux|pty|conpty|psmux|operator)\.txt(?!\.?[A-Za-z0-9-]))[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}' { '<email>' } $counts 'email'
+  # The plan of the login: "Claude Max" in the Claude Code welcome box, and
+  # "(Google AI Pro)" after the account of agy.
+  $s = Invoke-ScrubReplace $s '(?<![A-Za-z0-9_])Claude (?:Max|Pro|Plus|Team|Ultra|Enterprise)(?![A-Za-z0-9_])' { 'Claude <plan>' } $counts 'plan'
+  $s = Invoke-ScrubReplace $s '\(Google AI (?:Pro|Plus|Ultra)\)' { '(<plan>)' } $counts 'plan'
 
   # 11. IPv4 addresses. A dotted quad after "v" or "version", or before a
   # letter, "-" or "+", is a version number and stays.
