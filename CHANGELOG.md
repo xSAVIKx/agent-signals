@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.26.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.25.3...corpus-v0.26.0) (2026-11-18)
+
+
+### Features
+
+* **corpus:** add screens from kit runs on laptops ([7aba972](https://github.com/xSAVIKx/agent-signals/commit/7aba9721f18ba3121d77b6c53cad630ebbd3ab95))
+* **corpus:** add screens from kit runs on laptops ([f3a8db8](https://github.com/xSAVIKx/agent-signals/commit/f3a8db85623bf9034d244518f283fa9f4dc2d4ce))
+
+
+### Bug Fixes
+
+* **kit:** join each wrap of a macOS temp folder ID ([3bf1161](https://github.com/xSAVIKx/agent-signals/commit/3bf116183321a8c281e7bf13f21629859a8170da))
+* **kit:** join the wrapped tail of a macOS temp folder ID ([aa0d05f](https://github.com/xSAVIKx/agent-signals/commit/aa0d05fc1baaf21b096bf62b76b937787140041a))
+* **kit:** keep the old login error matches and test each screen line in the importer ([545893b](https://github.com/xSAVIKx/agent-signals/commit/545893b28eef684a9768438f27e0d18c4a1f682c))
+* **kit:** match a login error only at the line start ([1662acd](https://github.com/xSAVIKx/agent-signals/commit/1662acdf199d968d873a65a6a68fde16b1205d73))
+* **kit:** match a login error only at the start of an error line ([92372c0](https://github.com/xSAVIKx/agent-signals/commit/92372c07403ffe5bd666e0174a122876b815a822))
+* **kit:** match an extra root in a macOS temp folder after an earlier scrub ([b081c97](https://github.com/xSAVIKx/agent-signals/commit/b081c977fbb18df6c69e6ab65f6c53d89cb852a9))
+* **kit:** match the Claude Code mode lines on the idle screen ([e8c335e](https://github.com/xSAVIKx/agent-signals/commit/e8c335e8835a6ec423b1165853563ffd0b7f731b))
+* **kit:** match the Claude Code mode lines on the idle screen ([91e0b79](https://github.com/xSAVIKx/agent-signals/commit/91e0b797c24cc26fc601cd081c5a7afff33c2315))
+* **kit:** read "Authentication error" as an agent error ([70dc797](https://github.com/xSAVIKx/agent-signals/commit/70dc7972c46f5cd90bbea35ba097dfef0eb3911a))
+* **kit:** read "Authentication error" as an agent error ([87d9c46](https://github.com/xSAVIKx/agent-signals/commit/87d9c46c64e41ad8be5da27da8ade9ea13a4d3cf))
+* **kit:** read the fake model log of a Windows step with shared access ([d4503cc](https://github.com/xSAVIKx/agent-signals/commit/d4503ccc4c08abaaccab137ff6603d822eb62473))
+* **kit:** read the fake model log of a Windows step with shared access ([ccbc575](https://github.com/xSAVIKx/agent-signals/commit/ccbc575bea8e8d11fd4014cfbd15c041954361ee))
+* **kit:** report a failed read of the fake model log ([3aef919](https://github.com/xSAVIKx/agent-signals/commit/3aef919c74ba077ecf32b024c645ca93901043d5))
+* **kit:** restore the stream of Read-Shared in the Windows step ([1fe7642](https://github.com/xSAVIKx/agent-signals/commit/1fe76420ac59627b51948f49eb1bfe0fd4fc6626))
+* **kit:** scrub a macOS temp folder ID at a path end and in a wrap ([f9e3f95](https://github.com/xSAVIKx/agent-signals/commit/f9e3f95eef5418603a1dd8276f0d4c43ff401905))
+* **kit:** scrub plan names and the macOS temp folder ID ([d3c80e0](https://github.com/xSAVIKx/agent-signals/commit/d3c80e07c600df14e921ee837ba24874dc5da55a))
+* **kit:** scrub plan names and the macOS temp folder ID ([ced2e6b](https://github.com/xSAVIKx/agent-signals/commit/ced2e6b3a0787c0ccaac4387e170de478c61f979))
+
 ## [0.25.3](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.25.2...corpus-v0.25.3) (2026-11-16)
 
 
