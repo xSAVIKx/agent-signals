@@ -60,3 +60,15 @@ All workflows run on GitHub-hosted runners. Do not add a self-hosted
 runner. Do not use `pull_request_target`. A job that uses a secret runs only
 on `workflow_dispatch` or on a schedule. Pin each action to a commit SHA,
 with the tag in a comment.
+
+## Design identity
+
+This site uses the shared identity from xSAVIKx/xSAVIKx.github.io/identity.
+- Do not edit the vendored `ys-*.css` file. To update it, copy the new file from the hub.
+- Keep this project's own brand colours, logo and illustrations.
+- Use system fonts only. Do not add a web font or serif headings.
+- New text colours must meet 4.5:1 contrast in light and dark.
+
+The vendored file is `tools/internal/site/assets/ys-tokens.css`.
+`tools/internal/site/assets/style.css` maps the neutrals and the fonts of
+the site to its `--ys-*` variables.
