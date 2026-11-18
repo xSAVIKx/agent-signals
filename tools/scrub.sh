@@ -104,13 +104,17 @@ rule() {
   count "$1"
 }
 
-# 0. The extra roots, the longest first.
+# 0. The extra roots, the longest first. A root in a macOS temp folder
+# (/var/folders/XX/ID) also counts in its scrubbed form
+# (/var/folders/<dir>), because the guided watch scrubs its part of a step
+# file before the step scrubs the whole file.
 {
   [ -n "${SCRUB_EXTRA:-}" ] && printf '%s\n' "$SCRUB_EXTRA"
   for _v in "${OneDrive:-}" "${OneDriveCommercial:-}" "${OneDriveConsumer:-}"; do
     [ -n "$_v" ] && printf '%s\n' "$_v"
   done
-} | awk 'length($0) > 1 { print length($0) "\t" $0 }' | sort -rn | cut -f 2- >"$tmp/extra"
+} | sed -E 'p; s#/var/folders/[A-Za-z0-9_+-]+/[A-Za-z0-9_+-]+([^A-Za-z0-9_+-]|$)#/var/folders/<dir>\1#' |
+  awk 'length($0) > 1 && !seen[$0]++ { print length($0) "\t" $0 }' | sort -rn | cut -f 2- >"$tmp/extra"
 # A Windows root (a drive letter) matches in any case, and each run of /
 # and \ in it matches one or more of / and \, as in tools/scrub.ps1.
 # Another root matches as it is.

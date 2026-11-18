@@ -62,15 +62,7 @@ for via in tmux pty; do
   section "$f" '^### 1\.' '^### 2\.' >"$T/sec"
   # The scrub hides the file name. stub-work.txt has 5 bytes.
   expect_line "$via: section 1 has the file of the agent in the work folder" '^claude 5 /work/example' "$T/sec"
-  if ! grep -Eq '^claude 5 /work/example' "$T/sec"; then
-    show "$T/sec"
-    _rp=$(cd "$run" && pwd -P)
-    echo "  run: $run"
-    echo "  run -P: $_rp"
-    echo "  HOME: $HOME"
-    printf 'claude 5 %s/work/st-1/stub-work.txt\n' "$_rp" | SCRUB_EXTRA="$run
-$ROOT" sh "$ROOT/tools/scrub.sh" 2>&1 | sed 's/^/  scrub: /'
-  fi
+  grep -Eq '^claude 5 /work/example' "$T/sec" || show "$T/sec"
   section "$f" '^### 2\.' '^### 3\.' >"$T/sec"
   expect_line "$via: section 2 has the file that the agent holds open" '^> .*stub\.jsonl' "$T/sec"
   section "$f" '^### 3\.' '^### 4\.' >"$T/sec"

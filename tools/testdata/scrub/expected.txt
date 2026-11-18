@@ -137,3 +137,5 @@ macos temp: /private/var/folders/<dir>/T/tmp.a3VQc0CdIT and /var/folders/<dir>/C
 tmpdir ends at the id: /var/folders/<dir>
   wrapped: /private/var/folders/<dir>/T/tmp.a3VQc0CdIT
    end
+temp extra root: /work/example/work/st-1/a.txt
+temp extra root, scrubbed before: /work/example/work/st-1/a.txt

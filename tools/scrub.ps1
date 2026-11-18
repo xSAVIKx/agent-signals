@@ -256,7 +256,14 @@ function Invoke-Scrub([string]$Text, [string]$HomeDir, [string]$User, [string]$H
   }
 
   # 0. The extra roots, the longest first.
-  $roots = @($Extra | Where-Object { $_ -and $_.TrimEnd('/', '\').Length -gt 1 } | ForEach-Object { $_.TrimEnd('/', '\') } | Sort-Object -Property Length -Descending)
+  # A root in a macOS temp folder also counts in its scrubbed form, as in
+  # tools/scrub.sh.
+  $roots = @($Extra | Where-Object { $_ -and $_.TrimEnd('/', '\').Length -gt 1 } | ForEach-Object {
+      $t = $_.TrimEnd('/', '\')
+      $t
+      $u = $t -replace '/var/folders/[A-Za-z0-9_+-]+/[A-Za-z0-9_+-]+(?![A-Za-z0-9_+-])', '/var/folders/<dir>'
+      if ($u -cne $t) { $u }
+    } | Select-Object -Unique | Sort-Object -Property Length -Descending)
   # A wrapped path: its line ends move to just after it, so that the rules
   # below see the full path.
   $s = Invoke-ScrubUnwrap $s (@($roots) + @($HomeDir)) $counts
