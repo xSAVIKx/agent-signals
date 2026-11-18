@@ -29,7 +29,8 @@
 # manifest has the meta line "awake" with caffeinate (kit start on macOS,
 # unattended), "caffeinate -i -w PID" runs while the script runs.
 # Exit codes: the code of the script (0, 1, 3 or 4), 2 for bad use. A call
-# while another "kit step" of the same run runs is bad use. A script that
+# while another "kit step" of the same run runs is bad use. A run folder
+# from another kit version is bad use. A script that
 # ends on a signal (exit 129, 130 or 143) gives "fail interrupted". A
 # signal to this process waits for the end of the script.
 set -u
@@ -41,6 +42,10 @@ shift
 run=$(kit_run_dir) || exit "$KIT_USAGE"
 why=$(kit_run_problem "$run")
 [ -z "$why" ] || kit_die "$KIT_USAGE" "the run folder cannot take a step: $why"
+# A run holds the steps of one kit version. A new kit in the same folder
+# finds the run of the old kit from .agent-signals-run.
+made=$(kit_manifest_value "$run" kit)
+[ "$made" = "$(kit_version)" ] || kit_die "$KIT_USAGE" "the run folder is from kit ${made:-unknown}, and this kit is $(kit_version). Run 'kit start' for a new run"
 name=${arg%%@*}
 case $name in '' | *[!a-z0-9-]*) kit_die "$KIT_USAGE" "bad step name: $name" ;; esac
 kind=$(kit_step_field "$name" kind) || kit_die "$KIT_USAGE" "unknown step: $name. Run 'kit plan'"
@@ -180,8 +185,10 @@ if [ "$result" = operator ]; then
 fi
 sha=-
 if [ -f "$out" ]; then
-  # The run folder and the kit folder can hold spaces and names.
+  # The run folder, the work folders and the kit folder can hold spaces
+  # and names. AGENT_SIGNALS_WORK can put the work folders out of the run.
   if SCRUB_EXTRA="$run
+$(kit_work_root "$run")
 $KIT_ROOT" sh "$KIT_ROOT/tools/scrub.sh" "$out" >"$work/$nn.txt" 2>"$work/$nn.scrub"; then
     sed 's/^/kit: /' "$work/$nn.scrub" >&2
     mv "$work/$nn.txt" "$run/$file"

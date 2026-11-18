@@ -16,7 +16,8 @@
 #   step: <name>@<backend> ok|skip|fail|operator [<reason>]
 # The exit code is the exit code of the script: 0 ok, 1 fail, 3 skip,
 # 4 the operator must act. A call while another "kit step" of the same
-# run runs is bad use (2). It reads no key.
+# run runs is bad use (2). A run folder from another kit version is bad
+# use (2). It reads no key.
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib.ps1')
 # The arguments as strings (see Get-KitArgs in lib.ps1).
@@ -34,6 +35,14 @@ $step = $null
 foreach ($s in @(Read-KitSteps)) { if ($s.name -ceq $name) { $step = $s } }
 if (-not $step) { Stop-Kit 2 "unknown step: $name" }
 $run = Get-KitRunDir
+# A run holds the steps of one kit version. A new kit in the same folder
+# finds the run of the old kit from .agent-signals-run.
+$made = [string](Get-KitMeta $run 'kit')
+$kitVersion = [string](Get-KitVersion)
+if ($made -ne $kitVersion) {
+    if (-not $made) { $made = 'unknown' }
+    Stop-Kit 2 "the run folder is from kit $made, and this kit is $kitVersion. Run 'kit start' for a new run"
+}
 $homeMode = Get-KitMeta $run 'home'
 if (-not $homeMode) { $homeMode = 'real' }
 $unattended = Get-KitMeta $run 'unattended'
