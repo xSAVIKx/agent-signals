@@ -105,6 +105,17 @@ trap 'sig=INT' INT
 trap 'sig=TERM' TERM
 trap 'sig=HUP' HUP
 
+# A full disk: the script cannot write its pid and its output, and the
+# step cannot add its line. So the step first writes 64 KB in the run
+# folder, and stops with a reason when it cannot.
+mkdir -p "$run/.raw" 2>/dev/null
+if ! dd if=/dev/zero of="$run/.raw/space" bs=1024 count=64 >/dev/null 2>&1; then
+  rm -f "$run/.raw/space"
+  rmdir "$run/.raw" 2>/dev/null
+  kit_die "$KIT_FAIL" "cannot write 64 KB in the run folder $run: the disk can be full. Free space, then run $name@$backend again"
+fi
+rm -f "$run/.raw/space"
+
 # record RESULT START END FILE SHA REASON: add a step line, and write the
 # JSON manifest and the summary again.
 record() {
