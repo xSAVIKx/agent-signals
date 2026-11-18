@@ -12,11 +12,11 @@ with a proved cause, and docs. A1 to A5, A8 and A10 stay PRs.
 | Item | Branch | State |
 |---|---|---|
 | A2 corpus version line on the site | feat/site-corpus-version | started |
-| A8 Go facts API | feat/go-facts-api | started |
+| A8 Go facts API | feat/go-facts-api | done: PR #213, operator merge |
 | A6 kit fault tests | test/kit-fault-cases | started |
 | A3 corpus filter facets | - | next (after A2) |
 | A4 states-by-agent matrix | - | next (after A3) |
-| A7 two CI flakes | - | next (after A6) |
+| A7 two CI flakes | fix/ci-flakes | started |
 | A1 corpus release assets | - | next (after A8) |
 | A5 current agent versions, release-drift.md | - | next |
 | A9 aw 17 (5xx, 529, time-out records) | - | next; tell ai-world-visualizer when it lands |
