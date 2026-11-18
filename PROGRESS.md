@@ -15,12 +15,12 @@ with a proved cause, and docs. A1 to A5, A8 and A10 stay PRs.
 | A8 Go facts API | feat/go-facts-api | done: PR #213, operator merge |
 | A6 kit fault tests | test/kit-fault-cases | started |
 | A3 corpus filter facets | feat/site-corpus-filters | done: PR #216, operator merge |
-| A4 states-by-agent matrix | feat/site-state-matrix (stacks on A3) | started |
+| A4 states-by-agent matrix | feat/site-state-matrix | done: PR #217 (stacks on #216), operator merge |
 | A7 two CI flakes | fix/ci-flakes | started |
 | A1 corpus release assets | feat/corpus-release-assets | done: PR #215, operator merge and check of the first release |
 | A5 current agent versions, release-drift.md | - | next |
 | A9 aw 17 (5xx, 529, time-out records) | - | next; tell ai-world-visualizer when it lands |
-| A10 traces site design spec | - | next |
+| A10 traces site design spec | docs/traces-site-design | started |
 
 ## Done
 
