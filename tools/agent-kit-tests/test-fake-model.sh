@@ -176,8 +176,39 @@ expect_line "claude: a review with the deny text gets the verdict deny" '<severi
 expect_line "claude: the log names the review verdict" ' review deny$' "$T/claude.log"
 post2 /v1/messages/count_tokens '{}'
 expect_line "claude: count_tokens gets a count" 'input_tokens' "$T/reply"
+cat >"$T/status.py" <<'X'
+import http.client, json, sys
+port, text = int(sys.argv[1]), sys.argv[2]
+body = {"stream": True, "tools": [{"name": "Bash"}], "messages": [{"role": "user", "content": text}]}
+c = http.client.HTTPConnection("127.0.0.1", port, timeout=float(sys.argv[3]) if len(sys.argv) > 3 else 3)
+c.request("POST", "/v1/messages", json.dumps(body))
+try:
+    r = c.getresponse()
+    print("status %d request-id %s" % (r.status, r.getheader("request-id")))
+    print(r.read().decode())
+except OSError:
+    print("timeout")
+X
+status() { python3 "$T/status.py" "$port" "$@" >"$T/reply" 2>&1 || true; }
+status "Fail with 500 now."
+expect_line "claude: a 500 prompt gets the status 500" '^status 500 request-id fixture-[0-9]+$' "$T/reply"
+expect_line "claude: the 500 body is an api_error" '"error": \{"type": "api_error"' "$T/reply"
+status "Fail with 529 now."
+expect_line "claude: a 529 prompt gets the status 529" '^status 529 request-id fixture-[0-9]+$' "$T/reply"
+expect_line "claude: the 529 body is an overloaded_error" '"error": \{"type": "overloaded_error"' "$T/reply"
+status "Answer late now." 0.5
+expect_line "claude: a late prompt gets no status before the time-out" '^timeout$' "$T/reply"
+n=0
+while ! grep -q '^hold ended$' "$T/claude.log" 2>/dev/null || [ "$(grep -c '^hold ended$' "$T/claude.log")" -lt 2 ]; do
+  [ "$n" -ge 50 ] && break
+  n=$((n + 1))
+  sleep 0.1
+done
+expect_line "claude: the log names the late answer" ' late$' "$T/claude.log"
+expect_line "claude: the log names the 529" ' error 529$' "$T/claude.log"
+if [ "$(grep -c '^hold ended$' "$T/claude.log")" -ge 2 ]; then pass "claude: the late answer ends when the client closes"; else fail "claude: the late answer ends when the client closes" "no second hold ended"; fi
 expect_line "claude: the log has the write" ' write$' "$T/claude.log"
-expect_no_line "claude: the log holds no prompt text" 'Create a file|Count from|Write|/work/' "$T/claude.log"
+expect_no_line "claude: the log holds no prompt text" 'Create a file|Count from|Write|Fail with|Answer late|/work/' "$T/claude.log"
 kill "$fake" 2>/dev/null
 
 # --log-times: each log line starts with the time in ms. Without the flag,
