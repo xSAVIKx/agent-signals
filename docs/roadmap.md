@@ -123,7 +123,7 @@ or says what is left.
 | 4 | Cursor: an end record after an interrupt | Open. Kit step `interrupt`. |
 | 5 | Claude, Codex, agy: the files that each process holds open | Facts 25, 26, 28 (Linux). Claude: the task folder keeps the first session ID after `/clear` (fact 34). agy: the presence file is a flock lock (fact 44). macOS and Ubuntu: the open files of agy (fact 68), the Claude pid files outside tmux (fact 66). |
 | 6 | macOS: bring a tab to the front by its tty | Open. Kit step `front-tab` (Terminal, iTerm2). JetBrains IDEs: `terminals/macos.sh` checks for an AppleScript dictionary. |
-| 7 | Cursor: the hash of the chats folder | Linux: fact 94. The folder name is the MD5 of the absolute work folder path. macOS and Windows: open. |
+| 7 | Cursor: the hash of the chats folder | Linux: fact 94. The folder name is the MD5 of the absolute work folder path. macOS and Windows: open. On Windows, the path form is open too: the case of the drive letter, and `\` or `/`. |
 | 8 | Cursor, Linux and Windows: the open-file link | Linux: fact 91. The parent `cursor-agent` process holds `store.db`; the child holds none. Windows: open, needs `handle.exe`. |
 | 9 | Cursor editor agent workers | macOS: fact 69. A worker has no tty and no `TERM`, has `VSCODE_PID`, and holds no chat database open. Linux and Windows: open. |
 | 10 | Codex: the sandbox helper parent, and `resume` | Fact 26 (resume). The helper did not run on the Linux server (no namespaces). |
@@ -131,6 +131,11 @@ or says what is left.
 | 12 | Windows: Cursor CLI and Codex in psmux | Fact 70: each psmux pane is a `pwsh.exe` with a long start command, and psmux runs as `tmux.exe`. Fact 93: the Cursor CLI runs as `pwsh.exe` > `node.exe` > `node.exe`, Codex as one `codex.exe`. The chain from the pane shell: open. |
 | 13 | Windows: where the installs keep their version | Fact 47 (x64) and fact 48 (arm64). |
 | 14 | An action that opens a permission dialog in the default mode | Claude: a file write with `--permission-mode default` (fact 24). Codex: a file write with `--sandbox read-only` (fact 27). agy: a file write (fact 28). Claude: `ls` and `sleep` open no Bash dialog; `mkdir` opens one (fact 33). |
+| 15 | Codex, Windows: link a pane to its rollout file | Open (2026-11-18). Measure for about 5 starts the time from the start of `codex.exe` to the `session_meta` time of its rollout file. List the command lines of all `codex.exe` processes while one TUI runs in psmux. Record the Codex version. The kit steps run on Windows in CI with the fake model. |
+| 16 | Codex daemon mode, macOS and Linux: rollout files of daemon threads | Open (2026-11-18). Does the daemon write rollout files for its own threads in the folder of a pane? Does a field of `session_meta`, for example `originator` or `source`, tell a daemon thread from a TUI? |
+| 17 | Claude: the transcript record of an API error that is not the usage limit | Open (2026-11-18). The fields of the record for a 5xx, a 529 and a time-out, with no text. The kit fake model can give these answers. aw saw the 429 fields (`docs/detection.md`). |
+| 18 | Cursor CLI, macOS: a corpus screen of the keychain error before the trust question | Open (2026-11-18). Needs a Mac with a locked login keychain. |
+| 19 | Claude, Windows: `status` stays `busy` after background agents | Open (2026-11-18). aw saw it (`docs/detection.md`). Measure the pid file and the screen with a kit step. |
 
 ### tg-bridge
 
