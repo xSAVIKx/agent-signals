@@ -199,7 +199,7 @@ function Invoke-Session([string[]]$List, [int]$Seconds) {
 function Read-Shared([string]$File) {
     try {
         $fs = New-Object System.IO.FileStream($File, [IO.FileMode]::Open, [IO.FileAccess]::Read, ([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete))
-        try { return (New-Object System.IO.StreamReader($flStream, $Utf8)).ReadToEnd() } finally { $flStream.Dispose() }
+        try { return (New-Object System.IO.StreamReader($fs, $Utf8)).ReadToEnd() } finally { $fs.Dispose() }
     } catch { return '' }
 }
 
