@@ -512,8 +512,9 @@ clock_gap() {
 # results no-busy and "ok no-dialog". That rule needs "Error: " at the
 # start of the line, after white space or marks only, so that answer text
 # such as "Authentication error handling" or "See Error: Authentication
-# error in the logs." is not an agent error.
-AGENT_ERROR_RE='API Error|API key not valid|[Ii]nvalid API key|Enter Gemini API Key|hit your usage limit|[Uu]sage limit reached|[Qq]uota exceeded|RESOURCE_EXHAUSTED|401 Unauthorized|^[^A-Za-z0-9]*Error: [Aa]uthentication (failed|required|error)|[Nn]ot (logged|signed) in|Please (log in|login|sign in|run /login)'
+# error in the logs." is not an agent error. A tool that reads this rule
+# tests each line (grep, or Python re.M).
+AGENT_ERROR_RE='API Error|API key not valid|[Ii]nvalid API key|Enter Gemini API Key|hit your usage limit|[Uu]sage limit reached|[Qq]uota exceeded|RESOURCE_EXHAUSTED|401 Unauthorized|[Aa]uthentication (failed|required)|^[^A-Za-z0-9]*Error: [Aa]uthentication error|[Nn]ot (logged|signed) in|Please (log in|login|sign in|run /login)'
 # agent_error: the first line of a kept screen that matches AGENT_ERROR_RE,
 # at most 120 characters, or nothing.
 agent_error() {

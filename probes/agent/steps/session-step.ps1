@@ -143,7 +143,7 @@ $screens = New-Object System.Collections.ArrayList
 $blankValues = @()
 # The lines of an agent that cannot work, as AGENT_ERROR_RE of
 # session-step.sh.
-$AgentErrorRe = 'API Error|API key not valid|[Ii]nvalid API key|Enter Gemini API Key|hit your usage limit|[Uu]sage limit reached|[Qq]uota exceeded|RESOURCE_EXHAUSTED|401 Unauthorized|^[^A-Za-z0-9]*Error: [Aa]uthentication (failed|required|error)|[Nn]ot (logged|signed) in|Please (log in|login|sign in|run /login)'
+$AgentErrorRe = 'API Error|API key not valid|[Ii]nvalid API key|Enter Gemini API Key|hit your usage limit|[Uu]sage limit reached|[Qq]uota exceeded|RESOURCE_EXHAUSTED|401 Unauthorized|[Aa]uthentication (failed|required)|^[^A-Za-z0-9]*Error: [Aa]uthentication error|[Nn]ot (logged|signed) in|Please (log in|login|sign in|run /login)'
 # Get-AgentError: the first line of a kept screen that matches
 # $AgentErrorRe, at most 120 characters, or ''.
 function Get-AgentError {
