@@ -19,7 +19,7 @@ with a proved cause, and docs. A1 to A5, A8 and A10 stay PRs.
 | A7 two CI flakes | fix/ci-flakes-a7 | PR #218: ebpf flake fixed (uutils date %3N); Windows end-gap blocked, no data; review and CI running |
 | A1 corpus release assets | feat/corpus-release-assets | done: PR #215, operator merge and check of the first release |
 | A5 current agent versions, release-drift.md | - | next |
-| A9 aw 17 (5xx, 529, time-out records) | fact/claude-api-error-records | started; tell ai-world-visualizer when it lands |
+| A9 aw 17 (5xx, 529, time-out records) | fact/claude-api-error-records | done: PR #220 (fact 096), operator merge; ai-world-visualizer told |
 | A10 traces site design spec | docs/traces-site-design | done: PR #219, six operator questions in the PR |
 
 ## Done
