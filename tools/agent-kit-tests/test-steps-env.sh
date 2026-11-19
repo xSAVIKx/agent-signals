@@ -89,13 +89,18 @@ path_without() {
   _uv=$(command -v uv 2>/dev/null) && _uv=$(dirname "$_uv")
   # Homebrew puts tmux out of SYS_PATH on macOS.
   _tm=$(command -v tmux 2>/dev/null) && _tm=$(dirname "$_tm")
-  for _dir in $(echo "$SYS_PATH" | tr ':' ' ') $_uv $_tm; do
+  # Split on ":" only, so that a folder with a space stays whole.
+  _ifs=$IFS
+  IFS=:
+  for _dir in $SYS_PATH${_uv:+:$_uv}${_tm:+:$_tm}; do
+    IFS=$_ifs
     for _f in "$_dir"/*; do
       _n=${_f##*/}
       case " $* claude codex agy gemini cursor-agent opencode " in *" $_n "*) continue ;; esac
       [ -x "$_f" ] && [ ! -e "$_pd/$_n" ] && ln -s "$_f" "$_pd/$_n"
     done
   done
+  IFS=$_ifs
   echo "$_pd"
 }
 
