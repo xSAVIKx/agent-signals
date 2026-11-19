@@ -13,6 +13,10 @@ case $PROBE_OS in
   darwin) PROBE_OS=macos ;;
 esac
 PROBE_SECTION=0
+# ps cuts each line to COLUMNS characters when COLUMNS is set (procps and
+# BSD ps). A small terminal of an orchestrator then hides the command
+# lines, and the probes find no agent.
+unset COLUMNS
 
 # section TITLE: print the next section header.
 section() {

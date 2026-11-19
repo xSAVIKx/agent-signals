@@ -14,6 +14,11 @@ KIT_ROOT=${KIT_ROOT:-$(cd "$KIT_DIR/../.." && pwd)}
 # shellcheck disable=SC2034
 KIT_OK=0 KIT_FAIL=1 KIT_USAGE=2 KIT_MISSING=3 KIT_OPERATOR=4
 
+# ps cuts each line to COLUMNS characters when COLUMNS is set (procps and
+# BSD ps). A small terminal of an orchestrator then hides the command
+# lines of the agents.
+unset COLUMNS
+
 # kit_die CODE TEXT: print "kit: TEXT" on stderr and exit with CODE.
 kit_die() {
   _c=$1
