@@ -13,7 +13,7 @@ with a proved cause, and docs. A1 to A5, A8 and A10 stay PRs.
 |---|---|---|
 | A2 corpus version line on the site | feat/site-corpus-version | done: PR #214, operator merge |
 | A8 Go facts API | feat/go-facts-api | done: PR #213, operator merge |
-| A6 kit fault tests | test/kit-fault-cases | started |
+| A6 kit fault tests | test/kit-fault-cases | done: PR #221 merged |
 | A3 corpus filter facets | feat/site-corpus-filters | done: PR #216, operator merge |
 | A4 states-by-agent matrix | feat/site-state-matrix | done: PR #217 (stacks on #216), operator merge |
 | A7 two CI flakes | fix/ci-flakes-a7 | ebpf flake: PR #218 merged (43c0c24) after review and green CI. Windows end-gap: blocked, no failure data since the print of #188 |
@@ -29,3 +29,5 @@ with a proved cause, and docs. A1 to A5, A8 and A10 stay PRs.
 - 2026-11-19: merged #218 (squash, 43c0c24). Review subagent: no problem. CI all green. CodeRabbit: no comments.
 - Design round: branch docs/design-ux-round, no PR, 7 operator questions.
 - A6: PR #221, macOS test fix pushed, CI running; merge after green.
+- 2026-11-19: merged #221 (squash). Review subagent: no blocking problem. CI 33 of 33 green after two macOS test fixes. CodeRabbit thread resolved.
+- Run held by p1-server after A6.
