@@ -1,0 +1,40 @@
+      ▄▀▀▄        Antigravity CLI 1.5.11
+     ▀▀▀▀▀▀       Enterprise Gateway
+    ▀▀▀▀▀▀▀▀      fixture-model
+   ▄▀▀    ▀▀▄     /work/example/work/write-agy-default-tm
+  ▄▀▀      ▀▀▄
+
+────────────────────────────────────────────────────────────
+> Write a file named agent-signals-write.txt that holds the word hello.
+
+● Edited 1 file (agent-signals-write.txt) (ctrl+o to expand)
+
+Create file
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+/work/example/work/write-agy-default-tmux/agent-signals-w1
+    +  The fixture wrote this file.
+
+Allow creation of this file?
+> 1. Yes, allow creation
+  2. No, deny creation
+
+  ↑/↓ Navigate · f full diff
+esc to cancel                                                                                              fixture-model
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

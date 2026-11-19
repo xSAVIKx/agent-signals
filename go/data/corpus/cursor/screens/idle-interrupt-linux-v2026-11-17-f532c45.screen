@@ -1,0 +1,40 @@
+Tip: You can start the Cursor CLI with `agent` (same as `cursor-agent`).
+
+  ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+  │                                                                                                                  │
+  │  ⚠ Workspace Trust Required                                                                                      │
+  │                                                                                                                  │
+  │  Cursor Agent can execute code and access files in this directory.                                               │
+  │                                                                                                                  │
+  │  Do you trust the contents of this directory?                                                                    │
+  │                                                                                                                  │
+  │    /work/example/work/interrupt-cursor-agent-pty  │
+  │                                                                                                                  │
+  │                                                                                                                  │
+  │    [a] Trust this workspace                                                                                      │
+  │    [q] Quit                                                                                                      │
+  │                                                                                                                  │
+  │  ⏳ Trusting workspace...                                                                                        │
+  │                                                                                                                  │
+  ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+  Cursor Agent
+  v2026.11.17-f532c45
+  Tip: Try Cursor Grok 4.7 via /model, frontier intelligence at a fraction of the cost.
+
+
+
+
+  → Plan, search, build anything
+
+
+  Fixture
+  /work/example/work/interrupt-cursor-agent-pty
+
+
+
+
+
+
+
