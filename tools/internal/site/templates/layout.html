@@ -79,7 +79,7 @@
 <script src="{{rel .Out "assets/page.js"}}" defer></script>
 {{- end}}
 {{- if .Script}}
-<script src="{{rel .Out "assets/filter.js"}}" defer></script>
+<script src="{{rel .Out (print "assets/" .Script)}}" defer></script>
 {{- end}}
 </body>
 </html>

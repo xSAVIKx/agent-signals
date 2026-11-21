@@ -613,6 +613,48 @@ func TestMachineOutputs(t *testing.T) {
 	}
 }
 
+// TestCorpusPageHasFilters checks the facet controls, the data attributes of
+// each row, and the golden file of the corpus page.
+func TestCorpusPageHasFilters(t *testing.T) {
+	b := fixtureBuilder(t)
+	if err := b.corpusIndex(); err != nil {
+		t.Fatal(err)
+	}
+	got := b.files[len(b.files)-1].Data
+	text := string(got)
+	for _, key := range []string{"agent", "state", "dialog", "version", "provenance"} {
+		if !strings.Contains(text, `<label for="facet-`+key+`">`) {
+			t.Errorf("no label for the %s facet", key)
+		}
+		if !strings.Contains(text, `<select id="facet-`+key+`" name="`+key+`" data-facet="`+key+`">`) {
+			t.Errorf("no select for the %s facet", key)
+		}
+	}
+	for _, want := range []string{
+		`id="corpus-filter-box"`, `hidden>`, `aria-live="polite"`, `type="reset"`,
+		`<tr data-agent="demo" data-state="IDLE" data-dialog="none" data-version="1.0.0" data-provenance="derived">`,
+		`<section class="agent-block" data-agent="demo">`,
+		`assets/corpus-filter.js`,
+	} {
+		if !strings.Contains(text, want) {
+			t.Errorf("the corpus page lacks %q", want)
+		}
+	}
+	golden := filepath.Join("testdata", "golden", "corpus.html")
+	if *update {
+		if err := os.WriteFile(golden, got, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want, err := os.ReadFile(golden)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Errorf("the page differs from %s; run the test with -update and read the diff", golden)
+	}
+}
+
 func TestCorpusVersion(t *testing.T) {
 	got, err := CorpusVersion(fixture)
 	if err != nil || got != "1.2.3" {
