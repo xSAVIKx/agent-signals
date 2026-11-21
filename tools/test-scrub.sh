@@ -14,7 +14,8 @@ for name in input crlf-input; do
     SCRUB_EXTRA='/opt/kit runs
 /var/tmp/agent-signals-run-linux-20260101T000000Z
 C:\Users\alice\Box - Fabrikam Org
-C:\Windows\Private' SCRUB_DOMAIN=CONTOSO OneDrive='C:\Users\alice\OneDrive - Contoso' \
+C:\Windows\Private
+/private/var/folders/q7/x8k2n4b5c9w0000gn/T/tmp.Kit0123456/out/run1' SCRUB_DOMAIN=CONTOSO OneDrive='C:\Users\alice\OneDrive - Contoso' \
     OneDriveCommercial='' OneDriveConsumer='' \
     sh "$dir/scrub.sh" "$dir/testdata/scrub/$name.txt" >"$out" 2>"$err"; then
     echo "test-scrub: $name.txt: the scrub failed:" >&2

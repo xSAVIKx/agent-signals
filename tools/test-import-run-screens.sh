@@ -58,4 +58,19 @@ check "the state is IDLE" 'grep -q "^  state: IDLE$" "$s.yaml"'
 check "the busy screen with no busy line is dropped" 'grep -q "\"why\": \"no busy line\"" "$out/candidates.json"'
 check "the failed step is not used" 'grep -q "\"not ok\": 1" "$out/candidates.json"'
 check "a coverage entry is written" 'grep -q "version: 2.1.325" "$out/coverage-claude.yaml"'
+
+# The agent error rule of the kit tests each line of a screen.
+# err yes|no TEXT: 0 when the search on TEXT gives the expected result. An
+# error of the import or of the search is not 0.
+err() {
+  python3 -I -c 'import importlib.util, sys
+s = importlib.util.spec_from_file_location("imp", sys.argv[1])
+m = importlib.util.module_from_spec(s)
+s.loader.exec_module(m)
+r = m.agent_error_re(sys.argv[2])
+sys.exit(0 if bool(r.search(sys.argv[4])) == (sys.argv[3] == "yes") else 1)' "$root/tools/import-run-screens.py" "$root/probes/agent/steps/session-step.sh" "$1" "$2"
+}
+check "a login error line after other lines is an agent error" 'err yes "$(printf "stub idle\\n  Error: Authentication error")"'
+check "a login error inside answer text is not an agent error" 'err no "$(printf "stub idle\\nSee Error: Authentication error in the logs.")"'
+check "Authentication failed is an agent error" 'err yes "$(printf "stub idle\\nAuthentication failed")"'
 exit "$fail"

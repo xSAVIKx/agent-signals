@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.14.0](https://github.com/xSAVIKx/agent-signals/compare/python-v0.13.0...python-v0.14.0) (2026-11-18)
+
+
+### Features
+
+* **corpus:** add screens from kit runs on laptops ([7aba972](https://github.com/xSAVIKx/agent-signals/commit/7aba9721f18ba3121d77b6c53cad630ebbd3ab95))
+* **corpus:** add screens from kit runs on laptops ([f3a8db8](https://github.com/xSAVIKx/agent-signals/commit/f3a8db85623bf9034d244518f283fa9f4dc2d4ce))
+
+
+### Documentation
+
+* **facts:** add fact 095 on Codex hook trust ([b322cd4](https://github.com/xSAVIKx/agent-signals/commit/b322cd4bbbd2356925a6e510dc1b2648f9c6678e))
+* **facts:** copy fact 095 into the library data ([9071d54](https://github.com/xSAVIKx/agent-signals/commit/9071d54cae499e610fbff965d9907367701ff2eb))
+* **facts:** limit fact 095 to the measured cases ([95c952f](https://github.com/xSAVIKx/agent-signals/commit/95c952fbd44da0230c966eb7f28e4fa12476a7cb))
+* **facts:** limit the trust mechanism of fact 095 to the runs ([fa07cf8](https://github.com/xSAVIKx/agent-signals/commit/fa07cf8a116536f3efbd2696026d2bf49b02a7ba))
+
 ## [0.13.0](https://github.com/xSAVIKx/agent-signals/compare/python-v0.12.0...python-v0.13.0) (2026-11-15)
 
 

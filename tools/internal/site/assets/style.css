@@ -1,43 +1,39 @@
 /* The style of the agent-signals site. System fonts only, no external
    requests. Each text colour has a contrast of 4.5:1 or more on each
-   background where it is used; each UI colour has 3:1 or more. */
+   background where it is used; each UI colour has 3:1 or more.
+
+   The neutrals and the fonts come from the shared identity in
+   ys-plain.css (a vendored copy, do not edit it). The --ys-* variables
+   change for dark mode in that file. The link, focus and badge colours
+   are the colours of this project and stay here. */
 
 :root {
   color-scheme: light dark;
-  --bg: #ffffff;
-  --fg: #1b1f24;
-  --muted: #4d5563;
-  --surface: #f3f5f7;
-  --border: #d3d9e0;
-  --border-strong: #6b7480;
+  --bg: var(--ys-bg);
+  --fg: var(--ys-text);
+  --muted: var(--ys-muted);
+  --surface: var(--ys-surface-2);
+  --border: var(--ys-border);
+  --border-strong: var(--ys-border-strong);
   --link: #0a58a8;
   --link-hover: #073f78;
   --focus: #1d4ed8;
-  --screen-bg: #fafbfc;
-  --screen-fg: #1b1f24;
-  --screen-border: #6b7480;
+  --screen-bg: var(--ys-surface);
+  --screen-fg: var(--ys-text);
+  --screen-border: var(--ys-border-strong);
   --badge-bg: #fdecc8;
   --badge-fg: #5c3600;
   --scroll-shadow: rgb(0 0 0 / 0.22);
-  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Liberation Sans", Arial, sans-serif;
-  --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Segoe UI Mono", "DejaVu Sans Mono", "Liberation Mono", Menlo, Consolas, monospace;
+  --font: var(--ys-font-sans);
+  --mono: var(--ys-font-mono);
   --measure: 70ch;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0f1216;
-    --fg: #e4e7eb;
-    --muted: #a6aeba;
-    --surface: #181c22;
-    --border: #313945;
-    --border-strong: #7c8694;
     --link: #7db8ff;
     --link-hover: #a9d0ff;
     --focus: #ffcc4d;
-    --screen-bg: #0a0d10;
-    --screen-fg: #d9dee4;
-    --screen-border: #7c8694;
     --badge-bg: #3d2c00;
     --badge-fg: #ffd98a;
     --scroll-shadow: rgb(255 255 255 / 0.22);

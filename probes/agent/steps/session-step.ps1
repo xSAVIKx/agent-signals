@@ -102,7 +102,9 @@ $stepArgs = Get-Field 'args'
 $outside = ''
 if ($prompt.Contains('@OUTSIDE@')) {
     # Next to the work folder, so that it is also out of the temp folders.
-    $outside = Join-Path (Get-KitWorkRoot $run) ((Split-Path -Leaf $out) + '.outside')
+    # The name has no "@": the scrub reads NAME@psmux.out as an e-mail
+    # address.
+    $outside = Join-Path (Get-KitWorkRoot $run) (((Split-Path -Leaf $out) -replace '@', '-') + '.outside')
     if (Test-Path -LiteralPath $outside) { Remove-Item -Recurse -Force -LiteralPath $outside }
     New-Item -ItemType Directory -Force -Path $outside | Out-Null
     $prompt = $prompt.Replace('@OUTSIDE@', (Join-Path $outside 'agent-signals-write.txt'))
@@ -143,7 +145,7 @@ $screens = New-Object System.Collections.ArrayList
 $blankValues = @()
 # The lines of an agent that cannot work, as AGENT_ERROR_RE of
 # session-step.sh.
-$AgentErrorRe = 'API Error|API key not valid|[Ii]nvalid API key|Enter Gemini API Key|hit your usage limit|[Uu]sage limit reached|[Qq]uota exceeded|RESOURCE_EXHAUSTED|401 Unauthorized|[Aa]uthentication (failed|required)|[Nn]ot (logged|signed) in|Please (log in|login|sign in|run /login)'
+$AgentErrorRe = 'API Error|API key not valid|[Ii]nvalid API key|Enter Gemini API Key|hit your usage limit|[Uu]sage limit reached|[Qq]uota exceeded|RESOURCE_EXHAUSTED|401 Unauthorized|[Aa]uthentication (failed|required)|^[^A-Za-z0-9]*Error: [Aa]uthentication error|[Nn]ot (logged|signed) in|Please (log in|login|sign in|run /login)'
 # Get-AgentError: the first line of a kept screen that matches
 # $AgentErrorRe, at most 120 characters, or ''.
 function Get-AgentError {
@@ -601,7 +603,11 @@ try {
         $fl = Join-Path $sdir 'fake-model.log'
         if (Test-Path -LiteralPath $fl) {
             $counts = @{}
-            foreach ($l in [IO.File]::ReadAllLines($fl)) {
+            # The fake model can still hold the log open: read it shared.
+            # A failed open goes to the catch of the conditions.
+            $flStream = New-Object System.IO.FileStream($fl, [IO.FileMode]::Open, [IO.FileAccess]::Read, ([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete))
+            try { $flText = (New-Object System.IO.StreamReader($flStream, $Utf8)).ReadToEnd() } finally { $flStream.Dispose() }
+            foreach ($l in ($flText -split "`r?`n")) {
                 $w = $l -split ' '
                 if ($w.Count -ge 4 -and $w[0] -eq 'POST') { $k = ($w[3..($w.Count - 1)] -join ' '); $counts[$k] = 1 + [int]$counts[$k] }
             }

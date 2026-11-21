@@ -62,6 +62,7 @@ for via in tmux pty; do
   section "$f" '^### 1\.' '^### 2\.' >"$T/sec"
   # The scrub hides the file name. stub-work.txt has 5 bytes.
   expect_line "$via: section 1 has the file of the agent in the work folder" '^claude 5 /work/example' "$T/sec"
+  grep -Eq '^claude 5 /work/example' "$T/sec" || show "$T/sec"
   section "$f" '^### 2\.' '^### 3\.' >"$T/sec"
   expect_line "$via: section 2 has the file that the agent holds open" '^> .*stub\.jsonl' "$T/sec"
   section "$f" '^### 3\.' '^### 4\.' >"$T/sec"
@@ -84,6 +85,16 @@ if [ -n "$ran" ]; then
   expect_code "agent error: the step exits 1" 1 $?
   expect_line "agent error: the step is fail agent-error" "^step: permission-claude@$ran fail agent-error$" "$T/step"
   expect_line "agent error: the log names the line" "the agent shows an error: Error: You've hit your usage limit" "$run/$(last_file)"
+  stub_set STUB_DIALOG=auth
+  WATCH=4 kitx step "permission-claude@$ran" >"$T/step" 2>&1
+  expect_line "login error: the step is fail agent-error" "^step: permission-claude@$ran fail agent-error$" "$T/step"
+  expect_line "login error: the log names the line" "the agent shows an error: Error: Authentication error" "$run/$(last_file)"
+  stub_set STUB_DIALOG=authtext
+  WATCH=4 kitx step "permission-claude@$ran" >"$T/step" 2>&1
+  expect_line "login words in an answer: the step is ok no-dialog" "^step: permission-claude@$ran ok no-dialog$" "$T/step"
+  stub_set STUB_DIALOG=authmid
+  WATCH=4 kitx step "permission-claude@$ran" >"$T/step" 2>&1
+  expect_line "login error inside a line: the step is ok no-dialog" "^step: permission-claude@$ran ok no-dialog$" "$T/step"
   stub_set STUB_DIALOG=no
   WATCH=4 kitx step "permission-claude@$ran" >"$T/step" 2>&1
   expect_code "no dialog: the step exits 0" 0 $?

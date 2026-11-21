@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.21.0](https://github.com/xSAVIKx/agent-signals/compare/go/v0.20.0...go/v0.21.0) (2026-11-21)
+
+
+### Features
+
+* **go:** add Facts to list the embedded facts ([#213](https://github.com/xSAVIKx/agent-signals/issues/213)) ([33a52f4](https://github.com/xSAVIKx/agent-signals/commit/33a52f45afac9265b6ed884ab7204d301e07454c))
+
+## [0.20.0](https://github.com/xSAVIKx/agent-signals/compare/go/v0.19.0...go/v0.20.0) (2026-11-18)
+
+
+### Features
+
+* **corpus:** add screens from kit runs on laptops ([7aba972](https://github.com/xSAVIKx/agent-signals/commit/7aba9721f18ba3121d77b6c53cad630ebbd3ab95))
+* **corpus:** add screens from kit runs on laptops ([f3a8db8](https://github.com/xSAVIKx/agent-signals/commit/f3a8db85623bf9034d244518f283fa9f4dc2d4ce))
+
 ## [0.19.0](https://github.com/xSAVIKx/agent-signals/compare/go/v0.18.0...go/v0.19.0) (2026-11-15)
 
 

@@ -20,6 +20,8 @@
 #   3. a path below ~ that is not in an agent or system folder:
 #      the folders up to the first hidden folder     -> /work/example
 #      (~/code/app/.claude/x -> /work/example/.claude/x, ~/code/app/a.go -> /work/example)
+#   3b. the temp folders of Claude Code and Cursor, and the macOS temp
+#       folder of the account /var/folders/XX/ID     -> /var/folders/<dir>
 #   3a. a Windows account SID, S-1-5-21-...          -> <sid>
 #      It comes before 4: a project key also matches a bare SID. The
 #      well-known SIDs (S-1-5-18, S-1-5-32-544) name no machine, and stay.
@@ -39,6 +41,8 @@
 #   8. UUIDs                                         -> <uuid>
 #   9. hex runs of 16 characters or more             -> <hex>
 #  10. e-mail addresses                              -> <email>
+#  10a. the plan of a login: Claude Max, (Google AI Pro), and the other plan
+#      names                                         -> Claude <plan>, (<plan>)
 #  11. IPv4 addresses, except 127.0.0.1 and 0.0.0.0  -> <ip>
 #      (not a version number: after v or version, or before a letter, - or +)
 #      The exact placeholder ~/<private> (a private folder under a home, from
@@ -100,13 +104,17 @@ rule() {
   count "$1"
 }
 
-# 0. The extra roots, the longest first.
+# 0. The extra roots, the longest first. A root in a macOS temp folder
+# (/var/folders/XX/ID) also counts in its scrubbed form
+# (/var/folders/<dir>), because the guided watch scrubs its part of a step
+# file before the step scrubs the whole file.
 {
   [ -n "${SCRUB_EXTRA:-}" ] && printf '%s\n' "$SCRUB_EXTRA"
   for _v in "${OneDrive:-}" "${OneDriveCommercial:-}" "${OneDriveConsumer:-}"; do
     [ -n "$_v" ] && printf '%s\n' "$_v"
   done
-} | awk 'length($0) > 1 { print length($0) "\t" $0 }' | sort -rn | cut -f 2- >"$tmp/extra"
+} | sed -E 'p; s#/var/folders/[A-Za-z0-9_+-]+/[A-Za-z0-9_+-]+([^A-Za-z0-9_+-]|$)#/var/folders/<dir>\1#' |
+  awk 'length($0) > 1 && !seen[$0]++ { print length($0) "\t" $0 }' | sort -rn | cut -f 2- >"$tmp/extra"
 # A Windows root (a drive letter) matches in any case, and each run of /
 # and \ in it matches one or more of / and \, as in tools/scrub.ps1.
 # Another root matches as it is.
@@ -138,17 +146,18 @@ done <"$tmp/extra"
 # after it, so that the full path is on its first line. Each line end and
 # the line count stay. A path is wrapped when:
 #   - an anchor is cut by one or more line ends: each extra root, the home
-#     folder, /Users/, /home/, ~/, /srv/, /work/, /.../ and \...\ (with
-#     U+2026), or
+#     folder, /Users/, /home/, ~/, /srv/, /work/, /private/var/folders/,
+#     /var/folders/, /.../ and \...\ (with U+2026), or
 #   - the path after an anchor goes to the end of the line, the first word
 #     of the next line is made only of the characters A-Z a-z 0-9 . _ ~ -
 #     / and \, and one of these is true:
 #     - the path ends with / or \,
 #     - the word holds a / or a \,
-#     - the path starts at a private anchor (an extra root or the home
-#       folder), this is the first line end after the anchor, and the path
-#       does not end with a full file extension such as .txt. So the tail
-#       of a hash, of a folder name or of a file name joins too.
+#     - the path starts at a private anchor (an extra root, the home
+#       folder, or a macOS temp folder /private/var/folders/ or
+#       /var/folders/), this is the first line end after the anchor, and
+#       the path does not end with a full file extension such as .txt. So
+#       the tail of a hash, of a folder name or of a file name joins too.
 #     A word that fills its line can be a part of the path too: then the
 #     next line decides. A word such as [Y/n], (y/n) or Esc/Ctrl+C does
 #     not join. When the line ends just after a whole anchor that does
@@ -167,6 +176,11 @@ done <"$tmp/extra"
 {
   cat "$tmp/extra"
   printf '%s\n' "$home"
+  # The ID of a macOS temp folder holds no /, so its wrapped tail joins as
+  # the tail of a private path does. A word at the start of an indented
+  # line after a line that ends at the ID then joins too, and the scrub
+  # removes it: the scrub cannot tell it from the tail of the ID.
+  printf '%s\n' /private/var/folders/ /var/folders/
 } | awk 'length($0) > 1' >"$tmp/anchors"
 np=$(awk 'END { print NR }' "$tmp/anchors")
 # The ~ is text here: an agent writes it in a path.
@@ -276,7 +290,10 @@ function unwrap(t,    a, out, rest, src, s, l, pre, m, j, nb, b, after, k, first
         match(after, "^" pc "*")
         whole = (whole && RLENGTH == 0 && j !~ /[\/\\]$/)
         j = j substr(after, 1, RLENGTH); after = substr(after, RLENGTH + 1)
-        if (!more(j, after, first, whole)) break
+        # A macOS temp folder (the last two private anchors) joins its tail
+        # at each line end while the path is inside its two ID folders,
+        # XX/ID, because an ID can wrap more than once.
+        if (!more(j, after, (a <= np - 2) ? first : (j ~ /folders\/[^\/]+(\/[^\/]*)?$/), whole)) break
         first = 0; whole = 0
         match(after, "^" nl)
         b[++nb] = substr(after, 1, RLENGTH); after = substr(after, RLENGTH + 1)
@@ -447,6 +464,9 @@ count "project path"
 # The temporary folders of Claude Code and Cursor hold the account number or
 # a run name.
 rule "agent temp folder" 's#/tmp/claude-[A-Za-z0-9._-]+#/tmp/claude-example#g; s#/tmp/cursor-agent-logs-[0-9]+#/tmp/cursor-agent-logs-example#g'
+# The macOS temp folder of an account, /var/folders/XX/ID/ (also after
+# /private), holds a fixed ID of the account.
+rule "agent temp folder" 's#/var/folders/[A-Za-z0-9_+-]+/[A-Za-z0-9_+-]+([^A-Za-z0-9_+-]|$)#/var/folders/<dir>\1#g'
 
 # Windows account SIDs. This rule comes before the project keys, because a
 # project key also matches a bare SID.
@@ -512,6 +532,11 @@ kb='none|tmux|pty|conpty|psmux|operator'
 at=$(printf '\001')
 keep="s#(^|[^A-Za-z0-9._%+-])([0-9]+-[a-z0-9-]+)@($kb)\\.txt(\\.?([^A-Za-z0-9.-]|\$))#\\1\\2$at\\3.txt\\4#g"
 rule "email" "$keep; $keep; s#[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}#<email>#g; s#$at#@#g"
+# The plan of the login: "Claude Max" in the Claude Code welcome box, and
+# "(Google AI Pro)" after the account of agy. The Claude rule runs twice,
+# because a match takes the character after it.
+pl='(^|[^A-Za-z0-9_])Claude (Max|Pro|Plus|Team|Ultra|Enterprise)([^A-Za-z0-9_]|$)'
+rule "plan name" "s#$pl#\\1Claude <plan>\\3#g; s#$pl#\\1Claude <plan>\\3#g; s#\\(Google AI (Pro|Plus|Ultra)\\)#(<plan>)#g"
 # A dotted quad after "v" or "version", or before a letter, "-" or "+", is a
 # version number. Its dots become @D@ until the IP rule is done.
 q4='([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})'

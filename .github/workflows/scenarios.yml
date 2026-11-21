@@ -499,17 +499,21 @@ jobs:
           - macos-26
           - macos-15-intel
           - macos-26-intel
-        # The agents of each job. Set a: Claude Code and Codex. Set b:
-        # opencode 2 and Gemini CLI. Set c: the Cursor CLI and agy. With
-        # the write steps, a job for four agents passed its time limit.
-        set: [a, b, c]
+        # The agents of each job. Set a: Claude Code. Set b: opencode 2.
+        # Set c: the Cursor CLI and agy. Set d: Codex. Set e: Gemini CLI.
+        # With the write steps, a job for four agents passed its time
+        # limit. Claude Code and Codex in one set took 45 min on Linux and
+        # passed the limit on macOS: the Claude Code steps alone took 26
+        # min on macOS 26. opencode 2 and Gemini CLI in one set took 50 min
+        # on macOS 15 Intel and passed the limit on macOS 26 Intel.
+        set: [a, b, c, d, e]
     runs-on: ${{ matrix.os }}
     # With four agents in one set, the fixture steps took about 35 min on
     # macOS Intel.
     timeout-minutes: 50
     env:
       # The steps of the set: a step name holds the agent name.
-      KIT_AGENTS: ${{ matrix.set == 'a' && '-(claude|codex)(-|@)' || matrix.set == 'c' && '-(cursor-agent|agy)(-|@)' || '-(opencode|gemini)(-|@)' }}
+      KIT_AGENTS: ${{ matrix.set == 'a' && '-claude(-|@)' || matrix.set == 'd' && '-codex(-|@)' || matrix.set == 'c' && '-(cursor-agent|agy)(-|@)' || matrix.set == 'e' && '-gemini(-|@)' || '-opencode(-|@)' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -541,7 +545,7 @@ jobs:
         continue-on-error: true
         run: npm install -g @anthropic-ai/claude-code >"$RUNNER_TEMP/install-claude.txt" 2>&1
       - name: Install Codex CLI
-        if: matrix.set == 'a'
+        if: matrix.set == 'd'
         continue-on-error: true
         run: npm install -g @openai/codex >"$RUNNER_TEMP/install-codex.txt" 2>&1
       - name: Install Cursor CLI
@@ -559,7 +563,7 @@ jobs:
         continue-on-error: true
         run: npm install -g @opencode/cli >"$RUNNER_TEMP/install-opencode.txt" 2>&1
       - name: Install Gemini CLI
-        if: matrix.set == 'b'
+        if: matrix.set == 'e'
         continue-on-error: true
         run: npm install -g @google/gemini-cli >"$RUNNER_TEMP/install-gemini.txt" 2>&1
       - name: Install output (scrubbed)
@@ -679,7 +683,8 @@ jobs:
       matrix:
         # The Windows images of scenarios.yml.
         os: [windows-2022, windows-2025, windows-11-arm]
-        # The agents of each job, as in kit-no-login.
+        # The agents of each job, as in kit-no-login, but set a also holds
+        # Codex. On Windows, this set ends in its time limit.
         set: [a, b, c]
     runs-on: ${{ matrix.os }}
     # A conpty step takes about 45 s. Set a has about 24 fixture steps.
