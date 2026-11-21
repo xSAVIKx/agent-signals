@@ -1,38 +1,48 @@
-# Release drift, 2026-11-18
+# Release drift, 2026-11-21
 
 > **Caution: nothing in this file is measured.** Each finding is a line from
 > a release note or a changelog. A line tells what a vendor says it changed.
 > It does not tell what a screen, a file or a process shows now. Measure a
 > finding before you change a fact, and write the result as a new fact.
 
-This file compares three versions for each agent, as of 2026-11-18: the
+This file compares three versions for each agent, as of 2026-11-21: the
 newest version that a fact in `facts/` names, the newest version that a
 file in `corpus/` names, and the newest version that the vendor released.
 Then it lists the changelog lines that can make a fact or a screen stale,
-in order of impact. The file of 2026-11-04 is in the git history.
+in order of impact. The findings 1 to 22 come from the file of
+2026-11-18. The findings 23 to 32 are new on 2026-11-21. The file of
+2026-11-04 is in the git history.
 
 ## Versions
 
 "Newest in facts" is the highest version that a fact names for that agent.
 "Newest in corpus" is the highest `agent_version` or `version` in
-`corpus/<agent>/`. "Newest released" is the npm `latest` tag, or the newest
+`corpus/<agent>/` on this branch, with the screens of the laptop runs of
+2026-11-21. "Newest released" is the npm `latest` tag, or the newest
 GitHub release that is not marked as a pre-release. A pre-release is in
 parentheses.
 
 | Agent | Newest in facts | Newest in corpus | Newest released | Source of the release |
 |---|---|---|---|---|
-| Claude Code | 2.1.319 (facts 080, 084, 087) | 2.1.325 | 2.1.327 | npm `@anthropic-ai/claude-code` |
-| Codex CLI | 0.169.0 (facts 093, 095) | 0.169.0 | 0.170.0 | npm `@openai/codex`, GitHub `openai/codex` |
-| Antigravity CLI (agy) | 1.5.8 (facts 089, 092) | 1.5.9 | 1.5.11 | GitHub `google-antigravity/antigravity-cli` |
-| Cursor CLI | 2026.11.05-86047df (facts 078, 081, 091, 093, 094) | 2026.11.13-eacade1 | 2026.11.17-f532c45 | the URL in `https://cursor.com/install` |
-| Gemini CLI | 0.68.0 (fact 090) | 0.68.0 | 0.68.0 (0.69.0-preview.0) | npm `@google/gemini-cli` |
+| Claude Code | 2.1.319 (facts 080, 084, 087) | 2.1.330 | 2.1.330 | npm `@anthropic-ai/claude-code` |
+| Codex CLI | 0.169.0 (facts 093, 095) | 0.171.0 | 0.171.0 | npm `@openai/codex`, GitHub `openai/codex` |
+| Antigravity CLI (agy) | 1.5.8 (facts 089, 092) | 1.5.14 | 1.5.14 | GitHub `google-antigravity/antigravity-cli` |
+| Cursor CLI | 2026.11.05-86047df (facts 078, 081, 091, 093, 094) | 2026.11.19-f005e9d | 2026.11.19-f005e9d | the URL in `https://cursor.com/install` |
+| Gemini CLI | 0.68.0 (fact 090) | 0.70.0 | 0.70.0 (0.71.0-preview.0) | npm `@google/gemini-cli` |
 | GitHub Copilot CLI | 1.0.105 (facts 030, 047, 050-052) | 1.0.105 | 1.0.114 | npm `@github/copilot` |
 | opencode 1 | 1.19.5 (facts 029, 047, 051, 052, 063) | 1.19.5 | 1.19.6 | npm `opencode-ai` |
 | opencode 2 | 2.2.5 (facts 063, 086) | 2.2.5 | 2.3.2 | npm `@opencode/cli` |
 
-Gemini CLI has no stable release after the corpus version. Each other
-agent has a release after the newest corpus version. Copilot CLI is 9
-releases behind, and its corpus screens come only from the first start.
+For Claude Code, Codex CLI, agy, the Cursor CLI and Gemini CLI, the
+corpus has the newest release. The facts of these agents are older than
+the corpus. Copilot CLI is 9 releases behind, and its corpus screens come
+only from the first start. opencode 1 and opencode 2 are also behind.
+
+The Gemini CLI screen of 0.70.0 comes from one kit step only. The other
+40 Gemini steps of the Linux run failed with API_KEY_INVALID. The cause
+is the API key of the account, not the kit. On the same run, 9 Cursor CLI
+steps failed with "You've hit your usage limit" (free plan). The cause is
+the plan of the account, not the kit.
 
 For the Cursor CLI, the version is the download URL in the install script.
 The Cursor CLI has no public release notes on GitHub. Its changelog was
@@ -40,7 +50,8 @@ not checked.
 
 ## How the quotes were checked
 
-The quotes were downloaded on 2026-11-18 from these sources:
+For the findings 1 to 22, the quotes were downloaded on 2026-11-18 from
+these sources:
 
 - Claude Code: `CHANGELOG.md` on the `main` branch of
   `anthropics/claude-code`. The sections 2.1.320 to 2.1.327 were read.
@@ -50,6 +61,15 @@ The quotes were downloaded on 2026-11-18 from these sources:
 - Gemini CLI: the GitHub release `v0.69.0-preview.0`.
 - opencode: the GitHub releases `v1.19.6`, `v2.2.6`, `v2.2.7`, `v2.3.0`,
   `v2.3.1` and `v2.3.2` of `anomalyco/opencode`.
+
+For the findings 23 to 32, the quotes were downloaded on 2026-11-21 from
+these sources:
+
+- Claude Code: `CHANGELOG.md` on the `main` branch of
+  `anthropics/claude-code`. The sections 2.1.328 to 2.1.330 were read.
+- Codex CLI: the GitHub release `rust-v0.171.0`.
+- agy: the GitHub releases `1.5.12`, `1.5.13` and `1.5.14`.
+- Gemini CLI: the GitHub releases `v0.69.0` and `v0.70.0`.
 
 A keyword search selected the lines. The search words were about screens,
 dialogs, hooks, sessions, processes, files and terminal status. A line
@@ -284,18 +304,135 @@ that no tool reads yet, or a signal in a mode that the tools do not use.
 - Facts at risk: none. Fact 087 uses stream-json on a pipe.
 - Measurement: none needed now.
 
-### 22. Gemini CLI folder trust in the macOS sandbox (low, preview only)
+### 22. Gemini CLI folder trust in the macOS sandbox (low)
 
-- Version: 0.69.0-preview.0 (pre-release).
+- Version: 0.69.0-preview.0 (pre-release). On 2026-11-21, the line is
+  also in the stable release `v0.69.0`.
 - Line: "fix(cli): resolve folder trust before entering the macOS Seatbelt
   sandbox"
 - Source: <https://github.com/google-gemini/gemini-cli/releases/tag/v0.69.0-preview.0>
 - Facts at risk: 090 on macOS.
-- Measurement: wait for 0.69.0. Then run the kit set e on macOS.
+- Measurement: run the kit set e on macOS with 0.69.0 or newer.
+
+### 23. Claude Code Esc and Alt at a permission dialog (high)
+
+- Version: 2.1.328.
+- Line: "Fixed Esc often being lost at a permission prompt or question
+  when you typed straight after it; in terminals that send Alt as Esc and
+  a key, an unused Alt or Option key now declines there"
+- Source: <https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md>
+- Facts at risk: 004, 033, 074. A tool that sends Esc and then a key can
+  now decline the dialog.
+- Measurement: the kit step `permission-bash`, with Esc and a key sent
+  together. Record whether the dialog closes with No.
+
+### 24. agy Esc just after a message (high)
+
+- Version: 1.5.14.
+- Line: "Fixed pressing `Esc` right after submitting a message [...]
+  canceling in that window now aborts the send and shows `Message not
+  sent: canceled before it was sent`."
+- Source: <https://github.com/google-antigravity/antigravity-cli/releases/tag/1.5.14>
+- Facts at risk: the interrupt screens of agy in `corpus/agy/`. The
+  screen after an early Esc can show a new line.
+- Measurement: the kit step `interrupt-agy` with Esc sent at once after
+  the prompt. Save the screen.
+
+### 25. agy keeps `Interrupted` after Esc (high)
+
+- Version: 1.5.14.
+- Line: "Fixed pressing `Esc` to cancel a turn while it is still tearing
+  down clearing the `Interrupted` status hint [...] the `Interrupted` hint
+  now stays visible and follow-up messages queue until cancellation
+  finishes."
+- Source: <https://github.com/google-antigravity/antigravity-cli/releases/tag/1.5.14>
+- Facts at risk: the idle rule of agy after an interrupt. The idle screen
+  can now hold `Interrupted`.
+- Measurement: the kit step `interrupt-agy`. Compare the screen "after
+  Escape" with the screen of 1.5.11.
+
+### 26. Codex CLI TUI workspace on by default (high)
+
+- Version: 0.171.0.
+- Line: "Enabled the TUI workspace by default, with searchable document
+  previews, image previews, and subagent transcripts alongside the main
+  conversation."
+- Source: <https://github.com/openai/codex/releases/tag/rust-v0.171.0>
+- Facts at risk: the Codex CLI screen rules. The layout of the screen can
+  change when a preview or a subagent transcript opens.
+- Measurement: the kit steps of Codex CLI with a subagent. The screens of
+  0.171.0 in `corpus/codex/` do not show the workspace.
+
+### 27. Claude Code one count for background work (medium)
+
+- Version: 2.1.329.
+- Line: "Changed the `/tasks` header and the footer's background count to
+  one number covering shells, monitors, MCP calls, agents, workflows and
+  scheduled tasks"
+- Source: <https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md>
+- Facts at risk: a reader of the footer, for example `← 1 agent` in the
+  Linux screens of 2.1.330. The number can now count more than agents.
+- Measurement: a session with a background shell and no agent. Record
+  the footer.
+
+### 28. Claude Code `monitor` in Stop hooks (medium)
+
+- Version: 2.1.329.
+- Line: "Changed Stop and SubagentStop hooks to list a Monitor's script as
+  `monitor`, not `shell`, in `background_tasks`"
+- Source: <https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md>
+- Facts at risk: 024 and 031, which name `background_tasks`.
+- Measurement: a Stop hook with a Monitor running. Record the payload.
+
+### 29. Claude Code trust dialog names the hooks (medium)
+
+- Version: 2.1.329.
+- Line: "Added a trust dialog warning that says where a folder's hooks are
+  declared"
+- Source: <https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md>
+- Facts at risk: the trust screens of Claude Code in `corpus/claude/`.
+  The dialog can have a new line when a folder has hooks.
+- Measurement: the kit step `first-run-claude` in a folder with a hook.
+
+### 30. agy reads outside the workspace in Auto mode (medium)
+
+- Version: 1.5.14.
+- Line: "Changed Auto mode (the default `Agent Mode`) to allow reading
+  files outside the workspace without asking for approval [...] Writing or
+  editing files outside the workspace still asks for approval"
+- Source: <https://github.com/google-antigravity/antigravity-cli/releases/tag/1.5.14>
+- Facts at risk: 085. A read outside the workspace now shows no dialog
+  in Auto mode.
+- Measurement: a kit step that reads a file outside the work folder in
+  Auto mode.
+
+### 31. agy stops the process group of a hook (medium)
+
+- Version: 1.5.14.
+- Line: "Fixed command hooks in `hooks.json` on Linux and macOS leaving
+  child processes running in the background after a hook times out or is
+  canceled; stopping a hook now terminates its entire process group."
+- Source: <https://github.com/google-antigravity/antigravity-cli/releases/tag/1.5.14>
+- Facts at risk: none known. A process tree of agy can now lose the
+  children of a hook sooner.
+- Measurement: none needed now.
+
+### 32. Codex CLI keeps an approval of a newer turn (low)
+
+- Version: 0.171.0.
+- Line: "Prevented late completion events from cancelling approvals for a
+  newer turn."
+- Source: <https://github.com/openai/codex/releases/tag/rust-v0.171.0>
+- Facts at risk: none known. A permission dialog of Codex CLI can stay on
+  the screen in more cases.
+- Measurement: none needed now.
 
 ## Not covered
 
 - The Cursor CLI changelog was not read. The table gives only the version.
+- The findings 1 to 22 were not checked again on 2026-11-21.
+- Copilot CLI and opencode were not read again on 2026-11-21. Only their
+  versions were checked.
 - Codex CLI 0.169.1 has no release notes. Its compare page was not read.
 - The agents in groups b, c and d of the first-run job were not checked.
   The newest release of each one was not read.

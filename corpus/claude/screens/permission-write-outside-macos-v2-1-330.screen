@@ -1,0 +1,40 @@
+ ▐▛███▛█   Claude Code v2.1.330
+▝▜██████▀  Sonnet 5.5 · Claude <plan>
+ ▝▝   ▝▝   /work/example
+
+
+❯ Write outside the work folder: make the file /work/example/write-outside-claude-manual-tmux.outside/agent-signals-write.txt
+   that holds the word hello.
+
+⏺ Bash(d=/work/example/write-outside-claude-manual-tmux.outside
+      ; mkdir -p "$d" && printf 'hello\n…)
+  ⎿  Waiting…
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Bash command
+ Tip: auto mode handles these prompts for you — choose "switch to auto mode" below
+ Create the folder and write the file
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+ │ d=/work/example/write-outside-claude-manual-tmux.outside
+ │ ; mkdir -p "$d" && printf 'hello\n' > "$d/agent-signals-write.txt" && cat "$d/agent-signals-write.txt"
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+ Do you want to proceed?
+ ❯ 1. Yes
+   2. Yes, and switch to auto mode · auto mode handles these prompts for you
+   3. No
+
+ Esc to cancel · Tab to amend
+
+
+
+
+
+
+
+
+
+
+
+
+
+

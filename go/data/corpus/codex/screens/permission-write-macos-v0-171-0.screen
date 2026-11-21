@@ -1,0 +1,40 @@
+  >_ OpenAI Codex (v0.171.0)
+     /work/example
+
+  To get started, describe a task or try one of these commands:
+
+  /init - create an AGENTS.md file with instructions for Codex
+  /status - show current session configuration
+  /permissions - choose what Codex is allowed to do
+  /model - choose what model and reasoning effort to use
+  /review - review any changes and find issues
+
+
+› Write a file named agent-signals-write.txt that holds the word hello.
+
+
+• I’ll write agent-signals-write.txt in the workspace with the content hello.
+
+• The workspace is mounted read-only for this session, so the write was denied. I’m requesting the needed write
+  permission to create the file.
+
+• Running cat > agent-signals-write.txt <<'EOF' …
+    + Show details
+
+
+  Would you like to run the following command?
+
+  Environment: local
+
+  Reason: May I write agent-signals-write.txt in the workspace with the word hello?
+
+  $ cat > agent-signals-write.txt <<'EOF'
+  hello
+  EOF
+
+
+› 1. Yes, proceed (y)
+  2. No, and tell Codex what to do differently (esc)
+
+  Press enter to confirm or esc to cancel
+
