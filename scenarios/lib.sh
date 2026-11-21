@@ -177,13 +177,17 @@ wait_for() {
 }
 
 # snapshot_files NAME DIR...: list each file below DIR with its size and
-# modification time, relative to the throwaway HOME. No content.
+# modification time, relative to the throwaway HOME. No content. A file
+# that is gone before the size is read is not listed: an agent can delete a
+# temporary folder while find runs (Codex CLI 0.171.0 on macOS deletes
+# ~/.codex/.tmp/plugins-clone-*).
 snapshot_files() {
   name=$1
   shift
   for d in "$@"; do
     [ -d "$d" ] && find "$d" -type f 2>/dev/null | while read -r f; do
-      echo "$(wc -c <"$f" | tr -d ' ') $(mtime "$f") $f"
+      size=$({ wc -c <"$f"; } 2>/dev/null) || continue
+      echo "$(echo "$size" | tr -d ' ') $(mtime "$f") $f"
     done
   done | sed "s#$SCN_DIR#<sandbox>#" | sort -k3 >"$SCN_OUT/$name.files"
 }
