@@ -3,7 +3,7 @@
    background where it is used; each UI colour has 3:1 or more.
 
    The neutrals and the fonts come from the shared identity in
-   ys-tokens.css (a vendored copy, do not edit it). The --ys-* variables
+   ys-plain.css (a vendored copy, do not edit it). The --ys-* variables
    change for dark mode in that file. The link, focus and badge colours
    are the colours of this project and stay here. */
 

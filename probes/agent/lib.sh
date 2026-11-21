@@ -14,6 +14,11 @@ KIT_ROOT=${KIT_ROOT:-$(cd "$KIT_DIR/../.." && pwd)}
 # shellcheck disable=SC2034
 KIT_OK=0 KIT_FAIL=1 KIT_USAGE=2 KIT_MISSING=3 KIT_OPERATOR=4
 
+# ps cuts each line to COLUMNS characters when COLUMNS is set (procps and
+# BSD ps). A small terminal of an orchestrator then hides the command
+# lines of the agents.
+unset COLUMNS
+
 # kit_die CODE TEXT: print "kit: TEXT" on stderr and exit with CODE.
 kit_die() {
   _c=$1
@@ -77,15 +82,24 @@ kit_add_pid() {
 }
 
 # kit_ms: the time now in epoch milliseconds. Every recorder of a trace uses
-# this one clock. GNU date prints the milliseconds with %3N. Other dates
-# print the letter N, so python3 gives the time then.
+# this one clock. The function reads "date +%s.%N" and uses the first 3
+# digits of the 9 digits of %N. It does not use %3N: the uutils date 0.10.0
+# of Ubuntu 26.04 removes the leading zeros of the nanoseconds before it
+# cuts them to 3 digits, so 0.004932429 s gives 493 ms. When the output is
+# not seconds, a dot and 9 digits (macOS prints the letter N), python3
+# gives the time.
 # The body runs in a subshell, so _ms stays local.
 kit_ms() (
-  _ms=$(date +%s%3N 2>/dev/null)
-  case $_ms in
-    '' | *[!0-9]*) python3 -I -c 'import time; print(time.time_ns() // 1000000)' ;;
-    *) echo "$_ms" ;;
-  esac
+  _ms=$(date +%s.%N 2>/dev/null)
+  _s=${_ms%%.*}
+  _n=${_ms#*.}
+  case $_s in '' | *[!0-9]*) _s= ;; esac
+  case $_n in [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]) ;; *) _s= ;; esac
+  if [ -n "$_s" ]; then
+    echo "$_s${_n%??????}"
+  else
+    python3 -I -c 'import time; print(time.time_ns() // 1000000)'
+  fi
 )
 
 # kit_trace_state STATE [MS]: append "MS<tab>STATE" to $KIT_TRACE/states.tsv.

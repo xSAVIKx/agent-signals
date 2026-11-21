@@ -2,6 +2,7 @@ package agentsignals
 
 import (
 	"bytes"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -181,6 +182,74 @@ func find(t *testing.T, agent, slug string) Screen {
 	}
 	t.Fatalf("no screen %s/%s", agent, slug)
 	return Screen{}
+}
+
+func TestFactsMatchFiles(t *testing.T) {
+	got, err := Facts()
+	if err != nil {
+		t.Fatal(err)
+	}
+	paths, err := filepath.Glob(filepath.Join(repoRoot, "facts", "[0-9][0-9][0-9]-*.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(paths) == 0 {
+		t.Skip("the repository is not available")
+	}
+	sort.Strings(paths)
+	if len(got) != len(paths) {
+		t.Fatalf("got %d facts, want %d", len(got), len(paths))
+	}
+	for i, f := range got {
+		want, err := os.ReadFile(paths[i])
+		if err != nil {
+			t.Fatal(err)
+		}
+		if name := fmt.Sprintf("%03d-%s.md", f.Number, f.Slug); name != filepath.Base(paths[i]) {
+			t.Errorf("fact %d has name %s, want %s", f.Number, name, filepath.Base(paths[i]))
+		}
+		if f.Text != string(want) {
+			t.Errorf("fact %d text differs from the file", f.Number)
+		}
+		first, _, _ := strings.Cut(string(want), "\n")
+		if f.Title == "" || strings.HasPrefix(f.Title, "#") || !strings.HasSuffix(first, f.Title) {
+			t.Errorf("fact %d has title %q for heading %q", f.Number, f.Title, first)
+		}
+	}
+}
+
+func TestFactTitle(t *testing.T) {
+	all, err := Facts()
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := all[0]
+	if first.Number != 1 || first.Slug != "idle-must-be-proved-by-a-frame" ||
+		first.Title != "An idle input box must be proved by its frame" {
+		t.Errorf("unexpected first fact: %d %q %q", first.Number, first.Slug, first.Title)
+	}
+}
+
+func TestEveryScreenFactExists(t *testing.T) {
+	facts, err := Facts()
+	if err != nil {
+		t.Fatal(err)
+	}
+	known := map[int]bool{}
+	for _, f := range facts {
+		known[f.Number] = true
+	}
+	screens, err := Screens()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range screens {
+		for _, n := range s.Facts {
+			if !known[n] {
+				t.Errorf("%s/%s names fact %d, which does not exist", s.Agent, s.Slug, n)
+			}
+		}
+	}
 }
 
 // TestDataIsInSync fails when go/data differs from the corpus and the facts

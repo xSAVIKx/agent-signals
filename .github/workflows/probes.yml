@@ -130,6 +130,18 @@ jobs:
         env:
           KIT_TEST_SHARD: ${{ matrix.shard }}
         run: sh tools/test-agent-kit.sh
+      # A full disk in the run folder. The test needs a small tmpfs, and
+      # the mount needs sudo, so it runs on one Linux image only.
+      - name: Full disk test
+        if: matrix.os == 'ubuntu-24.04'
+        run: |
+          d=$RUNNER_TEMP/full
+          mkdir "$d"
+          sudo mount -t tmpfs -o "size=4m,mode=0700,uid=$(id -u),gid=$(id -g)" tmpfs "$d"
+          rc=0
+          KIT_TEST_FULL_DISK=$d sh tools/test-agent-kit.sh tools/agent-kit-tests/test-steps-disk.sh || rc=$?
+          sudo umount "$d"
+          exit "$rc"
       - name: Kit through the one-liner
         # The one-liner reads a local archive here, so the step needs no
         # network.

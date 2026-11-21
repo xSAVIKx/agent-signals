@@ -28,7 +28,8 @@ session files and log lines follow.
 
 1. Pin a corpus release tag, `corpus-vX.Y.Z`, from the
    [releases on GitHub](https://github.com/xSAVIKx/agent-signals/releases).
-2. Copy `corpus/`, `schema/` and `facts/` from that tag into your tree.
+2. Download `agent-signals-corpus-X.Y.Z.tar.gz` from that release, or copy
+   `corpus/`, `schema/` and `facts/` from that tag into your tree.
 3. Run one table test: for each screen, give the `.screen` bytes to your
    reader, and compare the result with `expect` in the `.yaml` file.
 
@@ -148,6 +149,26 @@ changelog:
 The agent versions are data in the corpus, not the version of a package.
 Read [`docs/versioning.md`](docs/versioning.md) and the
 [releases on GitHub](https://github.com/xSAVIKx/agent-signals/releases).
+
+### The files of a corpus release
+
+The job `corpus-assets` in `.github/workflows/release-please.yml` attaches
+these files to each corpus release. Releases before this job have only the
+kit files.
+
+| File | Content |
+|---|---|
+| `agent-signals-corpus-X.Y.Z.tar.gz`, `.zip` | `corpus/`, `schema/`, `facts/`, `LICENSE`, a `README.md`, `corpus.json` and `facts.json`. |
+| `agent-signals-kit.tar.gz`, `.zip`, `.sha256` | The probe kit. |
+| `SHA256SUMS` | The SHA-256 digest of each other file of the release. |
+
+Each file also has a build provenance attestation on GitHub.
+`tools/release-corpus.sh` builds the corpus archives. The same commit gives
+the same bytes. To verify the files of a release:
+
+1. Download the files and `SHA256SUMS` into one folder.
+2. Run `sha256sum -c SHA256SUMS --ignore-missing` in that folder.
+3. Run `gh attestation verify agent-signals-corpus-X.Y.Z.tar.gz --repo xSAVIKx/agent-signals`.
 
 ## Develop
 
