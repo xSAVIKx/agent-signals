@@ -62,6 +62,14 @@ The answer depends on the last user message of a request with tools:
                    agents: the reply of the next line.
   "End your reply with a question"
                    a text reply that ends with a question
+  "Fail with 500"  Claude Code: HTTP 500 with an api_error body. The other
+                   agents: a text reply.
+  "Fail with 529"  Claude Code: HTTP 529 with an overloaded_error body. The
+                   other agents: a text reply.
+  "Answer late"    Claude Code: no status line and no byte until the client
+                   closes the connection, or for 2 minutes. A client
+                   time-out (API_TIMEOUT_MS) ends the request. The other
+                   agents: a text reply.
   other text       a text reply
 A review request asks if a tool call can run. Its verdict is "deny" when the
 user text that it reviews holds "Deny the review", else "allow":
@@ -108,6 +116,13 @@ NO_PATH = 'The fixture found no absolute path after "Write outside".'
 REVIEW_ALLOW = "<severity>5</severity>"
 REVIEW_DENY = "<severity>95</severity><category>Fixture Block</category>"
 SEVERITY_FORM = "<severity>N</severity>"
+# The Claude Code faults: the trigger text, the HTTP status and the error
+# type of the body. "late" sends nothing.
+CLAUDE_FAULTS = (
+    ("Fail with 500", "error 500", 500, "api_error", "Internal server error"),
+    ("Fail with 529", "error 529", 529, "overloaded_error", "Overloaded"),
+    ("Answer late", "late", 0, "", ""),
+)
 ABS_PATH = re.compile(r"""(?:[A-Za-z]:\\|/)[^\s"'<>]+""")
 CLAUDE_CHOICE = {
     "questions": [{
@@ -334,6 +349,10 @@ def claude_answer(body):
             isinstance(c, dict) and c.get("type") == "tool_result" for c in content):
         return "text", TOOL_DONE
     text = text_of(content)
+    if body.get("tools"):
+        for trigger, fault, _, _, _ in CLAUDE_FAULTS:
+            if trigger in text:
+                return fault, ""
     kind = classify(text, bool(body.get("tools")))
     if kind == "write":
         path = write_path(text, label_value(text_of(body.get("system")), "Primary working directory: "))
@@ -852,6 +871,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_json(404, {})
             return
         self.note("POST %s %s %s" % (path, rid, kind))
+        for _, fault, code, etype, message in CLAUDE_FAULTS:
+            if kind != fault:
+                continue
+            if code:
+                # The real API names the request in the header request-id.
+                raw = json.dumps({"type": "error", "error": {"type": etype, "message": message},
+                                  "request_id": rid}).encode()
+                self.send_response(code)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(raw)))
+                self.send_header("request-id", rid)
+                self.end_headers()
+                self.wfile.write(raw)
+            else:
+                self.close_connection = True
+                self.hold()
+            return
         if not stream and kind != "hold":
             self.send_json(200, whole())
             return

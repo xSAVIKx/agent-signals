@@ -242,6 +242,68 @@ func TestClaudeHoldEndsWhenTheClientCloses(t *testing.T) {
 	t.Error("the hold did not end when the client closed")
 }
 
+func TestClaudeFaults(t *testing.T) {
+	base, _, logPath, _ := start(t, Claude)
+	body := func(text string, tools bool) []byte {
+		m := map[string]any{"stream": true, "messages": []any{map[string]any{"role": "user", "content": text}}}
+		if tools {
+			m["tools"] = []any{map[string]any{"name": "Bash"}}
+		}
+		b, _ := json.Marshal(m)
+		return b
+	}
+	for _, c := range []struct {
+		text, errType string
+		status        int
+	}{
+		{"Fail with 500 now.", "api_error", 500},
+		{"Fail with 529 now.", "overloaded_error", 529},
+	} {
+		resp, err := http.Post(base+"/v1/messages", "application/json", bytes.NewReader(body(c.text, true)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		out, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		var m struct {
+			Type  string `json:"type"`
+			Error struct {
+				Type string `json:"type"`
+			} `json:"error"`
+			RequestID string `json:"request_id"`
+		}
+		if resp.StatusCode != c.status || json.Unmarshal(out, &m) != nil || m.Type != "error" ||
+			m.Error.Type != c.errType || m.RequestID == "" || resp.Header.Get("request-id") != m.RequestID {
+			t.Errorf("%q: status %d, header %q, body %s", c.text, resp.StatusCode, resp.Header.Get("request-id"), out)
+		}
+	}
+	resp, err := http.Post(base+"/v1/messages", "application/json", bytes.NewReader(body("Fail with 500 now.", false)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != 200 || !strings.Contains(string(out), Text) {
+		t.Errorf("a request with no tools: status %d, body %s", resp.StatusCode, out)
+	}
+	c := &http.Client{Timeout: 300 * time.Millisecond}
+	if resp, err := c.Post(base+"/v1/messages", "application/json", bytes.NewReader(body("Answer late now.", true))); err == nil {
+		resp.Body.Close()
+		t.Errorf("a late answer gave status %d before the client time-out", resp.StatusCode)
+	}
+	for i := 0; i < 200; i++ {
+		log, _ := os.ReadFile(logPath)
+		if strings.Contains(string(log), " late\nhold ended\n") {
+			if !strings.Contains(string(log), " error 500\n") || !strings.Contains(string(log), " error 529\n") || strings.Contains(string(log), "Fail") {
+				t.Errorf("log: %s", log)
+			}
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Error("the late answer did not end when the client closed")
+}
+
 func TestCodex(t *testing.T) {
 	base, home, _, env := start(t, Codex)
 	if env["CODEX_HOME"] != filepath.Join(home, ".codex") || env[keyVariable] != "dummy" {

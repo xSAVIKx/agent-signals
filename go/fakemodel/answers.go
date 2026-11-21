@@ -26,6 +26,22 @@ const (
 	kindStructured = "structured"
 )
 
+// claudeFault is an error answer of the Messages API. A zero status sends
+// nothing: the server waits until the client closes the connection.
+type claudeFault struct {
+	trigger, kind string
+	status        int
+	errType, text string
+}
+
+// claudeFaults are the error answers for Claude Code, in the order of the
+// check.
+var claudeFaults = []claudeFault{
+	{TriggerFail500, "error 500", 500, "api_error", "Internal server error"},
+	{TriggerFail529, "error 529", 529, "overloaded_error", "Overloaded"},
+	{TriggerLate, "late", 0, "", ""},
+}
+
 // severityForm is the text of the Claude Code review prompt that asks for
 // the verdict.
 const severityForm = "<severity>N</severity>"
@@ -258,6 +274,24 @@ func (s *server) post(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.note("POST %s %s %s", path, rid, kind)
+	for _, f := range claudeFaults {
+		if kind != f.kind {
+			continue
+		}
+		if f.status == 0 {
+			hold(r)
+			s.note("hold ended")
+			return
+		}
+		// The real API names the request in the header request-id.
+		w.Header().Set("request-id", rid)
+		sendJSON(w, f.status, map[string]any{
+			"type":       "error",
+			"error":      map[string]any{"type": f.errType, "message": f.text},
+			"request_id": rid,
+		})
+		return
+	}
 	if !stream && kind != kindHold {
 		sendJSON(w, http.StatusOK, whole())
 		return
@@ -423,6 +457,13 @@ func claudeAnswer(body map[string]any) (string, string) {
 		}
 	}
 	text := textOf(content)
+	if hasTools(body) {
+		for _, f := range claudeFaults {
+			if strings.Contains(text, f.trigger) {
+				return f.kind, ""
+			}
+		}
+	}
 	kind := classify(text, hasTools(body))
 	switch {
 	case kind == kindWrite:
