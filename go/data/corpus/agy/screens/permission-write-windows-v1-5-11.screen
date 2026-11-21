@@ -1,0 +1,40 @@
+      ▄▀▀▄        Antigravity CLI 1.5.11
+     ▀▀▀▀▀▀       Enterprise Gateway
+    ▀▀▀▀▀▀▀▀      fixture-model
+   ▄▀▀    ▀▀▄     <run>/work/example
+  ▄▀▀      ▀▀▄
+
+────────────────────────────────────────────────────────────
+> Write a file named agent-signals-write.txt that holds the word hello.
+
+● Edited 1 file (agent-signals-write.txt) (ctrl+o to expand)
+
+Create file
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+<run>/work/example  +1
+  1  +  The fixture wrote this file.
+
+Allow creation of this file?
+> 1. Yes, allow creation
+  2. No, deny creation
+
+  ↑/↓ Navigate · f full diff
+esc to cancel                                                                                              fixture-model
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

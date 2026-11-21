@@ -1,0 +1,40 @@
+Tip: You can start the Cursor CLI with `agent` (same as `cursor-agent`).
+
+  ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+  │                                                                                                                  │
+  │  ⚠ Workspace Trust Required                                                                                      │
+  │                                                                                                                  │
+  │  Cursor Agent can execute code and access files in this directory.                                               │
+  │                                                                                                                  │
+  │  Do you trust the contents of this directory?                                                                    │
+  │                                                                                                                  │
+  │    <run>\work\st-c56d6c75                            │
+  │                                                                                                                  │
+  │                                                                                                                  │
+  │    [a] Trust this workspace                                                                                      │
+  │    [q] Quit                                                                                                      │
+  │                                                                                                                  │
+  │  ⏳ Trusting workspace...                                                                                        │
+  │                                                                                                                  │
+  ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+  Cursor Agent
+  v2026.11.17-f532c45
+  Tip: Use /run-everything to skip all approvals.
+
+
+  Create a file named agent-signals-test.txt that holds the word hello.
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ $  touch agent-signals-test.txt in .
+
+ Run this command?
+ Not in allowlist: touch
+  → Run (once) (y)
+    Add Shell(touch) to allowlist? (tab)
+    Run Everything (shift+tab)
+    Skip & tell the agent what to do instead (esc or n)
+
+
