@@ -122,8 +122,9 @@ func indexOf(files []File, path string) int {
 }
 
 // TestThemeColorMatchesIdentity checks that the theme-color metas and the
-// manifest background use the page background of ys-plain.css: the first
-// --ys-bg is the light theme, the second is the dark theme.
+// constants iconLight and iconDark (the manifest uses iconLight) are the
+// page background of ys-plain.css: the first --ys-bg is the light theme,
+// the second is the dark theme.
 func TestThemeColorMatchesIdentity(t *testing.T) {
 	css, err := assetFS.ReadFile("assets/ys-plain.css")
 	if err != nil {
