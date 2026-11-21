@@ -57,7 +57,7 @@ mkdir "$tmp/idx" "$tmp/full"
 echo '{"screens":[]}' >"$tmp/idx/corpus.json"
 echo '{"facts":[]}' >"$tmp/idx/facts.json"
 echo kit >"$tmp/full/agent-signals-kit.tar.gz"
-sh "$script" "$ver" "$tmp/full" "$tmp/idx" >/dev/null
+TZ=UTC0 sh "$script" "$ver" "$tmp/full" "$tmp/idx" >/dev/null
 for ext in tar.gz zip; do
   names "$tmp/got" "$tmp/full/$name.$ext"
   if cmp -s "$tmp/got" "$tmp/want-index"; then ok "$ext also holds corpus.json and facts.json"; else
