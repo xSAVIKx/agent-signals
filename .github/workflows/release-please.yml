@@ -124,5 +124,6 @@ jobs:
       # the attestation does not stop the kit download.
       - name: Attest the build provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        # subject-path attests each file in dist/, also SHA256SUMS.
         with:
-          subject-checksums: dist/SHA256SUMS
+          subject-path: dist/*

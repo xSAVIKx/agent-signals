@@ -15,8 +15,8 @@
 # The archives hold the files of HEAD (git archive), so a change that is not
 # committed is not in them. git archive sorts the names, sets each mtime to
 # the commit time of HEAD, sets the owner to root, and writes gzip with no
-# name and no time. So the same commit and the same index files give the same
-# bytes.
+# name and no time. The zip format stores local time, so the script sets
+# TZ=UTC0. So the same commit and the same index files give the same bytes.
 #
 # SHA256SUMS lists each file in OUTDIR, also the files that were in OUTDIR
 # before the script started. The release workflow puts the kit archives in
@@ -67,7 +67,7 @@ if [ -n "$idx" ]; then
 fi
 
 for fmt in tar.gz zip; do
-  (cd "$root" && git -c tar.umask=022 archive --format="$fmt" -o "$out/$name.$fmt" \
+  (cd "$root" && TZ=UTC0 git -c tar.umask=022 archive --format="$fmt" -o "$out/$name.$fmt" \
     "$@" HEAD corpus schema facts LICENSE)
 done
 

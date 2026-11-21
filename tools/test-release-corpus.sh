@@ -70,10 +70,10 @@ printf '%s\n' agent-signals-kit.tar.gz "$name.tar.gz" "$name.zip" | LC_ALL=C sor
 if cmp -s "$tmp/sums-names" "$tmp/sums-want"; then ok "SHA256SUMS also lists the kit file"; else bad "SHA256SUMS names: $(tr '\n' ' ' <"$tmp/sums-names")"; fi
 if (cd "$tmp/full" && sha256sum -c --quiet SHA256SUMS); then ok "SHA256SUMS matches all files"; else bad "SHA256SUMS does not match all files"; fi
 
-# 3. A second build gives the same bytes.
-sh "$script" "$ver" "$tmp/again" "$tmp/idx" >/dev/null
+# 3. A second build in another time zone gives the same bytes.
+TZ=EST5 sh "$script" "$ver" "$tmp/again" "$tmp/idx" >/dev/null
 for ext in tar.gz zip; do
-  if cmp -s "$tmp/full/$name.$ext" "$tmp/again/$name.$ext"; then ok "two builds of $ext give the same bytes"; else bad "two builds of $ext differ"; fi
+  if cmp -s "$tmp/full/$name.$ext" "$tmp/again/$name.$ext"; then ok "two builds of $ext in two time zones give the same bytes"; else bad "two builds of $ext differ"; fi
 done
 
 # 4. Bad input.
