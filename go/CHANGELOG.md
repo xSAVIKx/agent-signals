@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.0](https://github.com/xSAVIKx/agent-signals/compare/go/v0.20.0...go/v0.21.0) (2026-11-21)
+
+
+### Features
+
+* **go:** add Facts to list the embedded facts ([#213](https://github.com/xSAVIKx/agent-signals/issues/213)) ([33a52f4](https://github.com/xSAVIKx/agent-signals/commit/33a52f45afac9265b6ed884ab7204d301e07454c))
+
 ## [0.20.0](https://github.com/xSAVIKx/agent-signals/compare/go/v0.19.0...go/v0.20.0) (2026-11-18)
 
 

@@ -4,6 +4,9 @@
 # at the same time, so the last step marks the newest corpus release as
 # "Latest" after each release.
 #
+# The job corpus-assets attaches the probe kit, the corpus archives,
+# SHA256SUMS and a build provenance attestation to each corpus release.
+#
 # Each action is pinned to a commit SHA. The comment gives the tag.
 name: Release Please
 
@@ -22,6 +25,9 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
       - id: release
         uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
@@ -29,25 +35,10 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
       - name: Check out the release commit
-        if: steps.release.outputs.release_created == 'true' || steps.release.outputs['go--release_created'] == 'true'
+        if: steps.release.outputs['go--release_created'] == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Attach the probe kit to the corpus release
-        # The one-line kit (probes/kit.sh, probes/kit.ps1) downloads these
-        # files from the latest release.
-        if: steps.release.outputs.release_created == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          TAG: ${{ steps.release.outputs.tag_name }}
-        run: |
-          version=${TAG#corpus-v}
-          sh tools/kit-archive.sh tar.gz agent-signals-kit.tar.gz "$version"
-          sh tools/kit-archive.sh zip agent-signals-kit.zip "$version"
-          sha256sum agent-signals-kit.tar.gz agent-signals-kit.zip >agent-signals-kit.sha256
-          cat agent-signals-kit.sha256
-          gh release upload "$TAG" agent-signals-kit.tar.gz agent-signals-kit.zip agent-signals-kit.sha256 --clobber
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         if: steps.release.outputs['go--release_created'] == 'true'
         with:
@@ -87,3 +78,52 @@ jobs:
           fi
           gh release edit "$tag" --latest
           echo "latest: $tag"
+
+  corpus-assets:
+    name: Corpus release assets
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      TAG: ${{ needs.release-please.outputs.tag_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: tools/go.mod
+          # The cache restore can hang at the egress limit of the account.
+          cache: false
+      - name: Build the probe kit and the corpus archives
+        # The one-line kit (probes/kit.sh, probes/kit.ps1) downloads the kit
+        # files from the latest release. The site builder makes corpus.json
+        # and facts.json, with the command of the Pages workflow.
+        # release-corpus.sh writes SHA256SUMS over each file in dist/.
+        run: |
+          version=${TAG#corpus-v}
+          mkdir dist
+          sh tools/kit-archive.sh tar.gz dist/agent-signals-kit.tar.gz "$version"
+          sh tools/kit-archive.sh zip dist/agent-signals-kit.zip "$version"
+          (cd dist && sha256sum agent-signals-kit.tar.gz agent-signals-kit.zip >agent-signals-kit.sha256)
+          (cd tools && go run ./cmd/site -root .. -out "$RUNNER_TEMP/site")
+          sh tools/release-corpus.sh "$version" dist "$RUNNER_TEMP/site"
+          cat dist/SHA256SUMS
+      - name: Attach the files to the corpus release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release upload "$TAG" dist/* --clobber
+      # The attestation step comes after the upload, so that a failure of
+      # the attestation does not stop the kit download.
+      - name: Attest the build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        # subject-path attests each file in dist/, also SHA256SUMS.
+        with:
+          subject-path: dist/*

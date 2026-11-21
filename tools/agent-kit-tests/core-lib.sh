@@ -14,10 +14,12 @@ _sh_dir=$(dirname "$(command -v sh)")
 case ":$SYS_PATH:" in *":$_sh_dir:"*) ;; *) SYS_PATH=$_sh_dir:$SYS_PATH ;; esac
 
 # kit_copy DIR: copy the kit (probes/ and the tools that it uses) to DIR.
-# A test adds fake step scripts to DIR/probes/agent/steps/ there.
+# A test adds fake step scripts to DIR/probes/agent/steps/ there. The copy
+# has the version of this kit, so that it can take a step in a run of
+# this kit.
 kit_copy() {
   mkdir -p "$1"
-  (cd "$ROOT" && tar -cf - probes tools/scrub.sh tools/check-probe-output.sh) | (cd "$1" && tar -xf -)
+  (cd "$ROOT" && tar -cf - probes tools/scrub.sh tools/check-probe-output.sh .release-please-manifest.json) | (cd "$1" && tar -xf -)
 }
 
 # kitc DIR ARGS: run the kit copy in DIR.

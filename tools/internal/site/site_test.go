@@ -654,3 +654,48 @@ func TestCorpusPageHasFilters(t *testing.T) {
 		t.Errorf("the page differs from %s; run the test with -update and read the diff", golden)
 	}
 }
+
+func TestCorpusVersion(t *testing.T) {
+	got, err := CorpusVersion(fixture)
+	if err != nil || got != "1.2.3" {
+		t.Fatalf("CorpusVersion = %q, %v; want 1.2.3", got, err)
+	}
+	if _, err := CorpusVersion(t.TempDir()); err == nil || !strings.Contains(err.Error(), "corpus version") {
+		t.Errorf("a missing manifest gives error %v; want a corpus version error", err)
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, ".release-please-manifest.json"), []byte(`{"go":"0.1.0"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := CorpusVersion(dir); err == nil || !strings.Contains(err.Error(), "no version") {
+		t.Errorf("a manifest without the corpus key gives error %v; want a no version error", err)
+	}
+}
+
+// TestVersionInOutputs checks the corpus version in the footer, in
+// corpus.json and in facts.json.
+func TestVersionInOutputs(t *testing.T) {
+	files, err := Build("../../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := CorpusVersion("../../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	byPath := map[string][]byte{}
+	for _, f := range files {
+		byPath[f.Path] = f.Data
+	}
+	if !strings.Contains(string(byPath["index.html"]), "releases/tag/corpus-v"+want+`">corpus v`+want+"</a>") {
+		t.Errorf("index.html: no corpus version in the footer")
+	}
+	for _, p := range []string{"corpus.json", "facts.json"} {
+		var v struct {
+			CorpusVersion string `json:"corpus_version"`
+		}
+		if err := json.Unmarshal(byPath[p], &v); err != nil || v.CorpusVersion != want {
+			t.Errorf("%s: corpus_version %q, %v; want %q", p, v.CorpusVersion, err, want)
+		}
+	}
+}
