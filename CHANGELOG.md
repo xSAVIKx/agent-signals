@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.28.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.27.0...corpus-v0.28.0) (2026-11-21)
+
+
+### Features
+
+* **site:** add JSON-LD structured data to each page ([#210](https://github.com/xSAVIKx/agent-signals/issues/210)) ([5d791b1](https://github.com/xSAVIKx/agent-signals/commit/5d791b10e714b6cd98677d2e33ecc3bff185949a))
+
+
+### Bug Fixes
+
+* **scenarios:** skip a file that is gone in snapshot_files ([#227](https://github.com/xSAVIKx/agent-signals/issues/227)) ([387e0bd](https://github.com/xSAVIKx/agent-signals/commit/387e0bd407aad55fa7f12c31fae7eada384bf24b))
+* **site:** use the identity page background for theme-color ([#226](https://github.com/xSAVIKx/agent-signals/issues/226)) ([f062fb6](https://github.com/xSAVIKx/agent-signals/commit/f062fb61a97a262087af9fcc7481aa4ae47eeb64))
+
 ## [0.27.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.26.0...corpus-v0.27.0) (2026-11-21)
 
 
