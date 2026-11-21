@@ -330,6 +330,9 @@ func TestSitePages(t *testing.T) {
 				continue
 			}
 			target, frag, _ := strings.Cut(href, "#")
+			// A query, as in a link to the corpus page with a filter, is not
+			// a part of the file path.
+			target, _, _ = strings.Cut(target, "?")
 			p := f.Path
 			if target != "" {
 				p = path.Clean(path.Join(path.Dir(f.Path), target))
