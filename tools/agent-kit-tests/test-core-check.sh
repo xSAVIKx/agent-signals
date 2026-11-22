@@ -61,6 +61,9 @@ sha=$(. "$ROOT/probes/agent/lib.sh" && kit_sha256 "$run/00-doctor.txt")
 printf 'step\tdoctor\tnone\tok\t2026-11-01T00:00:02Z\t2026-11-01T00:00:03Z\t00-doctor.txt\t%s\n' "$sha" >>"$run/manifest.tsv"
 check clean
 expect_code "kit check accepts a second doctor line" 0 $?
+n=$(grep -c '^doctor@none: ' "$run/summary.txt")
+if [ "$n" = 1 ]; then pass "summary.txt has one doctor line"; else fail "summary.txt has one doctor line" "$n lines"; fi
+expect_line "summary.txt keeps the step line" '^permission-claude@pty: ' "$run/summary.txt"
 
 # The next step after the doctor line gets the next number.
 (cd "$T/clean" && export HOME=$H && kitc "$T/k" step permission-claude@pty) >/dev/null 2>&1
