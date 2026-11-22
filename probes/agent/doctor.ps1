@@ -119,11 +119,14 @@ if ($run) {
     Write-KitText $file $text
     # A new doctor call replaces the line of an older call: kit check
     # compares the step line with the file, which has only the new text.
+    # The new manifest goes to a temporary file in the run folder first.
+    # File.Replace then swaps it in and keeps the access list of
+    # manifest.tsv. A stop in the middle leaves the old manifest.
     $mf = Join-Path $run 'manifest.tsv'
-    if (Test-Path -LiteralPath $mf -PathType Leaf) {
-        $keep = @(((Read-KitText $mf) -split "`r?`n") | Where-Object { $_ -and $_ -notlike "step`tdoctor`t*" })
-        Write-KitText $mf ((($keep | ForEach-Object { "$_`n" }) -join ''))
-    }
-    Add-KitManifest $run @('step', 'doctor', 'none', 'ok', $start, (Get-KitIsoTime), '00-doctor.txt', (Get-KitSha256 $file), '-')
+    $keep = @(((Read-KitText $mf) -split "`r?`n") | Where-Object { $_ -and $_ -notlike "step`tdoctor`t*" })
+    $new = @('step', 'doctor', 'none', 'ok', $start, (Get-KitIsoTime), '00-doctor.txt', (Get-KitSha256 $file), '-') -join "`t"
+    $tmp = "$mf.new"
+    Write-KitText $tmp ((@($keep + $new) | ForEach-Object { "$_`n" }) -join '')
+    if (Test-Path -LiteralPath $mf -PathType Leaf) { [IO.File]::Replace($tmp, $mf, $null) } else { [IO.File]::Move($tmp, $mf) }
 }
 exit 0

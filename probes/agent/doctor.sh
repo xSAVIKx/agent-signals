@@ -290,13 +290,18 @@ echo "kit: wrote 00-doctor.txt in the run folder" >&2
 if [ "$doctor_add_to_manifest" = yes ]; then
   # A new doctor call replaces the line of an older call: kit check
   # compares each step line with the file, and 00-doctor.txt has only
-  # the new text. "cat >" keeps the mode of manifest.tsv.
+  # the new text. The new manifest goes to a temporary file first, with
+  # the mode 0600 of kit start, and then replaces manifest.tsv in one
+  # rename. A stop in the middle leaves the old manifest.
   m=$run/manifest.tsv
-  if [ -f "$m" ]; then
-    awk -F '\t' '!($1 == "step" && $2 == "doctor")' "$m" >"$m.new" &&
-      cat "$m.new" >"$m"
+  if ! (
+    umask 077
+    { [ ! -f "$m" ] || awk -F '\t' '!($1 == "step" && $2 == "doctor")' "$m"; } >"$m.new" &&
+      doctor_manifest_line "$run" "$start" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >>"$m.new" &&
+      mv -f "$m.new" "$m"
+  ); then
     rm -f "$m.new"
+    kit_die "$KIT_FAIL" "cannot write the doctor line to manifest.tsv"
   fi
-  doctor_manifest_line "$run" "$start" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >>"$m"
 fi
 exit 0
