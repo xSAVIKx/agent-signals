@@ -11,6 +11,14 @@ A screen is two files in `corpus/<agent>/screens/`, with the same slug:
 
 1. It holds the exact output of `tmux capture-pane -p`. When the style
    matters, it holds the output of `capture-pane -p -e`, with SGR escape codes.
+   A screen from `kit session screen` and `last.screen` of the agent kit
+   has no trailing spaces. The tmux backend uses `capture-pane -p -J`, and
+   the pty backend joins the lines that the program wrapped: with these
+   backends, a long path stays on one line. On Windows, the kit
+   asks psmux for `capture-pane -p -J`; no fact shows that psmux joins the
+   lines. The ConPTY backend removes the trailing spaces, but it does not
+   join the wrapped lines. The screens in a first-run step file come from
+   `capture-pane -p` or the ConPTY render, with no join.
 2. It is UTF-8, with LF line endings, and the trailing newline is kept.
 3. Do not reformat it. An editor that strips trailing white space changes the
    screen without a sign. `.editorconfig` and `.gitattributes` prevent this.
