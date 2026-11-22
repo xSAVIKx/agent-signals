@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.28.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.27.0...corpus-v0.28.0) (2026-11-22)
+
+
+### Features
+
+* **corpus:** add kit fixture screens of Claude Code 2.1.327, Codex CLI 0.170.0, agy 1.5.11 and Cursor CLI 2026.11.17 ([#222](https://github.com/xSAVIKx/agent-signals/issues/222)) ([80805e3](https://github.com/xSAVIKx/agent-signals/commit/80805e3c6bd8081b48354ab3044edcba95371448))
+* **corpus:** add kit screens of Claude Code 2.1.330, Codex CLI 0.171.0, agy 1.5.14, Cursor CLI 2026.11.19 and Gemini CLI 0.70.0 ([#228](https://github.com/xSAVIKx/agent-signals/issues/228)) ([3355177](https://github.com/xSAVIKx/agent-signals/commit/3355177dace5a0e3d7835c1f7c5c025cdec8701f))
+* **kit:** add a pre-run checklist and kit start --skip-agent ([#229](https://github.com/xSAVIKx/agent-signals/issues/229)) ([d737879](https://github.com/xSAVIKx/agent-signals/commit/d737879e8a72a8e33f2ea1929daebb7bae021d40))
+* **site:** add a page with the states of each agent ([#217](https://github.com/xSAVIKx/agent-signals/issues/217)) ([6f045ef](https://github.com/xSAVIKx/agent-signals/commit/6f045efaa6aa26318aedcec0337e01c69f829d2f))
+* **site:** add facet filters to the corpus page ([#216](https://github.com/xSAVIKx/agent-signals/issues/216)) ([ae278f7](https://github.com/xSAVIKx/agent-signals/commit/ae278f7fcfa94740b2f84ab86870b3105d854e8b))
+* **site:** add JSON-LD structured data to each page ([#210](https://github.com/xSAVIKx/agent-signals/issues/210)) ([5d791b1](https://github.com/xSAVIKx/agent-signals/commit/5d791b10e714b6cd98677d2e33ecc3bff185949a))
+
+
+### Bug Fixes
+
+* **scenarios:** skip a file that is gone in snapshot_files ([#227](https://github.com/xSAVIKx/agent-signals/issues/227)) ([387e0bd](https://github.com/xSAVIKx/agent-signals/commit/387e0bd407aad55fa7f12c31fae7eada384bf24b))
+* **site:** use the identity page background for theme-color ([#226](https://github.com/xSAVIKx/agent-signals/issues/226)) ([f062fb6](https://github.com/xSAVIKx/agent-signals/commit/f062fb61a97a262087af9fcc7481aa4ae47eeb64))
+
 ## [0.27.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.26.0...corpus-v0.27.0) (2026-11-21)
 
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.22.0](https://github.com/xSAVIKx/agent-signals/compare/go/v0.21.0...go/v0.22.0) (2026-11-22)
+
+
+### Features
+
+* **corpus:** add kit fixture screens of Claude Code 2.1.327, Codex CLI 0.170.0, agy 1.5.11 and Cursor CLI 2026.11.17 ([#222](https://github.com/xSAVIKx/agent-signals/issues/222)) ([80805e3](https://github.com/xSAVIKx/agent-signals/commit/80805e3c6bd8081b48354ab3044edcba95371448))
+* **corpus:** add kit screens of Claude Code 2.1.330, Codex CLI 0.171.0, agy 1.5.14, Cursor CLI 2026.11.19 and Gemini CLI 0.70.0 ([#228](https://github.com/xSAVIKx/agent-signals/issues/228)) ([3355177](https://github.com/xSAVIKx/agent-signals/commit/3355177dace5a0e3d7835c1f7c5c025cdec8701f))
+
 ## [0.21.0](https://github.com/xSAVIKx/agent-signals/compare/go/v0.20.0...go/v0.21.0) (2026-11-21)
 
 
