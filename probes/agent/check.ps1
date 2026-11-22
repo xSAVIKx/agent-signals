@@ -176,7 +176,12 @@ Write-KitText (Join-Path $run 'manifest.json') ((ConvertTo-Json -InputObject $j 
 $sum = New-Object System.Text.StringBuilder
 [void]$sum.AppendLine("kit $version on $($os.Os) ($($os.Cpu)), $($os.Version). Run from $start to $end ($homeMode).")
 # The same lines as kit_summary in lib.sh: "NAME@BACKEND: RESULT REASON, FILE".
-foreach ($s in $steps) {
+# When two step lines name the same file, only the last line stays.
+$lastOf = @{}
+for ($i = 0; $i -lt $steps.Count; $i++) { if ($steps[$i][6] -ne '-') { $lastOf[$steps[$i][6]] = $i } }
+for ($i = 0; $i -lt $steps.Count; $i++) {
+    $s = $steps[$i]
+    if ($s[6] -ne '-' -and $lastOf[$s[6]] -ne $i) { continue }
     $l = "$($s[1])@$($s[2]): $($s[3])"
     if ($s.Count -ge 9 -and $s[8] -and $s[8] -ne '-') { $l += " $($s[8])" }
     if ($s[6] -ne '-') { $l += ", $($s[6])" }

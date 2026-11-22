@@ -628,11 +628,17 @@ kit_awake() {
 }
 
 # kit_summary RUN: write RUN/summary.txt: the fixed first line, then one
-# line for each step.
+# line for each step. When two step lines name the same file, for example
+# after a second kit doctor, only the last line stays: the file holds its
+# output.
 kit_summary() {
   awk -F '\t' '
     $1 == "step" {
       line[++n] = $2 "@" $3 ": " $4 ($9 != "-" && $9 != "" ? " " $9 : "") ($7 != "-" ? ", " $7 : "")
+      if ($7 != "-" && $7 != "") {
+        if ($7 in last) line[last[$7]] = ""
+        last[$7] = n
+      }
       end = $6
       next
     }
@@ -640,7 +646,7 @@ kit_summary() {
     END {
       if (end == "") end = run["start"]
       printf "kit %s on %s (%s), %s. Run from %s to %s (%s).\n", run["kit"], run["os"], run["cpu"], run["os_version"], run["start"], end, run["home"]
-      for (i = 1; i <= n; i++) print line[i]
+      for (i = 1; i <= n; i++) if (line[i] != "") print line[i]
     }' "$1/manifest.tsv" >"$1/summary.txt"
 }
 

@@ -219,6 +219,15 @@ $env:AGENT_SIGNALS_PYTHON = $py
 Expect-Kit 'a session step with no session Python skips' 3 'step' 'permission-claude@conpty'
 Expect-Line 'the session skip has a reason' '^step: permission-claude@conpty skip needs-conpty-python$' $out
 
+# Two doctor lines: a second doctor call writes the file again and adds a
+# line. The summary keeps only the last line.
+$doc = Join-Path $run '00-doctor.txt'
+$man = Join-Path $run 'manifest.tsv'
+[IO.File]::WriteAllText($doc, "os: windows`n")
+[IO.File]::AppendAllText($man, "step`tdoctor`tnone`tok`t2026-11-01T00:00:00Z`t2026-11-01T00:00:01Z`t00-doctor.txt`t$(Get-Sha $doc)`t-`n")
+[IO.File]::WriteAllText($doc, "os: windows, again`n")
+[IO.File]::AppendAllText($man, "step`tdoctor`tnone`tok`t2026-11-01T00:00:02Z`t2026-11-01T00:00:03Z`t00-doctor.txt`t$(Get-Sha $doc)`t-`n")
+
 # kit check passes a clean run, and writes the summary, the JSON and the zip.
 Expect-Kit 'check passes a clean run' 0 'check'
 Expect-Line 'check prints ok' '^check: ok$' $out
@@ -227,11 +236,13 @@ $summary = Join-Path $run 'summary.txt'
 Expect-Line 'the first line of the summary' '^kit \S+ on windows \((x86_64|arm64)\), .+\. Run from [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z to [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z \(real\)\.$' $summary
 # test_summary_lines_as_on_unix: "NAME@BACKEND: RESULT REASON, FILE".
 Expect-Line 'the summary has the probe line' '^probe@none: ok, 01-probe@none\.txt$' $summary
+$nd = @(Get-Content -LiteralPath $summary | Where-Object { $_ -match '^doctor@none: ' }).Count
+if ($nd -eq 1) { Pass 'the summary has one doctor line' } else { Fail 'the summary has one doctor line' "$nd lines" }
 Expect-Line 'the summary has the reason of a skip' '^permission-claude@conpty: skip needs-conpty-python, \S+\.txt$' $summary
 Expect-Line 'the manifest has the reason column' "^step`tpermission-claude`tconpty`tskip`t[0-9-]+T[0-9:]+Z`t[0-9-]+T[0-9:]+Z`t\S+`t[0-9a-f]{64}`tneeds-conpty-python$" (Join-Path $run 'manifest.tsv')
 try {
     $j = Get-Content -Raw -LiteralPath (Join-Path $run 'manifest.json') | ConvertFrom-Json
-    if (@($j.steps).Count -eq 4) { Pass 'manifest.json has the steps' } else { Fail 'manifest.json has the steps' "$(@($j.steps).Count) steps" }
+    if (@($j.steps).Count -eq 6) { Pass 'manifest.json has the steps' } else { Fail 'manifest.json has the steps' "$(@($j.steps).Count) steps" }
     if (@($j.steps | Where-Object { $_.reason -eq 'needs-conpty-python' }).Count -eq 2) { Pass 'manifest.json has the reason' } else { Fail 'manifest.json has the reason' 'not 2 steps with the reason needs-conpty-python' }
     if ($null -eq @($j.steps | Where-Object { $_.name -eq 'probe' })[0].reason) { Pass 'manifest.json has a null reason for a step with no reason' } else { Fail 'manifest.json has a null reason for a step with no reason' 'not null' }
 } catch { Fail 'manifest.json parses' $_.Exception.Message }
