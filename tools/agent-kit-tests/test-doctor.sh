@@ -110,6 +110,17 @@ if [ -n "$(find "$T/run" -mindepth 1 ! -name 00-doctor.txt ! -name manifest.tsv)
 # With a run, the doctor appends its step line to manifest.tsv.
 sum=$(sh "$ROOT/probes/agent/doctor.sh" --manifest-line "$T/run" a b | cut -f 8)
 expect_line "doctor appends its manifest line" "^step	doctor	none	ok	[0-9TZ:-]+	[0-9TZ:-]+	00-doctor\.txt	$sum\$" "$T/run/manifest.tsv"
+# A second doctor call, after a change of the machine, replaces the line.
+printf 'meta\tkit\t0.0.0\n' >"$T/run/m0"
+cat "$T/run/m0" "$T/run/manifest.tsv" >"$T/run/m1" && cat "$T/run/m1" >"$T/run/manifest.tsv"
+rm -f "$T/run/m0" "$T/run/m1"
+printf 'changed\n' >>"$T/run/00-doctor.txt"
+doctor "$T/out5" AGENT_SIGNALS_RUN="$T/run"
+n=$(grep -c '^step	doctor	' "$T/run/manifest.tsv")
+if [ "$n" = 1 ]; then pass "a second doctor call keeps one doctor line"; else fail "a second doctor call keeps one doctor line" "$n lines"; fi
+sum=$(sh "$ROOT/probes/agent/doctor.sh" --manifest-line "$T/run" a b | cut -f 8)
+expect_line "the doctor line has the SHA-256 of the new file" "^step	doctor	none	ok	[0-9TZ:-]+	[0-9TZ:-]+	00-doctor\.txt	$sum\$" "$T/run/manifest.tsv"
+expect_line "a second doctor call keeps the other lines" '^meta	kit	0\.0\.0$' "$T/run/manifest.tsv"
 
 # The manifest line, from the helper of doctor.sh.
 line=$(sh "$ROOT/probes/agent/doctor.sh" --manifest-line "$T/run" 2026-11-04T10:00:00Z 2026-11-04T10:00:01Z)

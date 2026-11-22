@@ -136,6 +136,7 @@ Expect-True 'another agent runs' ((Get-KitOperatorSkip @('gemini') 'claude') -eq
 Expect-True 'a step with no agent runs' ((Get-KitOperatorSkip @('gemini') '-') -eq '') ''
 Expect-True 'an empty list skips nothing' ((Get-KitOperatorSkip @() 'claude') -eq '') ''
 Expect-True 'a known agent can be skipped' ((Get-KitSkipAgentProblem 'cursor-agent') -eq '') ''
+Expect-True 'an agent name in capitals cannot be skipped' ((Get-KitSkipAgentProblem 'CLAUDE') -like 'unknown agent: CLAUDE*') ''
 Expect-True 'an unknown agent cannot be skipped' ((Get-KitSkipAgentProblem 'other') -like 'unknown agent: other*') ''
 
 Complete-Tests

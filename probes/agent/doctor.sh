@@ -67,7 +67,8 @@ set -u
 # shellcheck source=probes/lib.sh
 . "$KIT_ROOT/probes/lib.sh"
 
-# With a run, the doctor appends one line to manifest.tsv:
+# With a run, the doctor appends one line to manifest.tsv, and deletes the
+# line of an older doctor call:
 #   step	doctor	none	ok	<start>	<end>	00-doctor.txt	<sha256>
 # doctor.ps1 appends the same line on Windows, and kit check accepts it.
 doctor_add_to_manifest=yes
@@ -287,6 +288,15 @@ run=$( (kit_run_dir) 2>/dev/null) || run=
 cp "$raw.s" "$run/00-doctor.txt" || kit_die "$KIT_FAIL" "cannot write 00-doctor.txt"
 echo "kit: wrote 00-doctor.txt in the run folder" >&2
 if [ "$doctor_add_to_manifest" = yes ]; then
-  doctor_manifest_line "$run" "$start" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >>"$run/manifest.tsv"
+  # A new doctor call replaces the line of an older call: kit check
+  # compares each step line with the file, and 00-doctor.txt has only
+  # the new text. "cat >" keeps the mode of manifest.tsv.
+  m=$run/manifest.tsv
+  if [ -f "$m" ]; then
+    awk -F '\t' '!($1 == "step" && $2 == "doctor")' "$m" >"$m.new" &&
+      cat "$m.new" >"$m"
+    rm -f "$m.new"
+  fi
+  doctor_manifest_line "$run" "$start" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >>"$m"
 fi
 exit 0

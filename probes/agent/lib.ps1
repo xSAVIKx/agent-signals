@@ -66,7 +66,9 @@ function Get-KitUnattendedSkip([string]$Unattended, [string]$Needs, [string]$Bac
 # "--skip-agent", or ''. AGENT must be an agent of the kit. The twin of
 # kit_skip_agent_problem in lib.sh.
 function Get-KitSkipAgentProblem([string]$Agent) {
-    if ($script:KitAgentCommands.Contains($Agent)) { return '' }
+    # The keys of an [ordered] table ignore case, and the step list does
+    # not: accept only the exact name, as kit_skip_agent_problem does.
+    if (@($script:KitAgentCommands.Keys) -ccontains $Agent) { return '' }
     return "unknown agent: $Agent. Use one of: " + (@($script:KitAgentCommands.Keys) -join ' ')
 }
 

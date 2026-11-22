@@ -117,6 +117,13 @@ $text = ConvertTo-KitScrubbed (($lines -join "`n") + "`n")
 if ($run) {
     $file = Join-Path $run '00-doctor.txt'
     Write-KitText $file $text
+    # A new doctor call replaces the line of an older call: kit check
+    # compares the step line with the file, which has only the new text.
+    $mf = Join-Path $run 'manifest.tsv'
+    if (Test-Path -LiteralPath $mf -PathType Leaf) {
+        $keep = @(((Read-KitText $mf) -split "`r?`n") | Where-Object { $_ -and $_ -notlike "step`tdoctor`t*" })
+        Write-KitText $mf ((($keep | ForEach-Object { "$_`n" }) -join ''))
+    }
     Add-KitManifest $run @('step', 'doctor', 'none', 'ok', $start, (Get-KitIsoTime), '00-doctor.txt', (Get-KitSha256 $file), '-')
 }
 exit 0
