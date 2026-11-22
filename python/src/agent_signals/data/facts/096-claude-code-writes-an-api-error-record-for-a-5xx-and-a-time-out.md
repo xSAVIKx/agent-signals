@@ -81,19 +81,24 @@ from the fake model, not from the real API. Measured on: real machine.
 `docs/detection.md` gives the 429 record that aw saw: an assistant record
 with `isApiErrorMessage: true`, an `apiError` field and
 `apiErrorStatus: 429`. The records here have the same
-`isApiErrorMessage` and `apiErrorStatus` fields. A tool can use this
-rule: `isApiErrorMessage: true` with `apiErrorStatus: 429` is the usage
-limit. Another `apiErrorStatus` is a server error. No `apiErrorStatus` is
-a time-out or a connection error. The `apiError` field of the aw record
+`isApiErrorMessage` and `apiErrorStatus` fields. In the measured cases,
+`apiErrorStatus: 429` is the usage limit, `apiErrorStatus` 500 or 529 is
+a server error, and a record with no `apiErrorStatus` is the time-out.
+This fact did not measure other statuses or a connection error, so it
+gives no rule for them. The `apiError` field of the aw record
 was not in these records. This fact did not measure a 429, so it cannot
 say whether `apiError` is the same field as `error`.
 
 ## Mechanism
 
 The model `<synthetic>` shows that Claude Code writes the error record
-itself, after its last retry. The record keeps the status and the error
-type of the last HTTP response. A time-out has no HTTP response, so the
-record has no status. The source code was not read.
+itself, after its last retry. For the 500 and the 529, the record keeps
+the status and the error type of the last HTTP response. The time-out has
+no HTTP response, and its record has no status. The source code was not read.
+
+## Incident
+
+None.
 
 ## Screens
 
