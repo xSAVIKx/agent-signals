@@ -17,16 +17,17 @@
 {{end}}<meta property="og:image" content="{{canonical "icon-512.png"}}">
 <meta property="og:image:alt" content="The agent-signals mark: a terminal prompt">
 <meta name="twitter:card" content="summary">
-<link rel="icon" href="{{rel .Out "favicon.ico"}}" sizes="32x32">
+{{with .JSONLD}}<script type="application/ld+json">{{.}}</script>
+{{end}}<link rel="icon" href="{{rel .Out "favicon.ico"}}" sizes="32x32">
 <link rel="icon" href="{{rel .Out "favicon.svg"}}" type="image/svg+xml">
 <link rel="apple-touch-icon" href="{{rel .Out "apple-touch-icon.png"}}">
 <link rel="manifest" href="{{rel .Out "site.webmanifest"}}">
-<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0f1216" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f8fafc" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#14161a" media="(prefers-color-scheme: dark)">
 {{with .Markdown}}<link rel="alternate" type="text/markdown" href="{{rel $.Out .}}">
 {{end}}<link rel="alternate" type="text/plain" title="llms.txt" href="{{rel .Out "llms.txt"}}">
+<link rel="stylesheet" href="{{rel .Out "assets/ys-plain.css"}}">
 <link rel="stylesheet" href="{{rel .Out "assets/style.css"}}">
-<link rel="stylesheet" href="{{rel .Out "assets/ys-tokens.css"}}">
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to the main content</a>
@@ -66,9 +67,13 @@
 </main>
 <footer class="site-footer">
 <div class="footer-inner">
+{{- with .Corpus}}
+<p>Built from main after <a href="https://github.com/xSAVIKx/agent-signals/releases/tag/corpus-v{{.}}">corpus v{{.}}</a>.</p>
+{{- end}}
 <p>The Markdown files and the corpus in the repository are the source of this site.{{with .Source}} <a href="{{github .}}">Read the source of this page on GitHub</a>.{{end}}</p>
 <p><a href="https://github.com/xSAVIKx/agent-signals">The agent-signals repository on GitHub</a>. License: <a href="https://github.com/xSAVIKx/agent-signals/blob/main/LICENSE">Apache License 2.0</a>.</p>
-<p>Maintained by Yurii Serhiichuk, <a href="https://serhiichuk.dev/">serhiichuk.dev</a>. <a href="https://xsavikx.github.io/">Part of Yurii Serhiichuk's open-source projects</a>.</p>
+<p>Maintained by Yurii Serhiichuk, <a href="https://serhiichuk.dev/">serhiichuk.dev</a>.</p>
+<p><a class="ys-back-link" href="https://xsavikx.github.io/">More projects</a></p>
 </div>
 </footer>
 {{- if .Markdown}}

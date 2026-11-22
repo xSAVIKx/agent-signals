@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.27.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.26.0...corpus-v0.27.0) (2026-11-21)
+
+
+### Features
+
+* **release:** attach corpus archives, SHA256SUMS and an attestation to each corpus release ([#215](https://github.com/xSAVIKx/agent-signals/issues/215)) ([2621cb8](https://github.com/xSAVIKx/agent-signals/commit/2621cb8822283b227e93c02dc8b1ed01ba1fbc5a))
+* **site:** show the corpus version in the footer and the JSON indexes ([#214](https://github.com/xSAVIKx/agent-signals/issues/214)) ([df8b150](https://github.com/xSAVIKx/agent-signals/commit/df8b1508507bbedd27b5aacccd11443d635fa636))
+* **site:** use identity 1.2.0 and the More projects back link ([#223](https://github.com/xSAVIKx/agent-signals/issues/223)) ([62f497b](https://github.com/xSAVIKx/agent-signals/commit/62f497bd694356df9b16a361539dc6a15fae208c))
+* **site:** use the shared identity for neutrals and fonts ([3db1afe](https://github.com/xSAVIKx/agent-signals/commit/3db1afef4247f04c3e6423f3a34265e71c090229))
+* **site:** use the shared identity for neutrals and fonts ([0da2186](https://github.com/xSAVIKx/agent-signals/commit/0da2186c2db05a51ed2914679a870c059abd1a55))
+
+
+### Bug Fixes
+
+* **kit:** read the epoch ms from date +%s.%N, not %3N ([#218](https://github.com/xSAVIKx/agent-signals/issues/218)) ([43c0c24](https://github.com/xSAVIKx/agent-signals/commit/43c0c24bd3f44059067d06acc32ad4ccb474ff78))
+
 ## [0.26.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.25.3...corpus-v0.26.0) (2026-11-18)
 
 

@@ -36,6 +36,18 @@ func ExampleScreensFor() {
 	// Output: true true
 }
 
+// List the facts. Each fact has a number, a slug, a title and the full text.
+func ExampleFacts() {
+	facts, err := agentsignals.Facts()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	first := facts[0]
+	fmt.Printf("%d %s\n", first.Number, first.Title)
+	// Output: 1 An idle input box must be proved by its frame
+}
+
 func TestFakeClassifier(t *testing.T) {
 	screens, err := agentsignals.ScreensFor("claude")
 	if err != nil {

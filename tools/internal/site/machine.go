@@ -103,7 +103,7 @@ func (b *builder) machine() error {
 		}
 		agents = append(agents, ja)
 	}
-	data, err := writeJSON(map[string]any{"format": 1, "agents": agents})
+	data, err := writeJSON(map[string]any{"format": 1, "corpus_version": b.version, "agents": agents})
 	if err != nil {
 		return err
 	}
@@ -118,7 +118,7 @@ func (b *builder) machine() error {
 		facts = append(facts, jsonFact{Number: f.Num, ID: f.ID(), Title: f.Title, Date: f.Date, Agents: agents,
 			Page: BaseURL + factOut(f), Markdown: BaseURL + mdOut(factOut(f)), Source: GitHubBlob + "facts/" + f.Slug + ".md"})
 	}
-	if data, err = writeJSON(map[string]any{"format": 1, "facts": facts}); err != nil {
+	if data, err = writeJSON(map[string]any{"format": 1, "corpus_version": b.version, "facts": facts}); err != nil {
 		return err
 	}
 	b.files = append(b.files, File{Path: "facts.json", Data: data})

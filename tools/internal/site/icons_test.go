@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"image/png"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -118,4 +119,34 @@ func indexOf(files []File, path string) int {
 		}
 	}
 	return 0
+}
+
+// TestThemeColorMatchesIdentity checks that the theme-color metas and the
+// constants iconLight and iconDark (the manifest uses iconLight) are the
+// page background of ys-plain.css: the first --ys-bg is the light theme,
+// the second is the dark theme.
+func TestThemeColorMatchesIdentity(t *testing.T) {
+	css, err := assetFS.ReadFile("assets/ys-plain.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	bg := regexp.MustCompile(`--ys-bg: (#[0-9a-f]{6});`).FindAllStringSubmatch(string(css), -1)
+	if len(bg) < 2 {
+		t.Fatalf("ys-plain.css has %d --ys-bg values; want 2 or more", len(bg))
+	}
+	if iconLight != bg[0][1] || iconDark != bg[1][1] {
+		t.Errorf("iconLight %s and iconDark %s; want %s and %s", iconLight, iconDark, bg[0][1], bg[1][1])
+	}
+	layout, err := templateFS.ReadFile("templates/layout.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		`<meta name="theme-color" content="` + iconLight + `" media="(prefers-color-scheme: light)">`,
+		`<meta name="theme-color" content="` + iconDark + `" media="(prefers-color-scheme: dark)">`,
+	} {
+		if !strings.Contains(string(layout), want) {
+			t.Errorf("layout.html lacks %s", want)
+		}
+	}
 }
