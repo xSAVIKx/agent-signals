@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.15.0](https://github.com/xSAVIKx/agent-signals/compare/python-v0.14.0...python-v0.15.0) (2026-11-22)
+
+
+### Features
+
+* **corpus:** add kit fixture screens of Claude Code 2.1.327, Codex CLI 0.170.0, agy 1.5.11 and Cursor CLI 2026.11.17 ([#222](https://github.com/xSAVIKx/agent-signals/issues/222)) ([80805e3](https://github.com/xSAVIKx/agent-signals/commit/80805e3c6bd8081b48354ab3044edcba95371448))
+* **corpus:** add kit screens of Claude Code 2.1.330, Codex CLI 0.171.0, agy 1.5.14, Cursor CLI 2026.11.19 and Gemini CLI 0.70.0 ([#228](https://github.com/xSAVIKx/agent-signals/issues/228)) ([3355177](https://github.com/xSAVIKx/agent-signals/commit/3355177dace5a0e3d7835c1f7c5c025cdec8701f))
+
+
+### Documentation
+
+* record the Claude Code API error records for a 5xx and a time-out ([#220](https://github.com/xSAVIKx/agent-signals/issues/220)) ([e90ff36](https://github.com/xSAVIKx/agent-signals/commit/e90ff36985bd872cea8a3a468bb9402b8d584994))
+
 ## [0.14.0](https://github.com/xSAVIKx/agent-signals/compare/python-v0.13.0...python-v0.14.0) (2026-11-18)
 
 
