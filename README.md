@@ -72,8 +72,8 @@ prompt with "Do not ask me anything."
 The agent needs a shell with network access. A sandbox with no network
 stops the download. The kit skips the steps that need you at a terminal,
 and the archive records each skip. To answer the questions of these
-steps, replace the last two sentences of the prompt with "Ask me before
-each step that needs me."
+steps, replace all the text after "Read AGENTS.md in that folder and"
+with "do its task. Ask me before each step that needs me."
 
 To also record a trace of some steps on Linux or macOS, add "Trace the
 steps NAME@BACKEND." to the prompt. Replace `NAME@BACKEND` with the steps

@@ -89,8 +89,9 @@ answers in the prompt. In an unattended run, these rules replace rules 2,
 
 1. Do not ask the operator a question, and do not wait for an answer.
    There is one exception: when the prompt asks for the pre-run
-   checklist, show it and wait for one answer before `kit start`
-   (section "Pre-run checklist").
+   checklist, show it and wait for the answer before `kit start`
+   (section "Pre-run checklist"). When that answer is not clear, ask one
+   more question about it.
 2. Use the home mode that the prompt names: `real`, `throwaway`, or
    `fixture` (a test of this task, with a fake model). The prompt is the
    yes of rule 3. When the prompt names no home mode, use `throwaway`.
@@ -144,8 +145,9 @@ Make the checklist in these runs:
 
 - An unattended run whose prompt asks for the pre-run checklist. Make it
   after step 2 and before step 3.
-- A run with a person. Make it in step 4, together with the list of
-  steps.
+- A run with a person. Ask the operator for the home mode of step 3
+  first. Then make the checklist, before `kit start`. Show the list of
+  steps of step 4 after the answer.
 
 Do not make it in an unattended run whose prompt does not ask for it.
 
@@ -188,9 +190,7 @@ more of these:
 - Skip an agent: add `--skip-agent AGENT` to `kit start` for each agent
   to skip, for example `--skip-agent gemini`. AGENT is the name of the
   agent in the plan. `kit step` then skips each step of that agent with
-  the reason `by-operator`, and the archive records each skip. In a run
-  with a person, the run started in step 3: do not run the steps of that
-  agent.
+  the reason `by-operator`, and the archive records each skip.
 - Install a tool: the answer is the yes of rule 11. Install the tool,
   then run `kit doctor` and `kit plan` again, and tell the operator the
   lines that changed.
@@ -280,9 +280,6 @@ different source.
    kit start --home real --unattended --out DIR
    ```
 
-   When the operator skipped an agent in the answer to the pre-run
-   checklist, add `--skip-agent AGENT` for each skipped agent.
-
    Else first ask the operator for the home mode: `throwaway`
    (a new, empty home folder with no login) or `real`. Use `throwaway`
    when the operator gives no answer.
@@ -298,6 +295,9 @@ different source.
    ```sh
    kit start --home throwaway --out DIR
    ```
+
+   In both cases, when the operator skipped an agent in the answer to
+   the pre-run checklist, add `--skip-agent AGENT` for each skipped agent.
 
    The command prints `run: <path>`. Keep the path. A later `kit` command
    finds the run by itself.
@@ -335,8 +335,8 @@ different source.
    the plan (section "Unattended runs"). A step of an agent that the
    operator skipped prints `skip by-operator`. That is a result.
 
-   Show the pre-run checklist (section "Pre-run checklist"), then the
-   list. The list can have more than 40 lines.
+   You showed the pre-run checklist before step 3. Now show the list.
+   The list can have more than 40 lines.
    Group the lines by kind, and name the agents and the backends of each
    kind. Mark each step that needs the operator, a login or the screen,
    and each step that costs model turns (`cost=turns:N`) on the plan of
