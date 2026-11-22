@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.28.1](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.28.0...corpus-v0.28.1) (2026-11-22)
+
+
+### Bug Fixes
+
+* **kit:** exit 0 on a skip of the plan on Windows ([#232](https://github.com/xSAVIKx/agent-signals/issues/232)) ([19ea17a](https://github.com/xSAVIKx/agent-signals/commit/19ea17afbe05d117b0e01afa64360b5bad5f3c4c))
+* **kit:** keep one summary line for each step file ([#231](https://github.com/xSAVIKx/agent-signals/issues/231)) ([917b9e7](https://github.com/xSAVIKx/agent-signals/commit/917b9e75dddbeeea108e35809324249767d2e282))
+* **kit:** list the kit edit lines in summary.txt on Linux and macOS ([#234](https://github.com/xSAVIKx/agent-signals/issues/234)) ([55054cf](https://github.com/xSAVIKx/agent-signals/commit/55054cf95592fed1a96a99b12b90988b1acd4ce0))
+
 ## [0.28.0](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.27.0...corpus-v0.28.0) (2026-11-22)
 
 
