@@ -739,7 +739,7 @@ watched=yes
 end=$(($(date +%s) + $(clip 60)))
 until grep -q '^kit: watch starts' "$tmp/watch.log"; do
   if ! watching; then
-    say "the guided watch stopped before it started"
+    say "the guided watch stopped before it started: $(tail -n 1 "$tmp/watch.log")"
     # The watch stops when it finds no agent. Then the agent is the cause.
     alive || stop_now agent-ended
     stop_now no-watch
