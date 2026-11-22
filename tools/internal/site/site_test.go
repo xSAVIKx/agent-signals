@@ -634,7 +634,7 @@ func TestCorpusPageHasFilters(t *testing.T) {
 		}
 	}
 	for _, want := range []string{
-		`id="corpus-filter-box"`, `hidden>`, `aria-live="polite"`, `type="reset"`,
+		`id="corpus-filter-box"`, `hidden>`, "<fieldset disabled>", `aria-live="polite"`, `type="reset"`,
 		`<tr data-agent="demo" data-state="IDLE" data-dialog="none" data-version="1.0.0" data-provenance="derived">`,
 		`<section class="agent-block" data-agent="demo">`,
 		`assets/corpus-filter.js`,

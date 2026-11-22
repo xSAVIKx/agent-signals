@@ -4,7 +4,8 @@
   "use strict";
   var form = document.getElementById("corpus-filter-box");
   var status = document.getElementById("corpus-filter-status");
-  if (!form || !status) {
+  var fieldset = form && form.querySelector("fieldset");
+  if (!form || !status || !fieldset) {
     return;
   }
   var selects = Array.prototype.slice.call(form.querySelectorAll("select[data-facet]"));
@@ -15,15 +16,26 @@
   function readQuery() {
     var params = new URLSearchParams(window.location.search);
     selects.forEach(function (sel) {
-      // The match ignores case, so ?state=trust selects TRUST.
-      // A value that is not an option leaves the select on "All".
-      var want = (params.get(sel.dataset.facet) || "").toLowerCase();
-      sel.value = "";
+      // An exact match wins. Else the match ignores case, so ?state=trust
+      // selects TRUST. Two options can differ only in case, for example
+      // the versions 1.0.0-RC1 and 1.0.0-rc1: the exact match keeps the
+      // value that the page wrote. A value that is not an option leaves
+      // the select on "All".
+      var raw = params.get(sel.dataset.facet) || "";
+      var want = raw.toLowerCase();
+      var exact = "";
+      var folded = "";
       Array.prototype.forEach.call(sel.options, function (o) {
-        if (want && o.value.toLowerCase() === want) {
-          sel.value = o.value;
+        if (!raw) {
+          return;
+        }
+        if (o.value === raw) {
+          exact = o.value;
+        } else if (!folded && o.value.toLowerCase() === want) {
+          folded = o.value;
         }
       });
+      sel.value = exact || folded;
     });
   }
 
@@ -83,4 +95,7 @@
   readQuery();
   apply();
   form.hidden = false;
+  // The controls stay disabled until the handlers are in place and the
+  // query of the URL is applied. A choice before that would be lost.
+  fieldset.disabled = false;
 })();
