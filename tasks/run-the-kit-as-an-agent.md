@@ -154,7 +154,8 @@ Do not make it in an unattended run whose prompt does not ask for it.
 Before you make the checklist, run these commands. The example is for an
 unattended run with the home mode `real`. Use the home mode of the
 prompt, or of the answer in step 3. In a run with a person, do not add
-`--unattended`.
+`--unattended`. Always give `--home`: then the plan does not use the
+skipped agents of an earlier run.
 
 ```sh
 kit version
@@ -192,8 +193,8 @@ more of these:
   agent in the plan. `kit step` then skips each step of that agent with
   the reason `by-operator`, and the archive records each skip.
 - Install a tool: the answer is the yes of rule 11. Install the tool,
-  then run `kit doctor` and `kit plan` again, and tell the operator the
-  lines that changed.
+  then run the `kit doctor` and `kit plan` commands above again, and
+  tell the operator the lines that changed.
 - Trace a step: add the step to the traces (section "Traces").
 - The operator fixed something, for example a login or an API key, and
   says go: start the run.
@@ -302,11 +303,11 @@ different source.
    The command prints `run: <path>`. Keep the path. A later `kit` command
    finds the run by itself.
 
-4. Get the plan, and ask the operator. Use the same home mode as in
-   step 3.
+4. Get the plan of the run, and ask the operator. With no argument, the
+   plan uses the home mode and the skipped agents of the run of step 3.
 
    ```sh
-   kit plan --home throwaway
+   kit plan
    ```
 
    The plan prints one line for each step, for example:

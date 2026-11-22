@@ -10,7 +10,7 @@
 # with a throwaway home. With no --home, the plan uses the home mode of
 # the current run, else "real". A step of an agent of --skip-agent, or of
 # a "skip_agent" meta line of the current run when the command has no
-# --skip-agent, gets "skip=by-operator".
+# --skip-agent and no --home, gets "skip=by-operator".
 set -u
 . "$(dirname "$0")/lib.sh"
 
@@ -41,6 +41,13 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 run=$(kit_run_dir 2>/dev/null) || run=
+# A plan with no --home and no --skip-agent is the plan of the current
+# run: it uses the skip_agent lines of the run. A plan with --home is a
+# preview for a new run, for example for the pre-run checklist. Then the
+# skipped agents of an earlier run do not count.
+if [ -z "$given" ] && [ -z "$home" ] && [ -n "$run" ]; then
+  skipped=$(kit_manifest_values "$run" skip_agent 2>/dev/null | tr '\n' ' ')
+fi
 if [ -z "$home" ]; then
   [ -z "$run" ] || home=$(kit_manifest_value "$run" home 2>/dev/null)
   home=${home:-real}
@@ -48,9 +55,6 @@ fi
 if [ -z "$unattended" ]; then
   [ -z "$run" ] || unattended=$(kit_manifest_value "$run" unattended 2>/dev/null)
   unattended=${unattended:-no}
-fi
-if [ -z "$given" ] && [ -n "$run" ]; then
-  skipped=$(kit_manifest_values "$run" skip_agent 2>/dev/null | tr '\n' ' ')
 fi
 case $home in real | throwaway | fixture) ;; *) kit_die "$KIT_USAGE" "--home needs real, throwaway or fixture" ;; esac
 

@@ -220,6 +220,12 @@ if [ "$n" = 2 ]; then pass "the manifest has one skip_agent line for each agent"
 expect_line "manifest.json lists the skipped agents" '"skip_agents": \["claude", "gemini"\]' "$rs/manifest.json"
 (cd "$T/sk" && export HOME=$H PATH="$T/ubin:$PATH" && kitc "$T/k" plan) >"$T/out" 2>&1
 expect_line "the plan of the run marks a step of a skipped agent" ' skip=by-operator ' "$T/out"
+(cd "$T/sk" && export HOME=$H PATH="$T/ubin:$PATH" && kitc "$T/k" plan --home real) >"$T/out" 2>&1
+if grep -q 'skip=by-operator' "$T/out"; then
+  fail "a plan with --home ignores the skipped agents of the run" "$(grep -m1 'skip=by-operator' "$T/out")"
+else
+  pass "a plan with --home ignores the skipped agents of the run"
+fi
 (cd "$T/sk" && export HOME=$H && kitc "$T/k" step real-session-claude@operator) >"$T/out" 2>&1
 expect_code "a step of a skipped agent exits 0" 0 $?
 expect_line "a step of a skipped agent skips" '^step: real-session-claude@operator skip by-operator$' "$T/out"
