@@ -1,0 +1,40 @@
+  ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+  │                                                                                                                  │
+  │  ⚠ Workspace Trust Required                                                                                      │
+  │                                                                                                                  │
+  │  Cursor Agent can execute code and access files in this directory.                                               │
+  │                                                                                                                  │
+  │  Do you trust the contents of this directory?                                                                    │
+  │                                                                                                                  │
+  │    /work/example/work/permission-cursor-agent-tmux  │
+  │                                                                                                                │
+  │                                                                                                                  │
+  │                                                                                                                  │
+  │    [a] Trust this workspace                                                                                      │
+  │    [q] Quit                                                                                                      │
+  │                                                                                                                  │
+  │  ⏳ Trusting workspace...                                                                                        │
+  │                                                                                                                  │
+  ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+  Cursor Agent
+  v2026.11.17-f532c45
+  Tip: Try Cursor Grok 4.7 via /model, frontier intelligence at a fraction of the cost.
+
+
+  Create a file named agent-signals-test.txt that holds the word hello.
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ $  touch agent-signals-test.txt in .
+
+ Run this command?
+ Not in allowlist: touch
+  → Run (once) (y)
+    Add Shell(touch) to allowlist? (tab)
+    Run Everything (shift+tab)
+    Skip & tell the agent what to do instead (esc or n)
+
+
+

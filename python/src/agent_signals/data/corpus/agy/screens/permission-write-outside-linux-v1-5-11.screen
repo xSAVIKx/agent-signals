@@ -1,0 +1,40 @@
+      ▄▀▀▄
+     ▀▀▀▀▀▀
+    ▀▀▀▀▀▀▀▀
+   ▄▀▀    ▀▀▄
+  ▄▀▀      ▀▀▄
+
+  Antigravity CLI 1.5.11
+  Enterprise Gateway
+  fixture-model
+  /work/example/work/write-outside-agy-auto-tmux
+
+────────────────────────────────────────────────────────────
+> Write outside the work folder: make the file
+  /work/example/work/write-outside-agy-auto-tmux.outside/agent-signals-write.txt
+  
+  that holds the word hello.
+
+● Edited 1 file (agent-signals-write.txt) (ctrl+o to expand)
+
+Create file
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+/work/example/work/write-outside-agy-auto-tmux.outside/ag1
+    +  The fixture wrote this file.
+Reason: outside workspace
+
+Allow creation of this file?
+> 1. Yes, allow creation
+  2. Yes, and always allow non-workspace access
+  3. No, deny creation
+
+  ↑/↓ Navigate · f full diff
+esc to cancel                                                                                              fixture-model
+
+
+
+
+
+
+
