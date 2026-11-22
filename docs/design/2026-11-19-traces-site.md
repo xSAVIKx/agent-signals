@@ -72,6 +72,10 @@ OS with the mode. Each number is the size of the union of that
 - When the `summary` key is `null` in each step, the cell shows "Not
   measured". This means that the check did not run. `0` means that the
   check ran and found nothing.
+- When the key is `null` in some steps and not in others, the number is
+  the union of the measured steps, with the text "partial: N of M steps"
+  after it. Then a `0` does not claim that the unmeasured steps found
+  nothing.
 - A number of processes left that is more than 0 gets the `.badge`
   style.
 
@@ -113,8 +117,10 @@ table: the states          details: all events
 The generator writes all the data into the HTML at build time: the
 timeline as one inline SVG, the table of the states, and the table of
 the events. The script reads the times from `data-t` attributes. It
-fetches only `terminal.cast`, and only when the person starts the
-replay. The script does not fetch `trace.json`.
+fetches only `terminal.cast`. It fetches the cast when the person
+starts the replay, and also when a seek or a `#t=` fragment needs the
+terminal at a time. A seek fetches the cast and draws that time, but
+the replay stays paused. The script does not fetch `trace.json`.
 
 ### The terminal
 
@@ -356,7 +362,10 @@ claude (pid 100)                  [===============================]
   the eBPF check did not run, the page shows "Not measured" and the
   reason, and no SVG.
 - **Network.** One row for each host and port, with one bar for each
-  `proxy` connection and one mark for each `connect` and `dns`. The
+  `proxy` connection and one mark for each `connect`. A `dns` event has
+  a name and no port, so each queried name has its own row, "DNS
+  <name>", with one mark for each query. A query with no connection
+  still has its row. The
   table from `summary.hosts`: host, port, connections, bytes up, bytes
   down. A second table lists `summary.direct` and `summary.dns`. A
   third line gives `summary.model_requests`.
