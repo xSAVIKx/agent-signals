@@ -67,7 +67,10 @@ of the agent version.
 **Table 2, "Summary by agent version".** The same rows. The columns are:
 programs, hosts, files outside the work folder, processes left, and the
 OS with the mode. Each number is the size of the union of that
-`summary` set over the steps of the version.
+`summary` set over the steps of the version. The union compares a key,
+not the whole item: a program by its path, a host by its host and port,
+and a file by its path. The counts in an item do not make it a new
+item.
 
 - When the `summary` key is `null` in each step, the cell shows "Not
   measured". This means that the check did not run. `0` means that the
@@ -175,6 +178,11 @@ in the URL.
 
 - A lane whose check did not run stays in the view. It shows the text
   "Not measured:" and the reason from `meta.skipped`.
+- A lane can get events from two checks. The Files lane gets `open` from
+  the eBPF check, and the Network lane gets `connect` and `dns` from the
+  eBPF check. When one check did not run, the lane keeps the events of
+  the other check. It also shows "Not measured:", the kinds of the
+  skipped check, and the reason from `meta.skipped`.
 - A lane whose check ran with no event shows "No event".
 - Colour is not the only sign. Each state band holds its name as text
   when the band is 6ch wide or more. Each event kind has its own shape.
@@ -358,7 +366,9 @@ claude (pid 100)                  [===============================]
   indent for each level. A bar goes from `exec` (or from 0) to `exit`.
   A process that stays has a bar to the end, an arrow and the text
   "stays" in `--trace-flag`. A `signal` is a mark on the row of the
-  target. The table: program, pid, parent pid, start, end, stays. When
+  target. The table: program, pid, parent pid, start, end, stays. A
+  second table lists each `signal` event: time, `pid` (the sender),
+  `target` and `sig`. When
   the eBPF check did not run, the page shows "Not measured" and the
   reason, and no SVG.
 - **Network.** One row for each host and port, with one bar for each
@@ -368,7 +378,9 @@ claude (pid 100)                  [===============================]
   still has its row. The
   table from `summary.hosts`: host, port, connections, bytes up, bytes
   down. A second table lists `summary.direct` and `summary.dns`. A
-  third line gives `summary.model_requests`.
+  third line gives `summary.model_requests`. A table of the events
+  gives the times: each `connect`, `dns` and `proxy` event in time
+  order, with its time, and for a `proxy` event also its end.
 - **Files.** Four lists, one for each area (`home`, `work`, `tmp`,
   `other`), as nested `details` by folder. Each file has a text mark for
   each operation: read, make, change, delete, move. A bar for each area
