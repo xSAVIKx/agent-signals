@@ -272,6 +272,7 @@ Expect-Kit 'edit exits 0' 0 'edit' '02-first-run-claude@conpty.txt' 'added' 'a n
 Expect-Line 'edit prints the file' '^edit: 02-first-run-claude@conpty\.txt [0-9a-f]{64}$' $out
 Expect-Line 'the edit line' ('^edit\t02-first-run-claude@conpty\.txt\tadded a note\t' + (Get-Sha $f2) + '$') (Join-Path $run 'manifest.tsv')
 Expect-Kit 'check passes after kit edit' 0 'check'
+Expect-Line 'the summary has the edit line' '^edit: 02-first-run-claude@conpty\.txt added a note$' $summary
 Expect-Kit 'edit of a missing file is bad use' 2 'edit' 'no-such.txt' 'x'
 Expect-Kit 'edit of the manifest is bad use' 2 'edit' 'manifest.tsv' 'x'
 

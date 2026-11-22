@@ -88,6 +88,7 @@ expect_code "kit edit exits 0" 0 $?
 expect_line "kit edit adds an edit line" '^edit	01-permission-claude@pty\.txt	project 1	[0-9a-f]{64}$' "$run/manifest.tsv"
 check changed
 expect_code "kit check passes after kit edit" 0 $?
+expect_line "summary.txt has the edit line" '^edit: 01-permission-claude@pty\.txt project 1$' "$run/summary.txt"
 (cd "$T/changed" && kitc "$T/k" edit no-such.txt project) >"$T/out2" 2>&1
 expect_code "kit edit of a missing file is bad use" 2 $?
 if command -v python3 >/dev/null 2>&1; then
