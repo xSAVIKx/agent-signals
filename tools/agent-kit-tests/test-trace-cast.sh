@@ -85,8 +85,7 @@ fi
 mkdir -m 700 "$T/run1"
 raw=$T/raw
 mkdir -m 0700 "$raw"
-date +%s%3N >"$raw/t0" 2>/dev/null
-case $(cat "$raw/t0") in *[!0-9]* | '') python3 -I -c 'import time; print(time.time_ns() // 1000000)' >"$raw/t0" ;; esac
+python3 -I -c 'import time; print(time.time_ns() // 1000000)' >"$raw/t0"
 
 # Session: the stub on tmux with KIT_TRACE. A subshell sets the variables
 # for one call only: macOS sh keeps a variable that is set before a

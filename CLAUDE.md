@@ -69,6 +69,7 @@ This site uses the shared identity from xSAVIKx/xSAVIKx.github.io/identity.
 - Use system fonts only. Do not add a web font or serif headings.
 - New text colours must meet 4.5:1 contrast in light and dark.
 
-The vendored file is `tools/internal/site/assets/ys-tokens.css`.
+The vendored file is `tools/internal/site/assets/ys-plain.css` (identity 1.2.0).
+It loads before `style.css`, so the project rules win.
 `tools/internal/site/assets/style.css` maps the neutrals and the fonts of
 the site to its `--ys-*` variables.

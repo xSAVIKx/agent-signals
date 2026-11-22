@@ -102,6 +102,8 @@ type page struct {
 	Script      bool
 	Markdown    string // the output path of the Markdown copy, or ""
 	Nav         []navItem
+	JSONLD      template.JS // the structured data, or ""
+	Corpus      string      // the corpus version, for the footer
 }
 
 // File is one output file: its path in the output folder and its bytes.
@@ -166,6 +168,7 @@ func Write(root, out string) (int, error) {
 
 type builder struct {
 	root    string
+	version string // the corpus version in the release manifest
 	tmpl    *template.Template
 	agents  []Agent
 	facts   []Fact
@@ -183,8 +186,29 @@ func factOut(f Fact) string { return "facts/" + f.Slug + ".html" }
 
 func screenOut(s Screen) string { return "corpus/" + s.Agent + "/" + s.Slug + ".html" }
 
+// CorpusVersion reads the version of the corpus from
+// .release-please-manifest.json at root. It gives an error when the file
+// or the version is missing.
+func CorpusVersion(root string) (string, error) {
+	data, err := os.ReadFile(filepath.Join(root, ".release-please-manifest.json"))
+	if err != nil {
+		return "", fmt.Errorf("corpus version: %w", err)
+	}
+	var versions map[string]string
+	if err := json.Unmarshal(data, &versions); err != nil {
+		return "", fmt.Errorf(".release-please-manifest.json: %w", err)
+	}
+	if versions["."] == "" {
+		return "", fmt.Errorf(".release-please-manifest.json: no version for the corpus (key \".\")")
+	}
+	return versions["."], nil
+}
+
 func (b *builder) load() error {
 	var err error
+	if b.version, err = CorpusVersion(b.root); err != nil {
+		return err
+	}
 	if b.agents, err = LoadCorpus(b.root); err != nil {
 		return err
 	}
@@ -352,6 +376,12 @@ func (b *builder) exec(p page, name string, data any) error {
 		p.Body = template.HTML(body)
 	}
 	p.Nav = nav
+	ld, err := jsonLD(p)
+	if err != nil {
+		return fmt.Errorf("%s: %w", p.Out, err)
+	}
+	p.JSONLD = ld
+	p.Corpus = b.version
 	var buf bytes.Buffer
 	if err := b.tmpl.ExecuteTemplate(&buf, "layout.html", p); err != nil {
 		return fmt.Errorf("%s: %w", p.Out, err)

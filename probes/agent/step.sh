@@ -29,7 +29,8 @@
 # manifest has the meta line "awake" with caffeinate (kit start on macOS,
 # unattended), "caffeinate -i -w PID" runs while the script runs.
 # Exit codes: the code of the script (0, 1, 3 or 4), 2 for bad use. A call
-# while another "kit step" of the same run runs is bad use. A script that
+# while another "kit step" of the same run runs is bad use. A run folder
+# from another kit version is bad use. A script that
 # ends on a signal (exit 129, 130 or 143) gives "fail interrupted". A
 # signal to this process waits for the end of the script.
 set -u
@@ -41,6 +42,11 @@ shift
 run=$(kit_run_dir) || exit "$KIT_USAGE"
 why=$(kit_run_problem "$run")
 [ -z "$why" ] || kit_die "$KIT_USAGE" "the run folder cannot take a step: $why"
+# A run holds the steps of one kit version. A new kit in the same folder
+# finds the run of the old kit from .agent-signals-run.
+made=$(kit_manifest_value "$run" kit 2>/dev/null)
+[ -z "$made" ] || [ "$made" = "$(kit_version)" ] ||
+  kit_die "$KIT_USAGE" "the run folder is from kit $made, and this kit is $(kit_version). Run 'kit start' for a new run"
 name=${arg%%@*}
 case $name in '' | *[!a-z0-9-]*) kit_die "$KIT_USAGE" "bad step name: $name" ;; esac
 kind=$(kit_step_field "$name" kind) || kit_die "$KIT_USAGE" "unknown step: $name. Run 'kit plan'"
@@ -99,6 +105,17 @@ sig=
 trap 'sig=INT' INT
 trap 'sig=TERM' TERM
 trap 'sig=HUP' HUP
+
+# A full disk: the script cannot write its pid and its output, and the
+# step cannot add its line. So the step first writes 64 KB in the run
+# folder, and stops with a reason when it cannot.
+mkdir -p "$run/.raw" 2>/dev/null
+if ! dd if=/dev/zero of="$run/.raw/space" bs=1024 count=64 >/dev/null 2>&1; then
+  rm -f "$run/.raw/space"
+  rmdir "$run/.raw" 2>/dev/null
+  kit_die "$KIT_FAIL" "cannot write 64 KB in the run folder $run: the disk can be full. Free space, then run $name@$backend again"
+fi
+rm -f "$run/.raw/space"
 
 # record RESULT START END FILE SHA REASON: add a step line, and write the
 # JSON manifest and the summary again.
@@ -180,8 +197,10 @@ if [ "$result" = operator ]; then
 fi
 sha=-
 if [ -f "$out" ]; then
-  # The run folder and the kit folder can hold spaces and names.
+  # The run folder, the work folders and the kit folder can hold spaces
+  # and names. AGENT_SIGNALS_WORK can put the work folders out of the run.
   if SCRUB_EXTRA="$run
+$(kit_work_root "$run")
 $KIT_ROOT" sh "$KIT_ROOT/tools/scrub.sh" "$out" >"$work/$nn.txt" 2>"$work/$nn.scrub"; then
     sed 's/^/kit: /' "$work/$nn.scrub" >&2
     mv "$work/$nn.txt" "$run/$file"
