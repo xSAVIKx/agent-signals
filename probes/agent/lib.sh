@@ -539,6 +539,7 @@ kit_json() {
       edits = edits (ne++ ? ",\n" : "") "    {\"file\": " s($2) ", \"reason\": " s($3) ", \"sha256\": " s($4) "}"
       next
     }
+    $1 == "meta" && $2 == "skip_agent" { skipped = skipped (nk++ ? ", " : "") s($3); next }
     $1 == "meta" { run[$2] = $3 }
     END {
       if (end == "") end = run["start"]
@@ -547,6 +548,7 @@ kit_json() {
       printf "  \"home\": %s,\n  \"orchestrator\": %s,\n  \"start\": %s,\n  \"end\": %s,\n", s(run["home"]), s(run["orchestrator"]), s(run["start"]), s(end)
       printf "  \"unattended\": %s,\n", (run["unattended"] == "yes" ? "true" : "false")
       if ("awake" in run) printf "  \"awake\": %s,\n", s(run["awake"])
+      printf "  \"skip_agents\": [%s],\n", skipped
       printf "  \"steps\": [%s%s%s],\n", (ns ? "\n" : ""), steps, (ns ? "\n  " : "")
       printf "  \"edits\": [%s%s%s]\n}\n", (ne ? "\n" : ""), edits, (ne ? "\n  " : "")
     }' "$1/manifest.tsv" >"$1/manifest.json"
@@ -583,6 +585,30 @@ kit_login_skip() {
 kit_unattended_skip() {
   [ "$1" = yes ] || return 0
   case $2:$3 in operator:* | screen:* | *:operator) echo unattended ;; esac
+}
+
+# kit_skip_agent_problem AGENT: print why AGENT cannot be a value of
+# "--skip-agent", or nothing. AGENT must be an agent of the kit.
+kit_skip_agent_problem() {
+  for _a in $KIT_ALL_AGENTS; do
+    [ "$_a" != "$1" ] || return 0
+  done
+  echo "unknown agent: $1. Use one of: $KIT_ALL_AGENTS"
+}
+
+# kit_manifest_values RUN KEY: the values of all lines
+# "meta<tab>KEY<tab>VALUE" of RUN/manifest.tsv, one value on each line.
+kit_manifest_values() {
+  awk -F '\t' -v k="$2" '$1 == "meta" && $2 == k { print $3 }' "$1/manifest.tsv"
+}
+
+# kit_operator_skip SKIPPED AGENT: print "by-operator" when the space list
+# SKIPPED holds AGENT. The operator gives SKIPPED with "kit start
+# --skip-agent AGENT", for example after the pre-run checklist of the task
+# file. Else print nothing.
+kit_operator_skip() {
+  case " $1 " in *" $2 "*) [ -z "$2" ] || [ "$2" = - ] || echo by-operator ;; esac
+  return 0
 }
 
 # kit_awake OS UNATTENDED: the value of the meta line "awake" of a new run,

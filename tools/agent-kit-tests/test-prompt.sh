@@ -13,7 +13,10 @@ if [ -n "$page" ] && [ "$page" = "$quoted" ]; then
 else
   fail "the home page and the task file give the same prompt" "page: $page task: $quoted"
 fi
-expect_line "the prompt runs unattended with a home mode" 'do its task unattended, with the home mode real\. Do not ask me anything\.$' "$readme"
+expect_line "the prompt runs unattended with a home mode" 'do its task unattended, with the home mode real\. First show me the pre-run checklist and wait for my answer\. After that, do not ask me anything\.$' "$readme"
+expect_line "the Windows prompt asks for the checklist" '^Run this PowerShell command: .*First show me the pre-run checklist and wait for my answer\. After that, do not ask me anything\.$' "$readme"
+expect_line "the task file has the checklist section" '^## Pre-run checklist$' "$task"
+expect_line "the task file names the skip option" 'kit start` for each agent' "$task"
 expect_line "the home page has a Windows prompt" '^Run this PowerShell command: `\$env:AGENT_SIGNALS_GET = .*irm https://xsavikx\.github\.io/agent-signals/kit\.ps1 \| iex`\.' "$readme"
 expect_line "the task file has the unattended section" '^## Unattended runs$' "$task"
 expect_line "the task file starts an unattended run" 'kit start --home real --unattended --out DIR' "$task"

@@ -108,7 +108,7 @@ fails twice.
 
 | Command | Does |
 |---|---|
-| `kit start` | Makes the run folder and writes its path. Options: `--home real\|throwaway\|fixture`, `--unattended`, `--out DIR`. |
+| `kit start` | Makes the run folder and writes its path. Options: `--home real\|throwaway\|fixture`, `--unattended`, `--skip-agent AGENT` (one for each agent that the operator skips; its steps skip with the reason `by-operator`), `--out DIR`. |
 | `kit version` | Prints the kit version. |
 | `kit doctor` | Prints `key: value` lines: os, cpu, shell, tools, agents and versions, the orchestrator agent (from the environment of its own process, fact 069). |
 | `kit plan` | Prints one line for each step: name, needs (`none`, `operator`, `login`, `fixture`, `screen`), cost (`none`, `turns:N`), and what it measures. |
@@ -244,7 +244,8 @@ The plan has the steps for the agents that `kit doctor` found.
 fixed first line, then one line for each step), as aw writes
 `report.json` and `summary.txt`. The manifest holds the kit version, the time, the OS
 line of `kit doctor`, the orchestrator agent, and one line for each step
-(name, result, start, end, file, SHA-256 after the scrub). `kit edit`
+(name, result, start, end, file, SHA-256 after the scrub). The list
+`skip_agents` holds the agents of `kit start --skip-agent`. `kit edit`
 adds `edit: FILE REASON` lines.
 
 `kit check` fails when: a step in the manifest has no file; a file has a

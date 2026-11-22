@@ -45,6 +45,7 @@ if ($made -and $made -ne $kitVersion) {
 $homeMode = Get-KitMeta $run 'home'
 if (-not $homeMode) { $homeMode = 'real' }
 $unattended = Get-KitMeta $run 'unattended'
+$skipped = @(Get-KitMetaAll $run 'skip_agent')
 
 $backends = @(Get-KitStepBackends $step)
 if ($backends -notcontains $backend) {
@@ -102,6 +103,8 @@ try {
         $reason = 'not-on-windows'
     } elseif (Get-KitLoginSkip $homeMode $step.needs $step.agent) {
         $reason = Get-KitLoginSkip $homeMode $step.needs $step.agent
+    } elseif (Get-KitOperatorSkip $skipped $step.agent) {
+        $reason = Get-KitOperatorSkip $skipped $step.agent
     } elseif (Get-KitUnattendedSkip $unattended $step.needs $backend) {
         $reason = Get-KitUnattendedSkip $unattended $step.needs $backend
     } else {
