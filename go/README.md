@@ -72,6 +72,9 @@ The answer depends on the last user message:
 | `Count from` | No reply: the turn stays busy until the client stops it, or for 2 minutes. |
 | `Let me choose` | Claude Code: an `AskUserQuestion` call with the options `Red` and `Blue`. The other agents: the question reply below. |
 | `End your reply with a question` | `The fixture has one question. Do you want to go on?` |
+| `Fail with 500` | Claude Code: HTTP 500 with an `api_error` body and a `request-id` header. The other agents: a text reply. |
+| `Fail with 529` | Claude Code: HTTP 529 with an `overloaded_error` body and a `request-id` header. The other agents: a text reply. |
+| `Answer late` | Claude Code: no status line and no byte until the client closes the connection, or for 2 minutes. A client time-out (`API_TIMEOUT_MS`) ends the request. The other agents: a text reply. |
 | Other text | `The fixture has no more to say.` |
 
 A review request asks the model whether a tool call can run. The answer

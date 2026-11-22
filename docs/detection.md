@@ -46,6 +46,7 @@ this repository run `--version`; the agent kit doctor will not.
 | State | A dialog on the screen wins over the pid file. | aw |
 | State | After a turn that started background agents, `status` can stay `busy` while the pane is idle. aw saw `busy` for 9 min with 2 background agents on the screen (Claude Code 2.1.325, Windows). A tool reads the screen too. | aw (v0.48.2, v0.48.3) |
 | State | A usage limit in the transcript: an assistant record with `isApiErrorMessage: true`, an `apiError` field and `apiErrorStatus: 429`. aw has no record of another API error (5xx, overloaded, time-out). | aw (v0.48.2, v0.48.3) |
+| State | Another API error in the transcript: an assistant record with `isApiErrorMessage: true` and `error: "server_error"`. A 500 or a 529 has `apiErrorStatus` and `apiErrorType` (`api_error`, `overloaded_error`). Other statuses were not measured. A time-out has no `apiErrorStatus`. Before each retry, a `system` record with `subtype: "api_error"`. Measured with `claude -p` of Claude Code 2.1.327 on the fake model, not the real API. | fact 96 |
 | Pane | `tmux` in the pid file, only when the process runs in tmux. | facts 023, 066 |
 
 ## Codex CLI
