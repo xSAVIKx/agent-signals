@@ -9,6 +9,42 @@
 kitx start --out "$D" >"$T/log" 2>&1
 expect_code "kit start exits 0" 0 $?
 
+# kit_ms with a fake date that prints FAKE_DATE for "+%s.%N" and the
+# uutils 0.10.0 value of "+%s%3N" (the nanoseconds with no leading zeros,
+# cut to 3 digits). The time 0.004932429 s after a second is 4 ms, not
+# 493 ms. A date with no %N (macOS) gives the time of python3.
+mkdir -p "$T/fakedate"
+cat >"$T/fakedate/date" <<'EOF'
+#!/bin/sh
+case $1 in
+  +%s.%N) echo "$FAKE_DATE" ;;
+  +%s%3N) echo 1795029775493 ;;
+  *) exit 1 ;;
+esac
+EOF
+chmod 755 "$T/fakedate/date"
+# fake_ms VALUE: kit_ms with the fake date that prints VALUE.
+fake_ms() {
+  (PATH=$T/fakedate:$PATH; FAKE_DATE=$1; KIT_DIR=$ROOT/probes/agent; export PATH FAKE_DATE KIT_DIR
+   . "$ROOT/probes/agent/lib.sh"; kit_ms)
+}
+got=$(fake_ms 1795029775.004932429)
+if [ "$got" = 1795029775004 ]; then pass "kit_ms: a leading zero of the nanoseconds stays"; else fail "kit_ms: a leading zero of the nanoseconds stays" "$got"; fi
+got=$(fake_ms 1795029775.999999999)
+if [ "$got" = 1795029775999 ]; then pass "kit_ms: the milliseconds are cut, not rounded"; else fail "kit_ms: the milliseconds are cut, not rounded" "$got"; fi
+before=$(python3 -I -c 'import time; print(time.time_ns() // 1000000)')
+got=$(fake_ms 1795029775.N)
+after=$(python3 -I -c 'import time; print(time.time_ns() // 1000000)')
+case $got in
+  '' | *[!0-9]*) fail "kit_ms: no %N gives the time of python3" "$got" ;;
+  *) if [ "$got" -ge "$before" ] && [ "$got" -le "$after" ]; then pass "kit_ms: no %N gives the time of python3"; else fail "kit_ms: no %N gives the time of python3" "$got not in $before..$after"; fi ;;
+esac
+got=$(fake_ms 1795029775.4932429)
+case $got in
+  1795029775493 | '' | *[!0-9]*) fail "kit_ms: nanoseconds with no zeros give the time of python3" "$got" ;;
+  *) pass "kit_ms: nanoseconds with no zeros give the time of python3" ;;
+esac
+
 # in_order FILE STATE...: true when the states are in FILE in this order.
 # Other states can be between them.
 in_order() {

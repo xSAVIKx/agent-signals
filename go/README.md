@@ -11,12 +11,21 @@ corpus, so a program needs no file at run time.
     func Screens() ([]Screen, error)                 // all screens, sorted by agent and slug
     func ScreensFor(agent string) ([]Screen, error)  // the screens of one agent, sorted by slug
     func Coverage(agent string) ([]Verified, error)  // the agent versions that were checked
+    func Facts() ([]Fact, error)                     // all facts, sorted by number
 
 A `Screen` holds the metadata of a `.yaml` file and the exact bytes of the
 `.screen` file in `Bytes`. `Option.N` is 0 when a menu has no numbers.
 `Expect.BoxText` is nil when the screen does not pin the text of the box. It
 points to an empty string when the box must be empty. `Screen.Pane` is nil when
 the pane size is not known.
+
+## Facts
+
+`Facts` returns the measured facts of the `facts/` folder, sorted by number.
+A `Fact` has four fields: `Number`, `Slug`, `Title` and `Text`. `Title` is the
+first heading without the number. `Text` is the full Markdown text of the
+file. The facts are embedded in the package, like the screens. The numbers in
+`Screen.Facts` refer to `Fact.Number`. See `ExampleFacts`.
 
 ## A table test
 

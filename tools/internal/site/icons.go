@@ -20,8 +20,8 @@ const (
 	iconTile  = "#1b1f24" // --fg of the light theme
 	iconMark  = "#e4e7eb" // --fg of the dark theme
 	iconLine  = "#ffcc4d" // --focus of the dark theme
-	iconLight = "#ffffff" // --bg of the light theme
-	iconDark  = "#0f1216" // --bg of the dark theme
+	iconLight = "#f8fafc" // --ys-bg of the light theme (ys-plain.css)
+	iconDark  = "#14161a" // --ys-bg of the dark theme (ys-plain.css)
 
 	tileRadius = 6.0
 	strokeW    = 3.4
