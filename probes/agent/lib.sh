@@ -628,7 +628,8 @@ kit_awake() {
 }
 
 # kit_summary RUN: write RUN/summary.txt: the fixed first line, then one
-# line for each step. When two step lines name the same file, for example
+# line for each step, then one line "edit: FILE REASON" for each kit edit.
+# When two step lines name the same file, for example
 # after a second kit doctor, only the last line stays: the file holds its
 # output.
 kit_summary() {
@@ -642,11 +643,13 @@ kit_summary() {
       end = $6
       next
     }
+    $1 == "edit" { edit[++ne] = "edit: " $2 " " $3; next }
     $1 == "meta" { run[$2] = $3 }
     END {
       if (end == "") end = run["start"]
       printf "kit %s on %s (%s), %s. Run from %s to %s (%s).\n", run["kit"], run["os"], run["cpu"], run["os_version"], run["start"], end, run["home"]
       for (i = 1; i <= n; i++) if (line[i] != "") print line[i]
+      for (i = 1; i <= ne; i++) print edit[i]
     }' "$1/manifest.tsv" >"$1/summary.txt"
 }
 
