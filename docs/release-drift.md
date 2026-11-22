@@ -401,8 +401,9 @@ that no tool reads yet, or a signal in a mode that the tools do not use.
   files outside the workspace without asking for approval [...] Writing or
   editing files outside the workspace still asks for approval"
 - Source: <https://github.com/google-antigravity/antigravity-cli/releases/tag/1.5.14>
-- Facts at risk: 085. A read outside the workspace now shows no dialog
-  in Auto mode.
+- Facts at risk: 085. By default, a read outside the workspace now shows
+  no dialog in Auto mode. An `ask` rule or another restriction of the
+  release note can still give a dialog.
 - Measurement: a kit step that reads a file outside the work folder in
   Auto mode.
 
