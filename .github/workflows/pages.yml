@@ -18,6 +18,9 @@ on:
       - "tasks/**"
       - "protocol/**"
       - "README.md"
+      # The footer and the JSON indexes show the corpus version, so a
+      # release commit also builds the site.
+      - ".release-please-manifest.json"
       - "AGENTS.md"
       - "tools/cmd/site/**"
       - "tools/internal/site/**"
