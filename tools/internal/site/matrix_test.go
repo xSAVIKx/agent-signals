@@ -134,7 +134,8 @@ func TestMatrixPageMarkup(t *testing.T) {
 	if n := strings.Count(text, `<td class="none">none measured</td>`); n != 4 {
 		t.Errorf("%d cells say \"none measured\", want 4", n)
 	}
-	if strings.Contains(text, "<script") && !strings.Contains(text, "page.js") {
+	// The JSON-LD block of the layout is data, not a script that runs.
+	if strings.Contains(text, "<script src=") && !strings.Contains(text, "page.js") {
 		t.Errorf("the matrix page has a page script")
 	}
 	golden := filepath.Join("testdata", "golden", "matrix.html")

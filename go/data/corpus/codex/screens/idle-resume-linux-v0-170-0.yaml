@@ -1,0 +1,18 @@
+schema: 1
+agent: codex
+agent_version: 0.170.0
+measured: 2026-11-18
+capture: plain
+pane: {cols: 120, rows: 40}
+provenance: measured-edited
+edits:
+  - the kit scrubbed the paths (home folder to ~, work folder to /work/example)
+  - the kit removed the blank lines at the end; this tool added them back to 40 lines
+description: >-
+  The screen "idle" of the kit step resume-codex@tmux (kit 0.26.0, home fixture, linux Ubuntu 22.04.5 LTS).
+  The screen was saved by the kit after its own check of the state. It stands for 36 screens
+  (14 different texts) of the same agent version, OS, state and step kind in run 44392109867 of the scenarios workflow
+  (job kit-no-login, GitHub-hosted images). The fake model of the kit (probes/agent/fake-model.py)
+  answered: no login and no real model.
+expect:
+  state: IDLE
