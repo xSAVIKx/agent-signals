@@ -162,7 +162,7 @@ Expect-Kit 'the plan of the run exits 0' 0 'plan'
 Expect-Line 'the plan of the run marks a step of a skipped agent' '^step: first-run-claude@conpty .* skip=by-operator$' $out
 Expect-Kit 'a plan with --home exits 0' 0 'plan' '--home' 'real'
 Expect-NoLine 'a plan with --home ignores the skipped agents of the run' 'skip=by-operator' $out
-Expect-Kit 'a step of a skipped agent skips' 3 'step' 'first-run-claude@conpty'
+Expect-Kit 'a step of a skipped agent skips and exits 0, as in sh' 0 'step' 'first-run-claude@conpty'
 Expect-Line 'the skip names the operator' '^step: first-run-claude@conpty skip by-operator$' $out
 Pop-Location
 # Started last in this block: a new run becomes the run of the kit folder.

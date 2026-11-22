@@ -15,7 +15,8 @@
 # and prints:
 #   step: <name>@<backend> ok|skip|fail|operator [<reason>]
 # The exit code is the exit code of the script: 0 ok, 1 fail, 3 skip,
-# 4 the operator must act. A call while another "kit step" of the same
+# 4 the operator must act. A skip of the plan (no-login, needs-fixture,
+# no-fixture, by-operator, unattended) exits 0, as in step.sh. A call while another "kit step" of the same
 # run runs is bad use (2). A run folder from another kit version is bad
 # use (2). It reads no key.
 $ErrorActionPreference = 'Stop'
@@ -95,6 +96,9 @@ $kitOut = Join-Path $raw "$base.out"
 $start = Get-KitIsoTime
 $code = 3
 $reason = ''
+# A skip of the plan (no-login, needs-fixture, no-fixture, by-operator,
+# unattended) exits 0, as in step.sh. A missing tool exits 3.
+$planSkip = $false
 $console = ''
 
 $p = $null
@@ -103,10 +107,13 @@ try {
         $reason = 'not-on-windows'
     } elseif (Get-KitLoginSkip $homeMode $step.needs $step.agent) {
         $reason = Get-KitLoginSkip $homeMode $step.needs $step.agent
+        $planSkip = $true
     } elseif (Get-KitOperatorSkip $skipped $step.agent) {
         $reason = Get-KitOperatorSkip $skipped $step.agent
+        $planSkip = $true
     } elseif (Get-KitUnattendedSkip $unattended $step.needs $backend) {
         $reason = Get-KitUnattendedSkip $unattended $step.needs $backend
+        $planSkip = $true
     } else {
         $scriptFile = Join-Path $PSScriptRoot ("steps\{0}.ps1" -f $step.kind)
         if (-not (Test-Path -LiteralPath $scriptFile -PathType Leaf)) { Stop-Kit 1 "no script for the kind $($step.kind)" }
@@ -168,4 +175,5 @@ try {
     }
 }
 Write-Output ("step: $name@$backend $result $reason".TrimEnd())
+if ($planSkip) { exit 0 }
 exit $code
