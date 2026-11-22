@@ -38,9 +38,15 @@ The corpus holds no code that your tool runs. Each tool keeps its own reader.
 ## Run every check with an agent
 
 Start an agent on the machine, for example Claude Code, Codex CLI, agy or
-the Cursor CLI. Paste the prompt for your OS. The agent downloads the kit,
-runs every check, checks the files, and asks you nothing. When it stops,
-its last message gives the path of one archive. Send that archive.
+the Cursor CLI. Paste the prompt for your OS. The agent downloads the kit
+and shows you a pre-run checklist: the agents, their steps and model
+turns, the missing tools, and the skips. Answer "go", or tell the agent
+what to change: skip an agent, install a tool, or trace a step. If an
+agent has no valid login, API key or quota, skip it or fix it before you
+answer. The kit cannot test these before a step runs. After your answer,
+the agent runs every check, checks the files, and asks you nothing. When
+it stops, its last message gives the path of one archive. Send that
+archive.
 
 Caution: the home mode `real` uses your login and your home folder. The
 test sessions cost a few model turns on your plan, their chats go into
@@ -51,20 +57,23 @@ into its settings. For a run with no login, replace `real` with
 Linux and macOS:
 
 ```text
-Run this command: `curl -fsSL https://xsavikx.github.io/agent-signals/kit.sh | sh -s -- --get "$(mktemp -d)"`. It prints the kit folder. Read AGENTS.md in that folder and do its task unattended, with the home mode real. Do not ask me anything.
+Run this command: `curl -fsSL https://xsavikx.github.io/agent-signals/kit.sh | sh -s -- --get "$(mktemp -d)"`. It prints the kit folder. Read AGENTS.md in that folder and do its task unattended, with the home mode real. First show me the pre-run checklist and wait for my answer. After that, do not ask me anything.
 ```
 
 Windows:
 
 ```text
-Run this PowerShell command: `$env:AGENT_SIGNALS_GET = Join-Path ([IO.Path]::GetTempPath()) ('agent-signals-' + [guid]::NewGuid().ToString('N')); irm https://xsavikx.github.io/agent-signals/kit.ps1 | iex`. It prints the kit folder. Read AGENTS.md in that folder and do its task unattended, with the home mode real. Do not ask me anything.
+Run this PowerShell command: `$env:AGENT_SIGNALS_GET = Join-Path ([IO.Path]::GetTempPath()) ('agent-signals-' + [guid]::NewGuid().ToString('N')); irm https://xsavikx.github.io/agent-signals/kit.ps1 | iex`. It prints the kit folder. Read AGENTS.md in that folder and do its task unattended, with the home mode real. First show me the pre-run checklist and wait for my answer. After that, do not ask me anything.
 ```
 
+For a run with no checklist, replace the last two sentences of the
+prompt with "Do not ask me anything."
+
 The agent needs a shell with network access. A sandbox with no network
-stops the download. The kit skips the steps
-that need you at a terminal, and the archive records each skip. To answer
-the questions of these steps, replace the last two sentences of the prompt
-with "Ask me before each step that needs me."
+stops the download. The kit skips the steps that need you at a terminal,
+and the archive records each skip. To answer the questions of these
+steps, replace all the text after "Read AGENTS.md in that folder and"
+with "do its task. Ask me before each step that needs me."
 
 To also record a trace of some steps on Linux or macOS, add "Trace the
 steps NAME@BACKEND." to the prompt. Replace `NAME@BACKEND` with the steps

@@ -1,18 +1,24 @@
 #!/bin/sh
-# kit plan [--home real|throwaway|fixture]: print the steps that this machine can
+# kit plan [--home real|throwaway|fixture] [--unattended] [--skip-agent AGENT]...:
+# print the steps that this machine can
 # run, in the order of probes/agent/steps.tsv, one line for each step and
 # backend:
-#   step: <name>@<backend> needs=<needs> cost=<cost> [skip=no-login] measures=<text>
+#   step: <name>@<backend> needs=<needs> cost=<cost> [skip=<reason>] measures=<text>
 # A step is in the plan when its script probes/agent/steps/<kind>.sh
 # exists, its OS is this OS, its agent is on PATH and the tool of its
 # backend is installed. A step that needs a login gets "skip=no-login"
-# with a throwaway home. With no --home, the plan uses the home mode of
-# the current run, else "real".
+# with a throwaway home. With no --home, the plan uses the home mode and
+# the unattended value of the current run, else "real" and attended. A
+# plan with --home uses only its own arguments. A step of an agent of
+# --skip-agent, or of a "skip_agent" meta line of the current run when the
+# command has no --skip-agent and no --home, gets "skip=by-operator".
 set -u
 . "$(dirname "$0")/lib.sh"
 
 home=
 unattended=
+skipped=
+given=
 while [ "$#" -gt 0 ]; do
   case $1 in
     --home)
@@ -24,18 +30,31 @@ while [ "$#" -gt 0 ]; do
       unattended=yes
       shift
       ;;
-    *) kit_die "$KIT_USAGE" "usage: kit plan [--home real|throwaway|fixture] [--unattended]" ;;
+    --skip-agent)
+      [ "$#" -ge 2 ] || kit_die "$KIT_USAGE" "$1 needs an agent name"
+      why=$(kit_skip_agent_problem "$2")
+      [ -z "$why" ] || kit_die "$KIT_USAGE" "$why"
+      skipped="${skipped:+$skipped }$2"
+      given=yes
+      shift 2
+      ;;
+    *) kit_die "$KIT_USAGE" "usage: kit plan [--home real|throwaway|fixture] [--unattended] [--skip-agent AGENT]..." ;;
   esac
 done
 run=$(kit_run_dir 2>/dev/null) || run=
-if [ -z "$home" ]; then
-  [ -z "$run" ] || home=$(kit_manifest_value "$run" home 2>/dev/null)
-  home=${home:-real}
+# A plan with --home is a preview for a new run, for example for the
+# pre-run checklist. It uses only its own arguments: the unattended value
+# and the skipped agents of an earlier run do not count. A plan with no
+# --home is the plan of the current run: it uses the home mode, the
+# unattended value and, with no --skip-agent, the skip_agent lines of the
+# run.
+if [ -z "$home" ] && [ -n "$run" ]; then
+  home=$(kit_manifest_value "$run" home 2>/dev/null)
+  [ -n "$unattended" ] || unattended=$(kit_manifest_value "$run" unattended 2>/dev/null)
+  [ -n "$given" ] || skipped=$(kit_manifest_values "$run" skip_agent 2>/dev/null | tr '\n' ' ')
 fi
-if [ -z "$unattended" ]; then
-  [ -z "$run" ] || unattended=$(kit_manifest_value "$run" unattended 2>/dev/null)
-  unattended=${unattended:-no}
-fi
+home=${home:-real}
+unattended=${unattended:-no}
 case $home in real | throwaway | fixture) ;; *) kit_die "$KIT_USAGE" "--home needs real, throwaway or fixture" ;; esac
 
 os=$(kit_os)
@@ -56,6 +75,7 @@ awk -F '\t' '
     fi
     skip=
     why=$(kit_login_skip "$home" "$needs" "$agent")
+    [ -n "$why" ] || why=$(kit_operator_skip "$skipped" "$agent")
     [ -z "$why" ] || skip=" skip=$why"
     for b in $(echo "$blist" | tr ',' ' '); do
       case $backends in *" $b "*) ;; *) continue ;; esac

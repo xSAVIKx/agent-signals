@@ -130,4 +130,13 @@ Expect-True 'the operator backend skips unattended' ((Get-KitUnattendedSkip 'yes
 Expect-True 'a login step runs unattended' ((Get-KitUnattendedSkip 'yes' 'login' 'conpty') -eq '') ''
 Expect-True 'a run with a person skips nothing' ((Get-KitUnattendedSkip 'no' 'operator' 'operator') -eq '') ''
 
+# The operator skips an agent after the pre-run checklist.
+Expect-True 'a skipped agent skips' ((Get-KitOperatorSkip @('claude', 'gemini') 'gemini') -eq 'by-operator') ''
+Expect-True 'another agent runs' ((Get-KitOperatorSkip @('gemini') 'claude') -eq '') ''
+Expect-True 'a step with no agent runs' ((Get-KitOperatorSkip @('gemini') '-') -eq '') ''
+Expect-True 'an empty list skips nothing' ((Get-KitOperatorSkip @() 'claude') -eq '') ''
+Expect-True 'a known agent can be skipped' ((Get-KitSkipAgentProblem 'cursor-agent') -eq '') ''
+Expect-True 'an agent name in capitals cannot be skipped' ((Get-KitSkipAgentProblem 'CLAUDE') -like 'unknown agent: CLAUDE*') ''
+Expect-True 'an unknown agent cannot be skipped' ((Get-KitSkipAgentProblem 'other') -like 'unknown agent: other*') ''
+
 Complete-Tests

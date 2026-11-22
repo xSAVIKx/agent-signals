@@ -62,6 +62,32 @@ function Get-KitUnattendedSkip([string]$Unattended, [string]$Needs, [string]$Bac
     return ''
 }
 
+# Get-KitSkipAgentProblem AGENT: why AGENT cannot be a value of
+# "--skip-agent", or ''. AGENT must be an agent of the kit. The twin of
+# kit_skip_agent_problem in lib.sh.
+function Get-KitSkipAgentProblem([string]$Agent) {
+    # The keys of an [ordered] table ignore case, and the step list does
+    # not: accept only the exact name, as kit_skip_agent_problem does.
+    if (@($script:KitAgentCommands.Keys) -ccontains $Agent) { return '' }
+    return "unknown agent: $Agent. Use one of: " + (@($script:KitAgentCommands.Keys) -join ' ')
+}
+
+# Get-KitOperatorSkip SKIPPED AGENT: 'by-operator' when the list SKIPPED
+# holds AGENT. The operator gives SKIPPED with "kit start --skip-agent
+# AGENT", for example after the pre-run checklist of the task file. Else ''.
+function Get-KitOperatorSkip([string[]]$Skipped, [string]$Agent) {
+    if ($Agent -and $Agent -ne '-' -and @($Skipped) -ccontains $Agent) { return 'by-operator' }
+    return ''
+}
+
+# Get-KitMetaAll RUN KEY: the values of all lines "meta KEY VALUE", one
+# value on each output. Use @(Get-KitMetaAll ...) for an array.
+function Get-KitMetaAll([string]$Run, [string]$Key) {
+    foreach ($f in @(Read-KitManifest $Run)) {
+        if ($f.Count -ge 3 -and $f[0] -eq 'meta' -and $f[1] -eq $Key) { [string]$f[2] }
+    }
+}
+
 # Get-KitWorkRoot RUN: the folder that holds the work folders of the
 # sessions of RUN. It is the twin of kit_work_root in lib.sh. An agent can
 # give access to a temp folder with no question (the default preset of agy,

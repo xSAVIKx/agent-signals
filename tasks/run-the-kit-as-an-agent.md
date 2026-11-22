@@ -17,12 +17,13 @@ commands. Then their files are comparable.
 The operator can also start you with no person present. Then the prompt
 holds the word "unattended" and a home mode:
 
-> Run this command: `curl -fsSL https://xsavikx.github.io/agent-signals/kit.sh | sh -s -- --get "$(mktemp -d)"`. It prints the kit folder. Read AGENTS.md in that folder and do its task unattended, with the home mode real. Do not ask me anything.
+> Run this command: `curl -fsSL https://xsavikx.github.io/agent-signals/kit.sh | sh -s -- --get "$(mktemp -d)"`. It prints the kit folder. Read AGENTS.md in that folder and do its task unattended, with the home mode real. First show me the pre-run checklist and wait for my answer. After that, do not ask me anything.
 
 The website gives this prompt for Linux and macOS, and a PowerShell
 prompt for Windows.
 
-Read the section "Unattended runs" before you start such a run.
+Read the sections "Unattended runs" and "Pre-run checklist" before you
+start such a run.
 
 ## Words in this file
 
@@ -87,6 +88,10 @@ answers in the prompt. In an unattended run, these rules replace rules 2,
 3, 11 and 12, and the questions of the steps:
 
 1. Do not ask the operator a question, and do not wait for an answer.
+   There is one exception: when the prompt asks for the pre-run
+   checklist, show it and wait for the answer before `kit start`
+   (section "Pre-run checklist"). When that answer is not clear, ask one
+   more question about it.
 2. Use the home mode that the prompt names: `real`, `throwaway`, or
    `fixture` (a test of this task, with a fake model). The prompt is the
    yes of rule 3. When the prompt names no home mode, use `throwaway`.
@@ -105,6 +110,8 @@ answers in the prompt. In an unattended run, these rules replace rules 2,
    works at the end of the dialog wait gives `fail busy-at-end`. These
    two checks are on Linux, macOS and Windows.
 4. Do not install a tool. Record the missing tool in your last message.
+   When the answer to the pre-run checklist tells you to install a tool,
+   that answer is the yes of rule 11.
 5. When a step fails two times, go to the next step.
 6. When a step prints `operator` (exit code 4), do not run it again. Go to
    the next step.
@@ -126,6 +133,75 @@ The exit codes of each `kit` command:
 | 2 | Bad use: a wrong command or a wrong argument. |
 | 3 | A needed tool is missing. A step then prints `skip`. |
 | 4 | The operator must act. The command prints `operator: <action>` lines. |
+
+## Pre-run checklist
+
+The checklist tells the operator what the run will do and what can stop
+it. The operator reads it before the run starts. Then the operator can
+skip an agent, give a missing tool, or fix a login before the run uses
+hours on steps that fail.
+
+Make the checklist in these runs:
+
+- An unattended run whose prompt asks for the pre-run checklist. Make it
+  after step 2 and before step 3.
+- A run with a person. Ask the operator for the home mode of step 3
+  first. Then make the checklist, before `kit start`. Show the list of
+  steps of step 4 after the answer.
+
+Do not make it in an unattended run whose prompt does not ask for it.
+
+Before you make the checklist, run these commands. The example is for an
+unattended run with the home mode `real`. Use the home mode of the
+prompt, or of the answer in step 3. In a run with a person, do not add
+`--unattended`. Always give `--home`: then the plan does not use the
+skipped agents of an earlier run.
+
+```sh
+kit version
+kit doctor
+kit plan --home real --unattended
+```
+
+The checklist has these items, one line each, in this order:
+
+1. Kit: the kit version and the OS.
+2. Home mode: the home mode. For `real`, the facts of rule 3.
+3. Missing tools: each tool that the doctor did not find, and the steps
+   that skip because of it. Write "none" when no tool is missing.
+4. Agents: one line for each agent of the plan, with its version from
+   the doctor, its number of steps, and the sum of its model turns
+   (`cost=turns:N`). Add this sentence to each line of an agent that has
+   a step with `needs=login`: "The kit cannot test the login, the API key
+   or the plan limit before a step runs. Confirm that this login works
+   and has quota."
+5. Skips: the number of steps that skip, for each reason, for example
+   `unattended`, `no-login` or `needs-fixture`.
+6. Sandbox and network: the `orchestrator_sandbox:` line of the doctor,
+   and a line when your shell has no network. Write "none" when the
+   doctor shows no sandbox.
+7. Traces: the steps that the prompt asks you to trace. Write "none" when
+   the prompt asks for no trace.
+
+End the checklist with this question: "Answer go, or tell me what to
+change." Then wait for the answer. The operator can answer with one or
+more of these:
+
+- Go: start the run.
+- Skip an agent: add `--skip-agent AGENT` to `kit start` for each agent
+  to skip, for example `--skip-agent gemini`. AGENT is the name of the
+  agent in the plan. `kit step` then skips each step of that agent with
+  the reason `by-operator`, and the archive records each skip.
+- Install a tool: the answer is the yes of rule 11. Install the tool,
+  then run the `kit doctor` and `kit plan` commands above again, and
+  tell the operator the lines that changed.
+- Trace a step: add the step to the traces (section "Traces").
+- The operator fixed something, for example a login or an API key, and
+  says go: start the run.
+
+When the answer is not clear, ask one question about it. In an
+unattended run, after the answer, obey the section "Unattended runs":
+ask no more questions.
 
 ## Steps
 
@@ -221,14 +297,17 @@ different source.
    kit start --home throwaway --out DIR
    ```
 
+   In both cases, when the operator skipped an agent in the answer to
+   the pre-run checklist, add `--skip-agent AGENT` for each skipped agent.
+
    The command prints `run: <path>`. Keep the path. A later `kit` command
    finds the run by itself.
 
-4. Get the plan, and ask the operator. Use the same home mode as in
-   step 3.
+4. Get the plan of the run, and ask the operator. With no argument, the
+   plan uses the home mode and the skipped agents of the run of step 3.
 
    ```sh
-   kit plan --home throwaway
+   kit plan
    ```
 
    The plan prints one line for each step, for example:
@@ -254,9 +333,11 @@ different source.
    also reads the other agents that the doctor found.
 
    In an unattended run, do not show the list, and run every step of
-   the plan (section "Unattended runs").
+   the plan (section "Unattended runs"). A step of an agent that the
+   operator skipped prints `skip by-operator`. That is a result.
 
-   Show the list to the operator. The list can have more than 40 lines.
+   You showed the pre-run checklist before step 3. Now show the list.
+   The list can have more than 40 lines.
    Group the lines by kind, and name the agents and the backends of each
    kind. Mark each step that needs the operator, a login or the screen,
    and each step that costs model turns (`cost=turns:N`) on the plan of

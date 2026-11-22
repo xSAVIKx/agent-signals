@@ -54,6 +54,14 @@ expect_code "kit check accepts the doctor line" 0 $?
 tar -tzf "$run.tar.gz" >"$T/list"
 expect_line "the archive holds the doctor file" "/00-doctor\.txt$" "$T/list"
 
+# A second doctor call writes the file again and adds a line. The last
+# line counts.
+echo "os: linux, again" >"$run/00-doctor.txt"
+sha=$(. "$ROOT/probes/agent/lib.sh" && kit_sha256 "$run/00-doctor.txt")
+printf 'step\tdoctor\tnone\tok\t2026-11-01T00:00:02Z\t2026-11-01T00:00:03Z\t00-doctor.txt\t%s\n' "$sha" >>"$run/manifest.tsv"
+check clean
+expect_code "kit check accepts a second doctor line" 0 $?
+
 # The next step after the doctor line gets the next number.
 (cd "$T/clean" && export HOME=$H && kitc "$T/k" step permission-claude@pty) >/dev/null 2>&1
 expect_file "the next step gets the next number" "$run/02-permission-claude@pty.txt"

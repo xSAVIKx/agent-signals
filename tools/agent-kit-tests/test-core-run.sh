@@ -198,8 +198,42 @@ chmod +x "$T/ubin/claude"
 (cd "$T/u" && export HOME=$H PATH="$T/ubin:$PATH" && kitc "$T/k" plan) >"$T/out" 2>&1
 expect_line "the plan of an unattended run marks an operator step" '^step: real-session-claude@operator needs=operator cost=[^ ]+ skip=unattended ' "$T/out"
 expect_line "the plan of an unattended run keeps the probe" '^step: probe@none needs=none cost=none measures=' "$T/out"
+(cd "$T/u" && export HOME=$H PATH="$T/ubin:$PATH" && kitc "$T/k" plan --home real) >"$T/out" 2>&1
+expect_no_line "a plan with --home ignores the unattended value of the run" 'skip=unattended' "$T/out"
+(cd "$T/u" && export HOME=$H PATH="$T/ubin:$PATH" && kitc "$T/k" plan --home real --unattended) >"$T/out" 2>&1
+expect_line "a plan with --home --unattended marks an operator step" '^step: real-session-claude@operator needs=operator cost=[^ ]+ skip=unattended ' "$T/out"
 rt=$(run_of "$T/t")
 (cd "$T/t" && export HOME=$H AGENT_SIGNALS_RUN="$rt" && kitc "$T/k" plan) >"$T/out" 2>&1
 expect_no_line "a run with a person has no unattended skip" 'skip=unattended' "$T/out"
+
+# The operator skips an agent after the pre-run checklist.
+(cd "$T/u" && export HOME=$H PATH="$T/ubin:$PATH" && kitc "$T/k" plan --skip-agent claude) >"$T/out" 2>&1
+expect_line "plan --skip-agent marks a step of the agent" '^step: real-session-claude@operator needs=operator cost=[^ ]+ skip=by-operator ' "$T/out"
+expect_line "plan --skip-agent keeps the probe" '^step: probe@none needs=none cost=none measures=' "$T/out"
+(cd "$T/u" && export HOME=$H && kitc "$T/k" plan --skip-agent no-such) >"$T/out" 2>&1
+expect_code "plan with an unknown agent is bad use" 2 $?
+mkdir -m 0700 "$T/sk"
+(cd "$T/sk" && export HOME=$H && kitc "$T/k" start --skip-agent other --out "$T/sk") >"$T/out" 2>&1
+expect_code "start with an unknown agent is bad use" 2 $?
+expect_line "start names the unknown agent" 'unknown agent: other' "$T/out"
+(cd "$T/sk" && export HOME=$H && kitc "$T/k" start --skip-agent claude --skip-agent gemini --skip-agent claude --out "$T/sk") >/dev/null 2>&1
+expect_code "start with --skip-agent exits 0" 0 $?
+rs=$(run_of "$T/sk")
+n=$(grep -c '^meta	skip_agent	' "$rs/manifest.tsv")
+if [ "$n" = 2 ]; then pass "the manifest has one skip_agent line for each agent"; else fail "the manifest has one skip_agent line for each agent" "$n lines"; fi
+expect_line "manifest.json lists the skipped agents" '"skip_agents": \["claude", "gemini"\]' "$rs/manifest.json"
+(cd "$T/sk" && export HOME=$H PATH="$T/ubin:$PATH" && kitc "$T/k" plan) >"$T/out" 2>&1
+expect_line "the plan of the run marks a step of a skipped agent" ' skip=by-operator ' "$T/out"
+(cd "$T/sk" && export HOME=$H PATH="$T/ubin:$PATH" && kitc "$T/k" plan --home real) >"$T/out" 2>&1
+if grep -q 'skip=by-operator' "$T/out"; then
+  fail "a plan with --home ignores the skipped agents of the run" "$(grep -m1 'skip=by-operator' "$T/out")"
+else
+  pass "a plan with --home ignores the skipped agents of the run"
+fi
+(cd "$T/sk" && export HOME=$H && kitc "$T/k" step real-session-claude@operator) >"$T/out" 2>&1
+expect_code "a step of a skipped agent exits 0" 0 $?
+expect_line "a step of a skipped agent skips" '^step: real-session-claude@operator skip by-operator$' "$T/out"
+expect_line "the summary records the skip" '^real-session-claude@operator: skip by-operator$' "$rs/summary.txt"
+expect_line "manifest.json of a run with no skip has an empty list" '"skip_agents": \[\]' "$(run_of "$T/u")/manifest.json"
 
 done_tests

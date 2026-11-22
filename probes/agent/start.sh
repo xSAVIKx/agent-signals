@@ -1,5 +1,6 @@
 #!/bin/sh
-# kit start [--home real|throwaway|fixture] [--unattended] [--out DIR]: make a new run folder
+# kit start [--home real|throwaway|fixture] [--unattended] [--skip-agent AGENT]...
+#   [--out DIR]: make a new run folder
 # DIR/agent-signals-run-<os>-<time>/ with mode 0700, write its path to
 # DIR/.agent-signals-run and KIT_ROOT/.agent-signals-run, and print
 # "run: <path>" as the last line. With no --out, DIR is the current
@@ -18,7 +19,12 @@
 # awake (kit_awake in lib.sh: caffeinate, or why the kit cannot use it).
 # With --unattended, no person
 # watches the run: "kit plan" and "kit step" skip each step that needs the
-# operator or the screen of the operator, with the reason "unattended". "kit step" adds the step lines, and "kit edit" the
+# operator or the screen of the operator, with the reason "unattended".
+# Each --skip-agent AGENT adds the line "meta<tab>skip_agent<tab>AGENT".
+# Then "kit plan" and "kit step" skip each step of that agent, with the
+# reason "by-operator". The operator names these agents in the answer to
+# the pre-run checklist. An agent that the kit does not know is bad use
+# (exit 2). "kit step" adds the step lines, and "kit edit" the
 # edit lines. The manifest never holds the host name, the account name or
 # the home folder.
 set -u
@@ -27,6 +33,7 @@ set -u
 home=real
 out=
 unattended=no
+skipped=
 while [ "$#" -gt 0 ]; do
   case $1 in
     --home | --out)
@@ -38,7 +45,14 @@ while [ "$#" -gt 0 ]; do
       unattended=yes
       shift
       ;;
-    *) kit_die "$KIT_USAGE" "usage: kit start [--home real|throwaway|fixture] [--unattended] [--out DIR]" ;;
+    --skip-agent)
+      [ "$#" -ge 2 ] || kit_die "$KIT_USAGE" "$1 needs an agent name"
+      why=$(kit_skip_agent_problem "$2")
+      [ -z "$why" ] || kit_die "$KIT_USAGE" "$why"
+      case " $skipped " in *" $2 "*) ;; *) skipped="${skipped:+$skipped }$2" ;; esac
+      shift 2
+      ;;
+    *) kit_die "$KIT_USAGE" "usage: kit start [--home real|throwaway|fixture] [--unattended] [--skip-agent AGENT]... [--out DIR]" ;;
   esac
 done
 case $home in real | throwaway | fixture) ;; *) kit_die "$KIT_USAGE" "--home needs real, throwaway or fixture" ;; esac
@@ -73,6 +87,7 @@ chmod 700 "$run"
   printf 'meta\tstart\t%s\n' "$(kit_now)"
   awake=$(kit_awake "$os" "$unattended")
   [ -z "$awake" ] || printf 'meta\tawake\t%s\n' "$awake"
+  for a in $skipped; do printf 'meta\tskip_agent\t%s\n' "$a"; done
 } >"$run/manifest.tsv"
 kit_json "$run"
 kit_summary "$run"

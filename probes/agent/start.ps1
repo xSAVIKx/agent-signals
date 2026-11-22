@@ -1,10 +1,16 @@
 # kit start on Windows: make a new run folder.
 #
-#   kit start [--home real|throwaway|fixture] [--unattended] [--out DIR] [--python PATH]
+#   kit start [--home real|throwaway|fixture] [--unattended] [--skip-agent AGENT]...
+#             [--out DIR] [--python PATH]
 #
 # With --unattended, no person watches the run: "kit plan" and "kit step"
 # skip each step that needs the operator or the screen of the operator, with
 # the reason "unattended".
+#
+# Each --skip-agent AGENT adds the line "meta skip_agent AGENT". Then "kit
+# plan" and "kit step" skip each step of that agent, with the reason
+# "by-operator". The operator names these agents in the answer to the
+# pre-run checklist. An agent that the kit does not know is bad use (exit 2).
 #
 # --python names the Python with pywinpty, pyte and psutil for the conpty
 # backend (for example the venv of the scenarios). The run keeps it in
@@ -25,14 +31,21 @@ $ErrorActionPreference = 'Stop'
 $homeMode = 'real'
 $python = ''
 $unattended = 'no'
+$skipped = @()
 $out = (Get-Location).ProviderPath
 for ($i = 0; $i -lt $argv.Count; $i++) {
     $a = [string]$argv[$i]
     if ($a -eq '--home' -and $i + 1 -lt $argv.Count) { $homeMode = [string]$argv[++$i] }
     elseif ($a -eq '--out' -and $i + 1 -lt $argv.Count) { $out = [string]$argv[++$i] }
     elseif ($a -eq '--unattended') { $unattended = 'yes' }
+    elseif ($a -eq '--skip-agent' -and $i + 1 -lt $argv.Count) {
+        $sa = [string]$argv[++$i]
+        $why = Get-KitSkipAgentProblem $sa
+        if ($why) { Stop-Kit 2 $why }
+        if ($skipped -cnotcontains $sa) { $skipped += $sa }
+    }
     elseif ($a -eq '--python' -and $i + 1 -lt $argv.Count) { $python = [string]$argv[++$i] }
-    else { Stop-Kit 2 'usage: kit start [--home real|throwaway|fixture] [--unattended] [--out DIR] [--python PATH]' }
+    else { Stop-Kit 2 'usage: kit start [--home real|throwaway|fixture] [--unattended] [--skip-agent AGENT]... [--out DIR] [--python PATH]' }
 }
 if ($homeMode -cnotin 'real', 'throwaway', 'fixture') { Stop-Kit 2 "unknown home mode: $homeMode" }
 if ($python) {
@@ -75,6 +88,7 @@ Add-KitManifest $run @('meta', 'os', 'windows')
 Add-KitManifest $run @('meta', 'home', $homeMode)
 Add-KitManifest $run @('meta', 'unattended', $unattended)
 Add-KitManifest $run @('meta', 'start', (Get-KitIsoTime))
+foreach ($sa in $skipped) { Add-KitManifest $run @('meta', 'skip_agent', $sa) }
 # The path of the Python can hold the home folder, so it goes to
 # .kit\python, which the archive does not hold.
 if ($python) {

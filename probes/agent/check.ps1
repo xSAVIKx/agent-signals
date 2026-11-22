@@ -168,6 +168,7 @@ foreach ($e in $edits) {
 $j = [ordered]@{
     kit = $version; os = $os.Os; cpu = $os.Cpu; os_version = $os.Version; home = $homeMode
     unattended = ((Get-KitMeta $run 'unattended') -eq 'yes')
+    skip_agents = @(Get-KitMetaAll $run 'skip_agent')
     start = $start; end = $end; orchestrator = $orch; steps = $sl; edits = $el
 }
 Write-KitText (Join-Path $run 'manifest.json') ((ConvertTo-Json -InputObject $j -Depth 5) + "`n")

@@ -142,6 +142,37 @@ Expect-Kit 'plan with no conpty Python exits 0' 0 'plan'
 Expect-NoLine 'plan skips conpty with no Python' 'first-run-claude' $out
 $env:AGENT_SIGNALS_PYTHON = $py
 
+# The operator skips an agent after the pre-run checklist.
+Push-Location -LiteralPath $dir
+Expect-Kit 'plan --skip-agent exits 0' 0 'plan' '--skip-agent' 'claude'
+Pop-Location
+Expect-Line 'plan --skip-agent marks a step of the agent' '^step: first-run-claude@conpty needs=none cost=none measures=.* skip=by-operator$' $out
+Expect-Line 'plan --skip-agent keeps the probe' '^step: probe@none needs=none cost=none measures=the full probe kit$' $out
+Expect-Kit 'plan with an unknown agent is bad use' 2 'plan' '--skip-agent' 'no-such'
+$skipDir = Join-Path $T 'skip dir'
+Expect-Kit 'start with an unknown agent is bad use' 2 'start' '--skip-agent' 'other' '--out' $skipDir
+Expect-Line 'start names the unknown agent' 'unknown agent: other' $out
+Expect-Kit 'start with --skip-agent exits 0' 0 'start' '--skip-agent' 'claude' '--skip-agent' 'gemini' '--skip-agent' 'claude' '--out' $skipDir
+$skipRun = (Get-Content -LiteralPath (Join-Path $skipDir '.agent-signals-run') -TotalCount 1)
+$sm = Join-Path $skipRun 'manifest.tsv'
+$n = @(Get-Content -LiteralPath $sm | Where-Object { $_ -like "meta`tskip_agent`t*" }).Count
+if ($n -eq 2) { Pass 'the manifest has one skip_agent line for each agent' } else { Fail 'the manifest has one skip_agent line for each agent' "$n lines" }
+Push-Location -LiteralPath $skipDir
+Expect-Kit 'the plan of the run exits 0' 0 'plan'
+Expect-Line 'the plan of the run marks a step of a skipped agent' '^step: first-run-claude@conpty .* skip=by-operator$' $out
+Expect-Kit 'a plan with --home exits 0' 0 'plan' '--home' 'real'
+Expect-NoLine 'a plan with --home ignores the skipped agents of the run' 'skip=by-operator' $out
+Expect-Kit 'a step of a skipped agent skips' 3 'step' 'first-run-claude@conpty'
+Expect-Line 'the skip names the operator' '^step: first-run-claude@conpty skip by-operator$' $out
+Pop-Location
+# Started last in this block: a new run becomes the run of the kit folder.
+$uaDir = Join-Path $T 'unattended dir'
+Expect-Kit 'start --unattended exits 0' 0 'start' '--unattended' '--out' $uaDir
+Push-Location -LiteralPath $uaDir
+Expect-Kit 'a plan with --home in an unattended run exits 0' 0 'plan' '--home' 'real'
+Expect-NoLine 'a plan with --home ignores the unattended value of the run' 'skip=unattended' $out
+Pop-Location
+
 # kit step, in a new process for each command.
 $env:AGENT_SIGNALS_RUN = $run
 Expect-Kit 'an unknown step is bad use' 2 'step' 'no-such@none'

@@ -49,8 +49,15 @@ trap 'exit 130' INT TERM
 _trap_rc=0
 trap '_trap_rc=$?; rm -rf "$tmp"; exit "$_trap_rc"' EXIT
 
-# 1 and 2. The step files and their SHA-256.
-awk -F '\t' '$1 == "step" { print $2 "\t" $3 "\t" $4 "\t" $7 "\t" $8 }' "$m" >"$tmp/steps"
+# 1 and 2. The step files and their SHA-256. When two step lines name the
+# same file, the last line counts, as in check.ps1. Each "kit doctor"
+# call adds a line for 00-doctor.txt and writes the file again, for
+# example after the operator installs a tool from the pre-run checklist.
+awk -F '\t' '
+  $1 != "step" { next }
+  $7 == "-" { keep[++n] = $0; next }
+  { if ($7 in at) keep[at[$7]] = ""; keep[++n] = $0; at[$7] = n }
+  END { for (i = 1; i <= n; i++) if (keep[i] != "") { split(keep[i], f, "\t"); print f[2] "\t" f[3] "\t" f[4] "\t" f[7] "\t" f[8] } }' "$m" >"$tmp/steps"
 while IFS='	' read -r name backend result file sha; do
   if [ "$file" = - ]; then
     case $result in skip | fail) ;; *) say "$name@$backend: the result is $result, but the step has no file" ;; esac

@@ -1,13 +1,16 @@
 # kit plan on Windows: print the steps that this machine can run.
 #
-#   kit plan [--home real|throwaway|fixture] [--unattended] [--python PATH]
+#   kit plan [--home real|throwaway|fixture] [--unattended] [--skip-agent AGENT]... [--python PATH]
 #
 # One line for each step of probes\agent\steps.tsv, in file order:
 #   step: <name>@<backend> needs=<needs> cost=<cost> measures=<text>
 # A step whose agent is not installed, or whose backend tool is missing,
 # is not printed. With the throwaway home, a step with needs=login has
-# " skip=no-login" at the end. With no --home, the home mode of the run
-# counts, else "real".
+# " skip=no-login" at the end. With no --home, the home mode and the
+# unattended value of the run count, else "real" and attended. A plan with
+# --home uses only its own arguments. A step of an agent of --skip-agent,
+# or of a "skip_agent" line of the run when the command has no
+# --skip-agent and no --home, has " skip=by-operator".
 # The backends on Windows, from the column "backends":
 #   none      the probe.
 #   conpty    the first run: a driver Python (or uv) and the scenario
@@ -26,22 +29,36 @@ $ErrorActionPreference = 'Stop'
 $homeMode = ''
 $unattended = ''
 $python = ''
+$skipped = @()
+$given = $false
 for ($i = 0; $i -lt $argv.Count; $i++) {
     $a = [string]$argv[$i]
     if ($a -eq '--home' -and $i + 1 -lt $argv.Count) { $homeMode = [string]$argv[++$i] }
     elseif ($a -eq '--unattended') { $unattended = 'yes' }
+    elseif ($a -eq '--skip-agent' -and $i + 1 -lt $argv.Count) {
+        $sa = [string]$argv[++$i]
+        $why = Get-KitSkipAgentProblem $sa
+        if ($why) { Stop-Kit 2 $why }
+        $skipped += $sa
+        $given = $true
+    }
     elseif ($a -eq '--python' -and $i + 1 -lt $argv.Count) { $python = [string]$argv[++$i] }
-    else { Stop-Kit 2 'usage: kit plan [--home real|throwaway|fixture] [--unattended] [--python PATH]' }
+    else { Stop-Kit 2 'usage: kit plan [--home real|throwaway|fixture] [--unattended] [--skip-agent AGENT]... [--python PATH]' }
 }
 $run = Find-KitRunDir
-if (-not $homeMode) {
-    if ($run) { $homeMode = Get-KitMeta $run 'home' }
-    if (-not $homeMode) { $homeMode = 'real' }
+# A plan with --home is a preview for a new run, for example for the
+# pre-run checklist. It uses only its own arguments: the unattended value
+# and the skipped agents of an earlier run do not count. A plan with no
+# --home is the plan of the current run: it uses the home mode, the
+# unattended value and, with no --skip-agent, the skip_agent lines of the
+# run.
+if (-not $homeMode -and $run) {
+    $homeMode = Get-KitMeta $run 'home'
+    if (-not $unattended) { $unattended = Get-KitMeta $run 'unattended' }
+    if (-not $given) { $skipped = @(Get-KitMetaAll $run 'skip_agent') }
 }
-if (-not $unattended) {
-    if ($run) { $unattended = Get-KitMeta $run 'unattended' }
-    if (-not $unattended) { $unattended = 'no' }
-}
+if (-not $homeMode) { $homeMode = 'real' }
+if (-not $unattended) { $unattended = 'no' }
 if ($homeMode -cnotin 'real', 'throwaway', 'fixture') { Stop-Kit 2 "unknown home mode: $homeMode" }
 
 $agents = @{}
@@ -102,6 +119,7 @@ foreach ($s in @(Read-KitSteps)) {
         $cost = if ($homeMode -eq 'fixture') { 'none' } else { $s.cost }
         $line = 'step: {0}@{1} needs={2} cost={3} measures={4}' -f $s.name, $backend, $s.needs, $cost, $s.measures
         $why = Get-KitLoginSkip $homeMode $s.needs $s.agent
+        if (-not $why) { $why = Get-KitOperatorSkip $skipped $s.agent }
         if (-not $why) { $why = Get-KitUnattendedSkip $unattended $s.needs $backend }
         if ($why) { $line += " skip=$why" }
         Write-Output $line
