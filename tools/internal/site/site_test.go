@@ -330,6 +330,9 @@ func TestSitePages(t *testing.T) {
 				continue
 			}
 			target, frag, _ := strings.Cut(href, "#")
+			// A query, as in a link to the corpus page with a filter, is not
+			// a part of the file path.
+			target, _, _ = strings.Cut(target, "?")
 			p := f.Path
 			if target != "" {
 				p = path.Clean(path.Join(path.Dir(f.Path), target))
@@ -610,6 +613,48 @@ func TestMachineOutputs(t *testing.T) {
 	names, _ := filepath.Glob("../../../facts/[0-9]*.md")
 	if len(facts.Facts) != len(names) || len(names) == 0 {
 		t.Errorf("facts.json: %d facts, want %d", len(facts.Facts), len(names))
+	}
+}
+
+// TestCorpusPageHasFilters checks the facet controls, the data attributes of
+// each row, and the golden file of the corpus page.
+func TestCorpusPageHasFilters(t *testing.T) {
+	b := fixtureBuilder(t)
+	if err := b.corpusIndex(); err != nil {
+		t.Fatal(err)
+	}
+	got := b.files[len(b.files)-1].Data
+	text := string(got)
+	for _, key := range []string{"agent", "state", "dialog", "version", "provenance"} {
+		if !strings.Contains(text, `<label for="facet-`+key+`">`) {
+			t.Errorf("no label for the %s facet", key)
+		}
+		if !strings.Contains(text, `<select id="facet-`+key+`" name="`+key+`" data-facet="`+key+`">`) {
+			t.Errorf("no select for the %s facet", key)
+		}
+	}
+	for _, want := range []string{
+		`id="corpus-filter-box"`, `hidden>`, "<fieldset disabled>", `aria-live="polite"`, `type="reset"`,
+		`<tr data-agent="demo" data-state="IDLE" data-dialog="none" data-version="1.0.0" data-provenance="derived">`,
+		`<section class="agent-block" data-agent="demo">`,
+		`assets/corpus-filter.js`,
+	} {
+		if !strings.Contains(text, want) {
+			t.Errorf("the corpus page lacks %q", want)
+		}
+	}
+	golden := filepath.Join("testdata", "golden", "corpus.html")
+	if *update {
+		if err := os.WriteFile(golden, got, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want, err := os.ReadFile(golden)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Errorf("the page differs from %s; run the test with -update and read the diff", golden)
 	}
 }
 

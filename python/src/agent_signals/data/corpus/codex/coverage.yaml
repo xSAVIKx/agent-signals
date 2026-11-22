@@ -83,3 +83,25 @@ verified:
       file name. Not checked: the screens that the kit saved with no check of
       the state (last, after Escape, after C-c), styled captures, and a pane
       narrower than 120 columns.
+  - version: 0.170.0
+    date: 2026-11-18
+    method: >-
+      screens of kit runs with --home fixture and the fake model of the kit, in
+      run 44392109867 of the scenarios workflow (job kit-no-login) on GitHub-hosted images: linux, macos, windows, 120x40, imported
+      by tools/import-run-screens.py
+    notes: >-
+      Covers 21 screens (busy, idle, permission), with the OS in the
+      file name. Not checked: a real model and a real login, the screens that the kit saved with no check of
+      the state (last, after Escape, after C-c), styled captures, and a pane
+      narrower than 120 columns.
+  - version: 0.171.0
+    date: 2026-11-21
+    method: >-
+      screens of kit runs with the home of the operator (home real, a real
+      login and model) on laptops: linux, macos, 120x40, imported
+      by tools/import-run-screens.py
+    notes: >-
+      Covers 13 screens (busy, idle, permission), with the OS in the
+      file name. Not checked: the screens that the kit saved with no check of
+      the state (last, after Escape, after C-c), styled captures, and a pane
+      narrower than 120 columns.

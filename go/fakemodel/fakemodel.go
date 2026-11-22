@@ -83,6 +83,16 @@ const (
 	TriggerChoice = "Let me choose"
 	// TriggerQuestion: a text reply that ends with a question (Question).
 	TriggerQuestion = "End your reply with a question"
+	// TriggerFail500: Claude Code gets HTTP 500 with an api_error body.
+	// The other agents get the reply Text.
+	TriggerFail500 = "Fail with 500"
+	// TriggerFail529: Claude Code gets HTTP 529 with an overloaded_error
+	// body. The other agents get the reply Text.
+	TriggerFail529 = "Fail with 529"
+	// TriggerLate: Claude Code gets no status line and no byte until the
+	// client closes the connection, or for 2 minutes. A client time-out
+	// (API_TIMEOUT_MS) ends the request. The other agents get the reply Text.
+	TriggerLate = "Answer late"
 	// TriggerDeny: a review request gets the verdict "deny" when the user
 	// text that it reviews holds this text. Else the verdict is "allow".
 	TriggerDeny = "Deny the review"

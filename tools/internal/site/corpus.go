@@ -157,3 +157,68 @@ func ScreenText(b []byte) (string, bool) {
 	}
 	return sb.String(), changed
 }
+
+// Facet is one filter of the corpus page: a <select> with its options.
+type Facet struct {
+	Key     string // the data-* name and the query parameter
+	Label   string
+	Options []FacetOption
+}
+
+// FacetOption is one value of a facet. Value is what the rows carry.
+type FacetOption struct {
+	Value string
+	Label string
+}
+
+// DialogNone is the value of the dialog facet for a screen without a dialog.
+const DialogNone = "none"
+
+// DialogValue gives the value of the dialog facet for a screen.
+func (s Screen) DialogValue() string {
+	if s.Meta.Expect.Dialog == "" {
+		return DialogNone
+	}
+	return s.Meta.Expect.Dialog
+}
+
+// corpusFacets reads the values of the five facets from the screens, in sorted
+// order. The agent facet keeps the display name.
+func corpusFacets(agents []Agent) []Facet {
+	seen := map[string]map[string]bool{}
+	for _, k := range []string{"state", "dialog", "version", "provenance"} {
+		seen[k] = map[string]bool{}
+	}
+	var agentOpts []FacetOption
+	for _, a := range agents {
+		if len(a.Screens) == 0 {
+			continue
+		}
+		agentOpts = append(agentOpts, FacetOption{a.Name, a.Display})
+		for _, s := range a.Screens {
+			seen["state"][s.Meta.Expect.State] = true
+			seen["dialog"][s.DialogValue()] = true
+			seen["version"][s.Meta.AgentVersion] = true
+			seen["provenance"][s.Meta.Provenance] = true
+		}
+	}
+	options := func(k string) []FacetOption {
+		var vals []string
+		for v := range seen[k] {
+			vals = append(vals, v)
+		}
+		sort.Strings(vals)
+		var out []FacetOption
+		for _, v := range vals {
+			out = append(out, FacetOption{v, v})
+		}
+		return out
+	}
+	return []Facet{
+		{"agent", "Agent", agentOpts},
+		{"state", "State", options("state")},
+		{"dialog", "Dialog", options("dialog")},
+		{"version", "Agent version", options("version")},
+		{"provenance", "Provenance", options("provenance")},
+	}
+}

@@ -1,0 +1,40 @@
+ ▐▛███▛█   Claude Code v2.1.327
+▝▜██████▀  Opus 5.5 · API Usage Billing
+ ▝▝   ▝▝   <run>\work\st-3f4774b4
+
+
+> Write outside the work folder: make the file <run>\work\13-write-outside-claude-accept-edits-conpty.out.outside\agent-signals-write.txt
+   that holds the word hello.
+
+● Write(<run>\work\13-write-outsid…\agent-signals-write.txt)
+  ⎿  Rejected write  <run>\work\13-write-outside-claude-acceto
+                   pt-edits-conpty.out.outside\agent-signals-write.txt
+      1 The fixture wrote this file.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+>
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ accept edits on (shift+tab to cycle)
+

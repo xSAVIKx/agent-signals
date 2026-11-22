@@ -1,0 +1,31 @@
+{{define "matrix.html"}}{{$o := .Out}}{{$m := .Matrix}}<h1>States by agent</h1>
+<p class="lead">This table gives the number of screens in the corpus for each agent and each state. Each number is a link to the corpus page, with a filter for that agent and that state.</p>
+<p>The columns are the states of <a href="{{rel $o "docs/format.html"}}#the-states">the format of a screen</a>. A cell with "none measured" tells only that the corpus has no screen of that agent in that state. It does not tell that the agent cannot show that state. The corpus has no mark for a state that an agent does not have.</p>
+<div class="table-wrap" role="region" tabindex="0" aria-labelledby="caption-matrix">
+<table class="matrix">
+<caption id="caption-matrix">The {{$m.Total}} screens of {{len $m.Rows}} {{plural (len $m.Rows) "agent" "agents"}}, by state</caption>
+<thead><tr><th scope="col">Agent</th>{{range $m.States}}<th scope="col"><code>{{.}}</code></th>{{end}}<th scope="col">All states</th></tr></thead>
+<tbody>
+{{- range $m.Rows}}{{$r := .}}
+<tr>
+<th scope="row">{{.Display}}</th>
+{{- range .Cells}}
+{{if .Count}}<td class="num"><a href="{{filterURL $o $r.Agent .State}}">{{.Count}}<span class="visually-hidden"> {{plural .Count "screen" "screens"}} of {{$r.Display}} in the state {{.State}}</span></a></td>{{else}}<td class="none">none measured</td>{{end}}
+{{- end}}
+{{if .Total}}<td class="num"><a href="{{filterURL $o .Agent ""}}">{{.Total}}<span class="visually-hidden"> {{plural .Total "screen" "screens"}} of {{.Display}}</span></a></td>{{else}}<td class="none">none measured</td>{{end}}
+</tr>
+{{- end}}
+</tbody>
+<tfoot>
+<tr>
+<th scope="row">All agents</th>
+{{- range $m.Totals}}
+{{if .Count}}<td class="num"><a href="{{filterURL $o "" .State}}">{{.Count}}<span class="visually-hidden"> {{plural .Count "screen" "screens"}} in the state {{.State}}</span></a></td>{{else}}<td class="none">none measured</td>{{end}}
+{{- end}}
+<td class="num">{{$m.Total}}</td>
+</tr>
+</tfoot>
+</table>
+</div>
+<p>Read <a href="{{rel $o "corpus/index.html"}}">the corpus</a> for each screen, its version and its provenance. A count includes each screen of the corpus, also a screen with the provenance <code>derived</code>.</p>
+{{end}}

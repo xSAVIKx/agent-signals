@@ -99,7 +99,7 @@ type page struct {
 	Source      string // the repository path of the source, or ""
 	Crumbs      []crumb
 	Body        template.HTML
-	Script      bool
+	Script      string // the file name of a page script in assets/, or empty
 	Markdown    string // the output path of the Markdown copy, or ""
 	Nav         []navItem
 	JSONLD      template.JS // the structured data, or ""
@@ -293,6 +293,7 @@ func (b *builder) load() error {
 			}
 			return ""
 		},
+		"filterURL": corpusFilterURL,
 		"plural": func(n int, one, many string) string {
 			if n == 1 {
 				return one
@@ -391,7 +392,7 @@ func (b *builder) exec(p page, name string, data any) error {
 }
 
 func (b *builder) pages() error {
-	steps := []func() error{b.home, b.docs, b.factsIndex, b.factPages, b.corpusIndex, b.screenPages,
+	steps := []func() error{b.home, b.docs, b.factsIndex, b.factPages, b.corpusIndex, b.matrixPage, b.screenPages,
 		b.tasksPages, b.releases, b.reference, b.notFound, b.assets, b.machine}
 	for _, s := range steps {
 		if err := s(); err != nil {
@@ -492,7 +493,7 @@ func (b *builder) factsIndex() error {
 	if err != nil {
 		return err
 	}
-	p := page{Out: "facts/index.html", Title: "Facts", Section: "facts", Source: "facts/README.md", Script: true, Markdown: md,
+	p := page{Out: "facts/index.html", Title: "Facts", Section: "facts", Source: "facts/README.md", Script: "filter.js", Markdown: md,
 		Description: "The measured facts about AI coding agents, one page for each fact.",
 		Crumbs:      []crumb{{"Home", "index.html"}}}
 	return b.exec(p, "facts.html", struct {
@@ -549,14 +550,15 @@ func (b *builder) corpusIndex() error {
 	for _, a := range b.agents {
 		total += len(a.Screens)
 	}
-	p := page{Out: "corpus/index.html", Title: "Corpus", Section: "corpus",
+	p := page{Out: "corpus/index.html", Title: "Corpus", Section: "corpus", Script: "corpus-filter.js",
 		Description: "The measured terminal screens of each agent, with the result that a reader must give.",
 		Crumbs:      []crumb{{"Home", "index.html"}}}
 	return b.exec(p, "corpus.html", struct {
 		page
 		Agents []Agent
 		Total  int
-	}{p, b.agents, total})
+		Facets []Facet
+	}{p, b.agents, total, corpusFacets(b.agents)})
 }
 
 func (b *builder) screenPages() error {

@@ -1,13 +1,28 @@
 {{define "corpus.html"}}{{$o := .Out}}<h1>Corpus</h1>
 <p class="lead">The corpus holds {{.Total}} measured terminal screens of {{len .Agents}} agents. Each screen is a pair of files: the <code>.screen</code> file holds the exact bytes, and the <code>.yaml</code> file holds the metadata and the expected result.</p>
 <p>Read <a href="{{rel $o "docs/format.html"}}">the format of a screen</a> for each field and each state.</p>
-<ul class="toc">
+<p>Read <a href="{{rel $o "corpus/matrix.html"}}">the states by agent</a> for the number of screens of each agent in each state.</p>
+<form class="facets" id="corpus-filter-box" aria-describedby="corpus-filter-status" hidden>
+<fieldset disabled>
+<legend>Show only the screens that match</legend>
+<div class="facet-row">
+{{- range .Facets}}
+<div class="facet"><label for="facet-{{.Key}}">{{.Label}}</label>
+<select id="facet-{{.Key}}" name="{{.Key}}" data-facet="{{.Key}}"><option value="">All</option>{{range .Options}}<option value="{{.Value}}">{{.Label}}</option>{{end}}</select></div>
+{{- end}}
+<div class="facet"><button type="reset" id="corpus-filter-reset">Reset the filters</button></div>
+</div>
+</fieldset>
+<p id="corpus-filter-status" class="filter-status" role="status" aria-live="polite"></p>
+</form>
+<ul class="toc" id="corpus-toc">
 {{- range .Agents}}
-<li><a href="#agent-{{.Name}}">{{.Display}}</a> ({{len .Screens}} {{plural (len .Screens) "screen" "screens"}})</li>
+<li data-agent="{{.Name}}"><a href="#agent-{{.Name}}">{{.Display}}</a> ({{len .Screens}} {{plural (len .Screens) "screen" "screens"}})</li>
 {{- end}}
 </ul>
 {{- range .Agents}}
 {{$a := .}}
+<section class="agent-block" data-agent="{{.Name}}">
 <h2 id="agent-{{.Name}}">{{.Display}} <span class="muted">(<code>corpus/{{.Name}}</code>)</span></h2>
 {{- if .Coverage}}
 <h3 id="agent-{{.Name}}-versions">Verified versions</h3>
@@ -24,7 +39,7 @@
 <thead><tr><th scope="col">Screen</th><th scope="col">State</th><th scope="col">Dialog</th><th scope="col">Version</th><th scope="col">Provenance</th><th scope="col">Facts</th></tr></thead>
 <tbody>
 {{- range .Screens}}{{$m := .Meta}}
-<tr>
+<tr data-agent="{{.Agent}}" data-state="{{$m.Expect.State}}" data-dialog="{{.DialogValue}}" data-version="{{$m.AgentVersion}}" data-provenance="{{$m.Provenance}}">
 <th scope="row"><a href="{{rel $o (print "corpus/" .Agent "/" .Slug ".html")}}"><code>{{.Slug}}</code></a></th>
 <td><code>{{$m.Expect.State}}</code>{{if $m.KnownFalsePositive}} <strong class="badge">known false positive</strong>{{end}}</td>
 <td>{{with $m.Expect.Dialog}}<code>{{.}}</code>{{else}}<span class="muted">none given</span>{{end}}</td>
@@ -36,5 +51,6 @@
 </tbody>
 </table>
 </div>
+</section>
 {{- end}}
 {{end}}
