@@ -6,11 +6,11 @@
 #   step: <name>@<backend> needs=<needs> cost=<cost> measures=<text>
 # A step whose agent is not installed, or whose backend tool is missing,
 # is not printed. With the throwaway home, a step with needs=login has
-# " skip=no-login" at the end. With no --home, the home mode of the run
-# counts, else "real". A step of an agent of --skip-agent, or of a
-# "skip_agent" line of the run when the command has no --skip-agent and no
-# --home, has
-# " skip=by-operator".
+# " skip=no-login" at the end. With no --home, the home mode and the
+# unattended value of the run count, else "real" and attended. A plan with
+# --home uses only its own arguments. A step of an agent of --skip-agent,
+# or of a "skip_agent" line of the run when the command has no
+# --skip-agent and no --home, has " skip=by-operator".
 # The backends on Windows, from the column "backends":
 #   none      the probe.
 #   conpty    the first run: a driver Python (or uv) and the scenario
@@ -46,18 +46,19 @@ for ($i = 0; $i -lt $argv.Count; $i++) {
     else { Stop-Kit 2 'usage: kit plan [--home real|throwaway|fixture] [--unattended] [--skip-agent AGENT]... [--python PATH]' }
 }
 $run = Find-KitRunDir
-# A plan with no --home and no --skip-agent is the plan of the current run:
-# it uses the skip_agent lines of the run. A plan with --home is a preview
-# for a new run. Then the skipped agents of an earlier run do not count.
-if (-not $given -and -not $homeMode -and $run) { $skipped = @(Get-KitMetaAll $run 'skip_agent') }
-if (-not $homeMode) {
-    if ($run) { $homeMode = Get-KitMeta $run 'home' }
-    if (-not $homeMode) { $homeMode = 'real' }
+# A plan with --home is a preview for a new run, for example for the
+# pre-run checklist. It uses only its own arguments: the unattended value
+# and the skipped agents of an earlier run do not count. A plan with no
+# --home is the plan of the current run: it uses the home mode, the
+# unattended value and, with no --skip-agent, the skip_agent lines of the
+# run.
+if (-not $homeMode -and $run) {
+    $homeMode = Get-KitMeta $run 'home'
+    if (-not $unattended) { $unattended = Get-KitMeta $run 'unattended' }
+    if (-not $given) { $skipped = @(Get-KitMetaAll $run 'skip_agent') }
 }
-if (-not $unattended) {
-    if ($run) { $unattended = Get-KitMeta $run 'unattended' }
-    if (-not $unattended) { $unattended = 'no' }
-}
+if (-not $homeMode) { $homeMode = 'real' }
+if (-not $unattended) { $unattended = 'no' }
 if ($homeMode -cnotin 'real', 'throwaway', 'fixture') { Stop-Kit 2 "unknown home mode: $homeMode" }
 
 $agents = @{}

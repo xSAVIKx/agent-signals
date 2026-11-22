@@ -162,6 +162,14 @@ Expect-Kit 'the plan of the run exits 0' 0 'plan'
 Expect-Line 'the plan of the run marks a step of a skipped agent' '^step: first-run-claude@conpty .* skip=by-operator$' $out
 Expect-Kit 'a plan with --home exits 0' 0 'plan' '--home' 'real'
 Expect-NoLine 'a plan with --home ignores the skipped agents of the run' 'skip=by-operator' $out
+Pop-Location
+$uaDir = Join-Path $T 'unattended dir'
+Expect-Kit 'start --unattended exits 0' 0 'start' '--unattended' '--out' $uaDir
+Push-Location -LiteralPath $uaDir
+Expect-Kit 'a plan with --home in an unattended run exits 0' 0 'plan' '--home' 'real'
+Expect-NoLine 'a plan with --home ignores the unattended value of the run' 'skip=unattended' $out
+Pop-Location
+Push-Location -LiteralPath $skipDir
 Expect-Kit 'a step of a skipped agent skips' 3 'step' 'first-run-claude@conpty'
 Expect-Line 'the skip names the operator' '^step: first-run-claude@conpty skip by-operator$' $out
 Pop-Location

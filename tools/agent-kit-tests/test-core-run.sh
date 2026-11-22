@@ -198,6 +198,10 @@ chmod +x "$T/ubin/claude"
 (cd "$T/u" && export HOME=$H PATH="$T/ubin:$PATH" && kitc "$T/k" plan) >"$T/out" 2>&1
 expect_line "the plan of an unattended run marks an operator step" '^step: real-session-claude@operator needs=operator cost=[^ ]+ skip=unattended ' "$T/out"
 expect_line "the plan of an unattended run keeps the probe" '^step: probe@none needs=none cost=none measures=' "$T/out"
+(cd "$T/u" && export HOME=$H PATH="$T/ubin:$PATH" && kitc "$T/k" plan --home real) >"$T/out" 2>&1
+expect_no_line "a plan with --home ignores the unattended value of the run" 'skip=unattended' "$T/out"
+(cd "$T/u" && export HOME=$H PATH="$T/ubin:$PATH" && kitc "$T/k" plan --home real --unattended) >"$T/out" 2>&1
+expect_line "a plan with --home --unattended marks an operator step" '^step: real-session-claude@operator needs=operator cost=[^ ]+ skip=unattended ' "$T/out"
 rt=$(run_of "$T/t")
 (cd "$T/t" && export HOME=$H AGENT_SIGNALS_RUN="$rt" && kitc "$T/k" plan) >"$T/out" 2>&1
 expect_no_line "a run with a person has no unattended skip" 'skip=unattended' "$T/out"
