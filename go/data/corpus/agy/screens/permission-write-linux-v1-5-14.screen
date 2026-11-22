@@ -1,0 +1,40 @@
+      ▄▀▀▄        Antigravity CLI 1.5.14
+     ▀▀▀▀▀▀       <email> (<plan>)
+    ▀▀▀▀▀▀▀▀      Gemini 4 Hydrogen (Medium)
+   ▄▀▀    ▀▀▄     /work/example
+  ▄▀▀      ▀▀▄
+
+────────────────────────────────────────────────────────────
+> Write a file named agent-signals-write.txt that holds the word hello.
+
+○ Thought for 2.4s (The task is to write a file named `agent-signals-write.txt` with the content "hello" within the...)
+● Edited 1 file (agent-signals-write.txt) (ctrl+o to expand)
+
+Create file
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+/work/example/write-agy-ask-writes-pty/agent-signal1
+    +  hello
+
+Allow creation of this file?
+> 1. Yes, allow creation
+  2. No, deny creation
+
+  ↑/↓ Navigate · f full diff
+esc to cancel                                                                                 Gemini 4 Hydrogen · medium
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
