@@ -31,6 +31,7 @@ scenarios workflow pins. The screen functions need only pyte, so the tests
 in scenarios/tests/ run on Linux too.
 """
 
+import copy
 import json
 import ntpath
 import os
@@ -87,6 +88,40 @@ class _Screen(pyte.Screen):
     """A pyte screen that sends its answers to a callback."""
 
     reply = None
+
+    # The alternate screen (private modes 47, 1047 and 1049), as in tmux
+    # and in the pty backend of the kit (probes/agent/ptydrive.py): the
+    # program draws on an empty screen, and at the exit the main screen
+    # comes back. pyte 0.8.2 has no alternate screen. agy shows its trust
+    # question on the alternate screen (fact 77). With no alternate
+    # screen, the rows of the question stayed above the idle screen of agy
+    # 1.5.15 on Windows, and each step of agy failed with "no-idle".
+    _saved_main = None
+
+    def reset(self):
+        # A full reset (RIS) also leaves the alternate screen.
+        self._saved_main = None
+        super().reset()
+
+    def set_mode(self, *modes, **kwargs):
+        super().set_mode(*modes, **kwargs)
+        if kwargs.get("private") and self._saved_main is None and \
+                any(m in (47, 1047, 1049) for m in modes):
+            self._saved_main = (copy.deepcopy(self.buffer), copy.copy(self.cursor))
+            self.buffer.clear()
+            self.dirty.update(range(self.lines))
+
+    def reset_mode(self, *modes, **kwargs):
+        super().reset_mode(*modes, **kwargs)
+        if kwargs.get("private") and self._saved_main is not None and \
+                any(m in (47, 1047, 1049) for m in modes):
+            buf, cursor = self._saved_main
+            self._saved_main = None
+            self.buffer.clear()
+            self.buffer.update(buf)
+            if 1049 in modes:
+                self.cursor = cursor
+            self.dirty.update(range(self.lines))
 
     def write_process_input(self, data):
         if self.reply is not None:
