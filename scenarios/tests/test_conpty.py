@@ -48,6 +48,9 @@ SAMPLES = {
     "scroll": "".join("line %d\r\n" % i for i in range(60)),
     "alternate-screen": "main 1\r\nmain 2\x1b[?1049h\x1b[H\x1b[2JTrust this folder?\r\n> Yes\x1b[?1049l\r\nafter",
     "alternate-screen-1047": "main\x1b[?1047hdialog\x1b[?1047l back",
+    "alternate-screen-modes-in-order": "abc\x1b[?1049;6h\x1b[?1049l!",
+    "alternate-screen-47-saves-no-cursor": "abc\x1b[?47h\x1b[Hx\x1b[?1049l!",
+    "alternate-screen-cursor-after-last-column": "x" * 120 + "\x1b[?1049h\x1b[?1049l!",
 }
 
 
