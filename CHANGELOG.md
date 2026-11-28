@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.28.2](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.28.1...corpus-v0.28.2) (2026-11-28)
+
+
+### Bug Fixes
+
+* give the ConPTY screen an alternate screen, as in tmux ([#235](https://github.com/xSAVIKx/agent-signals/issues/235)) ([e1cee9a](https://github.com/xSAVIKx/agent-signals/commit/e1cee9ae41a17117791b0c11817fc954d816c890))
+
 ## [0.28.1](https://github.com/xSAVIKx/agent-signals/compare/corpus-v0.28.0...corpus-v0.28.1) (2026-11-22)
 
 
