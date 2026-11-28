@@ -31,6 +31,7 @@ scenarios workflow pins. The screen functions need only pyte, so the tests
 in scenarios/tests/ run on Linux too.
 """
 
+import copy
 import json
 import ntpath
 import os
@@ -87,6 +88,62 @@ class _Screen(pyte.Screen):
     """A pyte screen that sends its answers to a callback."""
 
     reply = None
+
+    # The alternate screen (private modes 47, 1047 and 1049), as in tmux
+    # and in the pty backend of the kit (probes/agent/ptydrive.py): the
+    # program draws on an empty screen, and at the exit the main screen
+    # comes back. pyte 0.8.2 has no alternate screen. agy shows its trust
+    # question on the alternate screen (fact 77). With no alternate
+    # screen, the rows of the question stayed above the idle screen of agy
+    # 1.5.15 on Windows, and each step of agy failed with "no-idle".
+    _saved_main = None
+    # The cursor that mode 1049 saved, apart from the main screen: mode 47
+    # and mode 1047 save no cursor, as in tmux.
+    _saved_cursor = None
+
+    def reset(self):
+        # A full reset (RIS) also leaves the alternate screen.
+        self._saved_main = None
+        self._saved_cursor = None
+        super().reset()
+
+    # Each mode of one sequence takes effect in its order, as in tmux:
+    # "CSI ? 1049 ; 6 h" saves the cursor before mode 6 moves it.
+    def set_mode(self, *modes, **kwargs):
+        if not kwargs.get("private"):
+            super().set_mode(*modes, **kwargs)
+            return
+        for m in modes:
+            if m == 1049 and self._saved_main is None:
+                self._saved_cursor = copy.copy(self.cursor)
+            if m in (47, 1047, 1049) and self._saved_main is None:
+                self._saved_main = copy.deepcopy(self.buffer)
+                self.buffer.clear()
+                self.dirty.update(range(self.lines))
+            super().set_mode(m, **kwargs)
+
+    def reset_mode(self, *modes, **kwargs):
+        if not kwargs.get("private"):
+            super().reset_mode(*modes, **kwargs)
+            return
+        for m in modes:
+            super().reset_mode(m, **kwargs)
+            if m in (47, 1047, 1049) and self._saved_main is not None:
+                buf = self._saved_main
+                self._saved_main = None
+                self.buffer.clear()
+                self.buffer.update(buf)
+                self.dirty.update(range(self.lines))
+                # tmux keeps the cursor on the screen: a cursor after the
+                # last column comes back on the last column.
+                self.cursor.x = min(self.cursor.x, self.columns - 1)
+            if m == 1049 and self._saved_cursor is not None:
+                # tmux keeps the saved cursor, so each later 1049l moves the
+                # cursor back again.
+                c = copy.copy(self._saved_cursor)
+                c.x = min(c.x, self.columns - 1)
+                c.y = min(c.y, self.lines - 1)
+                self.cursor = c
 
     def write_process_input(self, data):
         if self.reply is not None:

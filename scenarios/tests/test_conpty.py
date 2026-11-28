@@ -46,6 +46,14 @@ SAMPLES = {
     "erase-line": "abcdef\x1b[3G\x1b[K\r\n12345\x1b[2D\x1b[1K",
     "title-and-modes": "\x1b]0;agent title\x07\x1b[?25l\x1b[?2004hready\x1b[?25h",
     "scroll": "".join("line %d\r\n" % i for i in range(60)),
+    "alternate-screen": "main 1\r\nmain 2\x1b[?1049h\x1b[H\x1b[2JTrust this folder?\r\n> Yes\x1b[?1049l\r\nafter",
+    "alternate-screen-1047": "main\x1b[?1047hdialog\x1b[?1047l back",
+    "alternate-screen-modes-in-order": "abc\x1b[?1049;6h\x1b[?1049l!",
+    "alternate-screen-47-saves-no-cursor": "abc\x1b[?47h\x1b[Hx\x1b[?1049l!",
+    "alternate-screen-cursor-after-last-column": "x" * 120 + "\x1b[?1049h\x1b[?1049l!",
+    "alternate-screen-47-cursor-after-last-column": "x" * 120 + "\x1b[?47h\x1b[?47l!",
+    "alternate-screen-1047-cursor-after-last-column": "x" * 120 + "\x1b[?1047h\x1b[?1047l!",
+    "alternate-screen-second-exit": "abc\x1b[?1049h\x1b[?1049l\x1b[2;5H\x1b[?1049l!",
 }
 
 
@@ -62,6 +70,22 @@ class ScreenFormat(unittest.TestCase):
 
     def test_inner_spaces_stay(self):
         self.assertEqual(top("a    b   "), "a    b\n")
+
+    def test_alternate_screen_leaves_no_rows(self):
+        # agy 1.5.15 on Windows: the trust question on the alternate screen,
+        # then the idle screen on the main screen.
+        out = top("\x1b[?1049h\x1b[H\x1b[2JDo you trust this folder?\r\n> Yes\r\n"
+                  "\x1b[?1049l? for shortcuts\r\n")
+        self.assertEqual(out, "? for shortcuts\n")
+
+    def test_alternate_screen_keeps_the_main_screen(self):
+        out = top("one\r\ntwo\x1b[?1049hother\x1b[?1049l!")
+        self.assertEqual(out, "one\ntwo!\n")
+
+    def test_reset_leaves_the_alternate_screen(self):
+        t = conpty.Terminal()
+        t.feed("main\x1b[?1049halt\x1bc")
+        self.assertIsNone(t.screen._saved_main)
 
     def test_cursor_move_and_clear(self):
         self.assertEqual(top("junk\x1b[2J\x1b[3;5Hx"), "\n\n    x\n")
