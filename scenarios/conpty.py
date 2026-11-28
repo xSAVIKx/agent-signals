@@ -135,10 +135,10 @@ class _Screen(pyte.Screen):
                 self.buffer.update(buf)
                 self.dirty.update(range(self.lines))
             if m == 1049 and self._saved_cursor is not None:
-                # tmux keeps the cursor on the screen: a cursor after the
-                # last column comes back on the last column.
-                c = self._saved_cursor
-                self._saved_cursor = None
+                # tmux keeps the saved cursor, so each later 1049l moves the
+                # cursor back again. tmux keeps the cursor on the screen: a
+                # cursor after the last column comes back on the last column.
+                c = copy.copy(self._saved_cursor)
                 c.x = min(c.x, self.columns - 1)
                 c.y = min(c.y, self.lines - 1)
                 self.cursor = c
