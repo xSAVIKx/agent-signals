@@ -51,6 +51,8 @@ SAMPLES = {
     "alternate-screen-modes-in-order": "abc\x1b[?1049;6h\x1b[?1049l!",
     "alternate-screen-47-saves-no-cursor": "abc\x1b[?47h\x1b[Hx\x1b[?1049l!",
     "alternate-screen-cursor-after-last-column": "x" * 120 + "\x1b[?1049h\x1b[?1049l!",
+    "alternate-screen-47-cursor-after-last-column": "x" * 120 + "\x1b[?47h\x1b[?47l!",
+    "alternate-screen-1047-cursor-after-last-column": "x" * 120 + "\x1b[?1047h\x1b[?1047l!",
     "alternate-screen-second-exit": "abc\x1b[?1049h\x1b[?1049l\x1b[2;5H\x1b[?1049l!",
 }
 
